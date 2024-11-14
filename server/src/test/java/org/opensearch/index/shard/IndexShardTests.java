@@ -2886,8 +2886,8 @@ public class IndexShardTests extends IndexShardTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test1")
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test1")
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__source")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__source")
                 .build(),
             new InternalEngineFactory()
         );
@@ -2912,6 +2912,49 @@ public class IndexShardTests extends IndexShardTestCase {
         Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) target.store().directory()).getDelegate()).getDelegate();
         ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
         closeShards(target);
+    }
+
+    public void testSyncSegmentsBetweenSnapshotAndRemoteStore() throws IOException {
+        String remoteStorePath = createTempDir().toString();
+        // Create source shard and take snapshot
+        IndexShard source = newStartedShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__snapshot")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__snapshot")
+                .build(),
+            new InternalEngineFactory()
+        );
+        // Index documents and create snapshot
+        indexDoc(source, "_doc", "1");
+        indexDoc(source, "_doc", "2");
+        source.refresh("test");
+        assertTrue("At lease one remote sync should have been completed", source.isRemoteSegmentStoreInSync());
+        assertDocs(source, "1", "2");
+        Collection<String> snapshotSegments = SegmentInfos.readLatestCommit(source.store().directory()).files(false);
+        // Create remote store directory from snapshot
+        RemoteSegmentStoreDirectory snapshotRemoteDir = createRemoteSegmentStoreDirectory(
+            source.shardId(),
+            PathUtils.get(remoteStorePath)
+        );
+        // Get source remote store directory with uploaded segment
+        source.syncSegmentsFromGivenRemoteSegmentStore(false, snapshotRemoteDir, null, false);
+        // Verify first restore uploads segments
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> firstRestoreFiles = snapshotRemoteDir.getSegmentsUploadedToRemoteStore();
+        assertTrue("All segments should be uploaded", firstRestoreFiles.keySet().containsAll(snapshotSegments));
+        // Verify second restore finds existing segments
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> secondRestoreFiles =
+            snapshotRemoteDir.getSegmentsUploadedToRemoteStore();
+        assertTrue("Second restore should not upload segments", secondRestoreFiles.isEmpty());
+        closeShards(source);
+    }
+
+    private RemoteSegmentStoreDirectory getRemoteStoreDirectory(IndexShard shard) {
+        return ((RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) shard
+            .remoteStore()
+            .directory()).getDelegate()).getDelegate());
     }
 
     public void testRefreshLevelRestoreShardFromRemoteStore() throws IOException {

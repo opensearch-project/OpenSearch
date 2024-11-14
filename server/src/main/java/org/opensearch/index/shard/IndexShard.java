@@ -5171,7 +5171,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
             .getSegmentsUploadedToRemoteStore();
         // Checking for existing remote segments in remote
-        boolean hasPreexistingRemoteData = remoteDirectory != null && !remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty();
+        boolean hasPreexistingRemoteData = false;
+        if (remoteDirectory != null && !remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()) {
+            Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> existingSegments =
+                remoteDirectory.getSegmentsUploadedToRemoteStore();
+            // Compare metadata to ensure we have latest segments
+            hasPreexistingRemoteData = uploadedSegments.entrySet().stream().allMatch(entry -> {
+                RemoteSegmentStoreDirectory.UploadedSegmentMetadata existing = existingSegments.get(entry.getKey());
+                return existing != null &&
+                    existing.getChecksum().equals(entry.getValue().getChecksum()) &&
+                    existing.getLength() >= entry.getValue().getLength();
+            });
+        }
         store.incRef();
         try {
             final Directory storeDirectory;
