@@ -10,16 +10,22 @@ package org.opensearch.grpc.services;
 
 import io.grpc.BindableService;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /*
 TODO: Service validation?
 TODO: Handle compatibility/errors/dups here before we inject services into gRPC server
  */
-public class gRPCServiceRegistry extends ArrayList<BindableService> {
+public class GrpcServiceRegistry {
 
-    public gRPCServiceRegistry() { }
+    private final List<BindableService> services;
 
-    public gRPCServiceRegistry(ArrayList<BindableService> services) {
-        this.addAll(services);
+    public GrpcServiceRegistry(BindableService... services) {
+        this.services = List.of(services);
+    }
+
+    public List<BindableService> getServices() {
+        return services;
     }
 }

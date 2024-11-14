@@ -53,7 +53,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.grpc.GrpcServerTransport;
-import org.opensearch.grpc.services.gRPCServiceRegistry;
+import org.opensearch.grpc.services.GrpcServiceRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.plugins.NetworkPlugin;
@@ -175,7 +175,7 @@ public final class NetworkModule {
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
         NamedXContentRegistry xContentRegistry,
-        gRPCServiceRegistry grpcServiceRegistry,
+        GrpcServiceRegistry grpcServiceRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,

@@ -46,7 +46,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.grpc.GrpcServerTransport;
 import org.opensearch.grpc.netty4.Netty4GrpcServerTransport;
-import org.opensearch.grpc.services.gRPCServiceRegistry;
+import org.opensearch.grpc.services.GrpcServiceRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
 import org.opensearch.http.netty4.ssl.SecureNetty4HttpServerTransport;
@@ -155,7 +155,7 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
     }
 
     @Override
-    public Map<String, Supplier<GrpcServerTransport>> getGrpcTransports(Settings settings, NetworkService networkService, gRPCServiceRegistry grpcServiceRegistry) {
+    public Map<String, Supplier<GrpcServerTransport>> getGrpcTransports(Settings settings, NetworkService networkService, GrpcServiceRegistry grpcServiceRegistry) {
         return Collections.singletonMap(
             NETTY_GRPC_TRANSPORT_NAME,
             () -> new Netty4GrpcServerTransport(settings, networkService, getSharedGroupFactory(settings), grpcServiceRegistry)

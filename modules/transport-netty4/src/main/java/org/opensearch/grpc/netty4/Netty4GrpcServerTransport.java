@@ -18,7 +18,7 @@ import org.opensearch.common.transport.PortsRange;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.grpc.AbstractGrpcServerTransport;
 import org.opensearch.grpc.GrpcStats;
-import org.opensearch.grpc.services.gRPCServiceRegistry;
+import org.opensearch.grpc.services.GrpcServiceRegistry;
 import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.SharedGroupFactory;
 
@@ -47,14 +47,14 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
     public static final Setting<Integer> SETTING_GRPC_WORKER_COUNT = Setting.intSetting("grpc.worker_count", 1, Setting.Property.NodeScope);
 
     private final SharedGroupFactory sharedGroupFactory;
-    private final gRPCServiceRegistry grpcServiceRegistry;
+    private final GrpcServiceRegistry grpcServiceRegistry;
     private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     private final ServerStatsInterceptor sharedServerStatsInterceptor;
     private final AtomicLong currentOpen = new AtomicLong(0);
     private final AtomicLong totalOpened = new AtomicLong(0);
 
-    public Netty4GrpcServerTransport(Settings settings, NetworkService networkService, SharedGroupFactory sharedGroupFactory, gRPCServiceRegistry grpcServiceRegistry) {
+    public Netty4GrpcServerTransport(Settings settings, NetworkService networkService, SharedGroupFactory sharedGroupFactory, GrpcServiceRegistry grpcServiceRegistry) {
         super(settings, networkService);
         this.sharedGroupFactory = sharedGroupFactory;
         this.sharedServerStatsInterceptor = new ServerStatsInterceptor(currentOpen, totalOpened);
@@ -92,7 +92,7 @@ public class Netty4GrpcServerTransport extends AbstractGrpcServerTransport {
                     .addService(new HealthStatusManager().getHealthService())
                     .addService(ProtoReflectionService.newInstance());
 
-                for (BindableService bService : grpcServiceRegistry) {
+                for (BindableService bService : grpcServiceRegistry.getServices()) {
                     srvBuilder.addService(bService);
                 }
 
