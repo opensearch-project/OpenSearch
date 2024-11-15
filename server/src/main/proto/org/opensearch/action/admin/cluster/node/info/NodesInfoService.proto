@@ -16,17 +16,27 @@ import "org/opensearch/action/admin/cluster/node/info/NodesInfoProto.proto";
 
 option java_outer_classname = "NodesInfoProtoService";
 
-message NodesInfoRequest {
-  repeated string requestedMetrics = 1;
-  string timeout = 2;
+message StringList {
+  repeated string str_list = 1;
 }
 
-message NodesInfoResponse {
+message Metrics {
+  bool all = 1;
+  StringList metric_list = 2;
+}
+
+message NodesInfoRequestProto {
+  Metrics metrics = 1;
+  string timeout = 2;
+  repeated string nodeIds = 3;
+}
+
+message NodesInfoResponseProto {
   string clusterName = 1;
   repeated NodesInfo nodesInfo = 2;
 }
 
 service NodesInfoService {
-  rpc GetNodesInfo(NodesInfoRequest) returns (NodesInfoResponse) {}
-  rpc StreamNodesInfo(NodesInfoRequest) returns (stream NodesInfoResponse) {}
+  rpc GetNodesInfo(NodesInfoRequestProto) returns (NodesInfoResponseProto) {}
+  rpc StreamNodesInfo(NodesInfoRequestProto) returns (stream NodesInfoResponseProto) {}
 }

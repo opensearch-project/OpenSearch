@@ -15,11 +15,29 @@ package org.opensearch.action.admin.cluster.node.info.proto;
 option java_outer_classname = "NodesInfoProto";
 
 message NodesInfo {
-  string nodeId = 1;
-  int64 processId = 2;
-  string address = 3;
-  string displayName = 4;
-  string hash = 5;
-  string jvmInfoVersion = 6;
-  string jvmHeapMax = 7;
+  string node_id = 1;
+  string node_name = 2;
+  string transport_address = 3;
+  string host = 4;
+  string ip = 5;
+  string version = 6;
+  string build_type = 7;
+  string build_hash = 8;
+  repeated string roles = 9;
+  map<string, string> attributes = 10;
+  optional string total_indexing_buffer = 11;
+
+  // TODO: Writing these more complex objects to strings in JSON
+  optional string settings = 12;
+  optional string os = 13;
+  optional string process = 14;
+  optional string jvm = 15;
+  optional string thread_pool = 16;
+  optional string transport = 17;
+  optional string http = 18;
+  optional string grpc = 19;
+  optional string plugins = 20;
+  optional string ingest = 21;
+  optional string aggs = 22;
+  optional string search_pipelines = 24;
 }
