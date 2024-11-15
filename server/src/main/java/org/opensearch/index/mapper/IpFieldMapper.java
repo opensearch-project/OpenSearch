@@ -252,21 +252,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                     true
                 );
             }
-            return indexOrDvQuery(pointQuery, dvQuery);
-        }
-
-        private Query indexOrDvQuery(Query pointQuery, Query dvQuery) {
             if (isSearchable() && hasDocValues()) {
-                assert pointQuery != null && dvQuery != null;
                 return new IndexOrDocValuesQuery(pointQuery, dvQuery);
             } else {
-                if (isSearchable()) {
-                    assert pointQuery != null;
-                    return pointQuery;
-                } else {
-                    assert dvQuery != null;
-                    return dvQuery;
-                }
+                return isSearchable() ? pointQuery : dvQuery;
             }
         }
 
@@ -305,7 +294,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             if (isSearchable()) {
                 pointQuery = InetAddressPoint.newSetQuery(name(), addresses);
             }
-            return indexOrDvQuery(pointQuery, dvQuery);
+            if (isSearchable() && hasDocValues()) {
+                return new IndexOrDocValuesQuery(pointQuery, dvQuery);
+            } else {
+                return isSearchable() ? pointQuery : dvQuery;
+            }
         }
 
         @Override
@@ -323,7 +316,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                         true
                     );
                 }
-                return indexOrDvQuery(pointQuery, dvQuery);
+                if (isSearchable() && hasDocValues()) {
+                    return new IndexOrDocValuesQuery(pointQuery, dvQuery);
+                } else {
+                    return isSearchable() ? pointQuery : dvQuery;
+                }
             });
         }
 
