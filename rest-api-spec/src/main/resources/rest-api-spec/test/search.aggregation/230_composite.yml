@@ -512,8 +512,8 @@ setup:
 ---
 "Composite aggregation with filtered nested parent":
   - skip:
-      version: " - 2.99.99"
-      reason:  fixed in 3.0.0
+      version: " - 2.12.99"
+      reason:  fixed in 2.13.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -582,8 +582,8 @@ setup:
 ---
 "Composite aggregation with filtered reverse nested parent":
   - skip:
-      version: " - 2.99.99"
-      reason:  fixed in 3.0.0
+      version: " - 2.12.99"
+      reason:  fixed in 2.13.0
   - do:
       search:
         rest_total_hits_as_int: true
