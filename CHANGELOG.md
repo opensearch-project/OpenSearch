@@ -32,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 9.46 ([#16611](https://github.com/opensearch-project/OpenSearch/pull/16611))
 - Bump `lycheeverse/lychee-action` from 2.0.2 to 2.1.0 ([#16610](https://github.com/opensearch-project/OpenSearch/pull/16610))
 - Bump `me.champeau.gradle.japicmp` from 0.4.4 to 0.4.5 ([#16614](https://github.com/opensearch-project/OpenSearch/pull/16614))
+- Bump `mockito` from 5.14.1 to 5.14.2 and `objenesis` from 3.2 to 3.3 ([#16655](https://github.com/opensearch-project/OpenSearch/pull/16655))
 
 ### Changed
 
