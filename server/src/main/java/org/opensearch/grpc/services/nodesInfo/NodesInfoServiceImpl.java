@@ -57,14 +57,7 @@ public class NodesInfoServiceImpl extends NodesInfoServiceGrpc.NodesInfoServiceI
         responseObserver.onNext(respToProto(response));
         responseObserver.onCompleted();
     }
-
-    @Override
-    public void streamNodesInfo(NodesInfoProtoService.NodesInfoRequestProto request, StreamObserver<NodesInfoProtoService.NodesInfoResponseProto> responseObserver) {
-        responseObserver.onError(
-            Status.UNIMPLEMENTED.withDescription("Method StreamNodesInfo is not implemented").asRuntimeException()
-        );
-    }
-
+    
     private static NodesInfoRequest reqFromProto(NodesInfoProtoService.NodesInfoRequestProto request) {
         String[] nodeIds = request.getNodeIdsList().toArray(new String[0]);
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);

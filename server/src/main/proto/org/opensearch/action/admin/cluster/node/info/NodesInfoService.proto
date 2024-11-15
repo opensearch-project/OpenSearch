@@ -38,5 +38,4 @@ message NodesInfoResponseProto {
 
 service NodesInfoService {
   rpc GetNodesInfo(NodesInfoRequestProto) returns (NodesInfoResponseProto) {}
-  rpc StreamNodesInfo(NodesInfoRequestProto) returns (stream NodesInfoResponseProto) {}
 }
