@@ -1155,7 +1155,7 @@ public class Node implements Closeable {
             );
 
             GrpcServiceRegistry grpcReg = new GrpcServiceRegistry(
-                new NodesInfoServiceImpl()
+                new NodesInfoServiceImpl(client)
                 // TODO: Other service stubs here
             );
 
