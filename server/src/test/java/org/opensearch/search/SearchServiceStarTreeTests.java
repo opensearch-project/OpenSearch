@@ -17,7 +17,6 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
-import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
@@ -26,6 +25,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.aggregations.startree.StarTreeFilterTests;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ReaderContext;
@@ -55,7 +55,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(settings)
-            .setMapping(StarTreeDocValuesFormatTests.getExpandedMapping());
+            .setMapping(StarTreeFilterTests.getExpandedMapping(1, false));
         createIndex("test", builder);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
