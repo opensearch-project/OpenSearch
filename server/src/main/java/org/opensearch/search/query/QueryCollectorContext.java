@@ -83,7 +83,8 @@ public abstract class QueryCollectorContext {
 
     private static final ReduceableSearchResult EMPTY_RESULT = result -> {};
 
-    private static QueryCollectorContext createEmptyContext(String name, Collector collector) {
+    private static QueryCollectorContext createEmptyContext(Collector collector) {
+        String name = String.format(Locale.ROOT, "empty_with_score_mode_%s", collector.scoreMode().toString().toLowerCase(Locale.ROOT));
         return new QueryCollectorContext(name) {
             @Override
             Collector create(Collector in) {
@@ -108,19 +109,11 @@ public abstract class QueryCollectorContext {
         };
     }
 
-    private static String formatContextName(ScoreMode scoreMode) {
-        return String.format(Locale.ROOT, "empty_with_score_mode_%s", scoreMode.toString().toLowerCase(Locale.ROOT));
-    }
-
     private static final Collector EMPTY_COLLECTOR = createEmptyCollector(ScoreMode.COMPLETE_NO_SCORES);
-    public static final QueryCollectorContext EMPTY_CONTEXT = createEmptyContext(
-        formatContextName(ScoreMode.COMPLETE_NO_SCORES),
-        createEmptyCollector(ScoreMode.COMPLETE_NO_SCORES)
-    );
-    public static final QueryCollectorContext EMPTY_CONTEXT_TOP_SCORES_SCORE_MODE = createEmptyContext(
-        formatContextName(ScoreMode.TOP_SCORES),
-        createEmptyCollector(ScoreMode.TOP_SCORES)
-    );
+    private static final Collector EMPTY_COLLECTOR_TOP_SCORES = createEmptyCollector(ScoreMode.TOP_SCORES);
+
+    public static final QueryCollectorContext EMPTY_CONTEXT = createEmptyContext(EMPTY_COLLECTOR);
+    public static final QueryCollectorContext EMPTY_CONTEXT_TOP_SCORES_SCORE_MODE = createEmptyContext(EMPTY_COLLECTOR_TOP_SCORES);
 
     private String profilerName;
 
