@@ -53,7 +53,7 @@ import java.util.LinkedList;
  * Operations for minimizing automata.
  * Copied from https://github.com/apache/lucene/blob/main/lucene/core/src/test/org/apache/lucene/util/automaton/MinimizationOperations.java
  *
- * @lucene.experimental
+ * @opensearch.experimental
  */
 public final class MinimizationOperations {
 
