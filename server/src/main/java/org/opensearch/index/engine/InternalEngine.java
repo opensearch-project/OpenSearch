@@ -90,6 +90,7 @@ import org.opensearch.core.Assertions;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.opensearch.index.mapper.IdFieldMapper;
@@ -112,11 +113,13 @@ import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.indices.ingest.StreamPoller;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -2497,6 +2500,10 @@ public class InternalEngine extends Engine {
         }
     }
 
+    protected IngestionShardPointer getPointer(){
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Commits the specified index writer.
      *
@@ -2524,6 +2531,12 @@ public class InternalEngine extends Engine {
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
+                // todo: better inject this
+                try {
+                    commitData.put("IngestionPointer", new String(getPointer().serialize(), "UTF-8") );
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e);
+                }
                 final String currentForceMergeUUID = forceMergeUUID;
                 if (currentForceMergeUUID != null) {
                     commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);

@@ -19,8 +19,8 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
         T pointer;
         M message;
 
-        public ReadResult(T kafkaOffset, M message) {
-            this.pointer = kafkaOffset;
+        public ReadResult(T pointer, M message) {
+            this.pointer = pointer;
             this.message = message;
         }
 
@@ -43,6 +43,11 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @return a list of messages read from the source
      */
     List<ReadResult<T, M>> readNext(T pointer, long maxMessages, int timeoutMillis) throws java.util.concurrent.TimeoutException;
+
+    /**
+     * @return the next pointer to read from
+     */
+    T nextPointer();
 
 
 //    public KafkaIngestionSource.Iterator createSourcePointer(int shardNum) {

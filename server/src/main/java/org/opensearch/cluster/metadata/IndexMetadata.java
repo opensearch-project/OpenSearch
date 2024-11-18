@@ -69,6 +69,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IngestionSourceConfig;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.indices.replication.SegmentReplicationSource;
@@ -705,6 +706,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final Version indexCreatedVersion;
     private final Version indexUpgradedVersion;
 
+    // TODO better config this
+    private IngestionSourceConfig ingestionSourceConfig;
+
     private final ActiveShardCount waitForActiveShards;
     private final Map<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
@@ -837,6 +841,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public Version getCreationVersion() {
         return indexCreatedVersion;
     }
+
+    public IngestionSourceConfig getIngestionSourceConfig(){
+        return ingestionSourceConfig;
+    }
+
 
     /**
      * Return the {@link Version} on which this index has been upgraded. This
