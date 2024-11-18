@@ -126,6 +126,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private BitSetProducer parentFilter;
     private DerivedFieldResolver derivedFieldResolver;
     private boolean keywordIndexOrDocValuesEnabled;
+    private boolean isInnerHitQuery;
 
     public QueryShardContext(
         int shardId,
@@ -726,5 +727,13 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public void setParentFilter(BitSetProducer parentFilter) {
         this.parentFilter = parentFilter;
+    }
+
+    public boolean isInnerHitQuery() {
+        return isInnerHitQuery;
+    }
+
+    public void setInnerHitQuery(boolean isInnerHitQuery) {
+        this.isInnerHitQuery = isInnerHitQuery;
     }
 }
