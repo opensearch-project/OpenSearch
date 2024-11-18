@@ -51,14 +51,10 @@ import org.opensearch.search.profile.query.InternalProfileCollectorManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
@@ -112,29 +108,19 @@ public abstract class QueryCollectorContext {
         };
     }
 
-    private static final Map<ScoreMode, QueryCollectorContext> CONTEXTS = Arrays.stream(ScoreMode.values())
-        .collect(
-            Collectors.toMap(
-                Function.identity(),
-                scoreMode -> createEmptyContext(formatContextName(scoreMode), createEmptyCollector(scoreMode))
-            )
-        );
-
     private static String formatContextName(ScoreMode scoreMode) {
         return String.format(Locale.ROOT, "empty_with_score_mode_%s", scoreMode.toString().toLowerCase(Locale.ROOT));
     }
 
     private static final Collector EMPTY_COLLECTOR = createEmptyCollector(ScoreMode.COMPLETE_NO_SCORES);
-    public static final QueryCollectorContext EMPTY_CONTEXT = CONTEXTS.get(ScoreMode.COMPLETE_NO_SCORES);
-
-    /**
-     * Returns the {@link QueryCollectorContext} for the provided {@link ScoreMode}
-     *
-     * @param scoreMode The score mode to get the context for
-     */
-    public static QueryCollectorContext getContextForScoreMode(final ScoreMode scoreMode) {
-        return CONTEXTS.getOrDefault(scoreMode, EMPTY_CONTEXT);
-    }
+    public static final QueryCollectorContext EMPTY_CONTEXT = createEmptyContext(
+        formatContextName(ScoreMode.COMPLETE_NO_SCORES),
+        createEmptyCollector(ScoreMode.COMPLETE_NO_SCORES)
+    );
+    public static final QueryCollectorContext EMPTY_CONTEXT_TOP_SCORES_SCORE_MODE = createEmptyContext(
+        formatContextName(ScoreMode.TOP_SCORES),
+        createEmptyCollector(ScoreMode.TOP_SCORES)
+    );
 
     private String profilerName;
 

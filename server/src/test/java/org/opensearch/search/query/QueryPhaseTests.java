@@ -1197,28 +1197,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         verifyNoMoreInteractions(mockedSearchContext);
     }
 
-    public void testQueryCollectorContextScoreModes() throws Exception {
-        // Test default empty context
-        QueryCollectorContext emptyContext = QueryCollectorContext.EMPTY_CONTEXT;
-        assertEquals(org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, emptyContext.create(null).scoreMode());
-
-        // Test getting context for different score modes
-        org.apache.lucene.search.ScoreMode[] scoreModes = org.apache.lucene.search.ScoreMode.values();
-        for (org.apache.lucene.search.ScoreMode scoreMode : scoreModes) {
-            QueryCollectorContext context = QueryCollectorContext.getContextForScoreMode(scoreMode);
-            assertEquals(scoreMode, context.create(null).scoreMode());
-        }
-
-        // Test that invalid score mode returns empty context
-        QueryCollectorContext defaultContext = QueryCollectorContext.getContextForScoreMode(null);
-        assertEquals(QueryCollectorContext.EMPTY_CONTEXT, defaultContext);
-        assertEquals(org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, defaultContext.create(null).scoreMode());
-    }
-
-    public void testQueryCollectorContextTopScores() throws Exception {
-        QueryCollectorContext topScoresContext = QueryCollectorContext.getContextForScoreMode(
-            org.apache.lucene.search.ScoreMode.TOP_SCORES
-        );
+    public void testEmptyQueryCollectorContextAndDifferentScoreModes() throws Exception {
+        QueryCollectorContext topScoresContext = QueryCollectorContext.EMPTY_CONTEXT_TOP_SCORES_SCORE_MODE;
 
         // Verify score mode
         assertEquals(org.apache.lucene.search.ScoreMode.TOP_SCORES, topScoresContext.create(null).scoreMode());
