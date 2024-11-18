@@ -142,6 +142,7 @@ import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.IndexMetaDataGenerations;
@@ -167,6 +168,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.SoftReference;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -196,6 +198,7 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static org.opensearch.common.unit.MemorySizeValue.parseBytesSizeValueOrHeapRatio;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
 import static org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 import static org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS;
@@ -253,6 +256,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final String VIRTUAL_DATA_BLOB_PREFIX = "v__";
 
+    public static final String SNAPSHOT_REPOSITORY_DATA_CACHET_THRESHOLD_SETTING_NAME = "snapshot.repository_data.cache.threshold";
+
+    public static final double SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD_DEFAULT_PERCENTAGE = 0.01;
+
+    public static final long CACHE_MIN_THRESHOLD = ByteSizeUnit.KB.toBytes(500);
+
+    public static final long CACHE_MAX_THRESHOLD = calculateMaxSnapshotRepositoryDataCacheThreshold();
+
+    public static final long CACHE_DEFAULT_THRESHOLD = calculateDefaultSnapshotRepositoryDataCacheThreshold();
+
+    /**
+     * Set to Integer.MAX_VALUE - 8 to prevent OutOfMemoryError due to array header requirements, following the limit used in certain JDK versions.
+     * This ensures compatibility across various JDK versions. For a practical usage example,
+     * see this link: https://github.com/openjdk/jdk11u/blob/cee8535a9d3de8558b4b5028d68e397e508bef71/src/jdk.zipfs/share/classes/jdk/nio/zipfs/ByteArrayChannel.java#L226
+     */
+    private static final int MAX_SAFE_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+
     /**
      * When set to {@code true}, {@link #bestEffortConsistency} will be set to {@code true} and concurrent modifications of the repository
      * contents will not result in the repository being marked as corrupted.
@@ -274,6 +294,58 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         true,
         Setting.Property.Deprecated
     );
+
+    /**
+     * Sets the cache size for snapshot repository data: the valid range is within 500Kb  ... 1% of the node heap memory.
+     */
+    public static final Setting<ByteSizeValue> SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD = new Setting<>(
+        SNAPSHOT_REPOSITORY_DATA_CACHET_THRESHOLD_SETTING_NAME,
+        CACHE_DEFAULT_THRESHOLD + "b",
+        (s) -> {
+            ByteSizeValue userDefinedLimit = parseBytesSizeValueOrHeapRatio(s, SNAPSHOT_REPOSITORY_DATA_CACHET_THRESHOLD_SETTING_NAME);
+            long userDefinedLimitBytes = userDefinedLimit.getBytes();
+
+            if (userDefinedLimitBytes > CACHE_MAX_THRESHOLD) {
+                throw new IllegalArgumentException(
+                    "["
+                        + SNAPSHOT_REPOSITORY_DATA_CACHET_THRESHOLD_SETTING_NAME
+                        + "] cannot be larger than ["
+                        + CACHE_MAX_THRESHOLD
+                        + "] bytes."
+                );
+            }
+
+            if (userDefinedLimitBytes < CACHE_MIN_THRESHOLD) {
+                throw new IllegalArgumentException(
+                    "["
+                        + SNAPSHOT_REPOSITORY_DATA_CACHET_THRESHOLD_SETTING_NAME
+                        + "] cannot be smaller than ["
+                        + CACHE_MIN_THRESHOLD
+                        + "] bytes."
+                );
+            }
+
+            return userDefinedLimit;
+        },
+        Setting.Property.NodeScope
+    );
+
+    public static long calculateDefaultSnapshotRepositoryDataCacheThreshold() {
+        return Math.max(ByteSizeUnit.KB.toBytes(500), CACHE_MAX_THRESHOLD / 2);
+    }
+
+    public static long calculateMaxSnapshotRepositoryDataCacheThreshold() {
+        long jvmHeapSize = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long defaultThresholdOfHeap = (long) (jvmHeapSize * SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD_DEFAULT_PERCENTAGE);
+        long defaultAbsoluteThreshold = ByteSizeUnit.KB.toBytes(500);
+        long maxThreshold = calculateMaxWithinIntLimit(defaultThresholdOfHeap, defaultAbsoluteThreshold);
+
+        return maxThreshold;
+    }
+
+    protected static long calculateMaxWithinIntLimit(long defaultThresholdOfHeap, long defaultAbsoluteThreshold) {
+        return Math.min(Math.max(defaultThresholdOfHeap, defaultAbsoluteThreshold), MAX_SAFE_ARRAY_SIZE);
+    }
 
     /**
      * Size hint for the IO buffer size to use when reading from and writing to the repository.
@@ -461,6 +533,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private volatile boolean enableAsyncDeletion;
 
+    protected final long repositoryDataCacheThreshold;
+
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
      * {@link RepositoryMetadata#pendingGeneration()} than for {@link RepositoryMetadata#generation()} indicating a full cluster restart
@@ -515,6 +589,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.snapshotShardPathPrefix = SNAPSHOT_SHARD_PATH_PREFIX_SETTING.get(clusterService.getSettings());
         this.enableAsyncDeletion = SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING, this::setEnableAsyncDeletion);
+        this.repositoryDataCacheThreshold = SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD.get(clusterService.getSettings()).getBytes();
     }
 
     @Override
@@ -1132,7 +1207,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             cached = null;
         } else {
             genToLoad = latestKnownRepoGen.get();
-            cached = latestKnownRepositoryData.get();
+            SoftReference<Tuple<Long, BytesReference>> softRef = latestKnownRepositoryData.get();
+            cached = (softRef != null) ? softRef.get() : null;
         }
         if (genToLoad > generation) {
             // It's always a possibility to not see the latest index-N in the listing here on an eventually consistent blob store, just
@@ -2307,11 +2383,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return An Optional containing the shard path with the highest generation number, or empty if the list is empty
      */
     private Optional<String> findHighestGenerationShardPaths(List<String> matchingShardPaths) {
-        return matchingShardPaths.stream()
-            .map(s -> s.split("\\" + SnapshotShardPaths.DELIMITER))
-            .sorted((a, b) -> Integer.parseInt(b[2]) - Integer.parseInt(a[2]))
-            .map(parts -> String.join(SnapshotShardPaths.DELIMITER, parts))
-            .findFirst();
+        if (matchingShardPaths.isEmpty()) {
+            return Optional.empty();
+        }
+
+        int maxGen = Integer.MIN_VALUE;
+        String maxGenShardPath = null;
+
+        for (String shardPath : matchingShardPaths) {
+            String[] parts = shardPath.split("\\" + SnapshotShardPaths.DELIMITER);
+            int shardCount = Integer.parseInt(parts[parts.length - 3]);
+            if (shardCount > maxGen) {
+                maxGen = shardCount;
+                maxGenShardPath = shardPath;
+            }
+        }
+        assert maxGenShardPath != null : "Valid maxGenShardPath should be present";
+        return Optional.of(maxGenShardPath);
     }
 
     /**
@@ -2549,22 +2637,28 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * on account of new indexes by same index name being snapshotted that exists already in the repository's snapshots.
      */
     private void cleanupRedundantSnapshotShardPaths(Set<String> updatedShardPathsIndexIds) {
-        Set<String> updatedIndexIds = updatedShardPathsIndexIds.stream()
-            .map(s -> getIndexId(s.split("\\" + SnapshotShardPaths.DELIMITER)[0]))
-            .collect(Collectors.toSet());
-        Set<String> indexIdShardPaths = getSnapshotShardPaths().keySet();
-        List<String> staleShardPaths = indexIdShardPaths.stream().filter(s -> updatedShardPathsIndexIds.contains(s) == false).filter(s -> {
-            String indexId = getIndexId(s.split("\\" + SnapshotShardPaths.DELIMITER)[0]);
-            return updatedIndexIds.contains(indexId);
-        }).collect(Collectors.toList());
         try {
+            Set<String> updatedIndexIds = updatedShardPathsIndexIds.stream()
+                .map(s -> getIndexId(s.split("\\" + SnapshotShardPaths.DELIMITER)[0]))
+                .collect(Collectors.toSet());
+            logger.debug(new ParameterizedMessage("updatedIndexIds={}", updatedIndexIds));
+            Set<String> indexIdShardPaths = getSnapshotShardPaths().keySet();
+            logger.debug(new ParameterizedMessage("indexIdShardPaths={}", indexIdShardPaths));
+            List<String> staleShardPaths = indexIdShardPaths.stream()
+                .filter(s -> updatedShardPathsIndexIds.contains(s) == false)
+                .filter(s -> {
+                    String indexId = getIndexId(s.split("\\" + SnapshotShardPaths.DELIMITER)[0]);
+                    return updatedIndexIds.contains(indexId);
+                })
+                .collect(Collectors.toList());
+            logger.debug(new ParameterizedMessage("staleShardPaths={}", staleShardPaths));
             deleteFromContainer(snapshotShardPathBlobContainer(), staleShardPaths);
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.warn(
                 new ParameterizedMessage(
-                    "Repository [{}] Exception during snapshot stale index deletion {}",
+                    "Repository [{}] Exception during snapshot stale index deletion for updatedIndexIds {}",
                     metadata.name(),
-                    staleShardPaths
+                    updatedShardPathsIndexIds
                 ),
                 e
             );
@@ -2926,7 +3020,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.UNKNOWN_REPO_GEN);
 
     // Best effort cache of the latest known repository data and its generation, cached serialized as compressed json
-    private final AtomicReference<Tuple<Long, BytesReference>> latestKnownRepositoryData = new AtomicReference<>();
+    private final AtomicReference<SoftReference<Tuple<Long, BytesReference>>> latestKnownRepositoryData = new AtomicReference<>(
+        new SoftReference<>(null)
+    );
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
@@ -2934,7 +3030,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onFailure(corruptedStateException(null));
             return;
         }
-        final Tuple<Long, BytesReference> cached = latestKnownRepositoryData.get();
+        final SoftReference<Tuple<Long, BytesReference>> softRef = latestKnownRepositoryData.get();
+        final Tuple<Long, BytesReference> cached = (softRef != null) ? softRef.get() : null;
+
         // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
         // the latest known repository generation
         if (bestEffortConsistency == false && cached != null && cached.v1() == latestKnownRepoGen.get()) {
@@ -2983,7 +3081,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 genToLoad = latestKnownRepoGen.get();
             }
             try {
-                final Tuple<Long, BytesReference> cached = latestKnownRepositoryData.get();
+                final SoftReference<Tuple<Long, BytesReference>> softRef = latestKnownRepositoryData.get();
+                final Tuple<Long, BytesReference> cached = (softRef != null) ? softRef.get() : null;
                 final RepositoryData loaded;
                 // Caching is not used with #bestEffortConsistency see docs on #cacheRepositoryData for details
                 if (bestEffortConsistency == false && cached != null && cached.v1() == genToLoad) {
@@ -3050,19 +3149,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 serialized = CompressorRegistry.defaultCompressor().compress(updated);
                 final int len = serialized.length();
-                if (len > ByteSizeUnit.KB.toBytes(500)) {
+                long cacheWarningThreshold = Math.min(repositoryDataCacheThreshold * 10, MAX_SAFE_ARRAY_SIZE);
+                if (len > repositoryDataCacheThreshold) {
                     logger.debug(
-                        "Not caching repository data of size [{}] for repository [{}] because it is larger than 500KB in"
+                        "Not caching repository data of size [{}] for repository [{}] because it is larger than [{}] bytes in"
                             + " serialized size",
                         len,
-                        metadata.name()
+                        metadata.name(),
+                        repositoryDataCacheThreshold
                     );
-                    if (len > ByteSizeUnit.MB.toBytes(5)) {
+                    if (len > cacheWarningThreshold) {
                         logger.warn(
-                            "Your repository metadata blob for repository [{}] is larger than 5MB. Consider moving to a fresh"
+                            "Your repository metadata blob for repository [{}] is larger than [{}] bytes. Consider moving to a fresh"
                                 + " repository for new snapshots or deleting unneeded snapshots from your repository to ensure stable"
                                 + " repository behavior going forward.",
-                            metadata.name()
+                            metadata.name(),
+                            cacheWarningThreshold
                         );
                     }
                     // Set empty repository data to not waste heap for an outdated cached value
@@ -3074,11 +3176,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("Failed to serialize repository data", e);
                 return;
             }
-            latestKnownRepositoryData.updateAndGet(known -> {
+            latestKnownRepositoryData.updateAndGet(knownRef -> {
+                Tuple<Long, BytesReference> known = (knownRef != null) ? knownRef.get() : null;
                 if (known != null && known.v1() > generation) {
-                    return known;
+                    return knownRef;
                 }
-                return new Tuple<>(generation, serialized);
+                return new SoftReference<>(new Tuple<>(generation, serialized));
             });
         }
     }
