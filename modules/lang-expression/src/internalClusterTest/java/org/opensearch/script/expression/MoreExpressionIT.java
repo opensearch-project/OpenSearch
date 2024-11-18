@@ -752,7 +752,7 @@ public class MoreExpressionIT extends ParameterizedStaticSettingsOpenSearchInteg
         builder.setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.scriptQuery(script)));
         SearchResponse rsp = builder.get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
         assertEquals(1.0D, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 }

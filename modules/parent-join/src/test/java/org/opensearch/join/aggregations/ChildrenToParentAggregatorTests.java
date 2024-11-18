@@ -142,18 +142,22 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         // verify for each children
         for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId("child0_" + parent)), indexSearcher, aggregation -> {
-                assertEquals(
-                    "Expected one result for min-aggregation for parent: " + parent + ", but had aggregation-results: " + aggregation,
-                    1,
-                    aggregation.getDocCount()
-                );
-                assertEquals(
-                    expectedParentChildRelations.get(parent).v2(),
-                    ((InternalMin) aggregation.getAggregations().get("in_parent")).getValue(),
-                    Double.MIN_VALUE
-                );
-            });
+            testCase(
+                new TermInSetQuery(IdFieldMapper.NAME, Collections.singleton(Uid.encodeId("child0_" + parent))),
+                indexSearcher,
+                aggregation -> {
+                    assertEquals(
+                        "Expected one result for min-aggregation for parent: " + parent + ", but had aggregation-results: " + aggregation,
+                        1,
+                        aggregation.getDocCount()
+                    );
+                    assertEquals(
+                        expectedParentChildRelations.get(parent).v2(),
+                        ((InternalMin) aggregation.getAggregations().get("in_parent")).getValue(),
+                        Double.MIN_VALUE
+                    );
+                }
+            );
         }
 
         indexReader.close();
