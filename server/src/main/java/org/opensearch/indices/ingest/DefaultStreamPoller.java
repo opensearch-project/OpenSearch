@@ -42,13 +42,15 @@ public class DefaultStreamPoller implements StreamPoller {
 
     private DocumentProcessor processor;
 
-    private IngestionShardPointer pointer;
+    private IngestionShardPointer nextPointer;
+
+    // todo: find the default value
+    private IngestionShardPointer currentPointer;
 
     DefaultStreamPoller(IngestionShardPointer startPointer, IngestionShardConsumer consumer, DocumentProcessor processor) {
         this.consumer = consumer;
         this.processor = processor;
-        // TODO set the pointer
-        pointer = startPointer;
+        nextPointer = startPointer;
         this.consumerThread =
             Executors.newSingleThreadExecutor(
                 r ->
@@ -71,7 +73,6 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         logger.info("Starting poller for shard {}", consumer.getShardId());
 
-        long currentOffset = -1;
         while (true) {
             try {
                 if (closed) {
@@ -94,16 +95,19 @@ public class DefaultStreamPoller implements StreamPoller {
 
                 state = state.POLLING;
 
-                List<IngestionShardConsumer.ReadResult>  results = consumer.readNext(pointer, MAX_POLL_SIZE, POLL_TIMEOUT);
+                List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results
+                    = consumer.readNext(nextPointer, MAX_POLL_SIZE, POLL_TIMEOUT);
                 state = state.PROCESSING;
                 // process the records
                 // TODO: consider a separate thread to decoupling the polling and processing
-                for(IngestionShardConsumer.ReadResult result: results) {
-                    processor.accept((Message) result.getMessage());
+                for (IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> result : results) {
+                    nextPointer = result.getPointer();
+                    processor.accept(result.getMessage());
+                    currentPointer = result.getPointer();
                 }
 
-                // TODO: set next offset
-
+                // move pointer to read next
+                nextPointer = consumer.nextPointer();
             }  catch (Throwable e) {
                 // TODO better error handling
                 logger.error("Error in polling the shard {}", consumer.getShardId(), e);
@@ -138,6 +142,11 @@ public class DefaultStreamPoller implements StreamPoller {
             }
         }
         consumerThread.shutdown();
+    }
+
+    @Override
+    public IngestionShardPointer getCurrentPointer() {
+        return currentPointer;
     }
 
     @Override

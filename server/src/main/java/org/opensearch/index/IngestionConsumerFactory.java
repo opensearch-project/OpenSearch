@@ -11,7 +11,7 @@ package org.opensearch.index;
 public abstract class IngestionConsumerFactory<T extends IngestionShardConsumer> {
     protected IngestionSourceConfig config;
 
-    void initialize(IngestionSourceConfig config) {
+    public void initialize(IngestionSourceConfig config) {
         this.config = config;
     }
 

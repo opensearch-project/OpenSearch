@@ -146,6 +146,7 @@ import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.opensearch.indices.ingest.IngestionEngineFactory;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
@@ -1004,6 +1005,11 @@ public class IndicesService extends AbstractLifecycleComponent
         if (indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             // NoOpEngine takes precedence as long as the index is closed
             return NoOpEngine::new;
+        }
+
+        // streaming ingestion
+        if(indexMetadata!=null && indexMetadata.getIngestionSourceConfig()!=null){
+            return new IngestionEngineFactory();
         }
 
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()

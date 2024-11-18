@@ -47,6 +47,11 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         return records;
     }
 
+    @Override
+    public KafkaOffset nextPointer() {
+        return new KafkaOffset(lastFetchedOffset + 1);
+    }
+
     protected synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {
         if (lastFetchedOffset < 0 || lastFetchedOffset !=startOffset - 1) {
             consumer.seek(topicPartition, startOffset);

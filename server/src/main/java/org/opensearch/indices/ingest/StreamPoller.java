@@ -8,6 +8,8 @@
 
 package org.opensearch.indices.ingest;
 
+import org.opensearch.index.IngestionShardPointer;
+
 public interface StreamPoller {
 
     void start();;
@@ -17,6 +19,8 @@ public interface StreamPoller {
     void resume();
 
     void close();
+
+    IngestionShardPointer getCurrentPointer();
 
     void resetPointer();
 
