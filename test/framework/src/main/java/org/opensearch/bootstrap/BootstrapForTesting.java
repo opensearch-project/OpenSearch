@@ -37,6 +37,7 @@ import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bootstrap.JarHell;
@@ -73,8 +74,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.bootstrap.SecurityProviderManager.SUN_JCE;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
 /**
@@ -124,6 +127,20 @@ public class BootstrapForTesting {
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
+
+        SecureRandomInitializer.init();
+
+        var sunJceProvider = java.security.Security.getProvider(SUN_JCE);
+        if (sunJceProvider != null) {
+            sunJceInsertFunction = () -> java.security.Security.insertProviderAt(
+                sunJceProvider,
+                SecurityProviderManager.getPosition(SUN_JCE)
+            );
+
+            if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
+                SecurityProviderManager.excludeSunJCE();
+            }
+        }
 
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
@@ -201,6 +218,8 @@ public class BootstrapForTesting {
             }
         }
     }
+
+    static Supplier<Integer> sunJceInsertFunction;
 
     /** Add the codebase url of the given classname to the codebases map, if the class exists. */
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {

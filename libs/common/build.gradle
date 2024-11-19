@@ -27,6 +27,7 @@ dependencies {
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
   compileOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   compileOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+  api "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
 
   /*******
    *  !!!! NO THIRD PARTY DEPENDENCIES !!!!
@@ -51,6 +52,10 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
   failOnMissingClasses = false
   ignoreSignaturesOfMissingClasses = true
+}
+
+tasks.named("dependencyLicenses").configure {
+    mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 compileJava {
