@@ -20,8 +20,10 @@ base {
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+
   compileOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   compileOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+  api "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
 
   /*******
    *  !!!! NO THIRD PARTY DEPENDENCIES !!!!
@@ -44,6 +46,10 @@ tasks.named('forbiddenApisMain').configure {
   // :libs:opensearch-common does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
   replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 // Add support for incubator modules on supported Java versions.
