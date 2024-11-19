@@ -684,6 +684,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
     public static final String CONTEXT_KEY = "context";
+    public static final String KEY_INGESTION_SOURCE_TYPE = "ingestion_source_type";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -770,7 +771,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final boolean isSystem,
         final int indexTotalShardsPerNodeLimit,
         boolean isAppendOnlyIndex,
-        final Context context
+        final Context context,
+        final IngestionSourceConfig ingestionSourceConfig
     ) {
 
         this.index = index;
@@ -810,6 +812,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isAppendOnlyIndex = isAppendOnlyIndex;
         this.context = context;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
+        this.ingestionSourceConfig = ingestionSourceConfig;
     }
 
     public Index getIndex() {
@@ -1414,6 +1417,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
         private Context context;
+        private IngestionSourceConfig ingestionSourceConfig;
 
         public Builder(String index) {
             this.index = index;
@@ -1442,6 +1446,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos = new HashMap<>(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.context = indexMetadata.context;
+            this.ingestionSourceConfig = indexMetadata.ingestionSourceConfig;
         }
 
         public Builder index(String index) {
@@ -1460,6 +1465,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          */
         public Builder setRoutingNumShards(int routingNumShards) {
             this.routingNumShards = routingNumShards;
+            return this;
+        }
+
+        public Builder setIngestionSourceConfig(IngestionSourceConfig ingestionSourceConfig) {
+            this.ingestionSourceConfig = ingestionSourceConfig;
             return this;
         }
 
@@ -1805,7 +1815,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 isSystem,
                 indexTotalShardsPerNodeLimit,
                 isAppendOnlyIndex,
-                context
+                context,
+                ingestionSourceConfig
             );
         }
 
@@ -1913,6 +1924,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexMetadata.context.toXContent(builder, params);
             }
 
+            if(indexMetadata.ingestionSourceConfig!=null) {
+                builder.field(KEY_INGESTION_SOURCE_TYPE, indexMetadata.ingestionSourceConfig.getIngestionSourceType());
+                indexMetadata.ingestionSourceConfig.toXContent(builder, params);
+            }
+
             builder.endObject();
         }
 
@@ -1996,6 +2012,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         parser.skipChildren();
                     } else if (CONTEXT_KEY.equals(currentFieldName)) {
                         builder.context(Context.fromXContent(parser));
+                    } else if (KEY_INGESTION_SOURCE_TYPE.equals(currentFieldName)) {
+                        String ingestionSourceType = parser.text();
+                        builder.setIngestionSourceConfig(IngestionSourceConfig.fromXContent(parser, ingestionSourceType));
                     } else {
                         // assume it's custom index metadata
                         builder.putCustom(currentFieldName, parser.mapStrings());

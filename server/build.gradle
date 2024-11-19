@@ -113,6 +113,11 @@ dependencies {
 
   // kafka
   api "org.apache.kafka:kafka-clients:2.8.2"
+  // test
+//  api "org.testcontainers:testcontainers:1.20.3"
+  // api "org.testcontainers:kafka-1.20.3"
+  testImplementation "org.testcontainers:testcontainers:1.20.3"
+  testImplementation 'org.testcontainers:kafka:1.20.3'
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap

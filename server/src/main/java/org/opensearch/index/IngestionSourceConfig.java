@@ -8,5 +8,20 @@
 
 package org.opensearch.index;
 
-public interface IngestionSourceConfig {
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentParser;
+
+@ExperimentalApi
+public interface IngestionSourceConfig extends ToXContentFragment {
+    String getIngestionSourceType();
+
+    static IngestionSourceConfig fromXContent(XContentParser parser, String ingestionSourceType) {
+        if(ingestionSourceType.equals("kafka")) {
+            return KafkaSourceConfig.fromXContent(parser);
+        }
+
+        return null;
+
+    }
 }

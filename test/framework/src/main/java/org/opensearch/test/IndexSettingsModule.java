@@ -39,6 +39,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.KafkaSourceConfig;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -79,7 +80,9 @@ public class IndexSettingsModule extends AbstractModule {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(indexSetting)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder(index.getName()).settings(build).build();
+        // FIXME: pass in ingestion config
+        KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig("test", "test", "test", "localhost:9092", 1);
+        IndexMetadata metadata = IndexMetadata.builder(index.getName()).settings(build).setIngestionSourceConfig(kafkaSourceConfig).build();
         Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
