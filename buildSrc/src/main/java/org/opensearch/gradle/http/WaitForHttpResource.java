@@ -32,8 +32,10 @@
 
 package org.opensearch.gradle.http;
 
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.internal.impldep.com.jcraft.jsch.annotations.SuppressForbiddenApi;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManager;
@@ -51,7 +53,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
-import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.util.Arrays;
@@ -216,7 +217,7 @@ public class WaitForHttpResource {
     }
 
     private KeyStore buildTrustStoreFromFile() throws GeneralSecurityException, IOException {
-        KeyStore keyStore = KeyStore.getInstance(trustStoreFile.getName().endsWith(".jks") ? "JKS" : "PKCS12");
+        var keyStore = getKeyStoreInstance(trustStoreFile.getName().endsWith(".jks") ? "JKS" : "PKCS12");
         try (InputStream input = new FileInputStream(trustStoreFile)) {
             keyStore.load(input, trustStorePassword == null ? null : trustStorePassword.toCharArray());
         }
@@ -224,7 +225,7 @@ public class WaitForHttpResource {
     }
 
     private KeyStore buildTrustStoreFromCA() throws GeneralSecurityException, IOException {
-        final KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
+        var store = getKeyStoreInstance(KeyStore.getDefaultType());
         store.load(null, null);
         final CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         int counter = 0;
@@ -239,12 +240,17 @@ public class WaitForHttpResource {
         return store;
     }
 
+    @SuppressForbiddenApi("runs exclusively in test-context without KeyStoreFactory on classpath.")
+    private KeyStore getKeyStoreInstance(String type) throws KeyStoreException {
+        return KeyStore.getInstance(type);
+    }
+
     private SSLContext createSslContext(KeyStore trustStore) throws GeneralSecurityException {
         checkForTrustEntry(trustStore);
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(trustStore);
         SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-        sslContext.init(new KeyManager[0], tmf.getTrustManagers(), new SecureRandom());
+        sslContext.init(new KeyManager[0], tmf.getTrustManagers(), CryptoServicesRegistrar.getSecureRandom());
         return sslContext;
     }
 
