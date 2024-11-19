@@ -41,9 +41,9 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.bouncycastle.crypto.CryptoServicesRegistrar;
+import org.opensearch.bootstrap.SecureRandomInitializer;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
-import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.crypto.KeyStoreFactory;
 import org.opensearch.common.crypto.KeyStoreType;
@@ -78,7 +78,6 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Enumeration;
@@ -120,6 +119,11 @@ public class KeyStoreWrapper implements SecureSettings {
             this.bytes = bytes;
             this.sha256Digest = MessageDigests.sha256().digest(bytes);
         }
+    }
+
+    static {
+        // Instantiates new SecureRandom if caller is KeyStoreCli, otherwise obtains the existent.
+        SecureRandomInitializer.init();
     }
 
     /**
@@ -221,11 +225,10 @@ public class KeyStoreWrapper implements SecureSettings {
     /** Add the bootstrap seed setting, which may be used as a unique, secure, random value by the node */
     public static void addBootstrapSeed(KeyStoreWrapper wrapper) {
         assert wrapper.getSettingNames().contains(SEED_SETTING.getKey()) == false;
-        SecureRandom random = Randomness.createSecure();
         int passwordLength = 20; // Generate 20 character passwords
         char[] characters = new char[passwordLength];
         for (int i = 0; i < passwordLength; ++i) {
-            characters[i] = SEED_CHARS[random.nextInt(SEED_CHARS.length)];
+            characters[i] = SEED_CHARS[CryptoServicesRegistrar.getSecureRandom().nextInt(SEED_CHARS.length)];
         }
         wrapper.setString(SEED_SETTING.getKey(), characters);
         Arrays.fill(characters, (char) 0);
@@ -538,15 +541,14 @@ public class KeyStoreWrapper implements SecureSettings {
             output.writeByte(password.length == 0 ? (byte) 0 : (byte) 1);
 
             // new cipher params
-            SecureRandom random = Randomness.createSecure();
             // use 64 bytes salt, which surpasses that recommended by OWASP
             // see https://www.owasp.org/index.php/Password_Storage_Cheat_Sheet
             byte[] salt = new byte[64];
-            random.nextBytes(salt);
+            CryptoServicesRegistrar.getSecureRandom().nextBytes(salt);
             // use 96 bits (12 bytes) for IV as recommended by NIST
             // see http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf section 5.2.1.1
             byte[] iv = new byte[12];
-            random.nextBytes(iv);
+            CryptoServicesRegistrar.getSecureRandom().nextBytes(iv);
             // encrypted data
             byte[] encryptedBytes = encrypt(password, salt, iv);
 

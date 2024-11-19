@@ -38,7 +38,7 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.opensearch.common.Randomness;
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.crypto.KeyStoreFactory;
 import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.common.util.io.IOUtils;
@@ -205,7 +205,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
-            SecureRandom random = Randomness.createSecure();
+            SecureRandom random = CryptoServicesRegistrar.getSecureRandom();
             byte[] salt = new byte[64];
             random.nextBytes(salt);
             byte[] iv = new byte[12];
@@ -233,7 +233,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
-            SecureRandom random = Randomness.createSecure();
+            SecureRandom random = CryptoServicesRegistrar.getSecureRandom();
             byte[] salt = new byte[64];
             random.nextBytes(salt);
             byte[] iv = new byte[12];
@@ -262,7 +262,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
-            SecureRandom random = Randomness.createSecure();
+            SecureRandom random = CryptoServicesRegistrar.getSecureRandom();
             byte[] salt = new byte[64];
             random.nextBytes(salt);
             byte[] iv = new byte[12];
@@ -289,7 +289,7 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         try (IndexOutput indexOutput = directory.createOutput("opensearch.keystore", IOContext.DEFAULT)) {
             CodecUtil.writeHeader(indexOutput, "opensearch.keystore", 3);
             indexOutput.writeByte((byte) 0); // No password
-            SecureRandom random = Randomness.createSecure();
+            SecureRandom random = CryptoServicesRegistrar.getSecureRandom();
             byte[] salt = new byte[64];
             random.nextBytes(salt);
             byte[] iv = new byte[12];
@@ -372,15 +372,15 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
     public void testFailLoadV1KeystoresInFipsJvm() throws Exception {
         assumeTrue("Test in FIPS JVM", inFipsJvm());
 
-        Exception e = assertThrows(SecurityException.class, () -> generateV1());
-        assertThat(e.getMessage(), containsString("Only PKCS_11, BCFKS keystores are allowed in FIPS JVM"));
+        Exception e = assertThrows(NoSuchProviderException.class, this::generateV1);
+        assertThat(e.getMessage(), containsString("no such provider: SunJCE"));
     }
 
     public void testFailLoadV2KeystoresInFipsJvm() throws Exception {
         assumeTrue("Test in FIPS JVM", inFipsJvm());
 
-        Exception e = assertThrows(SecurityException.class, () -> generateV2());
-        assertThat(e.getMessage(), containsString("Only PKCS_11, BCFKS keystores are allowed in FIPS JVM"));
+        Exception e = assertThrows(NoSuchProviderException.class, this::generateV2);
+        assertThat(e.getMessage(), containsString("no such provider: SunJCE"));
     }
 
     public void testBackcompatV1() throws Exception {
