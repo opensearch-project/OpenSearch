@@ -148,13 +148,17 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     );
 
     /**
-     * If enabled, allows caching all cacheable queries. For now, this means also allowing size > 0 queries.
-     * If enabled, fundamentally non-cacheable queries like DFS queries, queries using the `now` keyword, and
-     * scroll requests are still not cached.
+     * Sets the maximum size of a query which is allowed in the request cache.
+     * This refers to the number of documents returned, not the size in bytes.
+     * Default value of 0 only allows size == 0 queries, matching earlier behavior.
+     * Fundamentally non-cacheable queries like DFS queries, queries using the `now` keyword, and
+     * scroll requests are never cached, regardless of this setting.
      */
-    public static final Setting<Boolean> INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING = Setting.boolSetting(
-        "indices.requests.cache.enable_for_all_requests",
-        false,
+    public static final Setting<Integer> INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING = Setting.intSetting(
+        "indices.requests.cache.maximum_cacheable_size",
+        0,
+        0,
+        10_000,
         Property.NodeScope,
         Property.Dynamic
     );
