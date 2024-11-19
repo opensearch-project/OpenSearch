@@ -96,7 +96,7 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
         searchRequest.source(searchSourceBuilder);
 
         SearchResponse searchResponse = client().search(searchRequest).get();
-        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value);
+        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value());
     }
 
     /**
@@ -134,7 +134,7 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
         searchRequest.source(searchSourceBuilder);
 
         SearchResponse searchResponse = client().search(searchRequest).get();
-        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value);
+        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value());
     }
 
     /**
@@ -167,7 +167,7 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
         searchRequest.source(searchSourceBuilder);
 
         SearchResponse searchResponse = client().search(searchRequest).get();
-        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value);
+        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value());
         Assert.assertEquals(
             "_timestamp",
             ((List<Map<String, Object>>) (searchResponse.getHits().getHits()[0].getSourceAsMap().get("correlate"))).get(0)
