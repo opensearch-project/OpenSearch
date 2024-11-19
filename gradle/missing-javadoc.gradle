@@ -8,6 +8,7 @@
 
 
 import javax.annotation.Nullable
+import javax.inject.Inject
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.internal.jvm.Jvm
@@ -227,6 +228,11 @@ class MissingJavadocTask extends DefaultTask {
   @PathSensitive(PathSensitivity.RELATIVE)
   def taskResources
 
+  // See please https://docs.gradle.org/8.11/userguide/service_injection.html#execoperations
+  interface InjectedExecOps {
+    @Inject ExecOperations getExecOps()
+  }
+
   /** Utility method to recursively collect all tasks with same name like this one that we depend on */
   private Set findRenderTasksInDependencies() {
     Set found = []
@@ -317,11 +323,12 @@ class MissingJavadocTask extends DefaultTask {
       }
     }()
 
+    def execOps = project.objects.newInstance(InjectedExecOps)
     def outputFile = project.file("${getTemporaryDir()}/javadoc-output.txt")
     def result
 
     outputFile.withOutputStream { output ->
-      result = project.exec {
+      result = execOps.execOps.exec {
         executable javadocCmd
 
         // we want to capture both stdout and stderr to the same
