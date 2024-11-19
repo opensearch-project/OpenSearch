@@ -102,6 +102,10 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "keyword")
                 .field("doc_values", false)
                 .endObject()
+                .startObject("ip_no_dv")
+                .field("type", "ip")
+                .field("doc_values", false)
+                .endObject()
                 .startObject("ip")
                 .field("type", "ip")
                 .field("doc_values", true)
@@ -368,7 +372,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
 
     private static String getDim(boolean hasDocValues, boolean isWildCard) {
         if (hasDocValues) {
-            return random().nextBoolean() ? "numeric" : random().nextBoolean() ? "keyword" : "ip";
+            return random().nextBoolean() ? "numeric" : random().nextBoolean() ? "keyword" : "ip_no_dv";
         } else if (isWildCard) {
             return "wildcard";
         }

@@ -24,11 +24,11 @@ import java.util.function.Consumer;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class KeywordDimension implements Dimension {
-    public static final String KEYWORD = "keyword";
+public class OrdinalDimension implements Dimension {
+    public static final String ORDINAL = "ordinal";
     private final String field;
 
-    public KeywordDimension(String field) {
+    public OrdinalDimension(String field) {
         this.field = field;
     }
 
@@ -62,7 +62,7 @@ public class KeywordDimension implements Dimension {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(CompositeDataCubeFieldType.NAME, field);
-        builder.field(CompositeDataCubeFieldType.TYPE, KEYWORD);
+        builder.field(CompositeDataCubeFieldType.TYPE, ORDINAL);
         builder.endObject();
         return builder;
     }
@@ -71,7 +71,7 @@ public class KeywordDimension implements Dimension {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        KeywordDimension dimension = (KeywordDimension) o;
+        OrdinalDimension dimension = (OrdinalDimension) o;
         return Objects.equals(field, dimension.getField());
     }
 
