@@ -8,12 +8,11 @@
 
 package org.opensearch.action.admin.cluster.shards;
 
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.opensearch.action.pagination.PageParams;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -30,7 +29,6 @@ import java.util.concurrent.ExecutionException;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
-import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
 public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
@@ -132,26 +130,14 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
 
     public void testCatShardsSuccessWithPaginationWithClosedIndices() throws InterruptedException, ExecutionException {
         internalCluster().startClusterManagerOnlyNodes(1);
-        List<String> nodes = internalCluster().startDataOnlyNodes(3);
-        final int numIndices = 3;
-        final int numShards = 5;
-        final int numReplicas = 2;
-        final int pageSize = numIndices * numReplicas * (numShards + 1);
+        internalCluster().startDataOnlyNodes(3);
         createIndex(
-            "test-1",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "60m")
-                .build()
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build()
         );
         createIndex(
             "test-2",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "60m")
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build()
         );
         createIndex(
             "test-3",
@@ -162,39 +148,13 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
                 .build()
         );
         ensureGreen();
-
         // close index test-3
         client().admin().indices().close(Requests.closeIndexRequest("test-3")).get();
-
-        ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setMetadata(true)
-            .setIndices("test-3")
-            .get();
-        assertThat(clusterStateResponse.getState().metadata().index("test-3").getState(), equalTo(IndexMetadata.State.CLOSE));
-
         final CatShardsRequest shardsRequest = new CatShardsRequest();
         shardsRequest.setCancelAfterTimeInterval(NO_TIMEOUT);
         shardsRequest.setIndices(Strings.EMPTY_ARRAY);
-        shardsRequest.setPageParams(new PageParams(null, PageParams.PARAM_ASC_SORT_VALUE, pageSize));
-        CountDownLatch latch = new CountDownLatch(1);
-        client().execute(CatShardsAction.INSTANCE, shardsRequest, new ActionListener<CatShardsResponse>() {
-            @Override
-            public void onResponse(CatShardsResponse catShardsResponse) {
-                List<ShardRouting> shardRoutings = catShardsResponse.getResponseShards();
-                assertFalse(shardRoutings.stream().anyMatch(shard -> shard.getIndexName().equals("test-3")));
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail();
-                latch.countDown();
-            }
-        });
-        latch.await();
+        ActionFuture<CatShardsResponse> response = client().execute(CatShardsAction.INSTANCE, shardsRequest);
+        assertTrue(response.get().getResponseShards().stream().anyMatch(shard -> shard.getIndexName().equals("test-3")));
     }
 
 }

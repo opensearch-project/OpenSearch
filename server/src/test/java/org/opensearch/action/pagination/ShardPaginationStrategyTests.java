@@ -10,7 +10,6 @@ package org.opensearch.action.pagination;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -394,45 +393,6 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
         assertNull(strategy.getResponseToken().getNextToken());
     }
 
-    /**
-     * Validates strategy filters out CLOSED indices, if forbidClosed() indices options are provided.
-     */
-    public void testNoClosedIndicesReturnedByStrategy() {
-        final int pageSize = DEFAULT_NUMBER_OF_SHARDS * (DEFAULT_NUMBER_OF_REPLICAS + 1);
-        ClusterState clusterState = getRandomClusterState(List.of(0, 1, 2, 3, 4, 5));
-        // Add 2 closed indices to cluster state
-        clusterState = addIndexToClusterState(
-            clusterState,
-            6,
-            DEFAULT_NUMBER_OF_SHARDS,
-            DEFAULT_NUMBER_OF_REPLICAS,
-            IndexMetadata.State.CLOSE
-        );
-        clusterState = addIndexToClusterState(
-            clusterState,
-            7,
-            DEFAULT_NUMBER_OF_SHARDS,
-            DEFAULT_NUMBER_OF_REPLICAS,
-            IndexMetadata.State.CLOSE
-        );
-        List<ShardRouting> shardRoutings = new ArrayList<>();
-        List<String> indices = new ArrayList<>();
-        String requestedToken = null;
-        ShardPaginationStrategy strategy;
-        do {
-            PageParams pageParams = new PageParams(requestedToken, PARAM_ASC_SORT_VALUE, pageSize);
-            strategy = new ShardPaginationStrategy(pageParams, clusterState, IndicesOptions.strictExpandOpenAndForbidClosed());
-            requestedToken = strategy.getResponseToken().getNextToken();
-            shardRoutings.addAll(strategy.getRequestedEntities());
-            indices.addAll(strategy.getRequestedIndices());
-        } while (requestedToken != null);
-        // assert that the closed indices do not appear in the response
-        assertFalse(indices.contains(TEST_INDEX_PREFIX + 6));
-        assertFalse(shardRoutings.stream().anyMatch(shard -> shard.getIndexName().equals(TEST_INDEX_PREFIX + 6)));
-        assertFalse(indices.contains(TEST_INDEX_PREFIX + 7));
-        assertFalse(shardRoutings.stream().anyMatch(shard -> shard.getIndexName().equals(TEST_INDEX_PREFIX + 7)));
-    }
-
     public void testCreatingShardStrategyPageTokenWithRequestedTokenNull() {
         try {
             new ShardPaginationStrategy.ShardStrategyToken(null);
@@ -519,39 +479,10 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
         final int numReplicas,
         final long creationTime
     ) {
-        return addIndexToClusterState(clusterState, indexNumber, numShards, numReplicas, creationTime, IndexMetadata.State.OPEN);
-    }
-
-    private ClusterState addIndexToClusterState(
-        ClusterState clusterState,
-        final int indexNumber,
-        final int numShards,
-        final int numReplicas,
-        final IndexMetadata.State state
-    ) {
-        return addIndexToClusterState(
-            clusterState,
-            indexNumber,
-            numShards,
-            numReplicas,
-            Instant.now().plus(indexNumber, ChronoUnit.SECONDS).toEpochMilli(),
-            state
-        );
-    }
-
-    private ClusterState addIndexToClusterState(
-        ClusterState clusterState,
-        final int indexNumber,
-        final int numShards,
-        final int numReplicas,
-        final long creationTime,
-        final IndexMetadata.State state
-    ) {
         IndexMetadata indexMetadata = IndexMetadata.builder(TEST_INDEX_PREFIX + indexNumber)
             .settings(settings(Version.CURRENT).put(SETTING_CREATION_DATE, creationTime))
             .numberOfShards(numShards)
             .numberOfReplicas(numReplicas)
-            .state(state)
             .build();
         IndexRoutingTable.Builder indexRoutingTableBuilder = new IndexRoutingTable.Builder(indexMetadata.getIndex()).initializeAsNew(
             indexMetadata

@@ -116,6 +116,11 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                             return;
                         }
                         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+                        if (paginationStrategy != null) {
+                            // Use lenient indices options for paginated queries, which would silently
+                            // ignore closed concrete indices for fetching stats instead of throwing out an error.
+                            indicesStatsRequest.indicesOptions(IndicesOptions.lenientExpandOpenAndForbidClosed());
+                        }
                         indicesStatsRequest.setShouldCancelOnTimeout(true);
                         indicesStatsRequest.all();
                         indicesStatsRequest.indices(indices);
@@ -149,9 +154,7 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
     }
 
     private ShardPaginationStrategy getPaginationStrategy(PageParams pageParams, ClusterStateResponse clusterStateResponse) {
-        return Objects.isNull(pageParams)
-            ? null
-            : new ShardPaginationStrategy(pageParams, clusterStateResponse.getState(), IndicesOptions.strictExpandOpenAndForbidClosed());
+        return Objects.isNull(pageParams) ? null : new ShardPaginationStrategy(pageParams, clusterStateResponse.getState());
     }
 
     private void validateRequestLimit(

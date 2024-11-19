@@ -167,6 +167,10 @@ public class IndicesOptions implements ToXContentFragment {
         EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
         EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED, WildcardStates.HIDDEN)
     );
+    public static final IndicesOptions LENIENT_EXPAND_OPEN_FORBID_CLOSED = new IndicesOptions(
+        EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.FORBID_CLOSED_INDICES),
+        EnumSet.of(WildcardStates.OPEN)
+    );
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = new IndicesOptions(
         EnumSet.of(Option.ALLOW_NO_INDICES),
         EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED)
@@ -652,6 +656,15 @@ public class IndicesOptions implements ToXContentFragment {
      */
     public static IndicesOptions lenientExpandHidden() {
         return LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
+    }
+
+    /**
+     * @return indices options that ignores unavailable indices and forbids closed indices (not return error if explicitly queried),
+     * expands wildcards to all open and closed indices and allows that no indices are resolved
+     * from wildcard expressions (not returning an error).
+     */
+    public static IndicesOptions lenientExpandOpenAndForbidClosed() {
+        return LENIENT_EXPAND_OPEN_FORBID_CLOSED;
     }
 
     @Override
