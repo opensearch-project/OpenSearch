@@ -9,6 +9,7 @@
 package org.opensearch.common.crypto;
 
 import org.bouncycastle.crypto.CryptoServicesRegistrar;
+import org.opensearch.common.SuppressForbidden;
 
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -55,7 +56,11 @@ public final class KeyStoreFactory {
             }
             provider = FIPS_PROVIDER;
         }
+        return get(type, provider);
+    }
 
+    @SuppressForbidden(reason = "centralized instantiation of a KeyStore")
+    private static KeyStore get(KeyStoreType type, String provider) {
         try {
             if (provider == null) {
                 return KeyStore.getInstance(type.getJcaName());

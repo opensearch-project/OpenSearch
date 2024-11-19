@@ -5,10 +5,6 @@ security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider fips
 security.provider.3=SUN
 security.provider.4=SunJGSS
 
-securerandom.source=file:/dev/urandom
-securerandom.strongAlgorithms=NativePRNGBlocking:SUN,DRBG:SUN
-securerandom.drbg.config=
-
 login.configuration.provider=sun.security.provider.ConfigFile
 policy.provider=sun.security.provider.PolicyFile
 policy.expandProperties=true
