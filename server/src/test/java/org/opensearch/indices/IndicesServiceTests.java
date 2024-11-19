@@ -652,9 +652,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testCanCacheSizeNonzero() {
-        // Size == 0 requests should always be cacheable (if they pass the other checks).
-        // Size > 0 requests should only be cacheable if ALLOW_SIZE_NONZERO_SETTING is true.
-
+        // Requests should only be cached if their size is <= INDICES_REQUEST_CACHE_MAX_SIZE_TO_CACHE_SETTING.
         final IndexService indexService = createIndex("test");
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.requestCache()).thenReturn(null);
@@ -662,7 +660,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         TestSearchContext sizeZeroContext = getTestContext(indexService, 0);
         TestSearchContext sizeNonzeroContext = getTestContext(indexService, 10);
 
-        // Test for an IndicesService with the default setting value of false
+        // Test for an IndicesService with the default setting value of 0
         IndicesService indicesService = getIndicesService();
         DelegatingCacheHelper cacheHelper = mock(DelegatingCacheHelper.class);
         Map<TestSearchContext, Boolean> expectedResultMap = Map.of(sizeZeroContext, true, sizeNonzeroContext, false);
@@ -673,8 +671,11 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             assertEquals(entry.getValue(), indicesService.canCache(request, context));
         }
         // Simulate the cluster setting update by manually calling setCanCacheSizeNonzeroRequests
-        indicesService.setRequestCachingEnabledForAllQueries(true);
-        expectedResultMap = Map.of(sizeZeroContext, true, sizeNonzeroContext, true);
+        int maxCacheableSize = 40;
+        indicesService.setMaxSizeInRequestCache(maxCacheableSize);
+        TestSearchContext sizeEqualsThresholdContext = getTestContext(indexService, maxCacheableSize);
+        TestSearchContext sizeAboveThresholdContext = getTestContext(indexService, maxCacheableSize + 5);
+        expectedResultMap = Map.of(sizeZeroContext, true, sizeEqualsThresholdContext, true, sizeAboveThresholdContext, false);
 
         for (Map.Entry<TestSearchContext, Boolean> entry : expectedResultMap.entrySet()) {
             TestSearchContext context = entry.getKey();
