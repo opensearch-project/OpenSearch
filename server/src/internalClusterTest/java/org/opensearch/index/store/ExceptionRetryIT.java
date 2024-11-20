@@ -152,7 +152,7 @@ public class ExceptionRetryIT extends OpenSearchIntegTestCase {
                         .setQuery(termQuery("_id", searchResponse.getHits().getHits()[i].getId()))
                         .setExplain(true)
                         .get();
-                    assertThat(dupIdResponse.getHits().getTotalHits().value, greaterThan(1L));
+                    assertThat(dupIdResponse.getHits().getTotalHits().value(), greaterThan(1L));
                     logger.info("found a duplicate id:");
                     for (SearchHit hit : dupIdResponse.getHits()) {
                         logger.info("Doc {} was found on shard {}", hit.getId(), hit.getShard().getShardId());

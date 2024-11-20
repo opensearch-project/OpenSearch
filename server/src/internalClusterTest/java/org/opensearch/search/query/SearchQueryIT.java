@@ -309,7 +309,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         for (int i = 0; i < queryRounds; i++) {
             MatchQueryBuilder matchQuery = matchQuery("f", English.intToEnglish(between(0, num)));
             searchResponse = client().prepareSearch("test_1").setQuery(constantScoreQuery(matchQuery)).setSize(num).get();
-            long totalHits = searchResponse.getHits().getTotalHits().value;
+            long totalHits = searchResponse.getHits().getTotalHits().value();
             SearchHits hits = searchResponse.getHits();
             for (SearchHit searchHit : hits) {
                 assertThat(searchHit, hasScore(1.0f));
@@ -322,7 +322,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                 .setSize(num)
                 .get();
             hits = searchResponse.getHits();
-            assertThat(hits.getTotalHits().value, equalTo(totalHits));
+            assertThat(hits.getTotalHits().value(), equalTo(totalHits));
             if (totalHits > 1) {
                 float expected = hits.getAt(0).getScore();
                 for (SearchHit searchHit : hits) {
@@ -383,7 +383,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         searchResponse = client().prepareSearch()
             .setQuery(commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.AND))
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
 
@@ -2030,7 +2030,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
             .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100))
             .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
 
         float first = response.getHits().getAt(0).getScore();
@@ -2040,7 +2040,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                 .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100))
                 .get();
 
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
             float actual = response.getHits().getAt(0).getScore();
             assertThat(i + " expected: " + first + " actual: " + actual, Float.compare(first, actual), equalTo(0));
@@ -2313,7 +2313,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
      * asserts the search response hits include the expected ids
      */
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

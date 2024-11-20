@@ -753,7 +753,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             }
         }
         shard.refresh("test");
-        assertThat(client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(client().search(countRequest).actionGet().getHits().getTotalHits().value(), equalTo(numDocs));
         assertThat(shard.getLocalCheckpoint(), equalTo(shard.seqNoStats().getMaxSeqNo()));
 
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
@@ -784,7 +784,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         }
         assertThat(
             "numDocs=" + numDocs + " moreDocs=" + moreDocs,
-            client().search(countRequest).actionGet().getHits().getTotalHits().value,
+            client().search(countRequest).actionGet().getHits().getTotalHits().value(),
             equalTo(numDocs + moreDocs)
         );
     }
