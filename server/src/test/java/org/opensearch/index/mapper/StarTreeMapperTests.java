@@ -672,6 +672,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startObject("size");
             b.field("type", "integer");
             b.endObject();
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.endObject();
             b.endObject();
         });
     }
@@ -718,6 +721,7 @@ public class StarTreeMapperTests extends MapperTestCase {
                 .field("type", "integer")
                 .field("doc_values", true)
                 .endObject()
+
                 .endObject()
                 .endObject();
         } catch (IOException e) {
@@ -772,6 +776,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startObject("size");
             b.field("type", "integer");
             b.endObject();
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.endObject();
             b.endObject();
         });
     }
@@ -823,6 +830,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startObject("size");
             b.field("type", "integer");
             b.endObject();
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.endObject();
             b.endObject();
         });
     }
@@ -866,6 +876,9 @@ public class StarTreeMapperTests extends MapperTestCase {
                 b.startObject();
                 b.field("name", "metric_field");
                 b.endObject();
+                b.startObject();
+                b.field("name", "keyword1");
+                b.endObject();
             }
             b.endArray();
 
@@ -895,6 +908,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startObject("metric_field");
             b.field("type", "integer");
             b.endObject();
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.endObject();
 
             b.endObject();
         });
@@ -919,6 +935,9 @@ public class StarTreeMapperTests extends MapperTestCase {
                 b.startArray("ordered_dimensions");
                 b.startObject();
                 b.field("name", "status");
+                b.endObject();
+                b.startObject();
+                b.field("name", "keyword1");
                 b.endObject();
                 b.endArray();
             }
@@ -951,6 +970,9 @@ public class StarTreeMapperTests extends MapperTestCase {
                 b.field("type", "integer");
                 b.endObject();
             }
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.endObject();
             b.endObject();
         });
     }
@@ -1018,7 +1040,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startObject("metric_field");
             b.field("type", "integer");
             b.endObject();
-
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.endObject();
             b.endObject();
         });
     }
@@ -1058,6 +1082,9 @@ public class StarTreeMapperTests extends MapperTestCase {
                 b.startObject();
                 b.field("name", "status");
                 b.endObject();
+                b.startObject();
+                b.field("name", "keyword1");
+                b.endObject();
             }
             b.endArray();
             b.startArray("metrics");
@@ -1090,7 +1117,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             if (!invalidDimType) {
                 b.field("type", "integer");
             } else {
-                b.field("type", "keyword");
+                b.field("type", "ip");
             }
             b.endObject();
             b.startObject("metric_field");
@@ -1099,6 +1126,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             } else {
                 b.field("type", "integer");
             }
+            b.endObject();
+            b.startObject("keyword1");
+            b.field("type", "keyword");
             b.endObject();
             b.endObject();
         });
@@ -1131,6 +1161,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             if (!singleDim) {
                 b.startObject();
                 b.field("name", "status");
+                b.endObject();
+                b.startObject();
+                b.field("name", "keyword1");
                 b.endObject();
             }
             b.endArray();
@@ -1167,6 +1200,9 @@ public class StarTreeMapperTests extends MapperTestCase {
                 b.field("type", "integer");
                 b.field("doc_values", "true");
             }
+            b.endObject();
+            b.startObject("keyword1");
+            b.field("type", "keyword");
             b.endObject();
             b.endObject();
         });
@@ -1223,6 +1259,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.startObject("status");
             b.field("type", "integer");
+            b.endObject();
+            b.startObject("keyword1");
+            b.field("type", "keyword");
             b.endObject();
             b.endObject();
         })));

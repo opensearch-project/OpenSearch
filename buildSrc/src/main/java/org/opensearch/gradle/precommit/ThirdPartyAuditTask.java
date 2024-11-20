@@ -60,7 +60,10 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
+
+import javax.inject.Inject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -107,6 +110,11 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private final Property<JavaVersion> targetCompatibility = getProject().getObjects().property(JavaVersion.class);
 
     public boolean jarHellEnabled = true;
+
+    interface InjectedExecOps {
+        @Inject
+        ExecOperations getExecOps();
+    }
 
     @Input
     public Property<JavaVersion> getTargetCompatibility() {
@@ -357,7 +365,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private String runForbiddenAPIsCli() throws IOException {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-        ExecResult result = getProject().javaexec(spec -> {
+        InjectedExecOps execOps = getProject().getObjects().newInstance(InjectedExecOps.class);
+        ExecResult result = execOps.getExecOps().javaexec(spec -> {
             if (javaHome != null) {
                 spec.setExecutable(javaHome + "/bin/java");
             }
@@ -391,7 +400,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
-        ExecResult execResult = getProject().javaexec(spec -> {
+        InjectedExecOps execOps = getProject().getObjects().newInstance(InjectedExecOps.class);
+        ExecResult execResult = execOps.getExecOps().javaexec(spec -> {
             spec.classpath(
                 jdkJarHellClasspath,
                 getRuntimeConfiguration(),

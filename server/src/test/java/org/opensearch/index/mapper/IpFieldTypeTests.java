@@ -50,6 +50,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public class IpFieldTypeTests extends FieldTypeTestCase {
 
@@ -76,7 +78,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field", true, false, true, null, Collections.emptyMap());
 
         String ip = "2001:db8::2:1";
 
@@ -104,20 +106,94 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         String prefix = ip + "/64";
 
         query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64);
-        assertEquals(query, ft.termQuery(prefix, null));
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    "field",
+                    ipToByteRef("2001:db8:0:0:0:0:0:0"),
+                    ipToByteRef("2001:db8:0:0:ffff:ffff:ffff:ffff"),
+                    true,
+                    true
+                )
+            ),
+            ft.termQuery(prefix, null)
+        );
 
         ip = "192.168.1.7";
         prefix = ip + "/16";
         query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16);
-        assertEquals(query, ft.termQuery(prefix, null));
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    "field",
+                    ipToByteRef("::ffff:192.168.0.0"),
+                    ipToByteRef("::ffff:192.168.255.255"),
+                    true,
+                    true
+                )
+            ),
+            ft.termQuery(prefix, null)
+        );
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, false, null, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", null));
         assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
+    public void testDvOnlyTermQuery() {
+        IpFieldMapper.IpFieldType dvOnly = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
+        String ip = "2001:db8::2:1";
+
+        Query query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
+
+        assertEquals(
+            SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint())),
+            dvOnly.termQuery(ip, null)
+        );
+
+        ip = "192.168.1.7";
+        query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
+        assertEquals(
+            SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint())),
+            dvOnly.termQuery(ip, null)
+        );
+
+        ip = "2001:db8::2:1";
+        String prefix = ip + "/64";
+
+        assertEquals(
+            SortedSetDocValuesField.newSlowRangeQuery(
+                "field",
+                ipToByteRef("2001:db8:0:0:0:0:0:0"),
+                ipToByteRef("2001:db8:0:0:ffff:ffff:ffff:ffff"),
+                true,
+                true
+            ),
+            dvOnly.termQuery(prefix, null)
+        );
+
+        ip = "192.168.1.7";
+        prefix = ip + "/16";
+        assertEquals(
+            SortedSetDocValuesField.newSlowRangeQuery(
+                "field",
+                ipToByteRef("::ffff:192.168.0.0"),
+                ipToByteRef("::ffff:192.168.255.255"),
+                true,
+                true
+            ),
+            dvOnly.termQuery(prefix, null)
+        );
+    }
+
+    private static BytesRef ipToByteRef(String ipString) {
+        return new BytesRef(Objects.requireNonNull(InetAddresses.ipStringToBytes(ipString)));
+    }
+
     public void testTermsQuery() {
-        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field", true, false, false, null, Collections.emptyMap());
 
         assertEquals(
             InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
@@ -136,6 +212,29 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                     .build()
             ),
             ft.termsQuery(Arrays.asList("::42", "::2/16"), null)
+        );
+    }
+
+    public void testDvOnlyTermsQuery() {
+        MappedFieldType dvOnly = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
+
+        assertEquals(
+            SortedSetDocValuesField.newSlowSetQuery("field", List.of(ipToByteRef("::2"), ipToByteRef("::5"))),
+            dvOnly.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), null)
+        );
+        assertEquals(
+            SortedSetDocValuesField.newSlowSetQuery("field", List.of(ipToByteRef("::2"), ipToByteRef("::5"))),
+            dvOnly.termsQuery(Arrays.asList("::2", "::5"), null)
+        );
+
+        // if the list includes a prefix query we fallback to a bool query
+        assertEquals(
+            new ConstantScoreQuery(
+                new BooleanQuery.Builder().add(dvOnly.termQuery("::42", null), Occur.SHOULD)
+                    .add(dvOnly.termQuery("::2/16", null), Occur.SHOULD)
+                    .build()
+            ),
+            dvOnly.termsQuery(Arrays.asList("::42", "::2/16"), null)
         );
     }
 

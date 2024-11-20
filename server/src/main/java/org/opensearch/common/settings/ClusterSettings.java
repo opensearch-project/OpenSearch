@@ -519,7 +519,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING,
-                IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING,
+                IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING,
                 HunspellService.HUNSPELL_LAZY_LOAD,
                 HunspellService.HUNSPELL_IGNORE_CASE,
                 HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
@@ -786,6 +786,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Snapshot related Settings
                 BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING,
                 BlobStoreRepository.SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING,
+                BlobStoreRepository.SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD,
 
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
 
