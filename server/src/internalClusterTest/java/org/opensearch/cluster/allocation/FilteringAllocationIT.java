@@ -82,7 +82,7 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
                 .execute()
                 .actionGet()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits().value(),
             equalTo(100L)
         );
 
@@ -123,7 +123,7 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
                 .execute()
                 .actionGet()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits().value(),
             equalTo(100L)
         );
     }
@@ -197,7 +197,7 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
                 .execute()
                 .actionGet()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits().value(),
             equalTo(100L)
         );
 

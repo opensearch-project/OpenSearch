@@ -146,7 +146,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits().value(),
                 equalTo(100L)
             );
         }

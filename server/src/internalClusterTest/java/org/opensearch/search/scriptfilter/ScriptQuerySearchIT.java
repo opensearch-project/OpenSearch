@@ -167,7 +167,7 @@ public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIn
             )
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(0).getFields().get("sbinaryData").getValues().get(0), equalTo(16));
 
@@ -214,10 +214,10 @@ public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIn
         SearchResponse response = client().prepareSearch()
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap())))
             .addSort("num1", SortOrder.ASC)
-            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value()", Collections.emptyMap()))
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(1).getId(), equalTo("3"));
@@ -233,7 +233,7 @@ public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIn
             .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
         assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
 
@@ -246,7 +246,7 @@ public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIn
             .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(1.0));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));

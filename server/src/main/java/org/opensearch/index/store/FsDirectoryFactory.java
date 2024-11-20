@@ -56,6 +56,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 
 /**
  * Factory for a filesystem directory
@@ -117,17 +119,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     public static MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) throws IOException {
         if (preLoadExtensions.isEmpty() == false) {
-            if (preLoadExtensions.contains("*")) {
-                mMapDirectory.setPreload(MMapDirectory.ALL_FILES);
-            } else {
-                mMapDirectory.setPreload((s, f) -> {
-                    int dotIndex = s.lastIndexOf('.');
-                    if (dotIndex > 0) {
-                        return preLoadExtensions.contains(s.substring(dotIndex + 1));
-                    }
-                    return false;
-                });
-            }
+            mMapDirectory.setPreload(createPreloadPredicate(preLoadExtensions));
         }
         return mMapDirectory;
     }
@@ -138,6 +130,20 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     public static boolean isHybridFs(Directory directory) {
         Directory unwrap = FilterDirectory.unwrap(directory);
         return unwrap instanceof HybridDirectory;
+    }
+
+    static BiPredicate<String, IOContext> createPreloadPredicate(Set<String> preLoadExtensions) {
+        if (preLoadExtensions.contains("*")) {
+            return MMapDirectory.ALL_FILES;
+        } else {
+            return (s, f) -> {
+                int dotIndex = s.lastIndexOf('.');
+                if (dotIndex > 0) {
+                    return preLoadExtensions.contains(s.substring(dotIndex + 1));
+                }
+                return false;
+            };
+        }
     }
 
     /**
