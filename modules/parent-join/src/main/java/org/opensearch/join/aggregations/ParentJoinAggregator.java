@@ -120,7 +120,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
             public void collect(int docId, long owningBucketOrd) throws IOException {
                 if (parentDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
                     int globalOrdinal = (int) globalOrdinals.nextOrd();
-                    assert globalOrdinal != -1 && globalOrdinals.nextOrd() == DocIdSetIterator.NO_MORE_DOCS;
+                    assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_DOCS;
                     collectionStrategy.add(owningBucketOrd, globalOrdinal);
                 }
             }
@@ -154,7 +154,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
             });
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
-            for (int docId = childDocsIter.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = childDocsIter.nextDoc()) {
+            for (int docId = childDocsIter.nextDoc(); docId != SortedSetDocValues.NO_MORE_DOCS; docId = childDocsIter.nextDoc()) {
                 if (liveDocs != null && liveDocs.get(docId) == false) {
                     continue;
                 }
@@ -162,7 +162,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                     continue;
                 }
                 int globalOrdinal = (int) globalOrdinals.nextOrd();
-                assert globalOrdinal != -1 && globalOrdinals.nextOrd() == DocIdSetIterator.NO_MORE_DOCS;
+                assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_DOCS;
                 /*
                  * Check if we contain every ordinal. It's almost certainly be
                  * faster to replay all the matching ordinals and filter them down
