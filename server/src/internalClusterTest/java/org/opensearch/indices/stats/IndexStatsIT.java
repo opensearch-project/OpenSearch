@@ -524,7 +524,8 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 .setRequestCache(false)
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo((long) numDocs)
         );
         assertThat(
@@ -539,7 +540,8 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 .setRequestCache(true)
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo((long) numDocs)
         );
         assertThat(
@@ -573,7 +575,8 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 .setRequestCache(true)
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo((long) numDocs)
         );
         assertThat(

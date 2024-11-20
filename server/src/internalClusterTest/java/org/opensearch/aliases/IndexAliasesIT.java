@@ -422,7 +422,13 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         searchResponse = client().prepareSearch("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
         assertThat(
-            client().prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value(),
+            client().prepareSearch("foos", "test1")
+                .setSize(0)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get()
+                .getHits()
+                .getTotalHits()
+                .value(),
             equalTo(5L)
         );
 
@@ -435,7 +441,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo(5L)
         );
 
@@ -448,7 +455,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo(8L)
         );
 
@@ -461,7 +469,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.termQuery("name", "something"))
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo(2L)
         );
     }
@@ -526,7 +535,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo(4L)
         );
 
@@ -538,7 +548,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo(5L)
         );
 
@@ -550,7 +561,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo(4L)
         );
 
@@ -562,7 +574,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo(6L)
         );
 
@@ -574,7 +587,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo(6L)
         );
 
@@ -586,7 +600,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value(),
+                .getTotalHits()
+                .value(),
             equalTo(8L)
         );
     }

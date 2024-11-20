@@ -580,7 +580,13 @@ public class MultiMatchQueryIT extends ParameterizedStaticSettingsOpenSearchInte
 
     public void testEquivalence() {
 
-        final int numDocs = (int) client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value();
+        final int numDocs = (int) client().prepareSearch("test")
+            .setSize(0)
+            .setQuery(matchAllQuery())
+            .get()
+            .getHits()
+            .getTotalHits()
+            .value();
         int numIters = scaledRandomIntBetween(5, 10);
         for (int i = 0; i < numIters; i++) {
             {
