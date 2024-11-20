@@ -600,7 +600,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     /**
-     * Creates a graph token stream with {@link BooleanQuery#getMaxClauseCount()}
+     * Creates a graph token stream with {@link IndexSearcher#getMaxClauseCount()}
      * expansions at the last position.
      **/
     private static CannedBinaryTokenStream.BinaryToken[] createGiantGraphMultiTerms() {
