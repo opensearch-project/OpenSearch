@@ -51,7 +51,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -602,7 +602,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 new AutomatonQuery(
                     new Term("prefix_field._index_prefix", "g*"),
                     a,
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                     false,
                     MultiTermQuery.CONSTANT_SCORE_REWRITE
                 ),
@@ -990,9 +989,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         BooleanQuery booleanQuery = (BooleanQuery) query;
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(2));
         assertThat(booleanQuery.clauses().get(0).occur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "foo"))));
+        assertThat(booleanQuery.clauses().get(0).query(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "foo"))));
         assertThat(booleanQuery.clauses().get(1).occur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanQuery.clauses().get(1).getQuery(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "bar"))));
+        assertThat(booleanQuery.clauses().get(1).query(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "bar"))));
     }
 
     public void testToQueryPhraseQueryBoostAndSlop() throws IOException {
@@ -1102,7 +1101,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
         if ((context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms())) {
-            assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
+            assertThat(query, equalTo(new ConstantScoreQuery(new FieldExistsQuery(TEXT_FIELD_NAME))));
         } else {
             assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
         }
@@ -1112,7 +1111,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
             query = queryBuilder.toQuery(context);
             if ((context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms())) {
-                assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
+                assertThat(query, equalTo(new ConstantScoreQuery(new FieldExistsQuery(TEXT_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
             }

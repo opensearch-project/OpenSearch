@@ -1457,9 +1457,9 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                 assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
                 // verify executor nullability
                 if (!concurrentSearchExecutorNull) {
-                    assertNotNull(searchContext.searcher().getExecutor());
+                    assertNotNull(searchContext.searcher().getTaskExecutor());
                 } else {
-                    assertNull(searchContext.searcher().getExecutor());
+                    assertNull(searchContext.searcher().getTaskExecutor());
                 }
             }
         }
@@ -1581,9 +1581,9 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
             // Verify executor nullability based on mode
             if (!nullExecutor) {
-                assertNotNull(searchContext.searcher().getExecutor());
+                assertNotNull(searchContext.searcher().getTaskExecutor());
             } else {
-                assertNull(searchContext.searcher().getExecutor());
+                assertNull(searchContext.searcher().getTaskExecutor());
             }
         }
 
@@ -1736,7 +1736,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                 searchContext.evaluateRequestShouldUseConcurrentSearch();
                 assertEquals(concurrentSearchSetting, searchContext.shouldUseConcurrentSearch());
                 // verify executor state in searcher
-                assertEquals(concurrentSearchSetting, (searchContext.searcher().getExecutor() != null));
+                assertEquals(concurrentSearchSetting, (searchContext.searcher().getTaskExecutor() != null));
 
                 // update cluster setting to flip the concurrent segment search state
                 client().admin()
