@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.index.mapper.size;
+package org.opensearch.index.system;
 
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequestBuilder;

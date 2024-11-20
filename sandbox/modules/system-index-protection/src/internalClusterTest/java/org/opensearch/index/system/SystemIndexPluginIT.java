@@ -24,28 +24,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.index.mapper.size;
+package org.opensearch.index.system;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.opensearch.OpenSearchSecurityException;
+import org.opensearch.plugin.systemindex.SystemIndexProtectionPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
-import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
+import java.util.Arrays;
+import java.util.Collection;
 
-public class SystemIndexProtectionYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
+import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-    public SystemIndexProtectionYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
+public class SystemIndexPluginIT extends OpenSearchIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(SystemIndexProtectionPlugin.class);
     }
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
+    public void testBasic() throws Exception {
+        assertAcked(prepareCreate(TASK_INDEX));
+        client().prepareDelete().setIndex(TASK_INDEX);
+        assertThrows(OpenSearchSecurityException.class, () -> { admin().indices().prepareDelete(TASK_INDEX).get(); });
     }
 }
