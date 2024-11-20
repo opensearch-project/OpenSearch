@@ -1,0 +1,22 @@
+# Integration tests for Mapper Size components
+#
+
+---
+"System Index Protection":
+  - skip:
+        features: "allowed_warnings"
+
+  - do:
+      indices.create:
+          index: .tasks
+
+  - do:
+      catch: forbidden
+      allowed_warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
+      indices.delete:
+          index: .tasks
+
+  - match: { status: 403 }
+  - match: { error.root_cause.0.type: "security_exception" }
+  - match: { error.root_cause.0.reason: "Cannot perform indices:admin/delete on matching system indices [.tasks]" }

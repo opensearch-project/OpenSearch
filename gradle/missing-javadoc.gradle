@@ -123,6 +123,7 @@ configure([
   project(":modules:rank-eval"),
   project(":modules:reindex"),
   project(":modules:repository-url"),
+  project(":modules:system-index-protection"),
   project(":modules:systemd"),
   project(":modules:transport-netty4"),
   project(":plugins:analysis-icu"),
