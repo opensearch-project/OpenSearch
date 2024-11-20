@@ -20,6 +20,7 @@ import org.opensearch.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class SystemIndexFilter implements ActionFilter {
@@ -67,7 +68,7 @@ public class SystemIndexFilter implements ActionFilter {
             final Set<String> allIndices = resolved.getAllIndices();
             Set<String> matchingSystemIndices = SystemIndexRegistry.matchesSystemIndexPattern(allIndices);
             if (!matchingSystemIndices.isEmpty()) {
-                String err = String.format("Cannot perform %s on matching system indices %s", action, matchingSystemIndices);
+                String err = String.format(Locale.ROOT, "Cannot perform %s on matching system indices %s", action, matchingSystemIndices);
                 listener.onFailure(new OpenSearchSecurityException(err, RestStatus.FORBIDDEN));
                 return;
             }
