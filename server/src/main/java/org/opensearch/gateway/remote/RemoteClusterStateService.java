@@ -1460,6 +1460,7 @@ public class RemoteClusterStateService implements Closeable {
             newRoutingTable = routingTableDiff.apply(previousState.getRoutingTable());
         }
         clusterStateBuilder.routingTable(newRoutingTable);
+
         return clusterStateBuilder.build();
     }
 

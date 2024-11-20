@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RemoteDownloadStats extends PersistedStateStats {
     static final String CHECKSUM_VALIDATION_FAILED_COUNT = "checksum_validation_failed_count";
     private AtomicLong checksumValidationFailedCount = new AtomicLong(0);
-    static final String INCOMING_PUBLICATION_FAILED_COUNT = "incoming_publication_failed_count";
+    public static final String INCOMING_PUBLICATION_FAILED_COUNT = "incoming_publication_failed_count";
     private AtomicLong incomingPublicationFailedCount = new AtomicLong(0);
 
     public RemoteDownloadStats(String statsName) {
