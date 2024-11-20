@@ -611,7 +611,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 2));
         tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
         tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
-        for (int i = 0; i < BooleanQuery.getMaxClauseCount(); i++) {
+        for (int i = 0; i < IndexSearcher.getMaxClauseCount(); i++) {
             tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 1));
         }
         return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);

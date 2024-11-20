@@ -147,8 +147,7 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
             collapsingCollector = CollapsingTopDocsCollector.createKeyword(collapseField.getField(), fieldType, sort, expectedNumGroups);
         }
 
-        TopFieldCollector topFieldCollector = new TopFieldCollectorManager(sort, totalHits, null, Integer.MAX_VALUE, false)
-            .newCollector();
+        TopFieldCollector topFieldCollector = new TopFieldCollectorManager(sort, totalHits, null, Integer.MAX_VALUE, false).newCollector();
         Query query = new MatchAllDocsQuery();
         searcher.search(query, collapsingCollector);
         searcher.search(query, topFieldCollector);

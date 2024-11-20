@@ -46,12 +46,12 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -599,12 +599,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Automaton a = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
         expectedQuery = new ConstantScoreQuery(
             new BooleanQuery.Builder().add(
-                new AutomatonQuery(
-                    new Term("prefix_field._index_prefix", "g*"),
-                    a,
-                    false,
-                    MultiTermQuery.CONSTANT_SCORE_REWRITE
-                ),
+                new AutomatonQuery(new Term("prefix_field._index_prefix", "g*"), a, false, MultiTermQuery.CONSTANT_SCORE_REWRITE),
                 Occur.SHOULD
             ).add(new TermQuery(new Term("prefix_field", "g")), Occur.SHOULD).build()
         );

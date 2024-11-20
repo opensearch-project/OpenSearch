@@ -75,7 +75,7 @@ public class VectorHighlighterTests extends OpenSearchTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
-        assertThat(topDocs.totalHits.value, equalTo(1L));
+        assertThat(topDocs.totalHits.value(), equalTo(1L));
 
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
         String fragment = highlighter.getBestFragment(
@@ -106,7 +106,7 @@ public class VectorHighlighterTests extends OpenSearchTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
-        assertThat(topDocs.totalHits.value, equalTo(1L));
+        assertThat(topDocs.totalHits.value(), equalTo(1L));
 
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
 
@@ -162,7 +162,7 @@ public class VectorHighlighterTests extends OpenSearchTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
-        assertThat(topDocs.totalHits.value, equalTo(1L));
+        assertThat(topDocs.totalHits.value(), equalTo(1L));
 
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
         String fragment = highlighter.getBestFragment(
@@ -188,7 +188,7 @@ public class VectorHighlighterTests extends OpenSearchTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
-        assertThat(topDocs.totalHits.value, equalTo(1L));
+        assertThat(topDocs.totalHits.value(), equalTo(1L));
 
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
         String fragment = highlighter.getBestFragment(

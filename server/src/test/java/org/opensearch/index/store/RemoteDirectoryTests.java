@@ -20,7 +20,6 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
-import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
