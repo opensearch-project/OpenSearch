@@ -13,6 +13,11 @@ import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.publish'
 
+ext {
+  // Do not fail on 'warning: using incubating module(s): jdk.incubator.vector'
+  failOnJavadocWarning = false
+}
+
 base {
   archivesName = 'opensearch-common'
 }
@@ -53,4 +58,8 @@ compileJava {
 
 test {
   systemProperty 'opensearch.experimental.feature.simd.rounding.enabled', 'forced'
+}
+
+javadoc {
+  options.addStringOption("-add-modules", "jdk.incubator.vector")
 }

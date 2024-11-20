@@ -350,6 +350,7 @@ class MissingJavadocTask extends DefaultTask {
         args += [ "-J-Xmx512m" ]
         // force locale to be "en_US" (fix for: https://bugs.openjdk.java.net/browse/JDK-8222793)
         args += [ "-J-Duser.language=en", "-J-Duser.country=US" ]
+        args += ["--add-modules", "jdk.incubator.vector"]
 
         ignoreExitValue true
       }
