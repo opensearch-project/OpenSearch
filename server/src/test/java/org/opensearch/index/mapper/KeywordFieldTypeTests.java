@@ -271,7 +271,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         Query indexExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true);
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        assertEquals(indexExpected, onlyIndexed.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
+        assertEquals(
+            indexExpected,
+            onlyIndexed.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC)
+        );
 
         Query dvExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, MultiTermQuery.DOC_VALUES_REWRITE);
         MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
@@ -292,7 +295,15 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,
-            () -> ft.fuzzyQuery("foo", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1, randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE)
+            () -> ft.fuzzyQuery(
+                "foo",
+                Fuzziness.AUTO,
+                randomInt(10) + 1,
+                randomInt(10) + 1,
+                randomBoolean(),
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                MOCK_QSC_DISALLOW_EXPENSIVE
+            )
         );
         assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
