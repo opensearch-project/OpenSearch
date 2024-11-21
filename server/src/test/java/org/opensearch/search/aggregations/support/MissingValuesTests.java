@@ -37,7 +37,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.geo.GeoPoint;
@@ -153,7 +152,7 @@ public class MissingValuesTests extends OpenSearchTestCase {
                 if (i < ords[doc].length) {
                     return ords[doc][i++];
                 } else {
-                    return DocIdSetIterator.NO_MORE_DOCS;
+                    return NO_MORE_DOCS;
                 }
             }
 
@@ -179,10 +178,10 @@ public class MissingValuesTests extends OpenSearchTestCase {
                     for (int ord : ords[i]) {
                         assertEquals(values[ord], withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
                     }
-                    assertEquals(DocIdSetIterator.NO_MORE_DOCS, withMissingReplaced.nextOrd());
+                    assertEquals(SortedSetDocValues.NO_MORE_DOCS, withMissingReplaced.nextOrd());
                 } else {
                     assertEquals(missing, withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
-                    assertEquals(DocIdSetIterator.NO_MORE_DOCS, withMissingReplaced.nextOrd());
+                    assertEquals(SortedSetDocValues.NO_MORE_DOCS, withMissingReplaced.nextOrd());
                 }
             }
         }

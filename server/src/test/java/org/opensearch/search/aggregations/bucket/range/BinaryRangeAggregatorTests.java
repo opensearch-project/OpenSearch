@@ -31,7 +31,6 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
@@ -67,7 +66,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
         @Override
         public long nextOrd() {
             if (i == ords.length) {
-                return DocIdSetIterator.NO_MORE_DOCS;
+                return NO_MORE_DOCS;
             }
             return ords[i++];
         }

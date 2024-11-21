@@ -788,7 +788,9 @@ public class MultiValueModeTests extends OpenSearchTestCase {
                 }
                 int expected = -1;
                 if (values.advanceExact(i)) {
-                    for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS; ord = values.nextOrd()) {
+                    int docValueCount = 0;
+                    for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS
+                        && docValueCount < values.docValueCount(); ord = values.nextOrd(), ++docValueCount) {
                         if (expected == -1) {
                             expected = (int) ord;
                         } else {
@@ -836,7 +838,10 @@ public class MultiValueModeTests extends OpenSearchTestCase {
                         if (++count > maxChildren) {
                             break;
                         }
-                        for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS; ord = values.nextOrd()) {
+
+                        int docValueCount = 0;
+                        for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS
+                            && docValueCount < values.docValueCount(); ord = values.nextOrd(), ++docValueCount) {
                             if (expected == -1) {
                                 expected = (int) ord;
                             } else {
