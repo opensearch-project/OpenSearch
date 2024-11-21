@@ -106,6 +106,14 @@ public class RemotePersistenceStats {
         return remoteFullDownloadStats.getChecksumValidationFailedCount();
     }
 
+    public void stateDiffIncomingPublicationFailed() {
+        remoteDiffDownloadStats.incomingPublicationFailedCount();
+    }
+
+    public void stateFullIncomingPublicationFailed() {
+        remoteFullDownloadStats.incomingPublicationFailedCount();
+    }
+
     public PersistedStateStats getUploadStats() {
         return remoteUploadStats;
     }
