@@ -86,7 +86,7 @@ public class SystemIndexProtectionPlugin extends Plugin implements ActionPlugin 
 
         final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(threadPool.getThreadContext());
         irr = new IndexResolverReplacer(resolver, clusterService::state, cih);
-        sif = new SystemIndexFilter(irr);
+        sif = new SystemIndexFilter(irr, localClient.threadPool());
         return Collections.emptySet();
     }
 

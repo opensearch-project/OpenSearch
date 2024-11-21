@@ -17,6 +17,7 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.indices.SystemIndexRegistry;
 import org.opensearch.tasks.Task;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,9 +28,11 @@ public class SystemIndexFilter implements ActionFilter {
 
     private final IndexResolverReplacer indexResolverReplacer;
     private final WildcardMatcher deniedActionsMatcher;
+    private final ThreadPool threadPool;
 
-    public SystemIndexFilter(final IndexResolverReplacer indexResolverReplacer) {
+    public SystemIndexFilter(final IndexResolverReplacer indexResolverReplacer, final ThreadPool threadPool) {
         this.indexResolverReplacer = indexResolverReplacer;
+        this.threadPool = threadPool;
 
         final List<String> deniedActionPatternsList = deniedActionPatterns();
 
@@ -63,6 +66,10 @@ public class SystemIndexFilter implements ActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
+        if (threadPool.getThreadContext().isSystemContext()) {
+            chain.proceed(task, action, request, listener);
+            return;
+        }
         if (deniedActionsMatcher.test(action)) {
             final IndexResolverReplacer.Resolved resolved = indexResolverReplacer.resolveRequest(request);
             final Set<String> allIndices = resolved.getAllIndices();
