@@ -46,6 +46,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.filter.ClusterInfoHolder;
 import org.opensearch.index.filter.IndexResolverReplacer;
 import org.opensearch.index.filter.SystemIndexFilter;
@@ -108,6 +109,16 @@ public class SystemIndexProtectionPlugin extends Plugin implements ActionPlugin 
             filters.add(Objects.requireNonNull(sif));
         }
         return filters;
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        // called for every index!
+        boolean isEnabled = settings.getAsBoolean(SYSTEM_INDEX_PROTECTION_ENABLED_KEY, false);
+
+        if (isEnabled) {
+            indexModule.setReaderWrapper(indexService -> new SystemIndexSearcherWrapper(indexService, settings));
+        }
     }
 
     @Override
