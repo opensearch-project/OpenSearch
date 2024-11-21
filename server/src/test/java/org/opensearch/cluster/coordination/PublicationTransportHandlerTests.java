@@ -79,7 +79,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -299,6 +302,42 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         assertThrows(IllegalStateException.class, () -> handler.handleIncomingRemotePublishRequest(remotePublishRequest));
         assertEquals(1, remoteClusterStateService.getDiffDownloadStats().getExtendedFields().get(INCOMING_PUBLICATION_FAILED_COUNT).get());
         assertEquals(0, remoteClusterStateService.getFullDownloadStats().getExtendedFields().get(INCOMING_PUBLICATION_FAILED_COUNT).get());
+    }
+
+    public void testDownloadRemotePersistedFullStateFailedStatsManifestExists() throws IOException {
+        RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
+        PersistedStateStats remoteFullDownloadStats = new RemoteDownloadStats("dummy_full_stats");
+        when(remoteClusterStateService.getFullDownloadStats()).thenReturn(remoteFullDownloadStats);
+
+        doAnswer((i) -> {
+            remoteFullDownloadStats.getExtendedFields().put(INCOMING_PUBLICATION_FAILED_COUNT, new AtomicLong(1));
+            return null;
+        }).when(remoteClusterStateService).fullIncomingPublicationFailed();
+
+        ClusterMetadataManifest metadataManifest = new ClusterMetadataManifest.Builder().diffManifest(
+            new ClusterStateDiffManifest.Builder().fromStateUUID("state-uuid").build()
+        ).build();
+        when(remoteClusterStateService.getClusterMetadataManifestByFileName(any(), any())).thenReturn(metadataManifest);
+
+        doThrow(new RuntimeException("test exception")).when(remoteClusterStateService)
+            .getClusterStateForManifest(anyString(), any(), any(), anyBoolean());
+        PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
+        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest = p -> expectedPublishResponse;
+        final PublicationTransportHandler handler = getPublicationTransportHandler(handlePublishRequest, remoteClusterStateService);
+        RemotePublishRequest remotePublishRequest = new RemotePublishRequest(
+            secondNode,
+            TERM,
+            VERSION,
+            CLUSTER_NAME,
+            CLUSTER_UUID,
+            MANIFEST_FILE
+        );
+        ClusterState clusterState = buildClusterState(TERM, VERSION);
+        PublishRequest publishRequest = new PublishRequest(clusterState);
+        handler.setCurrentPublishRequestToSelf(publishRequest);
+
+        assertThrows(RuntimeException.class, () -> handler.handleIncomingRemotePublishRequest(remotePublishRequest));
+        assertEquals(1, remoteClusterStateService.getFullDownloadStats().getExtendedFields().get(INCOMING_PUBLICATION_FAILED_COUNT).get());
     }
 
     public void testDownloadRemotePersistedDiffStateFailedStats() throws IOException {
