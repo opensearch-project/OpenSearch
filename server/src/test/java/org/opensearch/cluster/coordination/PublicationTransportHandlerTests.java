@@ -52,6 +52,7 @@ import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.ClusterStateDiffManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.RemoteDownloadStats;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
@@ -64,10 +65,12 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.gateway.remote.RemoteDownloadStats.INCOMING_PUBLICATION_FAILED_COUNT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.containsString;
@@ -180,8 +183,8 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
             () -> handler.handleIncomingRemotePublishRequest(remotePublishRequest)
         );
         assertThat(e.getMessage(), containsString("publication to self failed"));
-        verify(remoteClusterStateService, times(0)).fullDownloadFailed();
-        verify(remoteClusterStateService, times(1)).diffDownloadFailed();
+        verify(remoteClusterStateService, times(0)).fullIncomingPublicationFailed();
+        verify(remoteClusterStateService, times(1)).diffIncomingPublicationFailed();
         verifyNoMoreInteractions(remoteClusterStateService);
     }
 
@@ -207,8 +210,8 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
             () -> handler.handleIncomingRemotePublishRequest(remotePublishRequest)
         );
         assertThat(e.getMessage(), containsString("publication to self failed"));
-        verify(remoteClusterStateService, times(0)).fullDownloadFailed();
-        verify(remoteClusterStateService, times(1)).diffDownloadFailed();
+        verify(remoteClusterStateService, times(0)).fullIncomingPublicationFailed();
+        verify(remoteClusterStateService, times(1)).diffIncomingPublicationFailed();
         verifyNoMoreInteractions(remoteClusterStateService);
     }
 
@@ -234,8 +237,8 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
             () -> handler.handleIncomingRemotePublishRequest(remotePublishRequest)
         );
         assertThat(e.getMessage(), containsString("publication to self failed"));
-        verify(remoteClusterStateService, times(1)).diffDownloadFailed();
-        verify(remoteClusterStateService, times(0)).fullDownloadFailed();
+        verify(remoteClusterStateService, times(1)).diffIncomingPublicationFailed();
+        verify(remoteClusterStateService, times(0)).fullIncomingPublicationFailed();
         verifyNoMoreInteractions(remoteClusterStateService);
     }
 
@@ -263,20 +266,20 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
 
     public void testDownloadRemotePersistedFullStateFailedStats() throws IOException {
         RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
-        PersistedStateStats remoteFullDownloadStats = new PersistedStateStats("dummy_full_stats");
-        PersistedStateStats remoteDiffDownloadStats = new PersistedStateStats("dummy_diff_stats");
+        PersistedStateStats remoteFullDownloadStats = new RemoteDownloadStats("dummy_full_stats");
+        PersistedStateStats remoteDiffDownloadStats = new RemoteDownloadStats("dummy_diff_stats");
         when(remoteClusterStateService.getFullDownloadStats()).thenReturn(remoteFullDownloadStats);
         when(remoteClusterStateService.getDiffDownloadStats()).thenReturn(remoteDiffDownloadStats);
 
         doAnswer((i) -> {
-            remoteFullDownloadStats.stateFailed();
+            remoteFullDownloadStats.getExtendedFields().put(INCOMING_PUBLICATION_FAILED_COUNT, new AtomicLong(1));
             return null;
-        }).when(remoteClusterStateService).fullDownloadFailed();
+        }).when(remoteClusterStateService).fullIncomingPublicationFailed();
 
         doAnswer((i) -> {
-            remoteDiffDownloadStats.stateFailed();
+            remoteDiffDownloadStats.getExtendedFields().put(INCOMING_PUBLICATION_FAILED_COUNT, new AtomicLong(1));
             return null;
-        }).when(remoteClusterStateService).diffDownloadFailed();
+        }).when(remoteClusterStateService).diffIncomingPublicationFailed();
 
         PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
         Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest = p -> expectedPublishResponse;
@@ -294,8 +297,8 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         handler.setCurrentPublishRequestToSelf(publishRequest);
 
         assertThrows(IllegalStateException.class, () -> handler.handleIncomingRemotePublishRequest(remotePublishRequest));
-        assertEquals(1, remoteClusterStateService.getDiffDownloadStats().getFailedCount());
-        assertEquals(0, remoteClusterStateService.getFullDownloadStats().getFailedCount());
+        assertEquals(1, remoteClusterStateService.getDiffDownloadStats().getExtendedFields().get(INCOMING_PUBLICATION_FAILED_COUNT).get());
+        assertEquals(0, remoteClusterStateService.getFullDownloadStats().getExtendedFields().get(INCOMING_PUBLICATION_FAILED_COUNT).get());
     }
 
     public void testDownloadRemotePersistedDiffStateFailedStats() throws IOException {
@@ -309,9 +312,9 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         when(remoteClusterStateService.getClusterMetadataManifestByFileName(any(), any())).thenReturn(metadataManifest);
 
         doAnswer((i) -> {
-            remoteDiffDownloadStats.stateFailed();
+            remoteDiffDownloadStats.getExtendedFields().put(INCOMING_PUBLICATION_FAILED_COUNT, new AtomicLong(1));
             return null;
-        }).when(remoteClusterStateService).diffDownloadFailed();
+        }).when(remoteClusterStateService).diffIncomingPublicationFailed();
 
         PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
         Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest = p -> expectedPublishResponse;
@@ -333,7 +336,7 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         handler.setCurrentPublishRequestToSelf(publishRequest);
 
         assertThrows(NullPointerException.class, () -> handler.handleIncomingRemotePublishRequest(remotePublishRequest));
-        assertEquals(1, remoteClusterStateService.getDiffDownloadStats().getFailedCount());
+        assertEquals(1, remoteClusterStateService.getDiffDownloadStats().getExtendedFields().get(INCOMING_PUBLICATION_FAILED_COUNT).get());
 
     }
 
