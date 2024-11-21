@@ -10,6 +10,7 @@ package org.opensearch.index.system;
 
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.systemindex.SystemIndexProtectionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -22,6 +23,14 @@ public class SystemIndexProtectionTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(SystemIndexProtectionPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(SystemIndexProtectionPlugin.SYSTEM_INDEX_PROTECTION_ENABLED_KEY, true)
+            .build();
     }
 
     public void testBasic() throws Exception {

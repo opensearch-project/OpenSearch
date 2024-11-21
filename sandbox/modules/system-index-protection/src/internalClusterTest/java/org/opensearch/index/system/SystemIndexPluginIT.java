@@ -9,6 +9,7 @@
 package org.opensearch.index.system;
 
 import org.opensearch.OpenSearchSecurityException;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.systemindex.SystemIndexProtectionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -24,6 +25,14 @@ public class SystemIndexPluginIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(SystemIndexProtectionPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(SystemIndexProtectionPlugin.SYSTEM_INDEX_PROTECTION_ENABLED_KEY, true)
+            .build();
     }
 
     public void testBasic() throws Exception {

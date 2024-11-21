@@ -40,6 +40,8 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.lifecycle.LifecycleListener;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -56,6 +58,7 @@ import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.TransportService;
 import org.opensearch.watcher.ResourceWatcherService;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -65,8 +68,15 @@ import java.util.function.Supplier;
 
 public class SystemIndexProtectionPlugin extends Plugin implements ActionPlugin {
 
+    public static final String SYSTEM_INDEX_PROTECTION_ENABLED_KEY = "modules.system_index_protection.system_indices.enabled";
+
     private volatile SystemIndexFilter sif;
     private volatile IndexResolverReplacer irr;
+    private volatile Settings settings;
+
+    public SystemIndexProtectionPlugin(final Settings settings, final Path configPath) {
+        this.settings = settings;
+    }
 
     @Override
     public Collection<Object> createComponents(
@@ -93,7 +103,10 @@ public class SystemIndexProtectionPlugin extends Plugin implements ActionPlugin 
     @Override
     public List<ActionFilter> getActionFilters() {
         List<ActionFilter> filters = new ArrayList<>(1);
-        filters.add(Objects.requireNonNull(sif));
+        boolean isEnabled = settings.getAsBoolean(SYSTEM_INDEX_PROTECTION_ENABLED_KEY, false);
+        if (isEnabled) {
+            filters.add(Objects.requireNonNull(sif));
+        }
         return filters;
     }
 
@@ -143,5 +156,21 @@ public class SystemIndexProtectionPlugin extends Plugin implements ActionPlugin 
         @Override
         public void stop() {}
 
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settings = new ArrayList<Setting<?>>();
+
+        settings.add(
+            Setting.boolSetting(
+                SYSTEM_INDEX_PROTECTION_ENABLED_KEY,
+                false,
+                Setting.Property.NodeScope,
+                Setting.Property.Filtered,
+                Setting.Property.Final
+            )
+        );
+        return settings;
     }
 }

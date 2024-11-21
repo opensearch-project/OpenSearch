@@ -1,3 +1,5 @@
+import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
+
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -24,3 +26,7 @@ restResources {
 }
 // no unit tests
 test.enabled = false
+
+testClusters.yamlRestTest {
+  setting 'modules.system_index_protection.system_indices.enabled', 'true'
+}
