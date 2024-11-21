@@ -554,7 +554,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 visitedOrds.set(bucketOrd, bits);
             }
             if (values.advanceExact(doc)) {
-                for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS; ord = values.nextOrd()) {
+                int count = 0;
+                for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS && count < values.docValueCount(); ord = values
+                    .nextOrd(), ++count) {
                     bits.set((int) ord);
                 }
             }

@@ -288,7 +288,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == globalOrds.advanceExact(doc)) {
                         return;
                     }
-                    for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_DOCS; globalOrd = globalOrds.nextOrd()) {
+                    int count = 0;
+                    for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_DOCS && count < globalOrds.docValueCount(); globalOrd =
+                        globalOrds.nextOrd(), ++count) {
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
                 }
@@ -300,7 +302,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 if (false == globalOrds.advanceExact(doc)) {
                     return;
                 }
-                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_DOCS; globalOrd = globalOrds.nextOrd()) {
+                int count = 0;
+                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_DOCS && count < globalOrds.docValueCount(); globalOrd =
+                    globalOrds.nextOrd(), ++count) {
                     if (false == acceptedGlobalOrdinals.test(globalOrd)) {
                         continue;
                     }
@@ -477,7 +481,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == segmentOrds.advanceExact(doc)) {
                         return;
                     }
-                    for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_DOCS; segmentOrd = segmentOrds.nextOrd()) {
+                    int count = 0;
+                    for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_DOCS
+                        && count < segmentOrds.docValueCount(); segmentOrd = segmentOrds.nextOrd(), ++count) {
                         long docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(segmentOrd + 1, docCount);
                     }

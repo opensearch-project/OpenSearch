@@ -305,7 +305,7 @@ public enum MissingValues {
                     return values.nextOrd();
                 } else {
                     // we want to return the next missing ord but set this to
-                    // NO_MORE_ORDS so on the next call we indicate there are no
+                    // NO_MORE_DOCS so on the next call we indicate there are no
                     // more values
                     long ordToReturn = nextMissingOrd;
                     nextMissingOrd = SortedSetDocValues.NO_MORE_DOCS;
@@ -373,7 +373,7 @@ public enum MissingValues {
                     }
                 } else {
                     // we want to return the next missing ord but set this to
-                    // NO_MORE_ORDS so on the next call we indicate there are no
+                    // NO_MORE_DOCS so on the next call we indicate there are no
                     // more values
                     long ordToReturn = nextMissingOrd;
                     nextMissingOrd = SortedSetDocValues.NO_MORE_DOCS;

@@ -383,7 +383,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             public void setNextDocId(int docId) throws IOException {
                 count = 0;
                 if (in.advanceExact(docId)) {
-                    for (long ord = in.nextOrd(); count < in.docValueCount(); ord = in.nextOrd()) {
+                    for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS && count < in.docValueCount(); ord = in
+                        .nextOrd()) {
                         ords = ArrayUtil.grow(ords, count + 1);
                         ords[count++] = ord;
                     }

@@ -202,7 +202,9 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         public void collect(int doc, long bucket) throws IOException {
             if (values.advanceExact(doc)) {
                 int lo = 0;
-                for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS; ord = values.nextOrd()) {
+                int count = 0;
+                for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS && count < values.docValueCount(); ord = values
+                    .nextOrd(), ++count) {
                     lo = collect(doc, ord, bucket, lo);
                 }
             }

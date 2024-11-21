@@ -176,7 +176,9 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             public void collect(int doc, long bucket) throws IOException {
                 if (dvs.advanceExact(doc)) {
                     long ord;
-                    while ((ord = dvs.nextOrd()) != NO_MORE_DOCS) {
+                    int count = 0;
+                    while ((ord = dvs.nextOrd()) != NO_MORE_DOCS && count < dvs.docValueCount()) {
+                        count += 1;
                         currentValue = ord;
                         next.collect(doc, bucket);
                     }
@@ -206,7 +208,9 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 if (currentValueIsSet == false) {
                     if (dvs.advanceExact(doc)) {
                         long ord;
-                        while ((ord = dvs.nextOrd()) != NO_MORE_DOCS) {
+                        int count = 0;
+                        while ((ord = dvs.nextOrd()) != NO_MORE_DOCS && count < dvs.docValueCount()) {
+                            count += 1;
                             if (term.equals(lookup.lookupOrd(ord))) {
                                 currentValueIsSet = true;
                                 currentValue = ord;
