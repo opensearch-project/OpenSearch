@@ -32,7 +32,11 @@ public class VectorFieldTests extends OpenSearchTestCase {
      * test VectorField ctor
      */
     public void testVectorField_ctor() {
-        VectorField field = new VectorField("test-field", new float[] { 1.0f, 1.0f }, new FieldType());
+        VectorField field = new VectorField("test-field", new float[] { 1.0f, 1.0f }, new FieldType() {
+            {
+                setStored(true);
+            }
+        });
         Assert.assertEquals("test-field", field.name());
     }
 
