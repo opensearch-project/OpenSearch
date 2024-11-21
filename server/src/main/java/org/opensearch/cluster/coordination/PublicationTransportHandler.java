@@ -298,9 +298,9 @@ public class PublicationTransportHandler {
             }
         } catch (Exception e) {
             if (applyFullState) {
-                remoteClusterStateService.fullDownloadFailed();
+                remoteClusterStateService.fullIncomingPublicationFailed();
             } else {
-                remoteClusterStateService.diffDownloadFailed();
+                remoteClusterStateService.diffIncomingPublicationFailed();
             }
             throw e;
         }
