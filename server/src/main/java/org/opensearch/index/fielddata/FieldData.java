@@ -434,12 +434,10 @@ public enum FieldData {
                 if (values.advanceExact(doc) == false) {
                     return false;
                 }
-                for (int i = 0;; ++i) {
-                    if (values.nextOrd() == SortedSetDocValues.NO_MORE_DOCS) {
-                        count = i;
-                        break;
-                    }
-                }
+
+                // This must always be greater than zero.
+                count += values.docValueCount();
+
                 // reset the iterator on the current doc
                 boolean advanced = values.advanceExact(doc);
                 assert advanced;
