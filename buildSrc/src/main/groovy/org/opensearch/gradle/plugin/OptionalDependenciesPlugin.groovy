@@ -79,7 +79,7 @@ class OptionalDependenciesPlugin implements Plugin<Project> {
 
                                 if (foundDep) {
                                     if (foundDep.optional) {
-                                        foundDep.optional.value = 'true'
+                                        foundDep.optional[0].value = 'true'
                                     } else {
                                         foundDep.appendNode(OPTIONAL_IDENTIFIER, 'true')
                                     }
