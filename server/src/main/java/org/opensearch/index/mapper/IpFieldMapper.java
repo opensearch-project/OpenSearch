@@ -317,13 +317,13 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         private void convertMasks(List<String> masks, QueryShardContext context, List<Query> sink) {
             if (!masks.isEmpty() && (isSearchable() || hasDocValues())) {
-                IpMultiRangeQueryBuilder multiRange = null;
+                MultiIpRangeQueryBuilder multiRange = null;
                 for (String mask : masks) {
                     final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(mask);
                     PointRangeQuery query = (PointRangeQuery) InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
                     if (isSearchable()) { // even there is DV we don't go with it, since we can't guess clauses limit
                         if (multiRange == null) {
-                            multiRange = new IpMultiRangeQueryBuilder(name());
+                            multiRange = new MultiIpRangeQueryBuilder(name());
                         }
                         multiRange.add(query.getLowerPoint(), query.getUpperPoint());
                     } else { // it may hit clauses limit sooner or later
@@ -509,12 +509,12 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
     /**
      * Union over IP address ranges
      */
-    public static class IpMultiRangeQueryBuilder extends MultiRangeQuery.Builder {
-        public IpMultiRangeQueryBuilder(String field) {
+    public static class MultiIpRangeQueryBuilder extends MultiRangeQuery.Builder {
+        public MultiIpRangeQueryBuilder(String field) {
             super(field, InetAddressPoint.BYTES, 1);
         }
 
-        public IpMultiRangeQueryBuilder add(InetAddress lower, InetAddress upper) {
+        public MultiIpRangeQueryBuilder add(InetAddress lower, InetAddress upper) {
             add(new MultiRangeQuery.RangeClause(InetAddressPoint.encode(lower), InetAddressPoint.encode(upper)));
             return this;
         }
