@@ -828,6 +828,22 @@ public class DateFormattersTests extends OpenSearchTestCase {
         }
     }
 
+    public void testStrictDateTimeDefaultsToUTC() {
+        DateFormatter dateFormatter = DateFormatter.forPattern("strict_date_time");
+        // "strict_date_time" formatter should be able to parse with and without a timezone specified, as both are valid in ISO 8601
+        // See https://github.com/opensearch-project/OpenSearch/issues/16673
+        assertEquals(
+            ZonedDateTime.of(2024, 11, 21, 0, 0, 0, 0, ZoneOffset.UTC),
+            DateFormatters.from(dateFormatter.parse("2024-11-21T00:00:00Z"))
+        );
+
+        // Should default to UTC without a timezone specified
+        assertEquals(
+            ZonedDateTime.of(2024, 11, 21, 0, 0, 0, 0, ZoneOffset.UTC),
+            DateFormatters.from(dateFormatter.parse("2024-11-21T00:00:00"))
+        );
+    }
+
     void assertDateTimeEquals(String toTest, DateFormatter candidateParser, DateFormatter baselineParser) {
         Instant gotInstant = DateFormatters.from(candidateParser.parse(toTest)).toInstant();
         Instant expectedInstant = DateFormatters.from(baselineParser.parse(toTest)).toInstant();

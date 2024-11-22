@@ -732,6 +732,8 @@ public class DateFormatters {
     /*
      * Returns a formatter that combines a full date and time, separated by a 'T'
      * (uuuu-MM-dd'T'HH:mm:ss.SSSZZ).
+     * Timezone is optional and defaults to UTC,
+     * as Python's isoformat() can outputs ISO 8601-compliant dates that lack a timezone.
      */
     private static final DateFormatter STRICT_DATE_TIME = new JavaDateFormatter(
         "strict_date_time",
@@ -741,7 +743,9 @@ public class DateFormatters {
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT),
         new DateTimeFormatterBuilder().append(STRICT_DATE_FORMATTER)
+            .optionalStart()
             .append(TIME_ZONE_FORMATTER_NO_COLON)
+            .optionalEnd()
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT)
     );
