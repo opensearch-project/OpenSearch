@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.indices.replication;
 
-import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterState;
@@ -27,6 +26,7 @@ import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
@@ -45,14 +45,15 @@ import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
+import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.EMPTY_LIST;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.mockito.ArgumentMatchers.any;
@@ -73,7 +74,6 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
     private SegmentReplicationTargetService targetService;
 
     private ShardId shardId;
-
 
     TransportSegmentReplicationStatsAction action;
 
@@ -393,7 +393,8 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
 
     public void testNewResponseWhenAllReplicasReturnResponseCombinesTheResults() {
         SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
-        String[] shards = {"1", "2", "3"};
+        List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
+        String[] shards = { "1", "2", "3" };
         request.shards(shards);
 
         int totalShards = 3;
@@ -421,7 +422,11 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         Set<SegmentReplicationShardStats> segmentReplicationShardStats = new HashSet<>();
         SegmentReplicationShardStats segmentReplicationShardStatsOfReplica = new SegmentReplicationShardStats(allocIdOne, 0, 0, 0, 0, 0);
         segmentReplicationShardStats.add(segmentReplicationShardStatsOfReplica);
-        SegmentReplicationPerGroupStats segmentReplicationPerGroupStats = new SegmentReplicationPerGroupStats(shardIdOne, segmentReplicationShardStats, 0);
+        SegmentReplicationPerGroupStats segmentReplicationPerGroupStats = new SegmentReplicationPerGroupStats(
+            shardIdOne,
+            segmentReplicationShardStats,
+            0
+        );
 
         SegmentReplicationState segmentReplicationState = mock(SegmentReplicationState.class);
         SegmentReplicationShardStats segmentReplicationShardStatsFromSearchReplica = mock(SegmentReplicationShardStats.class);
@@ -435,14 +440,21 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         );
 
         SegmentReplicationStatsResponse response = action.newResponse(
-            request, totalShards, successfulShards, failedShard, responses, EMPTY_LIST, ClusterState.EMPTY_STATE);
+            request,
+            totalShards,
+            successfulShards,
+            failedShard,
+            responses,
+            shardFailures,
+            ClusterState.EMPTY_STATE
+        );
 
         List<SegmentReplicationPerGroupStats> responseStats = response.getReplicationStats().get(TEST_INDEX);
         SegmentReplicationPerGroupStats primStats = responseStats.get(0);
         Set<SegmentReplicationShardStats> segRpShardStatsSet = primStats.getReplicaStats();
 
-        for (SegmentReplicationShardStats segRpShardStats: segRpShardStatsSet) {
-            if(segRpShardStats.getAllocationId().equals(allocIdOne)) {
+        for (SegmentReplicationShardStats segRpShardStats : segRpShardStatsSet) {
+            if (segRpShardStats.getAllocationId().equals(allocIdOne)) {
                 assertEquals(segmentReplicationState, segRpShardStats.getCurrentReplicationState());
             }
 
@@ -454,7 +466,8 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
 
     public void testNewResponseWhenTwoPrimaryShardsForSameIndex() {
         SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
-        String[] shards = {"1", "2"};
+        List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
+        String[] shards = { "1", "2" };
         request.shards(shards);
         int totalShards = 3;
         int successfulShards = 3;
@@ -478,16 +491,23 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         );
 
         SegmentReplicationStatsResponse response = action.newResponse(
-            request, totalShards, successfulShards, failedShard, responses, EMPTY_LIST, ClusterState.EMPTY_STATE);
+            request,
+            totalShards,
+            successfulShards,
+            failedShard,
+            responses,
+            shardFailures,
+            ClusterState.EMPTY_STATE
+        );
 
         List<SegmentReplicationPerGroupStats> responseStats = response.getReplicationStats().get(TEST_INDEX);
 
-        for (SegmentReplicationPerGroupStats primStat: responseStats) {
-            if(primStat.getShardId().equals(shardIdOne)) {
+        for (SegmentReplicationPerGroupStats primStat : responseStats) {
+            if (primStat.getShardId().equals(shardIdOne)) {
                 assertEquals(segmentReplicationPerGroupStatsOne, primStat);
             }
 
-            if(primStat.getShardId().equals(shardIdTwo)) {
+            if (primStat.getShardId().equals(shardIdTwo)) {
                 assertEquals(segmentReplicationPerGroupStatsTwo, primStat);
             }
         }

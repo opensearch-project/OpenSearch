@@ -166,9 +166,7 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
     @Override
     protected SegmentReplicationShardStatsResponse shardOperation(SegmentReplicationStatsRequest request, ShardRouting shardRouting) {
         ShardId shardId = shardRouting.shardId();
-        IndexShard indexShard = indicesService
-            .indexServiceSafe(shardId.getIndex())
-            .getShard(shardId.id());
+        IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
 
         if (indexShard.indexSettings().isSegRepEnabledOrRemoteNode() == false) {
             return null;
@@ -237,28 +235,24 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
             return 0;
         }
 
-        if(completedSegmentReplicationState == null ||
-            completedSegmentReplicationState.getReplicationCheckpoint() == null) {
-            return ongoingSegmentReplicationState
-                .getReplicationCheckpoint()
-                .getSegmentInfosVersion();
+        if (completedSegmentReplicationState == null || completedSegmentReplicationState.getReplicationCheckpoint() == null) {
+            return ongoingSegmentReplicationState.getReplicationCheckpoint().getSegmentInfosVersion();
         }
 
-        return ongoingSegmentReplicationState.getReplicationCheckpoint().getSegmentInfosVersion() -
-            completedSegmentReplicationState.getReplicationCheckpoint().getSegmentInfosVersion();
+        return ongoingSegmentReplicationState.getReplicationCheckpoint().getSegmentInfosVersion() - completedSegmentReplicationState
+            .getReplicationCheckpoint()
+            .getSegmentInfosVersion();
     }
 
     private long calculateBytesBehind(
         SegmentReplicationState completedSegmentReplicationState,
         SegmentReplicationState ongoingSegmentReplicationState
     ) {
-        if (ongoingSegmentReplicationState == null ||
-            ongoingSegmentReplicationState.getReplicationCheckpoint() == null) {
+        if (ongoingSegmentReplicationState == null || ongoingSegmentReplicationState.getReplicationCheckpoint() == null) {
             return 0;
         }
 
-        if (completedSegmentReplicationState == null ||
-            completedSegmentReplicationState.getReplicationCheckpoint() == null) {
+        if (completedSegmentReplicationState == null || completedSegmentReplicationState.getReplicationCheckpoint() == null) {
             Store.RecoveryDiff diff = Store.segmentReplicationDiff(
                 ongoingSegmentReplicationState.getReplicationCheckpoint().getMetadataMap(),
                 Collections.emptyMap()
