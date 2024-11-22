@@ -227,6 +227,7 @@ public final class ThreadContext implements Writeable {
             sm.checkPermission(STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION);
         }
         final ThreadContext.StoredContext storedContext = stashContext();
+        ThreadContextAccess.doPrivilegedVoid(this::markAsSystemContext);
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
         return storedContext;
     }

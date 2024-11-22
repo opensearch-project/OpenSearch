@@ -71,8 +71,6 @@ public final class OriginSettingClient extends FilterClient {
                 () -> in().threadPool().getThreadContext().stashWithOrigin(origin)
             )
         ) {
-            ThreadContext threadContext = in().threadPool().getThreadContext();
-            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
         }
     }
