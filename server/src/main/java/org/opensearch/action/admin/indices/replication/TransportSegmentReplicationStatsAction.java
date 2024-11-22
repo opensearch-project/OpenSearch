@@ -21,7 +21,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.IndexService;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationShardStats;
@@ -31,13 +30,13 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -166,9 +165,10 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
 
     @Override
     protected SegmentReplicationShardStatsResponse shardOperation(SegmentReplicationStatsRequest request, ShardRouting shardRouting) {
-        IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
         ShardId shardId = shardRouting.shardId();
+        IndexShard indexShard = indicesService
+            .indexServiceSafe(shardId.getIndex())
+            .getShard(shardId.id());
 
         if (indexShard.indexSettings().isSegRepEnabledOrRemoteNode() == false) {
             return null;
@@ -177,12 +177,7 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         if (shardRouting.primary()) {
             return new SegmentReplicationShardStatsResponse(pressureService.getStatsForShard(indexShard));
         } else if (shardRouting.isSearchOnly()) {
-            SegmentReplicationShardStats segmentReplicationShardStats = calcualteSegmentReplicationShardStats(
-                shardRouting,
-                indexShard,
-                shardId,
-                request.activeOnly()
-            );
+            SegmentReplicationShardStats segmentReplicationShardStats = calcualteSegmentReplicationShardStats(shardRouting);
             return new SegmentReplicationShardStatsResponse(segmentReplicationShardStats);
         } else {
             return new SegmentReplicationShardStatsResponse(getSegmentReplicationState(shardId, request.activeOnly()));
@@ -208,31 +203,22 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
-    private SegmentReplicationShardStats calcualteSegmentReplicationShardStats(
-        ShardRouting shardRouting,
-        IndexShard indexShard,
-        ShardId shardId,
-        boolean isActiveOnly
-    ) {
-        ReplicationCheckpoint indexReplicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
-        SegmentReplicationState segmentReplicationState = getSegmentReplicationState(shardId, isActiveOnly);
-        if (segmentReplicationState != null) {
-            ReplicationCheckpoint latestReplicationCheckpointReceived = segmentReplicationState.getLatestReplicationCheckpoint();
+    private SegmentReplicationShardStats calcualteSegmentReplicationShardStats(ShardRouting shardRouting) {
+        ShardId shardId = shardRouting.shardId();
+        SegmentReplicationState completedSegmentReplicationState = targetService.getlatestCompletedEventSegmentReplicationState(shardId);
+        SegmentReplicationState ongoingSegmentReplicationState = targetService.getOngoingEventSegmentReplicationState(shardId);
 
-            SegmentReplicationShardStats segmentReplicationShardStats = new SegmentReplicationShardStats(
-                shardRouting.allocationId().getId(),
-                calculateCheckpointsBehind(indexReplicationCheckpoint, latestReplicationCheckpointReceived),
-                calculateBytesBehind(indexReplicationCheckpoint, latestReplicationCheckpointReceived),
-                0,
-                calculateCurrentReplicationLag(shardId),
-                getLastCompletedReplicationLag(shardId)
-            );
+        SegmentReplicationShardStats segmentReplicationShardStats = new SegmentReplicationShardStats(
+            shardRouting.allocationId().getId(),
+            calculateCheckpointsBehind(completedSegmentReplicationState, ongoingSegmentReplicationState),
+            calculateBytesBehind(completedSegmentReplicationState, ongoingSegmentReplicationState),
+            0,
+            getCurrentReplicationLag(ongoingSegmentReplicationState),
+            getLastCompletedReplicationLag(completedSegmentReplicationState)
+        );
 
-            segmentReplicationShardStats.setCurrentReplicationState(segmentReplicationState);
-            return segmentReplicationShardStats;
-        } else {
-            return new SegmentReplicationShardStats(shardRouting.allocationId().getId(), 0, 0, 0, 0, 0);
-        }
+        segmentReplicationShardStats.setCurrentReplicationState(targetService.getSegmentReplicationState(shardId));
+        return segmentReplicationShardStats;
     }
 
     private SegmentReplicationState getSegmentReplicationState(ShardId shardId, boolean isActiveOnly) {
@@ -244,38 +230,54 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
     }
 
     private long calculateCheckpointsBehind(
-        ReplicationCheckpoint indexReplicationCheckpoint,
-        ReplicationCheckpoint latestReplicationCheckpointReceived
+        SegmentReplicationState completedSegmentReplicationState,
+        SegmentReplicationState ongoingSegmentReplicationState
     ) {
-        if (latestReplicationCheckpointReceived != null) {
-            return latestReplicationCheckpointReceived.getSegmentInfosVersion() - indexReplicationCheckpoint.getSegmentInfosVersion();
+        if (ongoingSegmentReplicationState == null || ongoingSegmentReplicationState.getReplicationCheckpoint() == null) {
+            return 0;
         }
-        return 0;
+
+        if(completedSegmentReplicationState == null ||
+            completedSegmentReplicationState.getReplicationCheckpoint() == null) {
+            return ongoingSegmentReplicationState
+                .getReplicationCheckpoint()
+                .getSegmentInfosVersion();
+        }
+
+        return ongoingSegmentReplicationState.getReplicationCheckpoint().getSegmentInfosVersion() -
+            completedSegmentReplicationState.getReplicationCheckpoint().getSegmentInfosVersion();
     }
 
     private long calculateBytesBehind(
-        ReplicationCheckpoint indexReplicationCheckpoint,
-        ReplicationCheckpoint latestReplicationCheckpointReceived
+        SegmentReplicationState completedSegmentReplicationState,
+        SegmentReplicationState ongoingSegmentReplicationState
     ) {
-        if (latestReplicationCheckpointReceived != null) {
+        if (ongoingSegmentReplicationState == null ||
+            ongoingSegmentReplicationState.getReplicationCheckpoint() == null) {
+            return 0;
+        }
+
+        if (completedSegmentReplicationState == null ||
+            completedSegmentReplicationState.getReplicationCheckpoint() == null) {
             Store.RecoveryDiff diff = Store.segmentReplicationDiff(
-                latestReplicationCheckpointReceived.getMetadataMap(),
-                indexReplicationCheckpoint.getMetadataMap()
+                ongoingSegmentReplicationState.getReplicationCheckpoint().getMetadataMap(),
+                Collections.emptyMap()
             );
             return diff.missing.stream().mapToLong(StoreFileMetadata::length).sum();
         }
-        return 0;
-    }
 
-    private long calculateCurrentReplicationLag(ShardId shardId) {
-        SegmentReplicationState ongoingEventSegmentReplicationState = targetService.getOngoingEventSegmentReplicationState(shardId);
-        return ongoingEventSegmentReplicationState != null ? ongoingEventSegmentReplicationState.getTimer().time() : 0;
-    }
-
-    private long getLastCompletedReplicationLag(ShardId shardId) {
-        SegmentReplicationState lastCompletedSegmentReplicationState = targetService.getlatestCompletedEventSegmentReplicationState(
-            shardId
+        Store.RecoveryDiff diff = Store.segmentReplicationDiff(
+            ongoingSegmentReplicationState.getReplicationCheckpoint().getMetadataMap(),
+            completedSegmentReplicationState.getReplicationCheckpoint().getMetadataMap()
         );
-        return lastCompletedSegmentReplicationState != null ? lastCompletedSegmentReplicationState.getTimer().time() : 0;
+        return diff.missing.stream().mapToLong(StoreFileMetadata::length).sum();
+    }
+
+    private long getCurrentReplicationLag(SegmentReplicationState ongoingSegmentReplicationState) {
+        return ongoingSegmentReplicationState != null ? ongoingSegmentReplicationState.getTimer().time() : 0;
+    }
+
+    private long getLastCompletedReplicationLag(SegmentReplicationState completedSegmentReplicationState) {
+        return completedSegmentReplicationState != null ? completedSegmentReplicationState.getTimer().time() : 0;
     }
 }

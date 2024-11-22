@@ -89,7 +89,7 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
     private String sourceDescription;
     private DiscoveryNode targetNode;
 
-    private ReplicationCheckpoint latestReplicationCheckpoint;
+    private ReplicationCheckpoint replicationCheckpoint;
 
     public ShardRouting getShardRouting() {
         return shardRouting;
@@ -151,8 +151,8 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         return new TimeValue(time);
     }
 
-    public ReplicationCheckpoint getLatestReplicationCheckpoint() {
-        return this.latestReplicationCheckpoint;
+    public ReplicationCheckpoint getReplicationCheckpoint() {
+        return this.replicationCheckpoint;
     }
 
     public SegmentReplicationState(
@@ -259,8 +259,8 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         }
     }
 
-    public void setLatestReplicationCheckpoint(ReplicationCheckpoint latestReplicationCheckpoint) {
-        this.latestReplicationCheckpoint = latestReplicationCheckpoint;
+    public void setReplicationCheckpoint(ReplicationCheckpoint replicationCheckpoint) {
+        this.replicationCheckpoint = replicationCheckpoint;
     }
 
     @Override

@@ -177,7 +177,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
-            state.setLatestReplicationCheckpoint(checkpointInfo.getCheckpoint());
+            state.setReplicationCheckpoint(checkpointInfo.getCheckpoint());
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
             cancellableThreads.checkForCancel();
