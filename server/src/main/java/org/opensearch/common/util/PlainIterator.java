@@ -35,7 +35,6 @@ package org.opensearch.common.util;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A plain iterator
@@ -45,7 +44,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class PlainIterator<T> implements Iterable<T>, Countable {
     private final List<T> elements;
 
-    private AtomicInteger index = new AtomicInteger();
+    // Calls to nextOrNull might be performed on different threads in the transport actions so we need the volatile
+    // keyword in order to ensure visibility. Note that it is fine to use `volatile` for a counter in that case given
+    // that although nextOrNull might be called from different threads, it can never happen concurrently.
+    private volatile int index;
 
     public PlainIterator(List<T> elements) {
         this.elements = elements;
@@ -53,18 +55,18 @@ public class PlainIterator<T> implements Iterable<T>, Countable {
     }
 
     public void reset() {
-        index = new AtomicInteger(0);
+        index = 0;
     }
 
     public int remaining() {
-        return elements.size() - index.get();
+        return elements.size() - index;
     }
 
     public T nextOrNull() {
-        if (index.get() == elements.size()) {
+        if (index == elements.size()) {
             return null;
         } else {
-            return elements.get(index.getAndIncrement());
+            return elements.get(index++);
         }
     }
 
