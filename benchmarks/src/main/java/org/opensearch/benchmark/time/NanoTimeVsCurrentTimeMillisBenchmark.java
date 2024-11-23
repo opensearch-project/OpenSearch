@@ -41,8 +41,8 @@ public class NanoTimeVsCurrentTimeMillisBenchmark {
     }
 
     /*
-     * this acts as upper bound of how time is cached in org.opensearch.threadpool.ThreadPool
-     * */
+    * this acts as upper bound of how time is cached in org.opensearch.threadpool.ThreadPool
+    * */
     @Benchmark
     public long accessLongVar() {
         return var++;
