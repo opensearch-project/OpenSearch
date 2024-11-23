@@ -1,0 +1,102 @@
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline1"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field1",
+                  "value": "value1"
+                }
+              }
+            ]
+          }
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          settings:
+            index.default_pipeline: "pipeline1"
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          settings:
+            index.final_pipeline: "pipeline1"
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline1"
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: test_1
+  - do:
+      indices.delete:
+        index: test_2
+---
+"update operation with predefined default or final pipeline returns warning header":
+  - skip:
+      version:  " - 3.0.0"
+      reason:   "this change is added in 3.0.0"
+      features: allowed_warnings
+  - do:
+      index:
+        index: test_1
+        id:    1
+        body:  { foo: bar }
+
+  - match: { _seq_no:       0       }
+  - match: { _version:      1       }
+  - match: { _primary_term: 1       }
+  - match: { result:        created }
+
+  - do:
+      allowed_warnings:
+        - "the index [test_1] has a default ingest pipeline or a final ingest pipeline, but performing update operation with ingest pipeline causes unexpected result, this support will be removed in 3.0.0"
+      update:
+        index:            test_1
+        id:               1
+        _source:          true
+        body:
+          doc:            { foo: bar1 }
+
+  - match: { _seq_no:       1       }
+  - match: { _primary_term: 1       }
+  - match: { _version:      2       }
+  - match: { result:        updated }
+  - match: { get._source.foo:        bar1 }
+  - match: { get._source.field1:        value1 }
+
+  - do:
+      index:
+        index: test_2
+        id:    1
+        body:  { foo: bar }
+
+  - match: { _seq_no:       0       }
+  - match: { _version:      1       }
+  - match: { _primary_term: 1       }
+  - match: { result:        created }
+
+  - do:
+      allowed_warnings:
+        - "the index [test_2] has a default ingest pipeline or a final ingest pipeline, but performing update operation with ingest pipeline causes unexpected result, this support will be removed in 3.0.0"
+      update:
+        index:            test_2
+        id:               1
+        _source:          true
+        body:
+          doc:            { foo: bar1 }
+
+  - match: { _seq_no:       1       }
+  - match: { _primary_term: 1       }
+  - match: { _version:      2       }
+  - match: { result:        updated }
+  - match: { get._source.foo:        bar1 }
+  - match: { get._source.field1:        value1 }
