@@ -9,4 +9,4 @@
 /**
  * Contains Apache Arrow related classes and Stream generic interfaces
  */
-package org.opensearch.arrow;
+package org.opensearch.arrow.spi;

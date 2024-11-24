@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow;
+package org.opensearch.arrow.spi;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
