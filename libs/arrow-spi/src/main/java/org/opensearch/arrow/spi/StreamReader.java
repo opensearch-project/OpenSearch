@@ -25,7 +25,7 @@ import java.io.Closeable;
  * StreamTicket ticket = streamManager.registerStream(producer, taskId);
  *
  * // consumer
- * StreamIterator iterator = streamManager.getStreamIterator(ticket);
+ * StreamReader iterator = streamManager.getStreamReader(ticket);
  * try (VectorSchemaRoot root = iterator.getRoot()) {
  *     while (iterator.next()) {
  *         VarCharVector idVector = (VarCharVector)root.getVector("id");

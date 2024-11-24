@@ -37,30 +37,14 @@ public interface StreamManager extends AutoCloseable {
     StreamTicket registerStream(StreamProducer producer, TaskId parentTaskId);
 
     /**
-     * Creates a stream iterator for consuming Arrow data using a valid ticket.
+     * Creates a stream reader for consuming Arrow data using a valid ticket.
      * This method may trigger lazy initialization of Arrow resources if this is
      * the first access to the stream.
      *
      * @param ticket The StreamTicket obtained from registerStream
-     * @return A StreamIterator for consuming the Arrow data
+     * @return A StreamReader for consuming the Arrow data
      * @throws IllegalArgumentException if the ticket is invalid
      * @throws IllegalStateException if the stream has been cancelled or closed
      */
-    StreamReader getStreamIterator(StreamTicket ticket);
-
-    /**
-     * Generates a unique ticket identifier for stream registration.
-     *
-     * @return A unique string identifier for use in StreamTicket creation
-     */
-    String generateUniqueTicket();
-
-    /**
-     * Returns the identifier of the node where this StreamManager instance is running.
-     * This node ID is embedded in stream tickets to enable routing of stream requests
-     * in a distributed environment.
-     *
-     * @return The identifier of the local node
-     */
-    String getLocalNodeId();
+    StreamReader getStreamReader(StreamTicket ticket);
 }

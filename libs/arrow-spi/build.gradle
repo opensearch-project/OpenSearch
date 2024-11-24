@@ -9,8 +9,8 @@
  * GitHub history for details.
  */
 
+testingConventions.enabled = false
 dependencies {
-  implementation project(':libs:opensearch-common')
   implementation project(':libs:opensearch-core')
   api "org.apache.arrow:arrow-vector:${versions.arrow}"
   api "org.apache.arrow:arrow-format:${versions.arrow}"
@@ -29,13 +29,6 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   implementation "commons-codec:commons-codec:${versions.commonscodec}"
-
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-  testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-arrow-spi'
-  }
 }
 
 tasks.named('forbiddenApisMain').configure {

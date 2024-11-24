@@ -19,7 +19,7 @@ import java.io.Closeable;
  * Represents a producer of Arrow streams. The producer first needs to define the job by implementing this interface and
  * then register the job with the {@link StreamManager#registerStream(StreamProducer, TaskId)}, which will return {@link StreamTicket}
  * which can be distributed to the consumer. The consumer can then use the ticket to retrieve the stream using
- * {@link StreamManager#getStreamIterator(StreamTicket)} and then consume the stream using {@link StreamReader}.
+ * {@link StreamManager#getStreamReader(StreamTicket)} and then consume the stream using {@link StreamReader}.
  * <p>
  * BatchedJob supports streaming of intermediate results, allowing consumers to begin processing data before the entire
  * result set is generated. This is particularly useful for memory-intensive operations or when dealing with large datasets
