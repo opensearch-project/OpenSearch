@@ -651,4 +651,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         this.request.setCancelAfterTimeInterval(cancelAfterTimeInterval);
         return this;
     }
+
+    public SearchRequestBuilder setCoordinatorTimeout(TimeValue coordinatorTimeout) {
+        this.request.setCoordinatorTimeout(coordinatorTimeout);
+        return this;
+    }
 }
