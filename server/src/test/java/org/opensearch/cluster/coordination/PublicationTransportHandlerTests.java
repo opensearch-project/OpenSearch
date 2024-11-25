@@ -269,18 +269,18 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
 
     public void testDownloadRemotePersistedFullStateFailedStats() throws IOException {
         RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
-        PersistedStateStats remoteFullDownloadStats = new RemoteDownloadStats("dummy_full_stats");
-        PersistedStateStats remoteDiffDownloadStats = new RemoteDownloadStats("dummy_diff_stats");
+        RemoteDownloadStats remoteFullDownloadStats = new RemoteDownloadStats("dummy_full_stats");
+        RemoteDownloadStats remoteDiffDownloadStats = new RemoteDownloadStats("dummy_diff_stats");
         when(remoteClusterStateService.getFullDownloadStats()).thenReturn(remoteFullDownloadStats);
         when(remoteClusterStateService.getDiffDownloadStats()).thenReturn(remoteDiffDownloadStats);
 
         doAnswer((i) -> {
-            remoteFullDownloadStats.getExtendedFields().put(INCOMING_PUBLICATION_FAILED_COUNT, new AtomicLong(1));
+            remoteFullDownloadStats.incomingPublicationFailedCount();
             return null;
         }).when(remoteClusterStateService).fullIncomingPublicationFailed();
 
         doAnswer((i) -> {
-            remoteDiffDownloadStats.getExtendedFields().put(INCOMING_PUBLICATION_FAILED_COUNT, new AtomicLong(1));
+            remoteDiffDownloadStats.incomingPublicationFailedCount();
             return null;
         }).when(remoteClusterStateService).diffIncomingPublicationFailed();
 
@@ -300,8 +300,8 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         handler.setCurrentPublishRequestToSelf(publishRequest);
 
         assertThrows(IllegalStateException.class, () -> handler.handleIncomingRemotePublishRequest(remotePublishRequest));
-        assertEquals(1, remoteClusterStateService.getDiffDownloadStats().getExtendedFields().get(INCOMING_PUBLICATION_FAILED_COUNT).get());
-        assertEquals(0, remoteClusterStateService.getFullDownloadStats().getExtendedFields().get(INCOMING_PUBLICATION_FAILED_COUNT).get());
+        assertEquals(1, ((RemoteDownloadStats) remoteClusterStateService.getDiffDownloadStats()).getIncomingPublicationFailedCount());
+        assertEquals(0, ((RemoteDownloadStats) remoteClusterStateService.getFullDownloadStats()).getIncomingPublicationFailedCount());
     }
 
     public void testDownloadRemotePersistedFullStateFailedStatsManifestExists() throws IOException {

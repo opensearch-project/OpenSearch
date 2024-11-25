@@ -2048,14 +2048,6 @@ public class RemoteClusterStateService implements Closeable {
         return remoteStateStats.getRemoteDiffDownloadStats();
     }
 
-    public void fullDownloadFailed() {
-        remoteStateStats.stateFullDownloadFailed();
-    }
-
-    public void diffDownloadFailed() {
-        remoteStateStats.stateDiffDownloadFailed();
-    }
-
     public void fullIncomingPublicationFailed() {
         remoteStateStats.stateFullIncomingPublicationFailed();
     }
