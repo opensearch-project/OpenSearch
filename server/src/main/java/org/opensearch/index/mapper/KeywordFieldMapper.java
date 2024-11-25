@@ -52,6 +52,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
@@ -220,25 +221,40 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             );
         }
 
-        protected KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
+        public static Tuple<NamedAnalyzer, NamedAnalyzer> getNormalizerAndSearchAnalyzer(
+            String fieldName,
+            String normalizerName,
+            boolean splitQueriesOnWhitespace,
+            IndexAnalyzers indexAnalyzers
+        ) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
-            String normalizerName = this.normalizer.getValue();
+            assert normalizerName != null;
             if (Objects.equals(normalizerName, "default") == false) {
                 assert indexAnalyzers != null;
                 normalizer = indexAnalyzers.getNormalizer(normalizerName);
                 if (normalizer == null) {
-                    throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
+                    throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + fieldName + "]");
                 }
-                if (splitQueriesOnWhitespace.getValue()) {
+                if (splitQueriesOnWhitespace) {
                     searchAnalyzer = indexAnalyzers.getWhitespaceNormalizer(normalizerName);
                 } else {
                     searchAnalyzer = normalizer;
                 }
-            } else if (splitQueriesOnWhitespace.getValue()) {
+            } else if (splitQueriesOnWhitespace) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
-            return new KeywordFieldType(buildFullName(context), fieldType, normalizer, searchAnalyzer, this);
+            return new Tuple<>(normalizer, searchAnalyzer);
+        }
+
+        protected KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
+            Tuple<NamedAnalyzer, NamedAnalyzer> analyzers = getNormalizerAndSearchAnalyzer(
+                name,
+                this.normalizer.getValue(),
+                this.splitQueriesOnWhitespace.getValue(),
+                indexAnalyzers
+            );
+            return new KeywordFieldType(buildFullName(context), fieldType, analyzers.v1(), analyzers.v2(), this);
         }
 
         @Override
@@ -292,8 +308,19 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this(name, isSearchable, hasDocValues, Lucene.KEYWORD_ANALYZER, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        }
+
+        public KeywordFieldType(
+            String name,
+            boolean isSearchable,
+            boolean hasDocValues,
+            NamedAnalyzer normalizer,
+            TextSearchInfo textSearchInfo,
+            Map<String, String> meta
+        ) {
+            super(name, isSearchable, false, hasDocValues, textSearchInfo, meta);
+            setIndexAnalyzer(normalizer);
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
         }

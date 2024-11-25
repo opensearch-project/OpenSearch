@@ -21,21 +21,25 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Iterators;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.JsonToStringXContentParser;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -46,6 +50,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -53,7 +58,9 @@ import static org.opensearch.common.xcontent.JsonToStringXContentParser.DOT_SYMB
 import static org.opensearch.common.xcontent.JsonToStringXContentParser.EQUAL_SYMBOL;
 import static org.opensearch.common.xcontent.JsonToStringXContentParser.VALUE_AND_PATH_SUFFIX;
 import static org.opensearch.common.xcontent.JsonToStringXContentParser.VALUE_SUFFIX;
-import static org.opensearch.index.mapper.FlatObjectFieldMapper.FlatObjectFieldType.getKeywordFieldType;
+import static org.opensearch.index.mapper.KeywordFieldMapper.Builder.getNormalizerAndSearchAnalyzer;
+import static org.opensearch.index.mapper.TypeParsers.DOC_VALUES;
+import static org.opensearch.index.mapper.TypeParsers.checkNull;
 
 /**
  * A field mapper for flat_objects.
@@ -63,6 +70,14 @@ import static org.opensearch.index.mapper.FlatObjectFieldMapper.FlatObjectFieldT
 public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     public static final String CONTENT_TYPE = "flat_object";
+
+    private final String normalizerName;
+    private final boolean isSearchable;
+    private final boolean hasDocValues;
+    private final int ignoreAbove;
+    private final SimilarityProvider similarity;
+    private final int depthLimit;
+    private final IndexAnalyzers indexAnalyzers;
 
     /**
      * In flat_object field mapper, field type is similar to keyword field type
@@ -83,11 +98,21 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     public MappedFieldType keyedFieldType(String key) {
+        Tuple<NamedAnalyzer, NamedAnalyzer> analyzers = getNormalizerAndSearchAnalyzer(
+            this.name() + DOT_SYMBOL + key,
+            normalizerName != null ? normalizerName : "default",
+            false,
+            indexAnalyzers
+        );
         return new FlatObjectFieldType(
             this.name() + DOT_SYMBOL + key,
             this.name(),
             (KeywordFieldType) valueFieldMapper.fieldType(),
-            (KeywordFieldType) valueAndPathFieldMapper.fieldType()
+            (KeywordFieldType) valueAndPathFieldMapper.fieldType(),
+            similarity,
+            analyzers.v1(),
+            analyzers.v2(),
+            ignoreAbove
         );
     }
 
@@ -107,10 +132,20 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
      * @opensearch.internal
      */
     public static class Builder extends FieldMapper.Builder<Builder> {
+        private String normalizerName;
+        private int ignoreAbove = Integer.MAX_VALUE;
+        private SimilarityProvider similarity;
+        private int depthLimit = Integer.MAX_VALUE;
+        private final IndexAnalyzers indexAnalyzers;
 
-        public Builder(String name) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name, Defaults.FIELD_TYPE);
             builder = this;
+            this.indexAnalyzers = indexAnalyzers;
+        }
+
+        public void setNormalizer(String normalizer) {
+            this.normalizerName = normalizer;
         }
 
         /**
@@ -133,20 +168,49 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public FlatObjectFieldMapper build(BuilderContext context) {
-            boolean isSearchable = true;
-            boolean hasDocValue = true;
-            KeywordFieldType valueFieldType = getKeywordFieldType(buildFullName(context), VALUE_SUFFIX, isSearchable, hasDocValue);
-            KeywordFieldType valueAndPathFieldType = getKeywordFieldType(
+            Tuple<NamedAnalyzer, NamedAnalyzer> analyzers = getNormalizerAndSearchAnalyzer(
+                buildFullName(context),
+                normalizerName != null ? normalizerName : "default",
+                false,
+                indexAnalyzers
+            );
+
+            KeywordFieldType valueFieldType = FlatObjectFieldType.getKeywordFieldType(
+                buildFullName(context),
+                VALUE_SUFFIX,
+                indexed,
+                hasDocValues,
+                similarity,
+                analyzers.v1(),
+                analyzers.v2()
+            );
+            KeywordFieldType valueAndPathFieldType = FlatObjectFieldType.getKeywordFieldType(
                 buildFullName(context),
                 VALUE_AND_PATH_SUFFIX,
-                isSearchable,
-                hasDocValue
+                indexed,
+                hasDocValues,
+                similarity,
+                analyzers.v1(),
+                analyzers.v2()
             );
-            FlatObjectFieldType fft = new FlatObjectFieldType(buildFullName(context), null, valueFieldType, valueAndPathFieldType);
+
+            FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
+            fieldtype.setIndexOptions(TextParams.toIndexOptions(indexed, "docs"));
+
+            FlatObjectFieldType fft = new FlatObjectFieldType(
+                buildFullName(context),
+                null,
+                valueFieldType,
+                valueAndPathFieldType,
+                similarity,
+                analyzers.v1(),
+                analyzers.v2(),
+                ignoreAbove
+            );
 
             return new FlatObjectFieldMapper(
                 name,
-                Defaults.FIELD_TYPE,
+                fieldtype,
                 fft,
                 buildValueFieldMapper(Defaults.FIELD_TYPE, valueFieldType),
                 buildValueAndPathFieldMapper(Defaults.FIELD_TYPE, valueAndPathFieldType),
@@ -156,12 +220,18 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
     /**
      * Creates a new TypeParser for flatObjectFieldMapper that does not use ParameterizedFieldMapper
      */
     public static class TypeParser implements Mapper.TypeParser {
+
+        static final String INDEXED = "index";
+        static final String NORMALIZER = "normalizer";
+        static final String IGNORE_ABOVE = "ignore_above";
+        static final String SIMILARITY = "similarity";
+        static final String DEPTH_LIMIT = "depth_limit";
         private final BiFunction<String, ParserContext, Builder> builderFunction;
 
         public TypeParser(BiFunction<String, ParserContext, Builder> builderFunction) {
@@ -171,6 +241,44 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = builderFunction.apply(name, parserContext);
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
+                String propName = entry.getKey();
+                Object propNode = entry.getValue();
+                checkNull(propName, propNode);
+                switch (propName) {
+                    case NORMALIZER: // allow lowercase, and custom normalizer
+                        builder.setNormalizer(XContentMapValues.nodeStringValue(propNode));
+                        iterator.remove();
+                        break;
+                    case INDEXED: // allow to set indexed to be false
+                        builder.index(XContentMapValues.nodeBooleanValue(propNode));
+                        iterator.remove();
+                        break;
+                    case DOC_VALUES: // allow to set docValues to be false
+                        builder.hasDocValues = XContentMapValues.nodeBooleanValue(propNode);
+                        iterator.remove();
+                        break;
+                    case IGNORE_ABOVE:// allow to set if the length of a field is go above certain limit then ignore the document.
+                        builder.ignoreAbove = XContentMapValues.nodeIntegerValue(propNode);
+                        if (builder.ignoreAbove < 0) {
+                            throw new IllegalArgumentException("[ignore_above] must be positive, got " + builder.ignoreAbove);
+                        }
+                        iterator.remove();
+                        break;
+                    case SIMILARITY:// allow to set similarity setting
+                        builder.similarity = TypeParsers.resolveSimilarity(parserContext, name, propNode);
+                        iterator.remove();
+                        break;
+                    case DEPTH_LIMIT:// allow to set maximum depth limitation to the JSON document
+                        builder.depthLimit = XContentMapValues.nodeIntegerValue(propNode);
+                        if (builder.depthLimit < 0) {
+                            throw new IllegalArgumentException("[depth_limit] must be positive, got " + builder.depthLimit);
+                        }
+                        iterator.remove();
+                        break;
+                }
+            }
             return builder;
         }
     }
@@ -182,7 +290,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     public static final class FlatObjectFieldType extends StringFieldType {
 
         private final int ignoreAbove;
-        private final String nullValue;
 
         private final String mappedFieldTypeName;
 
@@ -195,7 +302,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             String mappedFieldTypeName,
             boolean isSearchable,
             boolean hasDocValues,
-            NamedAnalyzer analyzer,
+            int ignoreAbove,
+            SimilarityProvider similarity,
+            NamedAnalyzer normalizer,
+            NamedAnalyzer searchAnalyzer,
             Map<String, String> meta
         ) {
             super(
@@ -203,40 +313,77 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 isSearchable,
                 false,
                 hasDocValues,
-                analyzer == null ? TextSearchInfo.SIMPLE_MATCH_ONLY : new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer),
+                new TextSearchInfo(Defaults.FIELD_TYPE, similarity, normalizer, searchAnalyzer),
                 meta
             );
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            this.ignoreAbove = Integer.MAX_VALUE;
-            this.nullValue = null;
+
+            assert normalizer != null;
+            setIndexAnalyzer(normalizer);
+            this.ignoreAbove = ignoreAbove;
             this.mappedFieldTypeName = mappedFieldTypeName;
-            this.valueFieldType = getKeywordFieldType(name, VALUE_SUFFIX, isSearchable, hasDocValues);
-            this.valueAndPathFieldType = getKeywordFieldType(name, VALUE_AND_PATH_SUFFIX, isSearchable, hasDocValues);
+            this.valueFieldType = getKeywordFieldType(
+                name,
+                VALUE_SUFFIX,
+                isSearchable,
+                hasDocValues,
+                similarity,
+                normalizer,
+                searchAnalyzer
+            );
+            this.valueAndPathFieldType = getKeywordFieldType(
+                name,
+                VALUE_AND_PATH_SUFFIX,
+                isSearchable,
+                hasDocValues,
+                similarity,
+                normalizer,
+                searchAnalyzer
+            );
         }
 
         public FlatObjectFieldType(
             String name,
             String mappedFieldTypeName,
             KeywordFieldType valueFieldType,
-            KeywordFieldType valueAndPathFieldType
+            KeywordFieldType valueAndPathFieldType,
+            SimilarityProvider similarity,
+            NamedAnalyzer normalizer,
+            NamedAnalyzer searchAnalyzer,
+            int ignoreAbove
         ) {
             super(
                 name,
                 valueFieldType.isSearchable(),
                 false,
                 valueFieldType.hasDocValues(),
-                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
+                new TextSearchInfo(Defaults.FIELD_TYPE, similarity, normalizer, searchAnalyzer),
                 Collections.emptyMap()
             );
-            this.ignoreAbove = Integer.MAX_VALUE;
-            this.nullValue = null;
+            setIndexAnalyzer(normalizer);
+            this.ignoreAbove = ignoreAbove;
             this.mappedFieldTypeName = mappedFieldTypeName;
             this.valueFieldType = valueFieldType;
             this.valueAndPathFieldType = valueAndPathFieldType;
         }
 
-        static KeywordFieldType getKeywordFieldType(String fullName, String valueType, boolean isSearchable, boolean hasDocValue) {
-            return new KeywordFieldType(fullName + valueType, isSearchable, hasDocValue, Collections.emptyMap()) {
+        static KeywordFieldType getKeywordFieldType(
+            String fullName,
+            String valueType,
+            boolean isSearchable,
+            boolean hasDocValue,
+            SimilarityProvider similarity,
+            NamedAnalyzer normalizer,
+            NamedAnalyzer searchAnalyzer
+        ) {
+            TextSearchInfo textSearchInfo = new TextSearchInfo(Defaults.FIELD_TYPE, similarity, searchAnalyzer, searchAnalyzer);
+            return new KeywordFieldType(
+                fullName + valueType,
+                isSearchable,
+                hasDocValue,
+                normalizer,
+                textSearchInfo,
+                Collections.emptyMap()
+            ) {
                 @Override
                 protected String rewriteForDocValue(Object value) {
                     assert value instanceof String;
@@ -281,7 +428,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return new SourceValueFetcher(name(), context, null) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String flatObjectKeywordValue = value.toString();
@@ -416,35 +563,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (inputValue == null) {
                 return null;
             }
-            if (inputValue instanceof Integer) {
-                String inputToString = Integer.toString((Integer) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Float) {
-                String inputToString = Float.toString((Float) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Boolean) {
-                String inputToString = Boolean.toString((Boolean) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Short) {
-                String inputToString = Short.toString((Short) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Long) {
-                String inputToString = Long.toString((Long) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof Double) {
-                String inputToString = Double.toString((Double) inputValue);
-                return inputToString;
-            } else if (inputValue instanceof BytesRef) {
-                String inputToString = (((BytesRef) inputValue).utf8ToString());
-                return inputToString;
-            } else if (inputValue instanceof String) {
-                String inputToString = (String) inputValue;
-                return inputToString;
-            } else if (inputValue instanceof Version) {
-                String inputToString = inputValue.toString();
-                return inputToString;
+            if (inputValue instanceof BytesRef) {
+                return (((BytesRef) inputValue).utf8ToString());
             } else {
-                // default to cast toString
                 return inputValue.toString();
             }
         }
@@ -549,7 +670,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         this.fieldType = fieldType;
         this.valueFieldMapper = valueFieldMapper;
         this.valueAndPathFieldMapper = valueAndPathFieldMapper;
-        this.mappedFieldType = mappedFieldType;
+        this.normalizerName = builder.normalizerName;
+        this.isSearchable = builder.indexed;
+        this.hasDocValues = builder.hasDocValues;
+        this.ignoreAbove = builder.ignoreAbove;
+        this.similarity = builder.similarity;
+        this.depthLimit = builder.depthLimit;
+        this.indexAnalyzers = builder.indexAnalyzers;
     }
 
     @Override
@@ -559,7 +686,25 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+        FlatObjectFieldMapper mappers = (FlatObjectFieldMapper) other;
+        if (!Objects.equals(this.normalizerName, mappers.normalizerName)) {
+            conflicts.add("mapper [" + name() + "] has different [normalizer]");
+        }
+        if (!Objects.equals(this.isSearchable, mappers.isSearchable)) {
+            conflicts.add("mapper [" + name() + "] has different [index]");
+        }
+        if (!Objects.equals(this.hasDocValues, mappers.hasDocValues)) {
+            conflicts.add("mapper [" + name() + "] has different [doc_values]");
+        }
+        if (!Objects.equals(this.ignoreAbove, mappers.ignoreAbove)) {
+            conflicts.add("mapper [" + name() + "] has different [ignore_above]");
+        }
+        if (!Objects.equals(this.similarity, mappers.similarity)) {
+            conflicts.add("mapper [" + name() + "] has different [similarity]");
+        }
+        if (!Objects.equals(this.depthLimit, mappers.depthLimit)) {
+            conflicts.add("mapper [" + name() + "] has different [depth_limit]");
+        }
     }
 
     @Override
@@ -588,7 +733,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.IGNORE_DEPRECATIONS,
                     ctxParser,
-                    fieldType().name()
+                    fieldType().name(),
+                    depthLimit,
+                    ignoreAbove
                 );
                 /*
                   JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
@@ -607,7 +754,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                             parseValueAddFields(context, value, fieldName);
                             break;
                     }
-
                 }
             }
         }
@@ -643,6 +789,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         assert valueFieldMapper != null;
         assert valueAndPathFieldMapper != null;
+        if (value == null) {
+            return;
+        }
         NamedAnalyzer normalizer = fieldType().normalizer();
         if (normalizer != null) {
             value = normalizeValue(normalizer, name(), value);
@@ -651,9 +800,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         String[] valueTypeList = fieldName.split("\\._");
         String valueType = "._" + valueTypeList[valueTypeList.length - 1];
 
+        // convert to utf8 only once before feeding postings/dv/stored fields
+        final BytesRef binaryValue = new BytesRef(fieldType().name() + DOT_SYMBOL + value);
+
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            // convert to utf8 only once before feeding postings/dv/stored fields
-            final BytesRef binaryValue = new BytesRef(fieldType().name() + DOT_SYMBOL + value);
 
             if (fieldType().hasDocValues() == false) {
                 createFieldNamesField(context);
@@ -666,15 +816,15 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             } else if (valueType.equals(VALUE_AND_PATH_SUFFIX)) {
                 valueAndPathFieldMapper.addField(context, value);
             }
+        }
 
-            if (fieldType().hasDocValues()) {
-                if (fieldName.equals(fieldType().name())) {
-                    context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-                } else if (valueType.equals(VALUE_SUFFIX)) {
-                    context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_SUFFIX, binaryValue));
-                } else if (valueType.equals(VALUE_AND_PATH_SUFFIX)) {
-                    context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_AND_PATH_SUFFIX, binaryValue));
-                }
+        if (fieldType().hasDocValues()) {
+            if (fieldName.equals(fieldType().name())) {
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            } else if (valueType.equals(VALUE_SUFFIX)) {
+                context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_SUFFIX, binaryValue));
+            } else if (valueType.equals(VALUE_AND_PATH_SUFFIX)) {
+                context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_AND_PATH_SUFFIX, binaryValue));
             }
         }
     }
@@ -702,11 +852,35 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             + " and input \""
             + value
             + "\"";
+
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        builder.field("type", contentType());
+        if (includeDefaults || normalizerName != null) {
+            builder.field("normalizer", normalizerName);
+        }
+        if (includeDefaults || isSearchable != true) {
+            builder.field("index", isSearchable);
+        }
+        if (includeDefaults || hasDocValues != true) {
+            builder.field("doc_values", hasDocValues);
+        }
+        if (includeDefaults || ignoreAbove != Integer.MAX_VALUE) {
+            builder.field("ignore_above", ignoreAbove);
+        }
+        if (includeDefaults || similarity != null) {
+            builder.field("similarity", similarity.name());
+        }
+        if (includeDefaults || depthLimit != Integer.MAX_VALUE) {
+            builder.field("depth_limit", depthLimit);
+        }
     }
 
     private static final class ValueAndPathFieldMapper extends FieldMapper {
@@ -735,7 +909,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -775,7 +949,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+            throw new UnsupportedOperationException();
         }
 
         @Override

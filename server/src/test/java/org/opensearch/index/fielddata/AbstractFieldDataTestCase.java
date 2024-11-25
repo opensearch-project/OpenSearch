@@ -144,7 +144,7 @@ public abstract class AbstractFieldDataTestCase extends OpenSearchSingleNodeTest
         } else if (type.equals("geo_point")) {
             fieldType = new GeoPointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("flat_object")) {
-            fieldType = new FlatObjectFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            fieldType = new FlatObjectFieldMapper.Builder(fieldName, null).docValues(docValues).build(context).fieldType();
         } else if (type.equals("binary")) {
             fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(context).fieldType();
         } else {

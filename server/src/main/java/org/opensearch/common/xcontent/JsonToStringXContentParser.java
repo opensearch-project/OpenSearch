@@ -20,6 +20,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.mapper.MapperParsingException;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -54,17 +55,24 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
 
     private final DeprecationHandler deprecationHandler;
 
+    private int depthLimit;
+    private int ignoreAbove;
+
     public JsonToStringXContentParser(
         NamedXContentRegistry xContentRegistry,
         DeprecationHandler deprecationHandler,
         XContentParser parser,
-        String fieldTypeName
+        String fieldTypeName,
+        int depthLimit,
+        int ignoreAbove
     ) throws IOException {
         super(xContentRegistry, deprecationHandler);
         this.deprecationHandler = deprecationHandler;
         this.xContentRegistry = xContentRegistry;
         this.parser = parser;
         this.fieldTypeName = fieldTypeName;
+        this.depthLimit = depthLimit;
+        this.ignoreAbove = ignoreAbove;
     }
 
     public XContentParser parseObject() throws IOException {
@@ -74,7 +82,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         builder.startObject();
         LinkedList<String> path = new LinkedList<>(Collections.singleton(fieldTypeName));
         while (currentToken() != Token.END_OBJECT) {
-            parseToken(path);
+            parseToken(path, 1);
         }
         // deduplication the fieldName,valueList,valueAndPathList
         builder.field(this.fieldTypeName, new HashSet<>(keyList));
@@ -88,7 +96,12 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
     /**
      * @return true if the child object contains no_null value, false otherwise
      */
-    private boolean parseToken(Deque<String> path) throws IOException {
+    private boolean parseToken(Deque<String> path, int depth) throws IOException {
+        if (depth > depthLimit) {
+            throw new MapperParsingException(
+                "the depth of flat_object field path " + path + " is bigger than maximum" + " depth [" + depthLimit + "]"
+            );
+        }
         boolean isChildrenValueValid = false;
         boolean visitFieldName = false;
         if (this.parser.currentToken() == Token.FIELD_NAME) {
@@ -104,21 +117,21 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
             }
             this.keyList.add(parts); // parts has no dot, so either it's the original fieldName or it's the last part
             this.parser.nextToken(); // advance to the value of fieldName
-            isChildrenValueValid = parseToken(path); // parse the value for fieldName (which will be an array, an object,
-                                                     // or a primitive value)
+            isChildrenValueValid = parseToken(path, depth); // parse the value for fieldName (which will be an array, an object,
+            // or a primitive value)
             path.removeLast(); // Here is where we pop fieldName from the stack (since we're done with the value of fieldName)
             // Note that whichever other branch we just passed through has already ended with nextToken(), so we
             // don't need to call it.
         } else if (this.parser.currentToken() == Token.START_ARRAY) {
             parser.nextToken();
             while (this.parser.currentToken() != Token.END_ARRAY) {
-                isChildrenValueValid |= parseToken(path);
+                isChildrenValueValid |= parseToken(path, depth + 1);
             }
             this.parser.nextToken();
         } else if (this.parser.currentToken() == Token.START_OBJECT) {
             parser.nextToken();
             while (this.parser.currentToken() != Token.END_OBJECT) {
-                isChildrenValueValid |= parseToken(path);
+                isChildrenValueValid |= parseToken(path, depth + 1);
             }
             this.parser.nextToken();
         } else {
@@ -150,11 +163,16 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
             case VALUE_NUMBER:
             case VALUE_STRING:
             case VALUE_NULL:
-                return this.parser.textOrNull();
+                String value = this.parser.textOrNull();
+                if (value != null && value.length() <= ignoreAbove) {
+                    return value;
+                }
+                break;
             // Handle other token types as needed
             default:
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected value token type [" + parser.currentToken() + "]");
         }
+        return null;
     }
 
     @Override

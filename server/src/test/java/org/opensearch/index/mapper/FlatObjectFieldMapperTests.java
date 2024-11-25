@@ -8,6 +8,11 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.LowerCaseFilter;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -20,13 +25,30 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AnalyzerScope;
+import org.opensearch.index.analysis.CharFilterFactory;
+import org.opensearch.index.analysis.CustomAnalyzer;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.LowercaseNormalizer;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.analysis.TokenizerFactory;
 import org.opensearch.index.query.QueryShardContext;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.opensearch.common.xcontent.JsonToStringXContentParser.VALUE_AND_PATH_SUFFIX;
 import static org.opensearch.common.xcontent.JsonToStringXContentParser.VALUE_SUFFIX;
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.CONTENT_TYPE;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.TypeParser.DEPTH_LIMIT;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.TypeParser.IGNORE_ABOVE;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.TypeParser.NORMALIZER;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.TypeParser.SIMILARITY;
+import static org.opensearch.index.mapper.TypeParsers.DOC_VALUES;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -80,6 +102,7 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         }
     }
 
+    @Override
     public void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", CONTENT_TYPE);
     }
@@ -94,6 +117,7 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         builder.endObject();
     }
 
+    @Override
     public void testMinimalToMaximal() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
         createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, ToXContent.EMPTY_PARAMS);
@@ -128,6 +152,9 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         assertFalse(fieldType.stored());
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+        fieldType = fields[1].fieldType();
+        assertThat(fieldType.indexOptions(), Matchers.equalTo(IndexOptions.NONE));
+        assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
 
         // Test internal substring fields as well
         IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
@@ -139,6 +166,50 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         assertEquals(2, fieldValues.length);
         assertTrue(fieldValueAndPaths[0] instanceof KeywordFieldMapper.KeywordField);
         assertEquals(new BytesRef("field.foo=bar"), fieldValueAndPaths[0].binaryValue());
+    }
+
+    public void testIgnoreAbove() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "flat_object").field("ignore_above", 5)));
+
+        String json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field("foo", "bar")
+            .endObject()
+            .endObject()
+            .toString();
+        ParsedDocument doc = mapper.parse(source(json));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+        assertEquals(2, fieldValues.length);
+
+        IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+        assertEquals(2, fieldValueAndPaths.length);
+
+        json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field("foo", "opensearch")
+            .endObject()
+            .endObject()
+            .toString();
+        doc = mapper.parse(source(json));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+        fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+        assertEquals(0, fieldValues.length);
+
+        fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+        assertEquals(0, fieldValueAndPaths.length);
+
+        // test negative depth_limit
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "flat_object").field("ignore_above", "-1")))
+        );
+        assertThat(e.getRootCause().getMessage(), Matchers.containsString("[ignore_above] must be positive, got -1"));
     }
 
     public void testNullValue() throws IOException {
@@ -397,9 +468,237 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         assertEquals(new BytesRef("field.labels=3"), fieldValueAndPaths[4].binaryValue());
     }
 
+    public void testIndexed() throws IOException {
+        String json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field("foo", "bar")
+            .endObject()
+            .endObject()
+            .toString();
+        // test index=false
+        DocumentMapper mapperWithDocValues = createDocumentMapper(fieldMapping(b -> b.field("type", "flat_object").field("index", false)));
+        ParsedDocument doc = mapperWithDocValues.parse(source(json));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.length);
+        assertTrue(fields[0] instanceof SortedSetDocValuesField);
+        assertEquals(new BytesRef("field.foo"), fields[0].binaryValue());
+
+        IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+        assertEquals(1, fieldValues.length);
+        assertTrue(fieldValues[0] instanceof SortedSetDocValuesField);
+        assertEquals(new BytesRef("field.bar"), fieldValues[0].binaryValue());
+
+        IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+        assertEquals(1, fieldValueAndPaths.length);
+        assertTrue(fieldValueAndPaths[0] instanceof SortedSetDocValuesField);
+        assertEquals(new BytesRef("field.field.foo=bar"), fieldValueAndPaths[0].binaryValue());
+    }
+
+    public void testDocValues() throws IOException {
+        String json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field("foo", "bar")
+            .endObject()
+            .endObject()
+            .toString();
+        // test dov_values=false
+        {
+            DocumentMapper mapperWithDocValues = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "flat_object").field("doc_values", false))
+            );
+            ParsedDocument doc = mapperWithDocValues.parse(source(json));
+            IndexableField[] fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.length);
+            assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+
+            IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(1, fieldValues.length);
+            assertTrue(fieldValues[0] instanceof KeywordFieldMapper.KeywordField);
+            assertEquals(new BytesRef("bar"), fieldValues[0].binaryValue());
+
+            IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(1, fieldValueAndPaths.length);
+            assertTrue(fieldValues[0] instanceof KeywordFieldMapper.KeywordField);
+            assertEquals(new BytesRef("bar"), fieldValues[0].binaryValue());
+        }
+
+        // test dov_values=true
+        {
+            DocumentMapper mapperWithDocValues = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "flat_object").field("doc_values", true))
+            );
+            ParsedDocument doc = mapperWithDocValues.parse(source(json));
+            IndexableField[] fields = doc.rootDoc().getFields("field");
+            assertEquals(2, fields.length);
+            assertEquals(DocValuesType.SORTED_SET, fields[1].fieldType().docValuesType());
+            assertEquals(new BytesRef("field.foo"), fields[0].binaryValue());
+            assertEquals(new BytesRef("field.foo"), fields[1].binaryValue());
+
+            IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(2, fieldValues.length);
+            assertTrue(fieldValues[0] instanceof KeywordFieldMapper.KeywordField);
+            assertEquals(new BytesRef("bar"), fieldValues[0].binaryValue());
+            assertEquals(new BytesRef("field.bar"), fieldValues[1].binaryValue());
+
+            IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(2, fieldValueAndPaths.length);
+            assertTrue(fieldValueAndPaths[0] instanceof KeywordFieldMapper.KeywordField);
+            assertEquals(new BytesRef("field.foo=bar"), fieldValueAndPaths[0].binaryValue());
+            assertEquals(new BytesRef("field.field.foo=bar"), fieldValueAndPaths[1].binaryValue());
+        }
+    }
+
+    public void testNormalizer() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "flat_object").field("normalizer", "lowercase")));
+        String json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field("Foo", "Bar")
+            .endObject()
+            .endObject()
+            .toString();
+        ParsedDocument doc = mapper.parse(source(json));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(new BytesRef("field.foo"), fields[0].binaryValue());
+        IndexableFieldType fieldType = fields[0].fieldType();
+        assertThat(fieldType.indexOptions(), Matchers.equalTo(IndexOptions.DOCS));
+        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+
+        IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+        assertEquals(2, fieldValues.length);
+        assertEquals(new BytesRef("bar"), fieldValues[0].binaryValue());
+
+        IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+        assertEquals(2, fieldValueAndPaths.length);
+        assertTrue(fieldValueAndPaths[0] instanceof KeywordFieldMapper.KeywordField);
+        assertEquals(new BytesRef("field.foo=bar"), fieldValueAndPaths[0].binaryValue());
+    }
+
+    public void testDepthLimit() throws IOException {
+        final DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "flat_object").field("depth_limit", "1")));
+        String json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .field("Foo", "Bar")
+            .endObject()
+            .endObject()
+            .toString();
+        ParsedDocument doc = mapper.parse(source(json));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(new BytesRef("field.Foo"), fields[0].binaryValue());
+        IndexableFieldType fieldType = fields[0].fieldType();
+        assertThat(fieldType.indexOptions(), Matchers.equalTo(IndexOptions.DOCS));
+        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+
+        IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+        assertEquals(2, fieldValues.length);
+        assertEquals(new BytesRef("Bar"), fieldValues[0].binaryValue());
+
+        IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+        assertEquals(2, fieldValueAndPaths.length);
+        assertTrue(fieldValueAndPaths[0] instanceof KeywordFieldMapper.KeywordField);
+        assertEquals(new BytesRef("field.Foo=Bar"), fieldValueAndPaths[0].binaryValue());
+
+        // beyond depth_limit
+        String json1 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .startObject("field1")
+            .field("Foo", "Bar")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(json1)));
+        assertThat(
+            e.getRootCause().getMessage(),
+            Matchers.containsString("the depth of flat_object field path [field, field1] is bigger than maximum depth [1]")
+        );
+
+        // test negative depth_limit
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "flat_object").field("depth_limit", "-1")))
+        );
+        assertThat(e.getRootCause().getMessage(), Matchers.containsString("[depth_limit] must be positive, got -1"));
+
+    }
+
+    public void testUpdateNormalizer() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "flat_object").field("normalizer", "lowercase"))
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", "flat_object").field("normalizer", "other_lowercase")))
+        );
+        assertEquals(
+            "Mapper for [field] conflicts with existing mapping:\n"
+                + "[mapper [field] has different [analyzer], mapper [field] has different [normalizer]]",
+            e.getMessage()
+        );
+    }
+
+    public void testConfigureSimilarity() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flat_object").field("similarity", "boolean")));
+        MappedFieldType ft = mapperService.documentMapper().fieldTypes().get("field");
+        assertEquals("boolean", ft.getTextSearchInfo().getSimilarity().name());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", "flat_object").field("similarity", "BM25")))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("mapper [field] has different [similarity]"));
+    }
+
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        // In the future we will want to make sure parameter updates are covered.
+        checker.registerConflictCheck(DOC_VALUES, b -> b.field(DOC_VALUES, false));
+        checker.registerConflictCheck(NORMALIZER, b -> b.field(NORMALIZER, "lowercase"));
+        checker.registerConflictCheck(DEPTH_LIMIT, b -> b.field(DEPTH_LIMIT, 34));
+        checker.registerConflictCheck(IGNORE_ABOVE, b -> b.field(IGNORE_ABOVE, 256));
+        checker.registerConflictCheck(SIMILARITY, b -> b.field(SIMILARITY, "boolean"));
+    }
+
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return new IndexAnalyzers(
+            singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.of(
+                "lowercase",
+                new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
+                "other_lowercase",
+                new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
+            ),
+            singletonMap(
+                "lowercase",
+                new NamedAnalyzer(
+                    "lowercase",
+                    AnalyzerScope.INDEX,
+                    new CustomAnalyzer(
+                        TokenizerFactory.newFactory("lowercase", WhitespaceTokenizer::new),
+                        new CharFilterFactory[0],
+                        new TokenFilterFactory[] { new TokenFilterFactory() {
+
+                            @Override
+                            public String name() {
+                                return "lowercase";
+                            }
+
+                            @Override
+                            public TokenStream create(TokenStream tokenStream) {
+                                return new LowerCaseFilter(tokenStream);
+                            }
+                        } }
+                    )
+                )
+            )
+        );
     }
 
 }

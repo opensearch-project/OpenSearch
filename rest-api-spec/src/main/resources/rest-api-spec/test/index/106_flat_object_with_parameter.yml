@@ -1,0 +1,357 @@
+---
+# The test setup includes:
+# - Create flat_object mapping for flat_object_normalizer_ignore_above, flat_object_index_false, flat_object_doc_values_false indices to test five parameters:
+# - Index example documents
+# - Refresh the index so it is ready for search tests
+# - Search indices
+setup:
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0.0 "
+
+  - do:
+      indices.create:
+        index: flat_object_normalizer_ignore_above
+        body:
+          mappings:
+            properties:
+              issue:
+                properties:
+                  labels:
+                    type: flat_object
+                    normalizer: lowercase
+                    depth_limit: 3
+                    ignore_above: 3
+                    doc_values: false
+                    similarity: boolean
+
+  - do:
+      indices.create:
+        index: flat_object_index_false
+        body:
+          mappings:
+            properties:
+              issue:
+                properties:
+                  labels:
+                    type: flat_object
+                    index: false
+
+  - do:
+      indices.create:
+        index: flat_object_doc_values_false
+        body:
+          mappings:
+            properties:
+              issue:
+                properties:
+                  labels:
+                    type: flat_object
+                    doc_values: false
+
+  - do:
+      index:
+        index: flat_object_normalizer_ignore_above
+        id: 1
+        body: {
+          "issue": {
+            "labels": {
+              "Category": {
+                "type": "API",
+                "level": "bug",
+                "content": "cont"
+              },
+              "priority": 5.00
+            }
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_normalizer_ignore_above
+        id: 2
+        body: {
+          "issue": {
+            "labels": {
+              "Category": {
+                "level": [ "bug", "bug", "bug" ]
+              }
+            }
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_index_false
+        id: 1
+        body: {
+          "issue": {
+            "labels": {
+              "Category": {
+                "type": "API",
+                "level": "bug",
+                "content": "cont"
+              },
+              "priority": 5.00
+            }
+          }
+        }
+
+  - do:
+      index:
+        index: flat_object_doc_values_false
+        id: 1
+        body: {
+          "issue": {
+            "labels": {
+              "Category": {
+                "type": "API",
+                "level": "bug",
+                "content": "cont"
+              },
+              "priority": 5.00
+            }
+          }
+        }
+
+  - do:
+      indices.refresh:
+        index: flat_object_*
+
+---
+# Delete Index when connection is teardown
+teardown:
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0.0 "
+
+  - do:
+      indices.delete:
+        index: [flat_object_normalizer_ignore_above, flat_object_index_false, flat_object_doc_values_false]
+
+---
+# Verify that mappings under the catalog field did not expand
+# and no dynamic fields were created.
+"Mappings":
+  - skip:
+      version: " - 2.99.99"
+      reason: "flat_object is introduced in 3.0.0 in main branch"
+
+  - do:
+      indices.get_mapping:
+        index: flat_object_normalizer_ignore_above
+  - is_true: flat_object_normalizer_ignore_above.mappings
+  - match: { flat_object_normalizer_ignore_above.mappings.properties.issue.properties.labels.type: flat_object }
+  # https://github.com/opensearch-project/OpenSearch/tree/main/rest-api-spec/src/main/resources/rest-api-spec/test#length
+  - length: { flat_object_normalizer_ignore_above.mappings.properties.issue.properties: 1 }
+  - length: { flat_object_normalizer_ignore_above.mappings.properties.issue.properties.labels: 6 }
+
+---
+"Supported queries":
+  - skip:
+      version: " - 2.99.99"
+      reason: "flat_object is introduced in 3.0.0 in main branch"
+
+  # Verify Document Count
+  - do:
+      search:
+        index: flat_object_normalizer_ignore_above,
+        body: {
+          query: {
+            match_all: { }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+
+  - do:
+      search:
+        index: flat_object_index_false,
+        body: {
+          query: {
+            match_all: { }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  - do:
+      search:
+        index: flat_object_doc_values_false,
+        body: {
+          query: {
+            match_all: { }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  # test normalizer=lowercase.
+  - do:
+      search:
+        index: flat_object_normalizer_ignore_above,
+        body: {
+          _source: true,
+          query: {
+            term: { issue.labels: "api" }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.issue.labels.Category.type: "API" }
+
+  - do:
+      search:
+        index: flat_object_normalizer_ignore_above,
+        body: {
+          _source: true,
+          query: {
+            term: { issue.labels.Category.type: "api" }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.issue.labels.Category.type: "API" }
+
+  - do:
+      search:
+        index: flat_object_normalizer_ignore_above,
+        body: {
+          _source: true,
+          query: {
+            prefix: { issue.labels: "ap" }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.issue.labels.Category.type: "API" }
+
+  - do:
+      search:
+        index: flat_object_normalizer_ignore_above,
+        body: {
+          _source: true,
+          query: {
+            prefix: { issue.labels.Category.type: "ap" }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.issue.labels.Category.type: "API" }
+
+  # test ignore_above=4.
+  - do:
+      search:
+        index: flat_object_normalizer_ignore_above,
+        body: {
+          _source: true,
+          query: {
+            term: { issue.labels: "API" }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.issue.labels.Category.type: "API" }
+
+  - do:
+      search:
+        index: flat_object_normalizer_ignore_above,
+        body: {
+          _source: true,
+          query: {
+            term: { issue.labels: "Approved" }
+          }
+        }
+
+  - length: { hits.hits: 0 }
+
+# test similarity
+  # test ignore_above=4.
+  - do:
+      search:
+        index: flat_object_normalizer_ignore_above,
+        body: {
+          _source: true,
+          query: {
+            term: { issue.labels.Category.level: "bug" }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._score: 1 }
+  - match: { hits.hits.0._source.issue.labels.Category.level: "bug" }
+  - match: { hits.hits.1._score: 1 }
+
+
+# test doc_values=false and index=false
+  - do:
+      search:
+        index: flat_object_*,
+        body: {
+          _source: true,
+          query: {
+            terms: { issue.labels: [ "API" ] }
+          }
+        }
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: "flat_object_doc_values_false" }
+  - match: { hits.hits.0._source.issue.labels.Category.type: "API" }
+  - match: { hits.hits.1._index: "flat_object_index_false" }
+  - match: { hits.hits.1._source.issue.labels.Category.type: "API" }
+  - match: { hits.hits.2._index: "flat_object_normalizer_ignore_above" }
+  - match: { hits.hits.2._source.issue.labels.Category.type: "API" }
+
+  - do:
+      search:
+        index: flat_object_*,
+        body: {
+          _source: true,
+          query: {
+            terms: { issue.labels.Category.type: [ "API" ] }
+          }
+        }
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: "flat_object_doc_values_false" }
+  - match: { hits.hits.0._source.issue.labels.Category.type: "API" }
+  - match: { hits.hits.1._index: "flat_object_index_false" }
+  - match: { hits.hits.1._source.issue.labels.Category.type: "API" }
+  - match: { hits.hits.2._index: "flat_object_normalizer_ignore_above" }
+  - match: { hits.hits.2._source.issue.labels.Category.type: "API" }
+
+  - do:
+      search:
+        index: flat_object_*,
+        body: {
+          _source: true,
+          query: {
+            wildcard: { issue.labels: "*P*" }
+          }
+        }
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: "flat_object_doc_values_false" }
+  - match: { hits.hits.0._source.issue.labels.Category.type: "API" }
+  - match: { hits.hits.1._index: "flat_object_index_false" }
+  - match: { hits.hits.1._source.issue.labels.Category.type: "API" }
+  - match: { hits.hits.2._index: "flat_object_normalizer_ignore_above" }
+  - match: { hits.hits.2._source.issue.labels.Category.type: "API" }
+
+  - do:
+      search:
+        index: flat_object_*,
+        body: {
+          _source: true,
+          query: {
+            wildcard: { issue.labels.Category.type: "*P*" }
+          }
+        }
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: "flat_object_doc_values_false" }
+  - match: { hits.hits.0._source.issue.labels.Category.type: "API" }
+  - match: { hits.hits.1._index: "flat_object_index_false" }
+  - match: { hits.hits.1._source.issue.labels.Category.type: "API" }
+  - match: { hits.hits.2._index: "flat_object_normalizer_ignore_above" }
+  - match: { hits.hits.2._source.issue.labels.Category.type: "API" }

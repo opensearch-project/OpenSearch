@@ -24,6 +24,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -49,13 +50,15 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         boolean isSearchable,
         boolean hasDocValues
     ) {
-        FlatObjectFieldMapper.Builder builder = new FlatObjectFieldMapper.Builder(fieldName);
         FlatObjectFieldMapper.FlatObjectFieldType flatObjectFieldType = new FlatObjectFieldMapper.FlatObjectFieldType(
             fieldName,
             mappedFieldTypeName,
             isSearchable,
             hasDocValues,
+            Integer.MAX_VALUE,
             null,
+            Lucene.KEYWORD_ANALYZER,
+            Lucene.KEYWORD_ANALYZER,
             Collections.emptyMap()
         );
         FieldType fieldtype = new FieldType(FlatObjectFieldMapper.Defaults.FIELD_TYPE);
@@ -100,7 +103,11 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 "bar",
                 flatParentFieldType.name(),
                 flatParentFieldType.getValueFieldType(),
-                flatParentFieldType.getValueAndPathFieldType()
+                flatParentFieldType.getValueAndPathFieldType(),
+                null,
+                Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER,
+                Integer.MAX_VALUE
             );
             // when searching for "foo" in "field.bar", the directSubfield is field._valueAndPath field
             String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).directSubfield();
@@ -108,7 +115,17 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         }
         {
             NamedAnalyzer analyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, null);
-            MappedFieldType ft = new FlatObjectFieldMapper.FlatObjectFieldType("field", null, true, true, analyzer, Collections.emptyMap());
+            MappedFieldType ft = new FlatObjectFieldMapper.FlatObjectFieldType(
+                "field",
+                null,
+                true,
+                true,
+                Integer.MAX_VALUE,
+                null,
+                analyzer,
+                analyzer,
+                Collections.emptyMap()
+            );
             assertEquals("field._value", ((FlatObjectFieldMapper.FlatObjectFieldType) ft).directSubfield());
         }
     }
@@ -129,7 +146,11 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             "field.bar",
             flatParentFieldType.name(),
             flatParentFieldType.getValueFieldType(),
-            flatParentFieldType.getValueAndPathFieldType()
+            flatParentFieldType.getValueAndPathFieldType(),
+            null,
+            Lucene.KEYWORD_ANALYZER,
+            Lucene.KEYWORD_ANALYZER,
+            Integer.MAX_VALUE
         );
 
         // when searching for "foo" in "field.bar", the rewrite value is "field.bar=foo"
@@ -157,7 +178,11 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             "field.bar",
             flatParentFieldType.name(),
             flatParentFieldType.getValueFieldType(),
-            flatParentFieldType.getValueAndPathFieldType()
+            flatParentFieldType.getValueAndPathFieldType(),
+            null,
+            Lucene.KEYWORD_ANALYZER,
+            Lucene.KEYWORD_ANALYZER,
+            Integer.MAX_VALUE
         );
 
         // when searching for "foo" in "field.bar", the term query is directed to search in field._valueAndPath field
@@ -171,7 +196,10 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             null,
             false,
             true,
+            Integer.MAX_VALUE,
             null,
+            Lucene.KEYWORD_ANALYZER,
+            Lucene.KEYWORD_ANALYZER,
             Collections.emptyMap()
         );
         IllegalArgumentException e = expectThrows(
@@ -197,7 +225,11 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 "field.bar",
                 ft.name(),
                 ft.getValueFieldType(),
-                ft.getValueAndPathFieldType()
+                ft.getValueAndPathFieldType(),
+                null,
+                Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER,
+                Integer.MAX_VALUE
             );
             assertEquals(new TermQuery(new Term("field", "field.bar")), dynamicMappedFieldType.existsQuery(null));
 
@@ -209,7 +241,10 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 null,
                 true,
                 false,
+                Integer.MAX_VALUE,
                 null,
+                Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER,
                 Collections.emptyMap()
             );
             assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
