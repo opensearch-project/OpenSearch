@@ -168,7 +168,6 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         ShardId shardId = shardRouting.shardId();
         IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
 
-        System.out.println(indexShard.indexSettings().isSegRepEnabledOrRemoteNode());
         if (indexShard.indexSettings().isSegRepEnabledOrRemoteNode() == false) {
             return null;
         }

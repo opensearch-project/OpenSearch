@@ -8,9 +8,6 @@
 
 package org.opensearch.action.admin.indices.replication;
 
-import org.junit.Before;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterState;
@@ -45,6 +42,7 @@ import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -52,6 +50,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -526,7 +527,7 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
     public void testNewResponseWhenShardsToFetchEmptyAndResponsesContainsNull() {
         SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
         List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
-        String[] shards = { };
+        String[] shards = {};
         request.shards(shards);
 
         int totalShards = 3;
@@ -595,7 +596,6 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
             }
         }
     }
-
 
     public void testShardOperationWithSegRepDisabled() {
         ShardRouting shardRouting = mock(ShardRouting.class);
