@@ -11,10 +11,17 @@
 
 set -e
 
-echo "Running Wazuh Indexer Pre-Installation Script"
+# Reference to temp directory
+tmp_dir=/var/lib/wazuh-indexer/tmp
+restart_service=${tmp_dir}/wazuh-indexer.restart
 
-# Reference to restore actual service status
-restart_service=/tmp/wazuh-indexer.restart
+# Create needed directories
+if [ -d ${tmp_dir} ]; then
+    rm -r ${tmp_dir}
+fi
+mkdir -p ${tmp_dir}
+
+echo "Running Wazuh Indexer Pre-Installation Script"
 
 # Stop existing service
 if command -v systemctl >/dev/null && systemctl is-active wazuh-indexer.service >/dev/null; then
