@@ -11,7 +11,7 @@
 
 testingConventions.enabled = false
 dependencies {
-  implementation project(':libs:opensearch-core')
+  api project(':libs:opensearch-core')
   api "org.apache.arrow:arrow-vector:${versions.arrow}"
   api "org.apache.arrow:arrow-format:${versions.arrow}"
   api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
@@ -21,7 +21,7 @@ dependencies {
   runtimeOnly "io.netty:netty-common:${versions.netty}"
 
   runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
