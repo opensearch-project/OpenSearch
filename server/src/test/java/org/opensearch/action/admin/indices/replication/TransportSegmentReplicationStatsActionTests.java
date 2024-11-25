@@ -8,6 +8,9 @@
 
 package org.opensearch.action.admin.indices.replication;
 
+import org.junit.Before;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterState;
@@ -16,14 +19,11 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.ShardsIterator;
-import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
@@ -45,7 +45,6 @@ import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -54,125 +53,52 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestCase {
-
-    private static final String TEST_INDEX = "test-index";
-
-    private SegmentReplicationPerGroupStats segmentReplicationPerGroupStats;
-
+    @Mock
+    private ClusterService clusterService;
+    @Mock
+    private TransportService transportService;
+    @Mock
+    private IndicesService indicesService;
+    @Mock
+    private SegmentReplicationTargetService targetService;
+    @Mock
+    private ActionFilters actionFilters;
+    @Mock
+    private IndexNameExpressionResolver indexNameExpressionResolver;
+    @Mock
+    private SegmentReplicationPressureService pressureService;
+    @Mock
     private IndexShard indexShard;
 
-    private SegmentReplicationState completedSegmentReplicationState;
-    private SegmentReplicationState onGoingSegmentReplicationState;
+    @Mock
+    private IndexService indexService;
 
-    private SegmentReplicationTargetService targetService;
-
-    private ShardId shardId;
-
-    TransportSegmentReplicationStatsAction action;
-
-    private final ClusterBlock writeClusterBlock = new ClusterBlock(
-        1,
-        "uuid",
-        "",
-        true,
-        true,
-        true,
-        RestStatus.OK,
-        EnumSet.of(ClusterBlockLevel.METADATA_WRITE)
-    );
-
-    private final ClusterBlock readClusterBlock = new ClusterBlock(
-        1,
-        "uuid",
-        "",
-        true,
-        true,
-        true,
-        RestStatus.OK,
-        EnumSet.of(ClusterBlockLevel.METADATA_READ)
-    );
+    private TransportSegmentReplicationStatsAction action;
 
     @Before
     public void setUp() throws Exception {
+        MockitoAnnotations.openMocks(this);
         super.setUp();
-        Index index = new Index(TEST_INDEX, "_na_");
-        shardId = new ShardId(TEST_INDEX, "_na_", 0);
-
-        IndicesService indicesService = mock(IndicesService.class);
-        IndexService indexService = mock(IndexService.class);
-
-        indexShard = mock(IndexShard.class);
-        SegmentReplicationPressureService pressureService = mock(SegmentReplicationPressureService.class);
-        segmentReplicationPerGroupStats = mock(SegmentReplicationPerGroupStats.class);
-        targetService = mock(SegmentReplicationTargetService.class);
-        completedSegmentReplicationState = mock(SegmentReplicationState.class);
-        onGoingSegmentReplicationState = mock(SegmentReplicationState.class);
-        ReplicationCheckpoint completedCheckpoint = mock(ReplicationCheckpoint.class);
-        ReplicationCheckpoint onGoingCheckpoint = mock(ReplicationCheckpoint.class);
-
-        ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
-        ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
-
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder(TEST_INDEX).settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-
-        when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
-        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
-        when(pressureService.getStatsForShard(indexShard)).thenReturn(segmentReplicationPerGroupStats);
-        when(indexShard.indexSettings()).thenReturn(indexSettings);
-
-        when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
-        when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
-        when(onGoingSegmentReplicationState.getReplicationCheckpoint()).thenReturn(onGoingCheckpoint);
-        when(completedSegmentReplicationState.getReplicationCheckpoint()).thenReturn(completedCheckpoint);
-
-        long segmentInfoCompleted = 5;
-        long segmentInfoOngoing = 9;
-        when(onGoingCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoOngoing);
-        when(completedCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoCompleted);
-
-        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
-        final StoreFileMetadata segment_2 = new StoreFileMetadata("segment_2", 50L, "abcd", org.apache.lucene.util.Version.LATEST);
-
-        when(onGoingCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1, "segment_2", segment_2));
-        when(completedCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1));
-
-        long time1 = 10;
-        long time2 = 15;
-        when(replicationTimerOngoing.time()).thenReturn(time1);
-        when(replicationTimerCompleted.time()).thenReturn(time2);
-
         action = new TransportSegmentReplicationStatsAction(
-            mock(ClusterService.class),
-            mock(TransportService.class),
+            clusterService,
+            transportService,
             indicesService,
             targetService,
-            new ActionFilters(new HashSet<>()),
-            mock(IndexNameExpressionResolver.class),
+            actionFilters,
+            indexNameExpressionResolver,
             pressureService
         );
     }
 
-    DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-    }
-
-    public void testShardReturnsAllTheShardsForTheIndex1() {
+    public void testShardReturnsAllTheShardsForTheIndex() {
         SegmentReplicationStatsRequest segmentReplicationStatsRequest = mock(SegmentReplicationStatsRequest.class);
-        String[] concreteIndices = new String[] { TEST_INDEX };
+        String[] concreteIndices = new String[] { "test-index" };
         ClusterState clusterState = mock(ClusterState.class);
         RoutingTable routingTables = mock(RoutingTable.class);
         ShardsIterator shardsIterator = mock(ShardIterator.class);
@@ -182,213 +108,297 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         assertEquals(shardsIterator, action.shards(clusterState, segmentReplicationStatsRequest, concreteIndices));
     }
 
-    public void testGlobalBlockCheck() {
-        ClusterBlocks.Builder builder = ClusterBlocks.builder();
-        builder.addGlobalBlock(writeClusterBlock);
-        ClusterState metadataWriteBlockedState = ClusterState.builder(ClusterState.EMPTY_STATE).blocks(builder).build();
-        assertNull(action.checkGlobalBlock(metadataWriteBlockedState, new SegmentReplicationStatsRequest()));
+    public void testShardOperationWithPrimaryShard() {
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
 
-        builder = ClusterBlocks.builder();
-        builder.addGlobalBlock(readClusterBlock);
-        ClusterState metadataReadBlockedState = ClusterState.builder(ClusterState.EMPTY_STATE).blocks(builder).build();
-        assertNotNull(action.checkGlobalBlock(metadataReadBlockedState, new SegmentReplicationStatsRequest()));
+        when(shardRouting.shardId()).thenReturn(shardId);
+        when(shardRouting.primary()).thenReturn(true);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
+
+        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
+
+        assertNotNull(response);
+        verify(pressureService).getStatsForShard(any());
     }
 
-    public void testIndexBlockCheck() {
-        String indexName = "test";
-        ClusterBlocks.Builder builder = ClusterBlocks.builder();
-        builder.addIndexBlock(indexName, writeClusterBlock);
-        ClusterState metadataWriteBlockedState = ClusterState.builder(ClusterState.EMPTY_STATE).blocks(builder).build();
-        assertNull(action.checkRequestBlock(metadataWriteBlockedState, new SegmentReplicationStatsRequest(), new String[] { indexName }));
+    public void testShardOperationWithReplicaShard() {
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
+        request.activeOnly(false);
+        SegmentReplicationState completedSegmentReplicationState = mock(SegmentReplicationState.class);
 
-        builder = ClusterBlocks.builder();
-        builder.addIndexBlock(indexName, readClusterBlock);
-        ClusterState metadataReadBlockedState = ClusterState.builder(ClusterState.EMPTY_STATE).blocks(builder).build();
-        assertNotNull(action.checkRequestBlock(metadataReadBlockedState, new SegmentReplicationStatsRequest(), new String[] { indexName }));
-    }
-
-    public void testShardOperationWhenReplicationIsNotSegRep() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder(TEST_INDEX).settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-
-        when(indexShard.indexSettings()).thenReturn(indexSettings);
-
-        final DiscoveryNode node = newNode(0);
-        final ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            TEST_INDEX,
-            shardId.getId(),
-            node.getId(),
-            true,
-            ShardRoutingState.STARTED
-        );
-        SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest();
-        SegmentReplicationShardStatsResponse response = action.shardOperation(segmentReplicationStatsRequest, shardRouting);
-        assertNull(response);
-    }
-
-    public void testShardOperationOnPrimaryShard() {
-        final DiscoveryNode node = newNode(0);
-        final ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            TEST_INDEX,
-            shardId.getId(),
-            node.getId(),
-            true,
-            ShardRoutingState.STARTED
-        );
-        SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest();
-        SegmentReplicationShardStatsResponse response = action.shardOperation(segmentReplicationStatsRequest, shardRouting);
-
-        assertEquals(segmentReplicationPerGroupStats, response.getPrimaryStats());
-        assertNull(response.getReplicaStats());
-        assertNull(response.getSegmentReplicationShardStats());
-    }
-
-    public void testShardOperationOnReplicaShard() {
+        when(shardRouting.shardId()).thenReturn(shardId);
+        when(shardRouting.primary()).thenReturn(false);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
         when(targetService.getSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
 
-        final DiscoveryNode node = newNode(0);
-        final ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            TEST_INDEX,
-            shardId.getId(),
-            node.getId(),
-            false,
-            ShardRoutingState.STARTED
-        );
-        SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest();
-        segmentReplicationStatsRequest.activeOnly(false);
-        SegmentReplicationShardStatsResponse response = action.shardOperation(segmentReplicationStatsRequest, shardRouting);
+        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
 
-        assertEquals(completedSegmentReplicationState, response.getReplicaStats());
+        assertNotNull(response);
         assertNull(response.getPrimaryStats());
+        assertNotNull(response.getReplicaStats());
         assertNull(response.getSegmentReplicationShardStats());
+        verify(targetService).getSegmentReplicationState(shardId);
     }
 
-    public void testShardOperationOnReplicaShardWhenActiveOnlyIsSet() {
+    public void testShardOperationWithReplicaShardActiveOnly() {
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
+        request.activeOnly(true);
+        SegmentReplicationState onGoingSegmentReplicationState = mock(SegmentReplicationState.class);
+
+        when(shardRouting.shardId()).thenReturn(shardId);
+        when(shardRouting.primary()).thenReturn(false);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
         when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
 
-        final DiscoveryNode node = newNode(0);
-        final ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            TEST_INDEX,
-            shardId.getId(),
-            node.getId(),
-            false,
-            ShardRoutingState.STARTED
-        );
-        SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest();
-        segmentReplicationStatsRequest.activeOnly(true);
-        SegmentReplicationShardStatsResponse response = action.shardOperation(segmentReplicationStatsRequest, shardRouting);
+        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
 
-        assertEquals(onGoingSegmentReplicationState, response.getReplicaStats());
+        assertNotNull(response);
         assertNull(response.getPrimaryStats());
+        assertNotNull(response.getReplicaStats());
         assertNull(response.getSegmentReplicationShardStats());
+        verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
 
-    public void testShardOperationOnSearchReplicaWhenCompletedAndOngoingSegRepStateNotNull() {
+    public void testShardOperationWithSearchOnlyReplicaWhenCompletedAndOngoingStateNotNull() {
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        SegmentReplicationState completedSegmentReplicationState = mock(SegmentReplicationState.class);
+        SegmentReplicationState onGoingSegmentReplicationState = mock(SegmentReplicationState.class);
+        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
+        AllocationId allocationId = AllocationId.newInitializing();
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
+        ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
+        ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
+        ReplicationCheckpoint completedCheckpoint = mock(ReplicationCheckpoint.class);
+        ReplicationCheckpoint onGoingCheckpoint = mock(ReplicationCheckpoint.class);
+        long time1 = 10;
+        long time2 = 15;
+        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
+        final StoreFileMetadata segment_2 = new StoreFileMetadata("segment_2", 50L, "abcd", org.apache.lucene.util.Version.LATEST);
+        long segmentInfoCompleted = 5;
+        long segmentInfoOngoing = 9;
+
+        when(shardRouting.shardId()).thenReturn(shardId);
+        when(shardRouting.primary()).thenReturn(false);
+        when(shardRouting.isSearchOnly()).thenReturn(true);
+        when(shardRouting.allocationId()).thenReturn(allocationId);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
         when(targetService.getlatestCompletedEventSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
         when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
         when(targetService.getSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
+        when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
+        when(completedSegmentReplicationState.getReplicationCheckpoint()).thenReturn(completedCheckpoint);
+        when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
+        when(onGoingSegmentReplicationState.getReplicationCheckpoint()).thenReturn(onGoingCheckpoint);
+        when(replicationTimerOngoing.time()).thenReturn(time1);
+        when(replicationTimerCompleted.time()).thenReturn(time2);
+        when(completedCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1));
+        when(onGoingCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1, "segment_2", segment_2));
+        when(onGoingCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoOngoing);
+        when(completedCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoCompleted);
 
-        final DiscoveryNode node = newNode(0);
-        final ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
+        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
 
-        ShardRouting searchShardRouting = TestShardRouting.newShardRouting(
-            shardId,
-            node.getId(),
-            null,
-            false,
-            true,
-            ShardRoutingState.STARTED,
-            null
-        );
-
-        SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest();
-        SegmentReplicationShardStatsResponse response = action.shardOperation(segmentReplicationStatsRequest, searchShardRouting);
-
-        assertNull(response.getPrimaryStats());
-        assertNull(response.getReplicaStats());
-        assertNotNull(response.getSegmentReplicationShardStats());
+        assertNotNull(response);
+        verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
+        verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
 
-    public void testShardOperationOnSearchReplicaWhenCompletedSegRepStateIsNull() {
+    public void testShardOperationWithSearchOnlyReplicaWhenNoCompletedState() {
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        SegmentReplicationState onGoingSegmentReplicationState = mock(SegmentReplicationState.class);
+        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
+        AllocationId allocationId = AllocationId.newInitializing();
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
+        ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
+        ReplicationCheckpoint onGoingCheckpoint = mock(ReplicationCheckpoint.class);
+        long time1 = 10;
+        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
+        final StoreFileMetadata segment_2 = new StoreFileMetadata("segment_2", 50L, "abcd", org.apache.lucene.util.Version.LATEST);
+        long segmentInfoOngoing = 9;
+
+        when(shardRouting.shardId()).thenReturn(shardId);
+        when(shardRouting.primary()).thenReturn(false);
+        when(shardRouting.isSearchOnly()).thenReturn(true);
+        when(shardRouting.allocationId()).thenReturn(allocationId);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
         when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
         when(targetService.getSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
+        when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
+        when(onGoingSegmentReplicationState.getReplicationCheckpoint()).thenReturn(onGoingCheckpoint);
+        when(replicationTimerOngoing.time()).thenReturn(time1);
+        when(onGoingCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1, "segment_2", segment_2));
+        when(onGoingCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoOngoing);
 
-        final DiscoveryNode node = newNode(0);
-        final ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
+        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
 
-        ShardRouting searchShardRouting = TestShardRouting.newShardRouting(
-            shardId,
-            node.getId(),
-            null,
-            false,
-            true,
-            ShardRoutingState.STARTED,
-            null
-        );
-
-        SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest();
-        SegmentReplicationShardStatsResponse response = action.shardOperation(segmentReplicationStatsRequest, searchShardRouting);
-
+        assertNotNull(response);
         assertNull(response.getPrimaryStats());
         assertNull(response.getReplicaStats());
         assertNotNull(response.getSegmentReplicationShardStats());
+        verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
+        verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
 
-    public void testShardOperationOnSearchReplicaWhenOngoingSegRepStateIsNull() {
+    public void testShardOperationWithSearchOnlyReplicaWhenNoCompletedCheckpoint() {
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        SegmentReplicationState completedSegmentReplicationState = mock(SegmentReplicationState.class);
+        SegmentReplicationState onGoingSegmentReplicationState = mock(SegmentReplicationState.class);
+        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
+        AllocationId allocationId = AllocationId.newInitializing();
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
+        ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
+        ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
+        ReplicationCheckpoint onGoingCheckpoint = mock(ReplicationCheckpoint.class);
+        long time1 = 10;
+        long time2 = 15;
+        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
+        final StoreFileMetadata segment_2 = new StoreFileMetadata("segment_2", 50L, "abcd", org.apache.lucene.util.Version.LATEST);
+        long segmentInfoOngoing = 9;
+
+        when(shardRouting.shardId()).thenReturn(shardId);
+        when(shardRouting.primary()).thenReturn(false);
+        when(shardRouting.isSearchOnly()).thenReturn(true);
+        when(shardRouting.allocationId()).thenReturn(allocationId);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
         when(targetService.getlatestCompletedEventSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
-        when(targetService.getSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
+        when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
+        when(targetService.getSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
+        when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
+        when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
+        when(onGoingSegmentReplicationState.getReplicationCheckpoint()).thenReturn(onGoingCheckpoint);
+        when(replicationTimerOngoing.time()).thenReturn(time1);
+        when(replicationTimerCompleted.time()).thenReturn(time2);
+        when(onGoingCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1, "segment_2", segment_2));
+        when(onGoingCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoOngoing);
 
-        final DiscoveryNode node = newNode(0);
-        final ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
+        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
 
-        ShardRouting searchShardRouting = TestShardRouting.newShardRouting(
-            shardId,
-            node.getId(),
-            null,
-            false,
-            true,
-            ShardRoutingState.STARTED,
-            null
-        );
-
-        SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest();
-        SegmentReplicationShardStatsResponse response = action.shardOperation(segmentReplicationStatsRequest, searchShardRouting);
-
+        assertNotNull(response);
         assertNull(response.getPrimaryStats());
         assertNull(response.getReplicaStats());
         assertNotNull(response.getSegmentReplicationShardStats());
+        verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
+        verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
 
-    public void testShardOperationOnSearchReplicaWhenCompletedAndOngoingSegRepStateIsNull() {
-        final DiscoveryNode node = newNode(0);
-        final ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
+    public void testShardOperationWithSearchOnlyReplicaWhenNoOngoingState() {
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        SegmentReplicationState completedSegmentReplicationState = mock(SegmentReplicationState.class);
+        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
+        AllocationId allocationId = AllocationId.newInitializing();
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
+        ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
+        ReplicationCheckpoint completedCheckpoint = mock(ReplicationCheckpoint.class);
+        long time2 = 15;
+        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
+        long segmentInfoCompleted = 5;
 
-        ShardRouting searchShardRouting = TestShardRouting.newShardRouting(
-            shardId,
-            node.getId(),
-            null,
-            false,
-            true,
-            ShardRoutingState.STARTED,
-            null
-        );
+        when(shardRouting.shardId()).thenReturn(shardId);
+        when(shardRouting.primary()).thenReturn(false);
+        when(shardRouting.isSearchOnly()).thenReturn(true);
+        when(shardRouting.allocationId()).thenReturn(allocationId);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
+        when(targetService.getlatestCompletedEventSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
+        when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
+        when(completedSegmentReplicationState.getReplicationCheckpoint()).thenReturn(completedCheckpoint);
+        when(replicationTimerCompleted.time()).thenReturn(time2);
+        when(completedCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1));
+        when(completedCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoCompleted);
 
-        SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest();
-        SegmentReplicationShardStatsResponse response = action.shardOperation(segmentReplicationStatsRequest, searchShardRouting);
+        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
 
+        assertNotNull(response);
         assertNull(response.getPrimaryStats());
         assertNull(response.getReplicaStats());
         assertNotNull(response.getSegmentReplicationShardStats());
+        verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
+        verify(targetService).getOngoingEventSegmentReplicationState(shardId);
+    }
+
+    public void testShardOperationWithSearchOnlyReplicaWhenNoOngoingCheckpoint() {
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        SegmentReplicationState completedSegmentReplicationState = mock(SegmentReplicationState.class);
+        SegmentReplicationState onGoingSegmentReplicationState = mock(SegmentReplicationState.class);
+        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
+        AllocationId allocationId = AllocationId.newInitializing();
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
+        ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
+        ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
+        ReplicationCheckpoint completedCheckpoint = mock(ReplicationCheckpoint.class);
+        long time1 = 10;
+        long time2 = 15;
+        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
+        long segmentInfoCompleted = 5;
+
+        when(shardRouting.shardId()).thenReturn(shardId);
+        when(shardRouting.primary()).thenReturn(false);
+        when(shardRouting.isSearchOnly()).thenReturn(true);
+        when(shardRouting.allocationId()).thenReturn(allocationId);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
+        when(targetService.getlatestCompletedEventSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
+        when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
+        when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
+        when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
+        when(completedSegmentReplicationState.getReplicationCheckpoint()).thenReturn(completedCheckpoint);
+        when(replicationTimerCompleted.time()).thenReturn(time2);
+        when(replicationTimerOngoing.time()).thenReturn(time1);
+        when(completedCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1));
+        when(completedCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoCompleted);
+
+        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
+
+        assertNotNull(response);
+        assertNull(response.getPrimaryStats());
+        assertNull(response.getReplicaStats());
+        assertNotNull(response.getSegmentReplicationShardStats());
+        verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
+        verify(targetService).getOngoingEventSegmentReplicationState(shardId);
+    }
+
+    public void testShardOperationWithSearchOnlyReplicaWhenNoCompletedAndOngoingState() {
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
+        AllocationId allocationId = AllocationId.newInitializing();
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
+
+        when(shardRouting.shardId()).thenReturn(shardId);
+        when(shardRouting.primary()).thenReturn(false);
+        when(shardRouting.isSearchOnly()).thenReturn(true);
+        when(shardRouting.allocationId()).thenReturn(allocationId);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
+
+        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
+
+        assertNotNull(response);
+        assertNull(response.getPrimaryStats());
+        assertNull(response.getReplicaStats());
+        assertNotNull(response.getSegmentReplicationShardStats());
+        verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
+        verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
 
     public void testNewResponseWhenAllReplicasReturnResponseCombinesTheResults() {
@@ -417,7 +427,7 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         AllocationId allocationId = mock(AllocationId.class);
         when(allocationId.getId()).thenReturn(allocIdOne);
         when(shardRoutingTwo.allocationId()).thenReturn(allocationId);
-        when(shardIdOne.getIndexName()).thenReturn(TEST_INDEX);
+        when(shardIdOne.getIndexName()).thenReturn("test-index");
 
         Set<SegmentReplicationShardStats> segmentReplicationShardStats = new HashSet<>();
         SegmentReplicationShardStats segmentReplicationShardStatsOfReplica = new SegmentReplicationShardStats(allocIdOne, 0, 0, 0, 0, 0);
@@ -449,7 +459,7 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
             ClusterState.EMPTY_STATE
         );
 
-        List<SegmentReplicationPerGroupStats> responseStats = response.getReplicationStats().get(TEST_INDEX);
+        List<SegmentReplicationPerGroupStats> responseStats = response.getReplicationStats().get("test-index");
         SegmentReplicationPerGroupStats primStats = responseStats.get(0);
         Set<SegmentReplicationShardStats> segRpShardStatsSet = primStats.getReplicaStats();
 
@@ -480,8 +490,8 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         ShardId shardIdTwo = mock(ShardId.class);
         when(segmentReplicationPerGroupStatsOne.getShardId()).thenReturn(shardIdOne);
         when(segmentReplicationPerGroupStatsTwo.getShardId()).thenReturn(shardIdTwo);
-        when(shardIdOne.getIndexName()).thenReturn(TEST_INDEX);
-        when(shardIdTwo.getIndexName()).thenReturn(TEST_INDEX);
+        when(shardIdOne.getIndexName()).thenReturn("test-index");
+        when(shardIdTwo.getIndexName()).thenReturn("test-index");
         when(shardIdOne.getId()).thenReturn(1);
         when(shardIdTwo.getId()).thenReturn(2);
 
@@ -500,7 +510,7 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
             ClusterState.EMPTY_STATE
         );
 
-        List<SegmentReplicationPerGroupStats> responseStats = response.getReplicationStats().get(TEST_INDEX);
+        List<SegmentReplicationPerGroupStats> responseStats = response.getReplicationStats().get("test-index");
 
         for (SegmentReplicationPerGroupStats primStat : responseStats) {
             if (primStat.getShardId().equals(shardIdOne)) {
@@ -511,5 +521,184 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
                 assertEquals(segmentReplicationPerGroupStatsTwo, primStat);
             }
         }
+    }
+
+    public void testNewResponseWhenShardsToFetchEmptyAndResponsesContainsNull() {
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
+        List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
+        String[] shards = { };
+        request.shards(shards);
+
+        int totalShards = 3;
+        int successfulShards = 3;
+        int failedShard = 0;
+        String allocIdOne = "allocIdOne";
+        String allocIdTwo = "allocIdTwo";
+        ShardId shardIdOne = mock(ShardId.class);
+        ShardId shardIdTwo = mock(ShardId.class);
+        ShardId shardIdThree = mock(ShardId.class);
+        ShardRouting shardRoutingOne = mock(ShardRouting.class);
+        ShardRouting shardRoutingTwo = mock(ShardRouting.class);
+        ShardRouting shardRoutingThree = mock(ShardRouting.class);
+        when(shardIdOne.getId()).thenReturn(1);
+        when(shardIdTwo.getId()).thenReturn(2);
+        when(shardIdThree.getId()).thenReturn(3);
+        when(shardRoutingOne.shardId()).thenReturn(shardIdOne);
+        when(shardRoutingTwo.shardId()).thenReturn(shardIdTwo);
+        when(shardRoutingThree.shardId()).thenReturn(shardIdThree);
+        AllocationId allocationId = mock(AllocationId.class);
+        when(allocationId.getId()).thenReturn(allocIdOne);
+        when(shardRoutingTwo.allocationId()).thenReturn(allocationId);
+        when(shardIdOne.getIndexName()).thenReturn("test-index");
+
+        Set<SegmentReplicationShardStats> segmentReplicationShardStats = new HashSet<>();
+        SegmentReplicationShardStats segmentReplicationShardStatsOfReplica = new SegmentReplicationShardStats(allocIdOne, 0, 0, 0, 0, 0);
+        segmentReplicationShardStats.add(segmentReplicationShardStatsOfReplica);
+        SegmentReplicationPerGroupStats segmentReplicationPerGroupStats = new SegmentReplicationPerGroupStats(
+            shardIdOne,
+            segmentReplicationShardStats,
+            0
+        );
+
+        SegmentReplicationState segmentReplicationState = mock(SegmentReplicationState.class);
+        SegmentReplicationShardStats segmentReplicationShardStatsFromSearchReplica = mock(SegmentReplicationShardStats.class);
+        when(segmentReplicationShardStatsFromSearchReplica.getAllocationId()).thenReturn("alloc2");
+        when(segmentReplicationState.getShardRouting()).thenReturn(shardRoutingTwo);
+
+        List<SegmentReplicationShardStatsResponse> responses = new ArrayList<>();
+        responses.add(null);
+        responses.add(new SegmentReplicationShardStatsResponse(segmentReplicationPerGroupStats));
+        responses.add(new SegmentReplicationShardStatsResponse(segmentReplicationState));
+        responses.add(new SegmentReplicationShardStatsResponse(segmentReplicationShardStatsFromSearchReplica));
+
+        SegmentReplicationStatsResponse response = action.newResponse(
+            request,
+            totalShards,
+            successfulShards,
+            failedShard,
+            responses,
+            shardFailures,
+            ClusterState.EMPTY_STATE
+        );
+
+        List<SegmentReplicationPerGroupStats> responseStats = response.getReplicationStats().get("test-index");
+        SegmentReplicationPerGroupStats primStats = responseStats.get(0);
+        Set<SegmentReplicationShardStats> segRpShardStatsSet = primStats.getReplicaStats();
+
+        for (SegmentReplicationShardStats segRpShardStats : segRpShardStatsSet) {
+            if (segRpShardStats.getAllocationId().equals(allocIdOne)) {
+                assertEquals(segmentReplicationState, segRpShardStats.getCurrentReplicationState());
+            }
+
+            if (segRpShardStats.getAllocationId().equals(allocIdTwo)) {
+                assertEquals(segmentReplicationShardStatsFromSearchReplica, segRpShardStats);
+            }
+        }
+    }
+
+
+    public void testShardOperationWithSegRepDisabled() {
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
+        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
+
+        when(shardRouting.shardId()).thenReturn(shardId);
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepDisabled());
+
+        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
+
+        assertNull(response);
+    }
+
+    public void testGlobalBlockCheck() {
+        ClusterBlock writeClusterBlock = new ClusterBlock(
+            1,
+            "uuid",
+            "",
+            true,
+            true,
+            true,
+            RestStatus.OK,
+            EnumSet.of(ClusterBlockLevel.METADATA_WRITE)
+        );
+
+        ClusterBlock readClusterBlock = new ClusterBlock(
+            1,
+            "uuid",
+            "",
+            true,
+            true,
+            true,
+            RestStatus.OK,
+            EnumSet.of(ClusterBlockLevel.METADATA_READ)
+        );
+
+        ClusterBlocks.Builder builder = ClusterBlocks.builder();
+        builder.addGlobalBlock(writeClusterBlock);
+        ClusterState metadataWriteBlockedState = ClusterState.builder(ClusterState.EMPTY_STATE).blocks(builder).build();
+        assertNull(action.checkGlobalBlock(metadataWriteBlockedState, new SegmentReplicationStatsRequest()));
+
+        builder = ClusterBlocks.builder();
+        builder.addGlobalBlock(readClusterBlock);
+        ClusterState metadataReadBlockedState = ClusterState.builder(ClusterState.EMPTY_STATE).blocks(builder).build();
+        assertNotNull(action.checkGlobalBlock(metadataReadBlockedState, new SegmentReplicationStatsRequest()));
+    }
+
+    public void testIndexBlockCheck() {
+        ClusterBlock writeClusterBlock = new ClusterBlock(
+            1,
+            "uuid",
+            "",
+            true,
+            true,
+            true,
+            RestStatus.OK,
+            EnumSet.of(ClusterBlockLevel.METADATA_WRITE)
+        );
+
+        ClusterBlock readClusterBlock = new ClusterBlock(
+            1,
+            "uuid",
+            "",
+            true,
+            true,
+            true,
+            RestStatus.OK,
+            EnumSet.of(ClusterBlockLevel.METADATA_READ)
+        );
+
+        String indexName = "test";
+        ClusterBlocks.Builder builder = ClusterBlocks.builder();
+        builder.addIndexBlock(indexName, writeClusterBlock);
+        ClusterState metadataWriteBlockedState = ClusterState.builder(ClusterState.EMPTY_STATE).blocks(builder).build();
+        assertNull(action.checkRequestBlock(metadataWriteBlockedState, new SegmentReplicationStatsRequest(), new String[] { indexName }));
+
+        builder = ClusterBlocks.builder();
+        builder.addIndexBlock(indexName, readClusterBlock);
+        ClusterState metadataReadBlockedState = ClusterState.builder(ClusterState.EMPTY_STATE).blocks(builder).build();
+        assertNotNull(action.checkRequestBlock(metadataReadBlockedState, new SegmentReplicationStatsRequest(), new String[] { indexName }));
+    }
+
+    private IndexSettings createIndexSettingsWithSegRepEnabled() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build();
+
+        return new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), settings);
+    }
+
+    private IndexSettings createIndexSettingsWithSegRepDisabled() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build();
+        return new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), settings);
     }
 }
