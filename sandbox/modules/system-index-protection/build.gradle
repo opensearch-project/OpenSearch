@@ -24,8 +24,6 @@ restResources {
     includeCore '_common', 'indices', 'index', 'get'
   }
 }
-// no unit tests
-test.enabled = false
 
 testClusters.yamlRestTest {
   setting 'modules.system_index_protection.system_indices.enabled', 'true'
