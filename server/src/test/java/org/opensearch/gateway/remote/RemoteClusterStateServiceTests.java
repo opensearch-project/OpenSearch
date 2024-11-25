@@ -962,6 +962,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(false)
 
         );
+        assertNotNull(remoteClusterStateService.getFullDownloadStats());
+        assertEquals(1, remoteClusterStateService.getFullDownloadStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getFullDownloadStats().getFailedCount());
     }
 
     public void testGetClusterStateFromManifest_CodecV1() throws IOException {
@@ -1296,6 +1299,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         diffManifest.getClusterStateCustomDeleted().forEach(clusterStateCustomName -> {
             assertFalse(updatedClusterState.customs().containsKey(clusterStateCustomName));
         });
+        assertNotNull(remoteClusterStateService.getDiffDownloadStats());
+        assertEquals(1, remoteClusterStateService.getDiffDownloadStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getDiffDownloadStats().getFailedCount());
     }
 
     public void testReadClusterStateInParallel_TimedOut() throws IOException {
@@ -3421,6 +3427,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             true
         );
         assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
+        assertNotNull(remoteClusterStateService.getFullDownloadStats());
+        assertEquals(0, remoteClusterStateService.getFullDownloadStats().getSuccessCount());
+        assertEquals(1, remoteClusterStateService.getFullDownloadStats().getFailedCount());
     }
 
     public void testGetClusterStateForManifestWithChecksumValidationDebugWithMismatch() throws IOException {
@@ -3717,6 +3726,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(false)
         );
         assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
+        assertNotNull(remoteClusterStateService.getDiffDownloadStats());
+        assertEquals(0, remoteClusterStateService.getDiffDownloadStats().getSuccessCount());
+        assertEquals(1, remoteClusterStateService.getDiffDownloadStats().getFailedCount());
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {
