@@ -133,14 +133,15 @@ public class SearchIpFieldTermsIT extends OpenSearchSingleNodeTestCase {
         assertTermsHitCount(indexName, "addr", toQuery, expectMatches);
         assertTermsHitCount(indexName, "addr.idx", toQuery, expectMatches);
         try { // error from mapper/parser
-            assertTermsHitCount(indexName, "addr.dv", toQuery, expectMatches);
+           final SearchPhaseExecutionException ose = assertThrows(SearchPhaseExecutionException.class, () -> assertTermsHitCount(indexName, "addr.dv", toQuery, expectMatches));
+           assertTrue("exceeding on query building", ose.shardFailures()[0].getCause().getCause() instanceof IndexSearcher.TooManyClauses);
             fail();
         } catch (SearchPhaseExecutionException ose) {
             assertTrue("exceeding on query building", ose.shardFailures()[0].getCause().getCause() instanceof IndexSearcher.TooManyClauses);
         }
     }
 
-    public static String getFirstThreeOctets(String ipAddress) {
+    private static String getFirstThreeOctets(String ipAddress) {
         // Split the IP address by the dot delimiter
         String[] octets = ipAddress.split("\\.");
 
