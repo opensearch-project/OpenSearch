@@ -37,15 +37,4 @@ public interface StreamTicket {
      * @return Base64 encoded byte array containing the ticket information
      */
     byte[] toBytes();
-
-    /**
-     * Creates a StreamTicket from its serialized byte representation.
-     *
-     * @param bytes Base64 encoded byte array containing ticket information
-     * @return a new StreamTicket instance
-     * @throws IllegalArgumentException if the input is invalid
-     */
-    static StreamTicket fromBytes(byte[] bytes) {
-        throw new UnsupportedOperationException("Implementation must be provided by concrete class");
-    }
 }

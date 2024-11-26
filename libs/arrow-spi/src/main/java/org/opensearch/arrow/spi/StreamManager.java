@@ -47,4 +47,11 @@ public interface StreamManager extends AutoCloseable {
      * @throws IllegalStateException if the stream has been cancelled or closed
      */
     StreamReader getStreamReader(StreamTicket ticket);
+
+    /**
+     * Gets the StreamTicketFactory instance associated with this StreamManager.
+     *
+     * @return the StreamTicketFactory instance
+     */
+    StreamTicketFactory getStreamTicketFactory();
 }

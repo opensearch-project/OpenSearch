@@ -102,17 +102,13 @@ public interface StreamProducer extends Closeable {
      *
      * @return Estimated number of rows, or -1 if unknown
      */
-    default int estimatedRowCount() {
-        return -1;
-    }
+    int estimatedRowCount();
 
     /**
      * Task action name
      * @return action name
      */
-    default String getAction() {
-        return "";
-    }
+    String getAction();
 
     /**
      * BatchedJob interface for producing stream data in batches.
