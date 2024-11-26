@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.pagination.PageParams;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -128,33 +129,62 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
         latch.await();
     }
 
-    public void testCatShardsSuccessWithPaginationWithClosedIndices() throws InterruptedException, ExecutionException {
+    public void testListShardsWithClosedAndHiddenIndices() throws InterruptedException, ExecutionException {
+        final int numIndices = 3;
+        final int numShards = 1;
+        final int numReplicas = 2;
+        final int pageSize = numIndices * numReplicas * (numShards + 1);
         internalCluster().startClusterManagerOnlyNodes(1);
         internalCluster().startDataOnlyNodes(3);
         createIndex(
             "test",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build()
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .build()
         );
         createIndex(
             "test-2",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build()
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .build()
         );
         createIndex(
-            "test-3",
+            "test-closed-idx",
             Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "60m")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .build()
+        );
+        createIndex(
+            "test-hidden-idx",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
                 .build()
         );
         ensureGreen();
-        // close index test-3
-        client().admin().indices().close(Requests.closeIndexRequest("test-3")).get();
-        final CatShardsRequest shardsRequest = new CatShardsRequest();
+        // close index "test-closed-idx"
+        client().admin().indices().close(Requests.closeIndexRequest("test-closed-idx")).get();
+
+        CatShardsRequest shardsRequest = new CatShardsRequest();
         shardsRequest.setCancelAfterTimeInterval(NO_TIMEOUT);
         shardsRequest.setIndices(Strings.EMPTY_ARRAY);
-        ActionFuture<CatShardsResponse> response = client().execute(CatShardsAction.INSTANCE, shardsRequest);
-        assertTrue(response.get().getResponseShards().stream().anyMatch(shard -> shard.getIndexName().equals("test-3")));
+        ActionFuture<CatShardsResponse> catShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
+        assertTrue(catShardsResponse.get().getResponseShards().stream().anyMatch(shard -> shard.getIndexName().equals("test-closed-idx")));
+        assertTrue(catShardsResponse.get().getResponseShards().stream().anyMatch(shard -> shard.getIndexName().equals("test-hidden-idx")));
+
+        shardsRequest.setPageParams(new PageParams(null, PageParams.PARAM_ASC_SORT_VALUE, pageSize));
+        ActionFuture<CatShardsResponse> listShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
+        assertTrue(listShardsResponse.get().getResponseShards().stream().anyMatch(shard -> shard.getIndexName().equals("test-closed-idx")));
+        assertTrue(listShardsResponse.get().getResponseShards().stream().anyMatch(shard -> shard.getIndexName().equals("test-hidden-idx")));
+        assertEquals(catShardsResponse.get().getResponseShards().size(), listShardsResponse.get().getResponseShards().size());
+        assertEquals(
+            catShardsResponse.get().getIndicesStatsResponse().getShards().length,
+            listShardsResponse.get().getIndicesStatsResponse().getShards().length
+        );
     }
 
 }

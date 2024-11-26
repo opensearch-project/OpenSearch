@@ -16,9 +16,9 @@ import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.pagination.ShardPaginationStrategy;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.breaker.ResponseLimitBreachedException;
 import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.inject.Inject;
@@ -28,7 +28,9 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.opensearch.common.breaker.ResponseLimitSettings.LimitEntity.SHARDS;
 
@@ -101,7 +103,9 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                         );
                         String[] indices = Objects.isNull(paginationStrategy)
                             ? shardsRequest.getIndices()
-                            : paginationStrategy.getRequestedIndices().toArray(new String[0]);
+                            : filterClosedAndHiddenIndices(clusterStateResponse, paginationStrategy.getRequestedIndices()).toArray(
+                                new String[0]
+                            );
                         catShardsResponse.setNodes(clusterStateResponse.getState().getNodes());
                         catShardsResponse.setResponseShards(
                             Objects.isNull(paginationStrategy)
@@ -116,11 +120,6 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                             return;
                         }
                         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-                        if (paginationStrategy != null) {
-                            // Use lenient indices options for paginated queries, which would silently
-                            // ignore closed concrete indices for fetching stats instead of throwing out an error.
-                            indicesStatsRequest.indicesOptions(IndicesOptions.lenientExpandOpenAndForbidClosed());
-                        }
                         indicesStatsRequest.setShouldCancelOnTimeout(true);
                         indicesStatsRequest.all();
                         indicesStatsRequest.indices(indices);
@@ -174,5 +173,18 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
 
     private boolean shouldSkipIndicesStatsRequest(ShardPaginationStrategy paginationStrategy) {
         return Objects.nonNull(paginationStrategy) && paginationStrategy.getRequestedEntities().isEmpty();
+    }
+
+    /**
+     * Will be used by paginated query (_list/shards) to filter out closed and hidden indices before fetching
+     * IndicesStats. Since pagination strategy always passes concrete indices to TransportIndicesStatsAction,
+     * the default behaviour of StrictExpandOpenAndForbidClosed leads to errors if closed indices are encountered and
+     * stats being fetched for hidden indices, making it deviate from default non-paginated queries.
+     */
+    private List<String> filterClosedAndHiddenIndices(ClusterStateResponse clusterStateResponse, List<String> indices) {
+        return indices.stream().filter(index -> {
+            IndexMetadata metadata = clusterStateResponse.getState().getMetadata().indices().get(index);
+            return metadata.getState().equals(IndexMetadata.State.OPEN) && !IndexMetadata.INDEX_HIDDEN_SETTING.get(metadata.getSettings());
+        }).collect(Collectors.toList());
     }
 }
