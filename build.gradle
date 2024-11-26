@@ -162,14 +162,20 @@ Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectE
   return [key, value]
 }
 
-    /**
-     * Using 'git' command line (if available), tries to fetch the commit date of the current revision
-     * @return commit date of the current revision or 0 if it is not available
-     */
+// See please https://docs.gradle.org/8.11/userguide/service_injection.html#execoperations
+interface InjectedExecOps {
+  @Inject ExecOperations getExecOps()
+}
+
+/**
+ * Using 'git' command line (if available), tries to fetch the commit date of the current revision
+ * @return commit date of the current revision or 0 if it is not available
+ */
 long gitRevisionDate = {
+  def execOps = project.objects.newInstance(InjectedExecOps)
   // Try to get last commit date as Unix timestamp
   try (ByteArrayOutputStream stdout = new ByteArrayOutputStream()) {
-     ExecResult result = project.exec(spec -> {
+     ExecResult result = execOps.execOps.exec(spec -> {
         spec.setIgnoreExitValue(true);
         spec.setStandardOutput(stdout);
         spec.commandLine("git", "log", "-1", "--format=%ct");
@@ -362,7 +368,7 @@ allprojects {
         if ((dep instanceof ProjectDependency) == false) {
           return
         }
-        Project upstreamProject = dep.dependencyProject
+        Project upstreamProject = project.project(dep.path)
         if (upstreamProject == null) {
           return
         }
@@ -438,7 +444,7 @@ gradle.projectsEvaluated {
 
     configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
-        Project upstreamProject = dep.dependencyProject
+        Project upstreamProject = project.project(dep.path)
         if (upstreamProject != null) {
           if (project.path == upstreamProject.path) {
             // TODO: distribution integ tests depend on themselves (!), fix that
