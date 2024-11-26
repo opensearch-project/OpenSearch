@@ -69,4 +69,26 @@ public class DeprecationLoggerTests extends OpenSearchTestCase {
         // assert that only unique warnings are logged
         assertWarnings("Deprecated message 1", "Deprecated message 2", "Deprecated message 3");
     }
+
+    public void testMaximumSizeOfCache() {
+        final int maxEntries = DeprecatedMessage.MAX_DEDUPE_CACHE_ENTRIES;
+        // Fill up the cache, asserting every message is new
+        for (int i = 0; i < maxEntries; i++) {
+            DeprecatedMessage message = new DeprecatedMessage("key-" + i, "message-" + i, "");
+            assertFalse(message.toString(), message.isAlreadyLogged());
+        }
+        // Do the same thing except assert every message has been seen
+        for (int i = 0; i < maxEntries; i++) {
+            DeprecatedMessage message = new DeprecatedMessage("key-" + i, "message-" + i, "");
+            assertTrue(message.toString(), message.isAlreadyLogged());
+        }
+        // Add one more new entry, asserting it is new
+        DeprecatedMessage message = new DeprecatedMessage("key-new", "message-new", "");
+        assertFalse(message.toString(), message.isAlreadyLogged());
+        assertTrue(message.toString(), message.isAlreadyLogged());
+        // Check the first entry added, asserting it has been evicted and is now seen as new
+        DeprecatedMessage message2 = new DeprecatedMessage("key-0", "message-0", "");
+        assertFalse(message2.toString(), message2.isAlreadyLogged());
+        assertTrue(message2.toString(), message2.isAlreadyLogged());
+    }
 }

@@ -32,12 +32,12 @@
 
 package org.opensearch.common.logging;
 
+import org.opensearch.common.cache.Cache;
+import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.core.common.Strings;
 
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A logger message used by {@link DeprecationLogger}.
@@ -47,7 +47,12 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class DeprecatedMessage extends OpenSearchLogMessage {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
-    private static final Set<String> keys = ConcurrentHashMap.newKeySet();
+
+    // Arbitrary maximum size, should be much larger than unique number of
+    // loggers, but small relative to heap size.
+    static final int MAX_DEDUPE_CACHE_ENTRIES = 65_536;
+
+    private static final KeyDedupeCache keyDedupeCache = new KeyDedupeCache();
     private final String keyWithXOpaqueId;
 
     public DeprecatedMessage(String key, String xOpaqueId, String messagePattern, Object... args) {
@@ -62,7 +67,7 @@ public class DeprecatedMessage extends OpenSearchLogMessage {
      * Otherwise, a warning can be logged by some test and the upcoming test can be impacted by it.
      */
     public static void resetDeprecatedMessageForTests() {
-        keys.clear();
+        keyDedupeCache.clear();
     }
 
     private static Map<String, Object> fieldMap(String key, String xOpaqueId) {
@@ -77,6 +82,34 @@ public class DeprecatedMessage extends OpenSearchLogMessage {
     }
 
     public boolean isAlreadyLogged() {
-        return !keys.add(keyWithXOpaqueId);
+        return !keyDedupeCache.add(keyWithXOpaqueId);
+    }
+
+    private static class KeyDedupeCache {
+        private static final Object VALUE = new Object();
+        private final Cache<Integer, Object> cache;
+
+        private KeyDedupeCache() {
+            cache = CacheBuilder.<Integer, Object>builder()
+                .weigher((s,o) -> 1) // Entries are a fixed size (integers)
+                .setMaximumWeight(MAX_DEDUPE_CACHE_ENTRIES)
+                .build();
+        }
+
+        boolean add(String key) {
+            int hash = key.hashCode();
+            // This read-then-write pattern is not actually thread safe. However, the worst case
+            // of 'n' racing threads here is that a warning will be logged 'n' times instead
+            // of just once. I believe this is better than adding more synchronization overhead.
+            if (cache.get(hash) == null) {
+                cache.put(hash, VALUE);
+                return true;
+            }
+            return false;
+        }
+
+        void clear() {
+            cache.invalidateAll();
+        }
     }
 }
