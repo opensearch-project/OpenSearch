@@ -133,8 +133,11 @@ public class SearchIpFieldTermsIT extends OpenSearchSingleNodeTestCase {
         assertTermsHitCount(indexName, "addr", toQuery, expectMatches);
         assertTermsHitCount(indexName, "addr.idx", toQuery, expectMatches);
         try { // error from mapper/parser
-           final SearchPhaseExecutionException ose = assertThrows(SearchPhaseExecutionException.class, () -> assertTermsHitCount(indexName, "addr.dv", toQuery, expectMatches));
-           assertTrue("exceeding on query building", ose.shardFailures()[0].getCause().getCause() instanceof IndexSearcher.TooManyClauses);
+            final SearchPhaseExecutionException ose = assertThrows(
+                SearchPhaseExecutionException.class,
+                () -> assertTermsHitCount(indexName, "addr.dv", toQuery, expectMatches)
+            );
+            assertTrue("exceeding on query building", ose.shardFailures()[0].getCause().getCause() instanceof IndexSearcher.TooManyClauses);
             fail();
         } catch (SearchPhaseExecutionException ose) {
             assertTrue("exceeding on query building", ose.shardFailures()[0].getCause().getCause() instanceof IndexSearcher.TooManyClauses);
