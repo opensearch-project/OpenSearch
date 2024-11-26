@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search;
+package org.opensearch.search.fields;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.action.bulk.BulkRequestBuilder;
@@ -35,7 +35,7 @@ import java.util.function.Consumer;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchIpFieldTermsTests extends OpenSearchSingleNodeTestCase {
+public class SearchIpFieldTermsIT extends OpenSearchSingleNodeTestCase {
 
     /**
      * @return number of expected matches
@@ -111,11 +111,15 @@ public class SearchIpFieldTermsTests extends OpenSearchSingleNodeTestCase {
         assertTermsHitCount(indexName, "addr.dv", toQuery, expectMatches);
         // passing dummy filter crushes on rewriting
         try {
-            assertTermsHitCount(indexName, "addr.dv", toQuery, expectMatches, (boolBuilder) -> {
-                boolBuilder.filter(QueryBuilders.termsQuery("dummy_filter", "1", "2", "3"))
+            assertTermsHitCount(
+                indexName,
+                "addr.dv",
+                toQuery,
+                expectMatches,
+                (boolBuilder) -> boolBuilder.filter(QueryBuilders.termsQuery("dummy_filter", "1", "2", "3"))
                     .filter(QueryBuilders.termsQuery("dummy_filter", "1", "2", "3", "4"))
-                    .filter(QueryBuilders.termsQuery("dummy_filter", "1", "2", "3", "4", "5"));
-            });
+                    .filter(QueryBuilders.termsQuery("dummy_filter", "1", "2", "3", "4", "5"))
+            );
             fail();
         } catch (SearchPhaseExecutionException ose) {
             assertTrue("exceeding on query rewrite", ose.shardFailures()[0].getCause() instanceof IndexSearcher.TooManyNestedClauses);
