@@ -125,9 +125,7 @@ public class SearchIpFieldTermsTests extends OpenSearchSingleNodeTestCase {
     public void testExceedMaxClauses() throws IOException {
         ArrayList<String> toQuery = new ArrayList<>();
         String indexName = "larger";
-        int expectMatches = createIndex(indexName, IndexSearcher.getMaxClauseCount() + (rarely() ? 0 : atLeast(10)) // TODO + often some
-                                                                                                                    // more
-            , toQuery);
+        int expectMatches = createIndex(indexName, IndexSearcher.getMaxClauseCount() + (rarely() ? 0 : atLeast(10)), toQuery);
         assertTermsHitCount(indexName, "addr", toQuery, expectMatches);
         assertTermsHitCount(indexName, "addr.idx", toQuery, expectMatches);
         try { // error from mapper/parser
