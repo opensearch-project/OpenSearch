@@ -28,6 +28,7 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -101,11 +102,6 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                             shardsRequest.getPageParams(),
                             clusterStateResponse
                         );
-                        String[] indices = Objects.isNull(paginationStrategy)
-                            ? shardsRequest.getIndices()
-                            : filterClosedAndHiddenIndices(clusterStateResponse, paginationStrategy.getRequestedIndices()).toArray(
-                                new String[0]
-                            );
                         catShardsResponse.setNodes(clusterStateResponse.getState().getNodes());
                         catShardsResponse.setResponseShards(
                             Objects.isNull(paginationStrategy)
@@ -113,8 +109,16 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                                 : paginationStrategy.getRequestedEntities()
                         );
                         catShardsResponse.setPageToken(Objects.isNull(paginationStrategy) ? null : paginationStrategy.getResponseToken());
+
+                        String[] indices = Objects.isNull(paginationStrategy)
+                            ? shardsRequest.getIndices()
+                            : filterClosedAndHiddenIndices(
+                                clusterStateResponse,
+                                paginationStrategy.getRequestedIndices(),
+                                Arrays.asList(shardsRequest.getIndices())
+                            ).toArray(new String[0]);
                         // For paginated queries, if strategy outputs no shards to be returned, avoid fetching IndicesStats.
-                        if (shouldSkipIndicesStatsRequest(paginationStrategy)) {
+                        if (shouldSkipIndicesStatsRequest(paginationStrategy, indices)) {
                             catShardsResponse.setIndicesStatsResponse(IndicesStatsResponse.getEmptyResponse());
                             cancellableListener.onResponse(catShardsResponse);
                             return;
@@ -171,8 +175,8 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
         }
     }
 
-    private boolean shouldSkipIndicesStatsRequest(ShardPaginationStrategy paginationStrategy) {
-        return Objects.nonNull(paginationStrategy) && paginationStrategy.getRequestedEntities().isEmpty();
+    private boolean shouldSkipIndicesStatsRequest(ShardPaginationStrategy paginationStrategy, String[] indices) {
+        return Objects.nonNull(paginationStrategy) && Objects.nonNull(indices) && indices.length == 0;
     }
 
     /**
@@ -181,10 +185,15 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
      * the default behaviour of StrictExpandOpenAndForbidClosed leads to errors if closed indices are encountered and
      * stats being fetched for hidden indices, making it deviate from default non-paginated queries.
      */
-    private List<String> filterClosedAndHiddenIndices(ClusterStateResponse clusterStateResponse, List<String> indices) {
+    private List<String> filterClosedAndHiddenIndices(
+        ClusterStateResponse clusterStateResponse,
+        List<String> indices,
+        List<String> requestedIndices
+    ) {
         return indices.stream().filter(index -> {
             IndexMetadata metadata = clusterStateResponse.getState().getMetadata().indices().get(index);
-            return metadata.getState().equals(IndexMetadata.State.OPEN) && !IndexMetadata.INDEX_HIDDEN_SETTING.get(metadata.getSettings());
+            return metadata.getState().equals(IndexMetadata.State.OPEN)
+                && (requestedIndices.contains(index) || !IndexMetadata.INDEX_HIDDEN_SETTING.get(metadata.getSettings()));
         }).collect(Collectors.toList());
     }
 }
