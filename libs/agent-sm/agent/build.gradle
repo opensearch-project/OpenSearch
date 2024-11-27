@@ -1,0 +1,44 @@
+
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
+
+base {
+  archivesName = 'opensearch-agent'
+}
+
+configurations {
+  bootstrapConfiguration.extendsFrom(implementation)
+}
+
+dependencies {
+  implementation project(":libs:agent-sm:bootstrap")
+  implementation "net.bytebuddy:byte-buddy:1.15.10"
+  compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+}
+
+jar {
+  manifest {
+    attributes(
+      "Can-Redefine-Classes": "true",
+      "Can-Retransform-Classes": "true",
+      "Agent-Class": "org.opensearch.javaagent.Agent",
+      "Premain-Class": "org.opensearch.javaagent.Agent",
+      "Boot-Class-Path": 'byte-buddy-1.15.10.jar opensearch-agent-bootstrap-3.0.0-SNAPSHOT.jar'
+    )
+  }
+}
+
+compileJava {
+  options.compilerArgs -= '-Werror'
+}
+
+test.enabled = false
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+copy {
+  from configurations.runtimeClasspath
+  into "$buildDir/distributions"
+}
