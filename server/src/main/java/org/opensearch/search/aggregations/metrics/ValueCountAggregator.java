@@ -88,6 +88,23 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
     }
 
     @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
+            if (supportedStarTree != null) {
+                if (parent != null && subAggregators.length == 0) {
+                    // If this a child aggregator, then the parent will trigger star-tree pre-computation.
+                    // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
+                    return true;
+                }
+                getStarTreeCollector(ctx, sub, supportedStarTree);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
@@ -95,17 +112,6 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
         final BigArrays bigArrays = context.bigArrays();
 
         if (valuesSource instanceof ValuesSource.Numeric) {
-
-            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
-            if (supportedStarTree != null) {
-                if (parent != null && subAggregators.length == 0) {
-                    // If this a child aggregator, then the parent will trigger star-tree pre-computation.
-                    // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
-                    return LeafBucketCollector.NO_OP_COLLECTOR;
-                }
-                getStarTreeCollector(ctx, sub, supportedStarTree);
-            }
-
             final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
 
