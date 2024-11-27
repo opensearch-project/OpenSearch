@@ -147,7 +147,9 @@ public class SecureSM extends SecurityManager {
         };
     }
 
-    static final String[] TEST_RUNNER_PACKAGES = new String[] {
+    public static final String[] TEST_RUNNER_PACKAGES = new String[] {
+        // gradle worker
+        "worker\\.org\\.gradle\\.process\\.internal\\.worker\\.GradleWorkerMain*",
         // surefire test runner
         "org\\.apache\\.maven\\.surefire\\.booter\\..*",
         // junit4 test runner
