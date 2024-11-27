@@ -8,8 +8,11 @@
 
 package org.opensearch.accesscontrol.resources;
 
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,7 +25,7 @@ import java.util.Objects;
  *
  * @opensearch.experimental
  */
-public class ResourceSharing implements ToXContentFragment {
+public class ResourceSharing implements ToXContentFragment, NamedWriteable {
 
     private String sourceIdx;
 
@@ -104,6 +107,24 @@ public class ResourceSharing implements ToXContentFragment {
     }
 
     @Override
+    public String getWriteableName() {
+        return "resource_sharing";
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(sourceIdx);
+        out.writeString(resourceId);
+        createdBy.writeTo(out);
+        if (shareWith != null) {
+            out.writeBoolean(true);
+            shareWith.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().field("source_idx", sourceIdx).field("resource_id", resourceId).field("created_by");
         createdBy.toXContent(builder, params);
@@ -113,4 +134,52 @@ public class ResourceSharing implements ToXContentFragment {
         }
         return builder.endObject();
     }
+
+    public static ResourceSharing fromXContent(XContentParser parser) throws IOException {
+        String sourceIdx = null;
+        String resourceId = null;
+        CreatedBy createdBy = null;
+        ShareWith shareWith = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else {
+                switch (Objects.requireNonNull(currentFieldName)) {
+                    case "source_idx":
+                        sourceIdx = parser.text();
+                        break;
+                    case "resource_id":
+                        resourceId = parser.text();
+                        break;
+                    case "created_by":
+                        createdBy = CreatedBy.fromXContent(parser);
+                        break;
+                    case "share_with":
+                        shareWith = ShareWith.fromXContent(parser);
+                        break;
+                    default:
+                        parser.skipChildren();
+                        break;
+                }
+            }
+        }
+
+        // Validate required fields
+        if (sourceIdx == null) {
+            throw new IllegalArgumentException("source_idx is required");
+        }
+        if (resourceId == null) {
+            throw new IllegalArgumentException("resource_id is required");
+        }
+        if (createdBy == null) {
+            throw new IllegalArgumentException("created_by is required");
+        }
+
+        return new ResourceSharing(sourceIdx, resourceId, createdBy, shareWith);
+    }
+
 }

@@ -9,11 +9,15 @@
 package org.opensearch.accesscontrol.resources;
 
 import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -32,6 +36,11 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
         this.sharedWithPerScope = sharedWithPerScope;
     }
 
+    public SharedWithScope(StreamInput in) throws IOException {
+        this.scope = in.readString();
+        this.sharedWithPerScope = new SharedWithPerScope(in);
+    }
+
     public String getScope() {
         return scope;
     }
@@ -48,6 +57,16 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
         sharedWithPerScope.toXContent(builder, params);
 
         return builder.endObject();
+    }
+
+    public static SharedWithScope fromXContent(XContentParser parser) throws IOException {
+        String scope = parser.currentName();
+
+        parser.nextToken();
+
+        SharedWithPerScope sharedWithPerScope = SharedWithPerScope.fromXContent(parser);
+
+        return new SharedWithScope(scope, sharedWithPerScope);
     }
 
     @Override
@@ -72,6 +91,10 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
      * @opensearch.experimental
      */
     public static class SharedWithPerScope implements ToXContentFragment, NamedWriteable {
+        private static final String USERS_FIELD = EntityType.USERS.toString();
+        private static final String ROLES_FIELD = EntityType.ROLES.toString();
+        private static final String BACKEND_ROLES_FIELD = EntityType.BACKEND_ROLES.toString();
+
         private List<String> users;
 
         private List<String> roles;
@@ -82,6 +105,12 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
             this.users = users;
             this.roles = roles;
             this.backendRoles = backendRoles;
+        }
+
+        public SharedWithPerScope(StreamInput in) throws IOException {
+            this.users = Arrays.asList(in.readStringArray());
+            this.roles = Arrays.asList(in.readStringArray());
+            this.backendRoles = Arrays.asList(in.readStringArray());
         }
 
         public List<String> getUsers() {
@@ -110,15 +139,59 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
 
         @Override
         public String toString() {
-            return "{" + "users=" + users + ", roles=" + roles + ", backendRoles=" + backendRoles + '}';
+            return "{"
+                + USERS_FIELD
+                + "="
+                + users
+                + ", "
+                + ROLES_FIELD
+                + "="
+                + roles
+                + ", "
+                + BACKEND_ROLES_FIELD
+                + "="
+                + backendRoles
+                + '}';
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            writeFieldOrEmptyArray(builder, "users", users);
-            writeFieldOrEmptyArray(builder, "roles", roles);
-            writeFieldOrEmptyArray(builder, "backend_roles", backendRoles);
+            writeFieldOrEmptyArray(builder, USERS_FIELD, users);
+            writeFieldOrEmptyArray(builder, ROLES_FIELD, roles);
+            writeFieldOrEmptyArray(builder, BACKEND_ROLES_FIELD, backendRoles);
             return builder;
+        }
+
+        public static SharedWithPerScope fromXContent(XContentParser parser) throws IOException {
+            List<String> users = new ArrayList<>();
+            List<String> roles = new ArrayList<>();
+            List<String> backendRoles = new ArrayList<>();
+
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if (USERS_FIELD.equals(currentFieldName)) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            users.add(parser.text());
+                        }
+                    } else if (ROLES_FIELD.equals(currentFieldName)) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            roles.add(parser.text());
+                        }
+                    } else if (BACKEND_ROLES_FIELD.equals(currentFieldName)) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            backendRoles.add(parser.text());
+                        }
+                    } else {
+                        parser.skipChildren();
+                    }
+                }
+            }
+
+            return new SharedWithPerScope(users, roles, backendRoles);
         }
 
         private void writeFieldOrEmptyArray(XContentBuilder builder, String fieldName, List<String> values) throws IOException {

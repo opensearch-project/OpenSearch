@@ -15,9 +15,18 @@ package org.opensearch.accesscontrol.resources;
  */
 public enum EntityType {
 
-    USERS,
+    USERS("users"),
+    ROLES("roles"),
+    BACKEND_ROLES("backend_roles");
 
-    ROLES,
+    private final String value;
 
-    BACKEND_ROLES,
+    EntityType(String value) {
+        this.value = value;
+    }
+
+    @Override
+    public String toString() {
+        return value;
+    }
 }

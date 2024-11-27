@@ -411,8 +411,9 @@ public final class ThreadContext implements Writeable {
     /**
      * Returns the persistent header for the given key or <code>null</code> if not present - persistent headers cannot be stashed
      */
-    public Object getPersistent(String key) {
-        return threadLocal.get().persistentHeaders.get(key);
+    @SuppressWarnings("unchecked") // (T)object
+    public <T> T getPersistent(String key) {
+        return (T) threadLocal.get().persistentHeaders.get(key);
     }
 
     /**

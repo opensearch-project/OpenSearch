@@ -8,8 +8,12 @@
 
 package org.opensearch.accesscontrol.resources;
 
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -19,23 +23,16 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-public class CreatedBy implements ToXContentFragment {
+public class CreatedBy implements ToXContentFragment, NamedWriteable {
 
     private String user;
 
-    private String backendRole;
-
-    public CreatedBy(String user, String backendRole) {
+    public CreatedBy(String user) {
         this.user = user;
-        this.backendRole = backendRole;
     }
 
-    public String getBackendRole() {
-        return backendRole;
-    }
-
-    public void setBackendRole(String backendRole) {
-        this.backendRole = backendRole;
+    public CreatedBy(StreamInput in) throws IOException {
+        this(in.readString());
     }
 
     public String getUser() {
@@ -48,11 +45,44 @@ public class CreatedBy implements ToXContentFragment {
 
     @Override
     public String toString() {
-        return "CreatedBy {" + "user='" + user + '\'' + ", backendRole='" + backendRole + '\'' + '}';
+        return "CreatedBy {" + "user='" + user + '\'' + '}';
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "created_by";
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(user);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field("user", user).field("backend_role", backendRole).endObject();
+        return builder.startObject().field("user", user).endObject();
     }
+
+    public static CreatedBy fromXContent(XContentParser parser) throws IOException {
+        String user = null;
+        String currentFieldName = null;
+        XContentParser.Token token;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if ("user".equals(currentFieldName)) {
+                    user = parser.text();
+                }
+            }
+        }
+
+        if (user == null) {
+            throw new IllegalArgumentException("user field is required");
+        }
+
+        return new CreatedBy(user);
+    }
+
 }
