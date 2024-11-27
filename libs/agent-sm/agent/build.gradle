@@ -1,0 +1,61 @@
+
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
+
+base {
+  archivesName = 'opensearch-agent'
+}
+
+configurations {
+  bootstrapConfiguration.extendsFrom(implementation)
+}
+
+dependencies {
+  implementation project(":libs:agent-sm:bootstrap")
+  implementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
+  compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+}
+
+jar {
+  manifest {
+    attributes(
+      "Can-Redefine-Classes": "true",
+      "Can-Retransform-Classes": "true",
+      "Agent-Class": "org.opensearch.javaagent.Agent",
+      "Premain-Class": "org.opensearch.javaagent.Agent",
+      "Boot-Class-Path": 'byte-buddy-1.17.0.jar opensearch-agent-bootstrap-3.0.0-SNAPSHOT.jar'
+    )
+  }
+}
+
+compileJava {
+  options.compilerArgs -= '-Werror'
+}
+
+test.enabled = false
+testingConventions.enabled = false
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+task copyJars(type: Copy) {
+  from configurations.runtimeClasspath
+  into "$buildDir/distributions"
+  dependsOn jar
+}
+
+thirdPartyAudit {
+  ignoreMissingClasses(
+    'com.sun.jna.FunctionMapper',
+    'com.sun.jna.JNIEnv',
+    'com.sun.jna.Library',
+    'com.sun.jna.Native',
+    'com.sun.jna.NativeLibrary',
+    'com.sun.jna.Platform'
+  )
+}
+
+tasks.named('validateNebulaPom') {
+  dependsOn copyJars
+}

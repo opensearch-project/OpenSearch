@@ -357,6 +357,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
+    agentFiles = {
+      copySpec {
+        from(project(':libs:agent-sm:agent').copyJars)
+      }
+    }
+
     modulesFiles = { platform ->
       copySpec {
         eachFile {
