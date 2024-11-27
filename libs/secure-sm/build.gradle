@@ -31,6 +31,7 @@ apply plugin: 'opensearch.publish'
 
 dependencies {
   // do not add non-test compile dependencies to secure-sm without a good reason to do so
+  api project(":libs:agent-sm:agent-policy")
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"

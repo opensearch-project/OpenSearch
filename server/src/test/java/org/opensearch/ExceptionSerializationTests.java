@@ -131,6 +131,7 @@ import org.opensearch.transport.client.transport.NoNodeAvailableException;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -166,7 +167,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         final Set<Class<?>> notRegistered = new HashSet<>();
         final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();
-        final String path = "/org/opensearch";
+        final String path = "org/opensearch";
         final Path coreLibStartPath = PathUtils.get(OpenSearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI());
         final Path startPath = PathUtils.get(OpenSearchServerException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
             .resolve("org")
@@ -254,7 +255,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         Files.walkFileTree(coreLibStartPath, visitor);
         // walk the server module start path
         Files.walkFileTree(startPath, visitor);
-        final Path testStartPath = PathUtils.get(ExceptionSerializationTests.class.getResource(path).toURI());
+        final URI location = ExceptionSerializationTests.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+        final Path testStartPath = PathUtils.get(location).resolve(path);
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));

@@ -146,7 +146,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     }
     final List<String> miniHDFSArgs = []
 
-    if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_23) {
+    if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_23 && BuildParams.runtimeJavaVersion < JavaVersion.VERSION_24) {
       miniHDFSArgs.add('-Djava.security.manager=allow')
     }
 

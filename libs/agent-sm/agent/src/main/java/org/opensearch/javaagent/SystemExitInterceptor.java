@@ -11,6 +11,7 @@ package org.opensearch.javaagent;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.lang.StackWalker.Option;
+import java.security.Policy;
 
 import net.bytebuddy.asm.Advice;
 
@@ -30,6 +31,11 @@ public class SystemExitInterceptor {
      */
     @Advice.OnMethodEnter()
     public static void intercept(int code) throws Exception {
+        final Policy policy = AgentPolicy.getPolicy();
+        if (policy == null) {
+            return; /* noop */
+        }
+
         final StackWalker walker = StackWalker.getInstance(Option.RETAIN_CLASS_REFERENCE);
         final Class<?> caller = walker.getCallerClass();
 
