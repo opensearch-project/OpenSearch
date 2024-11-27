@@ -65,7 +65,7 @@ junit             = "4.13.2"
 hamcrest          = "2.1"
 mockito           = "5.14.2"
 objenesis         = "3.3"
-bytebuddy         = "1.15.10"
+bytebuddy         = "1.17.0"
 
 # benchmark dependencies
 jmh               = "1.35"
