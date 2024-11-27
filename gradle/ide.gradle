@@ -82,7 +82,7 @@ if (System.getProperty('idea.active') == 'true') {
         runConfigurations {
           defaults(JUnit) {
             vmParameters = '-ea -Djava.locale.providers=SPI,CLDR'
-            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
+            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17 && BuildParams.runtimeJavaVersion < JavaVersion.VERSION_24) {
               vmParameters += ' -Djava.security.manager=allow'
             }
           }

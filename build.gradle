@@ -433,11 +433,17 @@ gradle.projectsEvaluated {
 
     project.tasks.withType(Test) { task ->
       if (task != null) {
-        if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
+        if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17 && BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_23) {
           task.jvmArgs += ["-Djava.security.manager=allow"]
         }
         if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
           task.jvmArgs += ["--add-modules=jdk.incubator.vector"]
+        }
+
+        // Add Java Agent for security sandboxing
+        if (!(project.path in [':build-tools', ":libs:agent-sm:bootstrap", ":libs:agent-sm:agent"])) {
+          dependsOn(project(':libs:agent-sm:agent').copyJars)
+          jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
         }
       }
     }
