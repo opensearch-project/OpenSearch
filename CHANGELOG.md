@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Security Manager Replacement] Add a policy parser for Java agent security policies ([#17753](https://github.com/opensearch-project/OpenSearch/pull/17753))
 - [Security Manager Replacement] Implement File Interceptor and add integration tests ([#17760](https://github.com/opensearch-project/OpenSearch/pull/17760))
 - [Security Manager Replacement] Enhance Java Agent to intercept Runtime::halt ([#17757](https://github.com/opensearch-project/OpenSearch/pull/17757))
+- [Security Manager Replacement] Phase off SecurityManager usage in favor of Java Agent ([#17861](https://github.com/opensearch-project/OpenSearch/pull/17861))
 - Support AutoExpand for SearchReplica ([#17741](https://github.com/opensearch-project/OpenSearch/pull/17741))
 - Implement fixed interval refresh task scheduling ([#17777](https://github.com/opensearch-project/OpenSearch/pull/17777))
 - Add GRPC DocumentService and Bulk endpoint ([#17727](https://github.com/opensearch-project/OpenSearch/pull/17727))
