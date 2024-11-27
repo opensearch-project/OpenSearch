@@ -71,6 +71,7 @@ dependencies {
   api project(":libs:opensearch-task-commons")
   implementation project(':libs:opensearch-arrow-spi')
 
+  compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
@@ -378,7 +379,7 @@ tasks.named("licenseHeaders").configure {
 tasks.test {
     environment "node.roles.test", "[]"
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-        jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
+        jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED", "-Djdk.attach.allowAttachSelf=true", "-XX:+EnableDynamicAgentLoading" ]
     }
 }
 

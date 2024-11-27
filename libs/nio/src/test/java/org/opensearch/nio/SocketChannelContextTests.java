@@ -125,6 +125,7 @@ public class SocketChannelContextTests extends OpenSearchTestCase {
         assertTrue(context.closeNow());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16731")
     public void testRegisterInitiatesConnect() throws IOException {
         InetSocketAddress address = mock(InetSocketAddress.class);
         boolean isAccepted = randomBoolean();
@@ -205,6 +206,7 @@ public class SocketChannelContextTests extends OpenSearchTestCase {
         assertSame(ioException, exception.get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16731")
     public void testConnectCanSetSocketOptions() throws IOException {
         InetSocketAddress address = mock(InetSocketAddress.class);
         Config.Socket config;

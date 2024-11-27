@@ -77,7 +77,7 @@ ${error.file}
 9-:-Xlog:gc*,gc+age=trace,safepoint:file=${loggc}:utctime,pid,tags:filecount=32,filesize=64m
 
 # Explicitly allow security manager (https://bugs.openjdk.java.net/browse/JDK-8270380)
-18-:-Djava.security.manager=allow
+18-23:-Djava.security.manager=allow
 
 # JDK 20+ Incubating Vector Module for SIMD optimizations;
 # disabling may reduce performance on vector optimized lucene
@@ -89,3 +89,6 @@ ${error.file}
 # See please https://bugs.openjdk.org/browse/JDK-8341127 (openjdk/jdk#21283)
 23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.setAsTypeCache
 23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.asTypeUncached
+
+# It should be JDK-24 (but we cannot bring JDK-24 since Gradle does not support it yet)
+21-:-javaagent:agent/opensearch-agent.jar

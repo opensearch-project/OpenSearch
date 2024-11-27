@@ -85,7 +85,7 @@ final class SystemJvmOptions {
     }
 
     private static String allowSecurityManagerOption() {
-        if (Runtime.version().feature() > 17) {
+        if (Runtime.version().feature() > 17 && Runtime.version().feature() < 24) {
             return "-Djava.security.manager=allow";
         } else {
             return "";
