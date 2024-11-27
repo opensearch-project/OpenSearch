@@ -32,10 +32,11 @@ import org.opensearch.index.compositeindex.CompositeIndexConstants;
 import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
-import org.opensearch.index.compositeindex.datacube.KeywordDimension;
+import org.opensearch.index.compositeindex.datacube.IpDimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
+import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
@@ -352,9 +353,9 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         );
     }
 
-    protected StarTreeField getStarTreeFieldWithKeywords() {
-        Dimension d1 = new KeywordDimension("field1");
-        Dimension d2 = new KeywordDimension("field3");
+    protected StarTreeField getStarTreeFieldWithKeywords(boolean ip) {
+        Dimension d1 = ip ? new IpDimension("field1") : new OrdinalDimension("field1");
+        Dimension d2 = ip ? new IpDimension("field3") : new OrdinalDimension("field3");
         Metric m1 = new Metric("field2", List.of(MetricStat.VALUE_COUNT, MetricStat.SUM));
         List<Dimension> dims = List.of(d1, d2);
         List<Metric> metrics = List.of(m1);

@@ -24,7 +24,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.compositeindex.datacube.DateDimension.CALENDAR_INTERVALS;
-import static org.opensearch.index.compositeindex.datacube.KeywordDimension.KEYWORD;
+import static org.opensearch.index.compositeindex.datacube.IpDimension.IP;
+import static org.opensearch.index.compositeindex.datacube.OrdinalDimension.ORDINAL;
 
 /**
  * Dimension factory class mainly used to parse and create dimension from the mappings
@@ -44,8 +45,10 @@ public class DimensionFactory {
                 return parseAndCreateDateDimension(name, dimensionMap, c);
             case NumericDimension.NUMERIC:
                 return new NumericDimension(name);
-            case KEYWORD:
-                return new KeywordDimension(name);
+            case ORDINAL:
+                return new OrdinalDimension(name);
+            case IP:
+                return new IpDimension(name);
             default:
                 throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "unsupported field type associated with dimension [%s] as part of star tree field", name)
@@ -69,8 +72,10 @@ public class DimensionFactory {
                 return parseAndCreateDateDimension(name, dimensionMap, c);
             case NUMERIC:
                 return new NumericDimension(name);
-            case KEYWORD:
-                return new KeywordDimension(name);
+            case ORDINAL:
+                return new OrdinalDimension(name);
+            case IP:
+                return new IpDimension(name);
             default:
                 throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "unsupported field type associated with star tree dimension [%s]", name)
