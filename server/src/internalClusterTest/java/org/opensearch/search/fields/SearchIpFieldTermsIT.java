@@ -110,7 +110,7 @@ public class SearchIpFieldTermsIT extends OpenSearchSingleNodeTestCase {
         assertTermsHitCount(indexName, "addr.idx", toQuery, expectMatches);
         assertTermsHitCount(indexName, "addr.dv", toQuery, expectMatches);
         // passing dummy filter crushes on rewriting
-        try {
+        SearchPhaseExecutionException ose = assertThrows(SearchPhaseExecutionException.class, () -> {
             assertTermsHitCount(
                 indexName,
                 "addr.dv",
@@ -120,10 +120,8 @@ public class SearchIpFieldTermsIT extends OpenSearchSingleNodeTestCase {
                     .filter(QueryBuilders.termsQuery("dummy_filter", "1", "2", "3", "4"))
                     .filter(QueryBuilders.termsQuery("dummy_filter", "1", "2", "3", "4", "5"))
             );
-            fail();
-        } catch (SearchPhaseExecutionException ose) {
-            assertTrue("exceeding on query rewrite", ose.shardFailures()[0].getCause() instanceof IndexSearcher.TooManyNestedClauses);
-        }
+        });
+        assertTrue("exceeding on query rewrite", ose.shardFailures()[0].getCause() instanceof IndexSearcher.TooManyNestedClauses);
     }
 
     public void testExceedMaxClauses() throws IOException {
@@ -132,16 +130,12 @@ public class SearchIpFieldTermsIT extends OpenSearchSingleNodeTestCase {
         int expectMatches = createIndex(indexName, IndexSearcher.getMaxClauseCount() + (rarely() ? 0 : atLeast(10)), toQuery);
         assertTermsHitCount(indexName, "addr", toQuery, expectMatches);
         assertTermsHitCount(indexName, "addr.idx", toQuery, expectMatches);
-        try { // error from mapper/parser
-            final SearchPhaseExecutionException ose = assertThrows(
-                SearchPhaseExecutionException.class,
-                () -> assertTermsHitCount(indexName, "addr.dv", toQuery, expectMatches)
-            );
-            assertTrue("exceeding on query building", ose.shardFailures()[0].getCause().getCause() instanceof IndexSearcher.TooManyClauses);
-            fail();
-        } catch (SearchPhaseExecutionException ose) {
-            assertTrue("exceeding on query building", ose.shardFailures()[0].getCause().getCause() instanceof IndexSearcher.TooManyClauses);
-        }
+        // error from mapper/parser
+        final SearchPhaseExecutionException ose = assertThrows(
+            SearchPhaseExecutionException.class,
+            () -> assertTermsHitCount(indexName, "addr.dv", toQuery, expectMatches)
+        );
+        assertTrue("exceeding on query building", ose.shardFailures()[0].getCause().getCause() instanceof IndexSearcher.TooManyClauses);
     }
 
     private static String getFirstThreeOctets(String ipAddress) {
