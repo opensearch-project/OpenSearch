@@ -18,18 +18,18 @@ import org.opensearch.common.annotation.ExperimentalApi;
 @ExperimentalApi
 public interface StreamTicket {
     /**
-     * Returns the ticket ID associated with this stream ticket.
+     * Returns the ticketId associated with this stream ticket.
      *
-     * @return the ticket ID string
+     * @return the ticketId string
      */
-    String getTicketID();
+    String getTicketId();
 
     /**
-     * Returns the node ID associated with this stream ticket.
+     * Returns the nodeId associated with this stream ticket.
      *
-     * @return the node ID string
+     * @return the nodeId string
      */
-    String getNodeID();
+    String getNodeId();
 
     /**
      * Serializes this ticket into a Base64 encoded byte array.

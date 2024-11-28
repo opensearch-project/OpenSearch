@@ -18,11 +18,11 @@ import org.opensearch.common.annotation.ExperimentalApi;
 @ExperimentalApi
 public interface StreamTicketFactory {
     /**
-     * Generates a new StreamTicket
+     * Creates a new StreamTicket
      *
      * @return A new StreamTicket instance
      */
-    StreamTicket generateTicket();
+    StreamTicket newTicket();
 
     /**
      * Deserializes a StreamTicket from its byte representation.
