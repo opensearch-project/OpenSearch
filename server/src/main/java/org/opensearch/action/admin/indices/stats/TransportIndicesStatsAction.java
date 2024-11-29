@@ -153,4 +153,12 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         }
         return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), commonStats, commitStats, seqNoStats, retentionLeaseStats);
     }
+
+    @Override
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, IndicesStatsRequest request) {
+        if (request.skipIndexNameResolver()) {
+            return request.indices();
+        }
+        return super.resolveConcreteIndexNames(clusterState, request);
+    }
 }

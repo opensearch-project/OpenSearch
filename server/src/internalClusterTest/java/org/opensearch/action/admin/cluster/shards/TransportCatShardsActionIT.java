@@ -170,42 +170,24 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
         // close index "test-closed-idx"
         client().admin().indices().close(Requests.closeIndexRequest("test-closed-idx")).get();
 
-        // Verifying responses for default queries: /_cat/shards and /_list/shards
-        CatShardsRequest shardsRequest = new CatShardsRequest();
-        shardsRequest.setCancelAfterTimeInterval(NO_TIMEOUT);
-        shardsRequest.setIndices(Strings.EMPTY_ARRAY);
-        ActionFuture<CatShardsResponse> catShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
-        assertTrue(catShardsResponse.get().getResponseShards().stream().anyMatch(shard -> shard.getIndexName().equals("test-closed-idx")));
-        assertTrue(catShardsResponse.get().getResponseShards().stream().anyMatch(shard -> shard.getIndexName().equals("test-hidden-idx")));
-
-        shardsRequest.setPageParams(new PageParams(null, PageParams.PARAM_ASC_SORT_VALUE, pageSize));
-        ActionFuture<CatShardsResponse> listShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
+        // Verifying response for default queries: /_list/shards
+        // all the shards should be part of response, however stats should not be displayed for closed index
+        CatShardsRequest listShardsRequest = new CatShardsRequest();
+        listShardsRequest.setCancelAfterTimeInterval(NO_TIMEOUT);
+        listShardsRequest.setIndices(Strings.EMPTY_ARRAY);
+        listShardsRequest.setPageParams(new PageParams(null, PageParams.PARAM_ASC_SORT_VALUE, pageSize));
+        ActionFuture<CatShardsResponse> listShardsResponse = client().execute(CatShardsAction.INSTANCE, listShardsRequest);
         assertTrue(listShardsResponse.get().getResponseShards().stream().anyMatch(shard -> shard.getIndexName().equals("test-closed-idx")));
         assertTrue(listShardsResponse.get().getResponseShards().stream().anyMatch(shard -> shard.getIndexName().equals("test-hidden-idx")));
-        assertEquals(catShardsResponse.get().getResponseShards().size(), listShardsResponse.get().getResponseShards().size());
-        assertEquals(
-            catShardsResponse.get().getIndicesStatsResponse().getShards().length,
-            listShardsResponse.get().getIndicesStatsResponse().getShards().length
+        assertFalse(
+            Arrays.stream(listShardsResponse.get().getIndicesStatsResponse().getShards())
+                .anyMatch(shardStats -> shardStats.getShardRouting().getIndexName().equals("test-closed-idx"))
         );
 
-        // Verifying responses when hidden indices are explicitly queried: /_cat/shards/test-hidden-idx and /_list/shards/test-hidden-idx
+        // Verifying responses when hidden indices are explicitly queried: /_list/shards/test-hidden-idx
         // Shards for hidden index should appear in response along with stats
-        shardsRequest = new CatShardsRequest();
-        shardsRequest.setCancelAfterTimeInterval(NO_TIMEOUT);
-        shardsRequest.setIndices(List.of("test-hidden-idx").toArray(new String[0]));
-        catShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
-        assertTrue(catShardsResponse.get().getResponseShards().stream().allMatch(shard -> shard.getIndexName().equals("test-hidden-idx")));
-        assertTrue(
-            Arrays.stream(catShardsResponse.get().getIndicesStatsResponse().getShards())
-                .allMatch(shardStats -> shardStats.getShardRouting().getIndexName().equals("test-hidden-idx"))
-        );
-        assertEquals(
-            catShardsResponse.get().getResponseShards().size(),
-            catShardsResponse.get().getIndicesStatsResponse().getShards().length
-        );
-
-        shardsRequest.setPageParams(new PageParams(null, PageParams.PARAM_ASC_SORT_VALUE, pageSize));
-        listShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
+        listShardsRequest.setIndices(List.of("test-hidden-idx").toArray(new String[0]));
+        listShardsResponse = client().execute(CatShardsAction.INSTANCE, listShardsRequest);
         assertTrue(listShardsResponse.get().getResponseShards().stream().allMatch(shard -> shard.getIndexName().equals("test-hidden-idx")));
         assertTrue(
             Arrays.stream(listShardsResponse.get().getIndicesStatsResponse().getShards())
@@ -216,52 +198,32 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
             listShardsResponse.get().getIndicesStatsResponse().getShards().length
         );
 
-        // Verifying responses when hidden indices are queried with wildcards: /_cat/shards/test-hidden-idx* and
-        // /_list/shards/test-hidden-idx*
+        // Verifying responses when hidden indices are queried with wildcards: /_list/shards/test-hidden-idx*
         // Shards for hidden index should appear in response without stats
-        shardsRequest = new CatShardsRequest();
-        shardsRequest.setCancelAfterTimeInterval(NO_TIMEOUT);
-        shardsRequest.setIndices(List.of("test-hidden-idx*").toArray(new String[0]));
-        catShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
-        assertTrue(catShardsResponse.get().getResponseShards().stream().allMatch(shard -> shard.getIndexName().equals("test-hidden-idx")));
-        assertEquals(0, catShardsResponse.get().getIndicesStatsResponse().getShards().length);
-
-        shardsRequest.setPageParams(new PageParams(null, PageParams.PARAM_ASC_SORT_VALUE, pageSize));
-        listShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
+        listShardsRequest.setIndices(List.of("test-hidden-idx*").toArray(new String[0]));
+        listShardsResponse = client().execute(CatShardsAction.INSTANCE, listShardsRequest);
         assertTrue(listShardsResponse.get().getResponseShards().stream().allMatch(shard -> shard.getIndexName().equals("test-hidden-idx")));
-        assertEquals(0, listShardsResponse.get().getIndicesStatsResponse().getShards().length);
+        assertTrue(
+            Arrays.stream(listShardsResponse.get().getIndicesStatsResponse().getShards())
+                .allMatch(shardStats -> shardStats.getShardRouting().getIndexName().equals("test-hidden-idx"))
+        );
+        assertEquals(
+            listShardsResponse.get().getResponseShards().size(),
+            listShardsResponse.get().getIndicesStatsResponse().getShards().length
+        );
 
-        // Explicitly querying for closed index: /_cat/shards/test-closed-idx and /_list/shards/test-closed-idx
-        // /_cat/shards/test-closed-idx should result in IndexClosedException
-        // while /_list/shards/test-closed-idx should output closed shards without stats.
-        shardsRequest = new CatShardsRequest();
-        shardsRequest.setCancelAfterTimeInterval(NO_TIMEOUT);
-        shardsRequest.setIndices(List.of("test-closed-idx").toArray(new String[0]));
-        try {
-            catShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
-            catShardsResponse.get();
-            fail("Expected IndexClosedException");
-        } catch (Exception exception) {
-            assertTrue(exception.getMessage().contains("IndexClosedException"));
-        }
-
-        shardsRequest.setPageParams(new PageParams(null, PageParams.PARAM_ASC_SORT_VALUE, pageSize));
-        listShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
+        // Explicitly querying for closed index: /_list/shards/test-closed-idx
+        // should output closed shards without stats.
+        listShardsRequest.setIndices(List.of("test-closed-idx").toArray(new String[0]));
+        listShardsResponse = client().execute(CatShardsAction.INSTANCE, listShardsRequest);
         assertTrue(listShardsResponse.get().getResponseShards().stream().allMatch(shard -> shard.getIndexName().equals("test-closed-idx")));
         assertEquals(0, listShardsResponse.get().getIndicesStatsResponse().getShards().length);
 
-        // Querying for closed index with wildcards: /_cat/shards/test-closed-idx and /_list/shards/test-closed-idx
-        // Both the queries should return zero entries
-        shardsRequest = new CatShardsRequest();
-        shardsRequest.setCancelAfterTimeInterval(NO_TIMEOUT);
-        shardsRequest.setIndices(List.of("test-closed-idx*").toArray(new String[0]));
-        catShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
-        assertEquals(0, catShardsResponse.get().getResponseShards().size());
-        assertEquals(0, catShardsResponse.get().getIndicesStatsResponse().getShards().length);
-
-        shardsRequest.setPageParams(new PageParams(null, PageParams.PARAM_ASC_SORT_VALUE, pageSize));
-        listShardsResponse = client().execute(CatShardsAction.INSTANCE, shardsRequest);
-        assertEquals(0, listShardsResponse.get().getResponseShards().size());
+        // Querying for closed index with wildcards: /_list/shards/test-closed-idx*
+        // should output closed shards without stats.
+        listShardsRequest.setIndices(List.of("test-closed-idx*").toArray(new String[0]));
+        listShardsResponse = client().execute(CatShardsAction.INSTANCE, listShardsRequest);
+        assertTrue(listShardsResponse.get().getResponseShards().stream().allMatch(shard -> shard.getIndexName().equals("test-closed-idx")));
         assertEquals(0, listShardsResponse.get().getIndicesStatsResponse().getShards().length);
     }
 

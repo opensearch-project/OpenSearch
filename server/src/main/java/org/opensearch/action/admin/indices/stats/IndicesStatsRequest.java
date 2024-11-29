@@ -57,6 +57,7 @@ import java.util.Map;
 public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     private CommonStatsFlags flags = new CommonStatsFlags();
+    private boolean skipIndexNameResolver = false;
 
     public IndicesStatsRequest() {
         super((String[]) null);
@@ -306,5 +307,14 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     @Override
     public boolean includeDataStreams() {
         return true;
+    }
+
+    public boolean skipIndexNameResolver() {
+        return skipIndexNameResolver;
+    }
+
+    public IndicesStatsRequest skipIndexNameResolver(boolean skipIndexNameResolver) {
+        this.skipIndexNameResolver = skipIndexNameResolver;
+        return this;
     }
 }
