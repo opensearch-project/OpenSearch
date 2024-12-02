@@ -37,8 +37,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `Netty` from 4.1.114.Final to 4.1.115.Final ([#16661](https://github.com/opensearch-project/OpenSearch/pull/16661))
 - Bump `org.xerial.snappy:snappy-java` from 1.1.10.6 to 1.1.10.7 ([#16665](https://github.com/opensearch-project/OpenSearch/pull/16665))
 - Bump `codecov/codecov-action` from 4 to 5 ([#16667](https://github.com/opensearch-project/OpenSearch/pull/16667))
+- Bump `org.apache.logging.log4j:log4j-core` from 2.24.1 to 2.24.2 ([#16718](https://github.com/opensearch-project/OpenSearch/pull/16718))
 
 ### Changed
+- Indexed IP field supports `terms_query` with more than 1025 IP masks [#16391](https://github.com/opensearch-project/OpenSearch/pull/16391)
 
 ### Deprecated
 - Performing update operation with default pipeline or final pipeline is deprecated
