@@ -285,7 +285,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         "update_operation_with_ingest_pipeline",
                         "the index ["
                             + indexRequest.index()
-                            + "] has a default ingest pipeline or a final ingest pipeline, but performing update operation with ingest pipeline causes unexpected result, this support will be removed in 3.0.0"
+                            + "] has a default ingest pipeline or a final ingest pipeline, the support of the ingest pipelines for update operation causes unexpected result and will be removed in 3.0.0"
                     );
                 }
                 client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
