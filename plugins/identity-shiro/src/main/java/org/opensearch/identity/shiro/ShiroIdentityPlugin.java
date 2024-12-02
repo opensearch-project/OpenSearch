@@ -30,6 +30,7 @@ import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
@@ -138,7 +139,8 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
         }
     }
 
-    public PluginSubject getPluginSubject(Plugin plugin) {
+    @Override
+    public PluginSubject getPluginSubject(PluginInfo pluginInfo) {
         return new ShiroPluginSubject(threadPool);
     }
 }

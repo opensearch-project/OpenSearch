@@ -60,6 +60,7 @@ import org.opensearch.cli.UserException;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 
@@ -104,6 +105,9 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.opensearch.plugins.PluginInfo.CLUSTER_ACTIONS_SETTING;
+import static org.opensearch.plugins.PluginInfo.DESCRIPTION_SETTING;
+import static org.opensearch.plugins.PluginInfo.INDEX_ACTIONS_SETTING;
 
 /**
  * A command for the plugin cli to install a plugin into opensearch.
@@ -858,7 +862,34 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         } else {
             permissions = Collections.emptySet();
         }
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
+
+        Path actions = tmpRoot.resolve(PluginInfo.OPENSEARCH_PLUGIN_ACTIONS);
+        Settings requestedActions = Settings.EMPTY;
+
+        if (Files.exists(actions)) {
+            requestedActions = PluginSecurity.parseRequestedActions(actions);
+        }
+
+        final Map<String, List<String>> requestedIndexActions = new HashMap<>();
+
+        final List<String> requestedClusterActions = CLUSTER_ACTIONS_SETTING.get(requestedActions);
+        final Settings requestedIndexActionsGroup = INDEX_ACTIONS_SETTING.get(requestedActions);
+        final String pluginActionDescription = DESCRIPTION_SETTING.get(requestedActions);
+        if (!requestedIndexActionsGroup.keySet().isEmpty()) {
+            for (String indexPattern : requestedIndexActionsGroup.keySet()) {
+                List<String> indexActionsForPattern = requestedIndexActionsGroup.getAsList(indexPattern);
+                requestedIndexActions.put(indexPattern, indexActionsForPattern);
+            }
+        }
+
+        PluginSecurity.confirmPolicyExceptions(
+            terminal,
+            permissions,
+            pluginActionDescription,
+            requestedClusterActions,
+            requestedIndexActions,
+            isBatch
+        );
 
         String targetFolderName = info.getTargetFolderName();
         final Path destination = env.pluginsDir().resolve(targetFolderName);
