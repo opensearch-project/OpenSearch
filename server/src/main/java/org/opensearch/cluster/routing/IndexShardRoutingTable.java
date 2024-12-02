@@ -134,6 +134,21 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
             if (shard.initializing()) {
                 allInitializingShards.add(shard);
             }
+            if (shard.isSearchOnly()) {
+                // mark search only shards as initializing or assigned, but do not add to
+                // the allAllocationId set. Cluster Manager will filter out search replica aIds in
+                // the in-sync set that is sent to primaries, but they are still included in the routing table.
+                // This ensures the primaries do not validate these ids exist in tracking nor are included
+                // in the unavailableInSyncShards set.
+                if (shard.relocating()) {
+                    allInitializingShards.add(shard.getTargetRelocatingShard());
+                    assignedShards.add(shard.getTargetRelocatingShard());
+                }
+                if (shard.assignedToNode()) {
+                    assignedShards.add(shard);
+                }
+                continue;
+            }
             if (shard.relocating()) {
                 // create the target initializing shard routing on the node the shard is relocating to
                 allInitializingShards.add(shard.getTargetRelocatingShard());

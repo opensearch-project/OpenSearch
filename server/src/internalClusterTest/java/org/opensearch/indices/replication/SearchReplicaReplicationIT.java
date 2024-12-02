@@ -17,11 +17,12 @@ import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
-import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
+
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchReplicaReplicationIT extends SegmentReplicationBaseIT {
@@ -29,32 +30,21 @@ public class SearchReplicaReplicationIT extends SegmentReplicationBaseIT {
     private static final String REPOSITORY_NAME = "test-remote-store-repo";
     protected Path absolutePath;
 
-    private Boolean useRemoteStore;
-
-    @Before
-    public void randomizeRemoteStoreEnabled() {
-        useRemoteStore = randomBoolean();
-    }
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if (useRemoteStore) {
-            if (absolutePath == null) {
-                absolutePath = randomRepoPath().toAbsolutePath();
-            }
-            return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath))
-                .build();
+        if (absolutePath == null) {
+            absolutePath = randomRepoPath().toAbsolutePath();
         }
-        return super.nodeSettings(nodeOrdinal);
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath))
+            .build();
     }
 
     @After
     public void teardown() {
-        if (useRemoteStore) {
-            clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
-        }
+        clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
+
     }
 
     @Override
@@ -130,5 +120,40 @@ public class SearchReplicaReplicationIT extends SegmentReplicationBaseIT {
         for (SegmentReplicationShardStats replicaStat : replicaStats) {
             assertNotNull(replicaStat.getCurrentReplicationState());
         }
+    }
+    public void testRecoveryAfterDocsIndexed() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        final String primary = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final int docCount = 10;
+        for (int i = 0; i < docCount; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
+        }
+        refresh(INDEX_NAME);
+
+        final String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+        assertDocCounts(10, replica);
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0))
+            .get();
+
+        ensureGreen(INDEX_NAME);
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1))
+            .get();
+        ensureGreen(INDEX_NAME);
+        assertDocCounts(10, replica);
+
+        internalCluster().restartNode(replica);
+        ensureGreen(INDEX_NAME);
+        assertDocCounts(10, replica);
     }
 }
