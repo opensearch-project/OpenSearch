@@ -694,7 +694,7 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("suggest.total", "sibling:pri;alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
         table.addCell("pri.suggest.total", "default:false;text-align:right;desc:number of suggest ops");
 
-        table.addCell("memory.total", "sibling:pri;alias:tm,memoryTotal;default:false;text-align:right;desc:total used memory of primaries & replicas");
+        table.addCell("memory.total", "sibling:pri;alias:tm,memoryTotal;default:false;text-align:right;desc:total used memory (primary + replicas)");
         table.addCell("pri.memory.total", "default:false;text-align:right;desc:total used memory of primary");
 
         table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
