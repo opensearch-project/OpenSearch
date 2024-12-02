@@ -94,17 +94,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
 
     // Create the index metadata for a given index, with the specified version.
     private static IndexMetadata createIndexMetadata(final Index index, final long version) {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-            .build();
-        return IndexMetadata.builder(index.getName())
-            .settings(settings)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .creationDate(System.currentTimeMillis())
-            .version(version)
-            .build();
+        return createIndexMetadata(index, version, false);
     }
 
     private static IndexMetadata createIndexMetadata(final Index index, final long version, final boolean isSystem) {
