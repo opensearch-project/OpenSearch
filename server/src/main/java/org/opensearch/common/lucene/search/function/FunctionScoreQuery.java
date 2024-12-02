@@ -417,7 +417,12 @@ public class FunctionScoreQuery extends Query {
             if (scorer != null && minScore != null) {
                 scorer = new MinScoreScorer(this, scorer, minScore);
             }
-            return new DefaultScorerSupplier(scorer);
+
+            if (scorer != null) {
+                return new DefaultScorerSupplier(scorer);
+            } else {
+                return null;
+            }
         }
 
         @Override
