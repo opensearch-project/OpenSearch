@@ -2534,12 +2534,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.SNAPSHOT : "not a snapshot recovery ["
             + routingEntry()
             + "]";
+        openEngineAndSkipTranslogRecovery(false);
+    }
+
+    void openEngineAndSkipTranslogRecovery(boolean syncFromRemote) throws IOException {
         recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
         maybeCheckIndex();
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker, false);
+        innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
         getEngine().translogManager().skipTranslogRecovery();
     }
 
@@ -2889,7 +2893,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void recoverFromStore(ActionListener<Boolean> listener) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
-        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+        assert shardRouting.primary() || shardRouting.isSearchOnly()
+            : "recover from store only makes sense if the shard is a primary shard or an untracked search only replica";
         assert shardRouting.initializing() : "can only start recovery on initializing shard";
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         storeRecovery.recoverFromStore(this, listener);
