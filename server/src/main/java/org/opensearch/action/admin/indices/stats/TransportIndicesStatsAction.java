@@ -56,6 +56,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -157,7 +158,10 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     @Override
     protected String[] resolveConcreteIndexNames(ClusterState clusterState, IndicesStatsRequest request) {
         if (request.skipIndexNameResolver()) {
-            return request.indices();
+            // filter out all the indices which might not be present in the local clusterState
+            return Arrays.stream(request.indices())
+                .filter(index -> clusterState.metadata().indices().containsKey(index))
+                .toArray(String[]::new);
         }
         return super.resolveConcreteIndexNames(clusterState, request);
     }
