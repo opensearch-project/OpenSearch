@@ -42,8 +42,8 @@ teardown:
 ---
 "update operation with predefined default or final pipeline returns warning header":
   - skip:
-      version:  " - 2.99.99"
-      reason:   "this change is added in 3.0.0"
+      version:  " - 2.18.99"
+      reason:   "this change is added in 2.19.0"
       features: allowed_warnings
   - do:
       index:
