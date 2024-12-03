@@ -91,10 +91,10 @@ public class SortedSetDocValuesWriterWrapperTests extends OpenSearchTestCase {
         assertEquals(0, docValues.nextDoc());
         assertEquals(0, docValues.nextOrd());
         assertEquals(1, docValues.nextOrd());
-        assertEquals(-1, docValues.nextOrd());
+        assertEquals(2, docValues.docValueCount());
 
         assertEquals(1, docValues.nextDoc());
         assertEquals(2, docValues.nextOrd());
-        assertEquals(-1, docValues.nextOrd());
+        assertEquals(1, docValues.docValueCount());
     }
 }
