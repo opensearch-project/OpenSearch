@@ -19,6 +19,7 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.comparators.NumericComparator;
+import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 
@@ -84,7 +85,12 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
 
             @Override
             protected long missingValueAsComparableLong() {
-                throw new UnsupportedOperationException();
+                return switch (missingValue) {
+                    case Double d -> NumericUtils.doubleToSortableLong(d);
+                    case Float f -> NumericUtils.floatToSortableInt(f);
+                    case Number n -> n.longValue();
+                    case null -> 0L;
+                };
             }
 
             @Override

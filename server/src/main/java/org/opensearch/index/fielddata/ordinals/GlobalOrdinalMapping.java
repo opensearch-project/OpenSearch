@@ -51,6 +51,7 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
     private final OrdinalMap ordinalMap;
     private final LongValues mapping;
     private final TermsEnum[] lookups;
+    private int nextOrd = 0;
 
     GlobalOrdinalMapping(OrdinalMap ordinalMap, SortedSetDocValues values, TermsEnum[] lookups, int segmentIndex) {
         super();
@@ -76,6 +77,9 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
 
     @Override
     public long nextOrd() throws IOException {
+        if (++nextOrd > values.docValueCount()) {
+            return SortedSetDocValues.NO_MORE_DOCS;
+        }
         long segmentOrd = values.nextOrd();
         if (segmentOrd == SortedSetDocValues.NO_MORE_DOCS) {
             return SortedSetDocValues.NO_MORE_DOCS;
