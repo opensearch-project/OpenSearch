@@ -44,7 +44,7 @@ teardown:
   - skip:
       version:  " - 2.18.99"
       reason:   "this change is added in 2.19.0"
-      features: allowed_warnings
+      features: [warnings, headers]
   - do:
       index:
         index: test_1
@@ -57,7 +57,8 @@ teardown:
   - match: { result:        created }
 
   - do:
-      allowed_warnings:
+      headers: { "X-Opaque-Id": "default_pipeline_request" }
+      warnings:
         - "the index [test_1] has a default ingest pipeline or a final ingest pipeline, the support of the ingest pipelines for update operation causes unexpected result and will be removed in 3.0.0"
       update:
         index:            test_1
@@ -85,7 +86,8 @@ teardown:
   - match: { result:        created }
 
   - do:
-      allowed_warnings:
+      headers: { "X-Opaque-Id": "final_pipeline_request" }
+      warnings:
         - "the index [test_2] has a default ingest pipeline or a final ingest pipeline, the support of the ingest pipelines for update operation causes unexpected result and will be removed in 3.0.0"
       update:
         index:            test_2
