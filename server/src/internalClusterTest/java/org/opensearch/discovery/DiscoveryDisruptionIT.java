@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
@@ -56,7 +57,6 @@ import org.junit.Assert;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
@@ -304,8 +304,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         internalCluster().stopCurrentClusterManagerNode();
         ensureStableCluster(6);
 
-        Random random = new Random();
-        String randomNode = nonClusterManagerNodes.get(random.nextInt(nonClusterManagerNodes.size()));
+        String randomNode = nonClusterManagerNodes.get(Randomness.get().nextInt(nonClusterManagerNodes.size()));
 
         RepositoriesMetadata repositoriesMetadata = internalCluster().getInstance(ClusterService.class, randomNode)
             .state()
