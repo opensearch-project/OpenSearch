@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
@@ -48,10 +49,12 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.search.slice.SliceBuilder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -230,7 +233,7 @@ public class OperationRouting {
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference
     ) {
-        return searchShards(clusterState, concreteIndices, routing, preference, null, null);
+        return searchShards(clusterState, concreteIndices, routing, preference, null, null, null);
     }
 
     public GroupShardsIterator<ShardIterator> searchShards(
@@ -239,9 +242,10 @@ public class OperationRouting {
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        @Nullable SliceBuilder slice
     ) {
-        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
+        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing, slice);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
             IndexMetadata indexMetadataForShard = indexMetadata(clusterState, shard.shardId.getIndex().getName());
@@ -290,12 +294,14 @@ public class OperationRouting {
     private Set<IndexShardRoutingTable> computeTargetedShards(
         ClusterState clusterState,
         String[] concreteIndices,
-        @Nullable Map<String, Set<String>> routing
+        @Nullable Map<String, Set<String>> routing,
+        @Nullable SliceBuilder slice
     ) {
         routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
         final Set<IndexShardRoutingTable> set = new HashSet<>();
         // we use set here and not list since we might get duplicates
         for (String index : concreteIndices) {
+            Set<IndexShardRoutingTable> indexSet = new HashSet<>();
             final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
             final IndexMetadata indexMetadata = indexMetadata(clusterState, index);
             final Set<String> effectiveRouting = routing.get(index);
@@ -303,12 +309,21 @@ public class OperationRouting {
                 for (String r : effectiveRouting) {
                     final int routingPartitionSize = indexMetadata.getRoutingPartitionSize();
                     for (int partitionOffset = 0; partitionOffset < routingPartitionSize; partitionOffset++) {
-                        set.add(RoutingTable.shardRoutingTable(indexRouting, calculateScaledShardId(indexMetadata, r, partitionOffset)));
+                        indexSet.add(
+                            RoutingTable.shardRoutingTable(indexRouting, calculateScaledShardId(indexMetadata, r, partitionOffset))
+                        );
                     }
                 }
             } else {
                 for (IndexShardRoutingTable indexShard : indexRouting) {
-                    set.add(indexShard);
+                    indexSet.add(indexShard);
+                }
+            }
+            List<IndexShardRoutingTable> shards = new ArrayList<>(indexSet);
+            CollectionUtil.timSort(shards, Comparator.comparing(s -> s.shardId));
+            for (int i = 0; i < shards.size(); i++) {
+                if (slice == null || slice.shardMatches(i, shards.size())) {
+                    set.add(shards.get(i));
                 }
             }
         }
