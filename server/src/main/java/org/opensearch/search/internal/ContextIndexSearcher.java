@@ -242,6 +242,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             searchLeaf(ctx, 0, DocIdSetIterator.NO_MORE_DOCS, weight, collector);
             collectors.add(collector);
         }
+
         TopFieldDocs mergedTopDocs = (TopFieldDocs) manager.reduce(collectors);
         // Lucene sets shards indexes during merging of topDocs from different collectors
         // We need to reset shard index; OpenSearch will set shard index later during reduce stage
@@ -252,6 +253,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
         }
         result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
+    }
+
+    @Override
+    public void search(Query query, Collector collector) throws IOException {
+        super.search(query, collector);
+        searchContext.bucketCollectorProcessor().processPostCollection(collector);
     }
 
     public void search(
