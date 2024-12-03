@@ -32,13 +32,19 @@
 
 package org.opensearch.discovery;
 
+import org.junit.Assert;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.coordination.JoinHelper;
 import org.opensearch.cluster.coordination.PublicationTransportHandler;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
@@ -50,6 +56,11 @@ import org.opensearch.transport.TransportService;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
+import java.util.Random;
+import java.util.List;
+import java.util.Arrays;
+
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -248,6 +259,88 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         clusterManagerTransportService.clearAllRules();
 
         ensureStableCluster(3);
+    }
+
+    /**
+     * Test Repositories Configured Node Join Commit failures.
+     */
+    public void testElectClusterManagerRemotePublicationConfigurationNodeJoinCommitFails() throws Exception {
+        final String remoteStateRepoName = "remote-state-repo";
+        final String remoteRoutingTableRepoName = "routing-table-repo";
+
+
+        Settings remotePublicationSettings = buildRemotePublicationNodeAttributes(
+            remoteStateRepoName,
+            ReloadableFsRepository.TYPE,
+            remoteRoutingTableRepoName,
+            ReloadableFsRepository.TYPE
+        );
+        internalCluster().startClusterManagerOnlyNodes(3);
+        internalCluster().startDataOnlyNodes(3);
+
+        String clusterManagerNode = internalCluster().getClusterManagerName();
+        List<String> nonClusterManagerNodes = Arrays.stream(internalCluster().getNodeNames()).filter(node -> !node.equals(clusterManagerNode)).collect(Collectors.toList());
+
+        ensureStableCluster(6);
+
+        MockTransportService clusterManagerTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            clusterManagerNode
+        );
+        logger.info("Blocking Cluster Manager Commit Request on all nodes");
+        nonClusterManagerNodes.forEach(
+            node -> {
+                TransportService targetTransportService = internalCluster().getInstance(TransportService.class, node);
+                clusterManagerTransportService.addOpenSearchFailureException(
+                    targetTransportService,
+                    new FailedToCommitClusterStateException("Blocking Commit"),
+                    PublicationTransportHandler.COMMIT_STATE_ACTION_NAME
+                );
+            }
+        );
+
+        logger.info("Starting Node with remote publication settings");
+        internalCluster().startDataOnlyNodes(1, remotePublicationSettings, Boolean.TRUE);
+
+        logger.info("Stopping current Cluster Manager");
+        internalCluster().stopCurrentClusterManagerNode();
+        ensureStableCluster(6);
+
+        Random random = new Random();
+        String randomNode = nonClusterManagerNodes.get(random.nextInt(nonClusterManagerNodes.size()));
+
+        RepositoriesMetadata repositoriesMetadata = internalCluster().getInstance(ClusterService.class, randomNode).state().metadata().custom(RepositoriesMetadata.TYPE);
+
+        Boolean isRemoteStateRepoConfigured = Boolean.FALSE;
+        Boolean isRemoteRoutingTableRepoConfigured = Boolean.FALSE;
+
+        for (RepositoryMetadata repo : repositoriesMetadata.repositories()) {
+            if (repo.name().equals(remoteStateRepoName)) {
+                isRemoteStateRepoConfigured = Boolean.TRUE;
+            } else if (repo.name().equals(remoteRoutingTableRepoName)) {
+                isRemoteRoutingTableRepoConfigured = Boolean.TRUE;
+            }
+        }
+
+        Assert.assertTrue("RemoteState Repo is not set in RepositoriesMetadata", isRemoteStateRepoConfigured);
+        Assert.assertTrue("RemoteRoutingTable Repo is not set in RepositoriesMetadata", isRemoteRoutingTableRepoConfigured);
+
+        isRemoteStateRepoConfigured = Boolean.FALSE;
+        isRemoteRoutingTableRepoConfigured = Boolean.FALSE;
+
+        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, randomNode);
+
+        if (repositoriesService.isRepositoryPresent(remoteStateRepoName)) {
+            isRemoteStateRepoConfigured = Boolean.TRUE;
+        }
+        if (repositoriesService.isRepositoryPresent(remoteRoutingTableRepoName)) {
+            isRemoteRoutingTableRepoConfigured = Boolean.TRUE;
+        }
+
+        Assert.assertTrue("RemoteState Repo is not set in RepositoryService", isRemoteStateRepoConfigured);
+        Assert.assertTrue("RemoteRoutingTable Repo is not set in RepositoryService", isRemoteRoutingTableRepoConfigured);
+
+        logger.info("Stopping current Cluster Manager");
     }
 
 }

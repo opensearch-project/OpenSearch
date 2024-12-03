@@ -183,6 +183,14 @@ public class RemoteStoreNodeService {
                 boolean repositoryAlreadyPresent = false;
                 for (RepositoryMetadata existingRepositoryMetadata : existingRepositories.repositories()) {
                     if (newRepositoryMetadata.name().equals(existingRepositoryMetadata.name())) {
+                        // This is to handle cases where-in the during a previous node-join attempt if the publish operation succeeded but
+                        // the commit operation failed, the cluster-state may have the repository metadata which is not applied into the
+                        // repository service. This may lead to assertion failures down the line.
+                        if (!repositoriesService.get().isRepositoryPresent(newRepositoryMetadata.name())) {
+                            logger.warn("remote repository [{}] in cluster-state but repository-service but not present "
+                                + "in repository-service, skipping checks", newRepositoryMetadata.name());
+                            break;
+                        }
                         try {
                             // This will help in handling two scenarios -
                             // 1. When a fresh cluster is formed and a node tries to join the cluster, the repository

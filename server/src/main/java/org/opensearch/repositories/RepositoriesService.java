@@ -578,6 +578,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         throw new RepositoryMissingException(repositoryName);
     }
 
+    public Boolean isRepositoryPresent(final String repositoryName) {
+        return Objects.nonNull(repositories.get(repositoryName));
+    }
+
     public List<RepositoryStatsSnapshot> repositoriesStats() {
         List<RepositoryStatsSnapshot> activeRepoStats = getRepositoryStatsForActiveRepositories();
         return activeRepoStats;
@@ -903,6 +907,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 Repository repository = repositories.get(currentRepositoryMetadata.name());
                 Settings newRepositoryMetadataSettings = newRepositoryMetadata.settings();
                 Settings currentRepositoryMetadataSettings = currentRepositoryMetadata.settings();
+
+                assert Objects.nonNull(repository) : String.format("repository [%s] not present in RepositoryService", currentRepositoryMetadata.name());
 
                 List<String> restrictedSettings = repository.getRestrictedSystemRepositorySettings()
                     .stream()
