@@ -32,7 +32,9 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
@@ -48,10 +50,11 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
-import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeFilter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -64,13 +67,14 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
  *
  * @opensearch.internal
  */
-public class SumAggregator extends NumericMetricsAggregator.SingleValue {
+public class SumAggregator extends NumericMetricsAggregator.SingleValue implements StarTreeCollector {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
 
     private DoubleArray sums;
     private DoubleArray compensations;
+    SortedNumericStarTreeValuesIterator sumMetricValuesIterator;
 
     SumAggregator(
         String name,
@@ -87,6 +91,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
             sums = context.bigArrays().newDoubleArray(1, true);
             compensations = context.bigArrays().newDoubleArray(1, true);
         }
+        sumMetricValuesIterator = null;
     }
 
     @Override
@@ -140,35 +145,35 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
         throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
-        if (parent != null && subAggregators.length == 0) {
-            return new StarTreeBucketCollector() {
-                StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
-                // assert starTreeValues != null;
-
-                // FixedBitSet matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, "@timestamp_month");
-
-                SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
-                    .getMetricValuesIterator("startree1_status_sum_metric");
-
-                @Override
-                public void collectStarEntry(int starTreeEntryBit, long bucket) throws IOException {
-                    sums = context.bigArrays().grow(sums, bucket + 1);
-                    // Advance the valuesIterator to the current bit
-                    if (!metricValuesIterator.advanceExact(starTreeEntryBit)) {
-                        return; // Skip if no entries for this document
-                    }
-                    double metricValue = NumericUtils.sortableLongToDouble(metricValuesIterator.nextValue());
-
-                    double sum = sums.get(bucket);
-
-                    // sums = context.bigArrays().grow(sums, bucket + 1);
-                    sums.set(bucket, metricValue + sum);
-                }
-
-                @Override
-                public void collect(int doc, long owningBucketOrd) throws IOException {}
-            };
-        }
+        // if (parent != null && subAggregators.length == 0) {
+        // return new StarTreeBucketCollector() {
+        // StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
+        // // assert starTreeValues != null;
+        //
+        // // FixedBitSet matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, "@timestamp_month");
+        //
+        // SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+        // .getMetricValuesIterator("startree1_status_sum_metric");
+        //
+        // @Override
+        // public void collectStarEntry(int starTreeEntryBit, long bucket) throws IOException {
+        // sums = context.bigArrays().grow(sums, bucket + 1);
+        // // Advance the valuesIterator to the current bit
+        // if (!metricValuesIterator.advanceExact(starTreeEntryBit)) {
+        // return; // Skip if no entries for this document
+        // }
+        // double metricValue = NumericUtils.sortableLongToDouble(metricValuesIterator.nextValue());
+        //
+        // double sum = sums.get(bucket);
+        //
+        // // sums = context.bigArrays().grow(sums, bucket + 1);
+        // sums.set(bucket, metricValue + sum);
+        // }
+        //
+        // @Override
+        // public void collect(int doc, long owningBucketOrd) throws IOException {}
+        // };
+        // }
         return StarTreeQueryHelper.getStarTreeLeafCollector(
             context,
             valuesSource,
@@ -205,5 +210,65 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public void doClose() {
         Releasables.close(sums, compensations);
+    }
+
+    // public SortedNumericStarTreeValuesIterator getMetricValueIterator() throws IOException {
+    // if (sumMetricValuesIterator == null) {
+    // sumMetricValuesIterator = (SortedNumericStarTreeValuesIterator) getStarTreeValues(ctx, null).getMetricValuesIterator(
+    // "startree1_status_sum_metric"
+    // );
+    // }
+    // return sumMetricValuesIterator;
+    // }
+
+    /**
+     * Pre-compute method to be invoked by parent aggregator
+     */
+    @Override
+    public void preCompute(LeafReaderContext ctx, CompositeIndexFieldInfo starTree, LongKeyedBucketOrds bucketOrds) throws IOException {
+        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
+        // assert starTreeValues != null;
+
+        FixedBitSet matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, "@timestamp_month");
+
+        SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+            .getDimensionValuesIterator("@timestamp_month");
+
+        SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+            .getMetricValuesIterator("startree1_status_sum_metric");
+
+        int numBits = matchingDocsBitSet.length();
+
+        if (numBits > 0) {
+            for (int bit = matchingDocsBitSet.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
+                ? matchingDocsBitSet.nextSetBit(bit + 1)
+                : DocIdSetIterator.NO_MORE_DOCS) {
+
+                if (!valuesIterator.advanceExact(bit)) {
+                    continue;
+                }
+
+                for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
+                    long dimensionValue = valuesIterator.nextValue();
+
+                    if (metricValuesIterator.advanceExact(bit)) {
+                        double metricValue = NumericUtils.sortableLongToDouble(metricValuesIterator.nextValue());
+
+                        long bucketOrd = bucketOrds.add(0, dimensionValue);
+
+                        // assert bucketOrd < 0;
+
+                        if (bucketOrd < 0) {
+                            bucketOrd = -1 - bucketOrd;
+                            // collectStarTreeBucket((StarTreeBucketCollector) sub, metricValue, bucketOrd, bit);
+                        }
+                        sums = context.bigArrays().grow(sums, bucketOrd + 1);
+                        double sum = sums.get(bucketOrd);
+                        sum = sum + metricValue;
+                        sums.set(bucketOrd, sum);
+                    }
+                }
+            }
+        }
     }
 }

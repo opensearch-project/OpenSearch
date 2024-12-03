@@ -43,7 +43,6 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.LeafBucketCollector;
-import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.AggregationPath;
@@ -130,12 +129,13 @@ public abstract class BucketsAggregator extends AggregatorBase {
         subCollector.collect(doc, bucketOrd);
     }
 
-    public final void collectStarTreeBucket(StarTreeBucketCollector subCollector, long docCount, long bucketOrd, int entryBit)
+    public final void collectStarTreeBucket(long docCount, long bucketOrd)
         throws IOException {
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
             multiBucketConsumer.accept(0);
         }
-        subCollector.collectStarEntry(entryBit, bucketOrd);
+        // Only collect own bucket & not sub-aggregator buckets
+        // subCollector.collectStarEntry(entryBit, bucketOrd);
     }
 
     /**

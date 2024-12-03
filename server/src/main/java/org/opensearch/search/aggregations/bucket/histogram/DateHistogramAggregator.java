@@ -52,11 +52,11 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
-import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.opensearch.search.aggregations.metrics.StarTreeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -180,6 +180,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
+
+        // Will migrate this to a separate precompute utility
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
             StarTreeValues starTreeValues = getStarTreeValues(ctx, supportedStarTree);
@@ -213,14 +215,20 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                             long bucketOrd = bucketOrds.add(0, dimensionValue);
                             if (bucketOrd < 0) {
                                 bucketOrd = -1 - bucketOrd;
-                                collectStarTreeBucket((StarTreeBucketCollector) sub, metricValue, bucketOrd, bit);
+                                collectStarTreeBucket(metricValue, bucketOrd);
                             } else {
                                 grow(bucketOrd + 1);
-                                collectStarTreeBucket((StarTreeBucketCollector) sub, metricValue, bucketOrd, bit);
+                                collectStarTreeBucket(metricValue, bucketOrd);
                             }
                         }
                     }
                 }
+            }
+
+            // Run preCompute for all sub-aggregators
+            for (Aggregator subAggregator : subAggregators) {
+                // assuming query-matching was already done and only supported query shapes are executed here
+                ((StarTreeCollector) subAggregator).preCompute(ctx, supportedStarTree, bucketOrds);
             }
             throw new CollectionTerminatedException();
         }
