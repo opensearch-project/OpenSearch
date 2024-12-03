@@ -342,4 +342,26 @@ public class TestShardRouting {
             -1
         );
     }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        boolean primary,
+        boolean searchOnly,
+        ShardRoutingState state,
+        RecoverySource recoverySource
+    ) {
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            null,
+            primary,
+            searchOnly,
+            state,
+            recoverySource,
+            buildUnassignedInfo(state),
+            buildAllocationId(state),
+            -1
+        );
+    }
 }
