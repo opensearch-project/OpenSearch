@@ -2322,7 +2322,6 @@ public final class InternalTestCluster extends TestCluster {
         return startNodes(Collections.nCopies(numOfNodes, settings).toArray(new Settings[0]));
     }
 
-
     /**
      * Starts multiple nodes with the given settings and returns their names
      */

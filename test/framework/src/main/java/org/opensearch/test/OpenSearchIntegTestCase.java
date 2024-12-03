@@ -181,7 +181,6 @@ import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Rule;
-import reactor.util.annotation.NonNull;
 
 import java.io.IOException;
 import java.lang.Runtime.Version;
@@ -214,6 +213,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import reactor.util.annotation.NonNull;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -2919,7 +2920,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     protected Settings buildRemotePublicationNodeAttributes(
         @NonNull String remoteStateRepoName,
         @NonNull String remoteStateRepoType,
-        @NonNull  String routingTableRepoName,
+        @NonNull String routingTableRepoName,
         @NonNull String routingTableRepoType
     ) {
         String remoteStateRepositoryTypeAttributeKey = String.format(
@@ -2948,8 +2949,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
             .put(remoteStateRepositoryTypeAttributeKey, remoteStateRepoType)
             .put(routingTableRepositoryTypeAttributeKey, routingTableRepoType)
-            .put(remoteStateRepositorySettingsAttributeKeyPrefix+"location",  randomRepoPath().toAbsolutePath())
-            .put(routingTableRepositorySettingsAttributeKeyPrefix+"location", randomRepoPath().toAbsolutePath())
+            .put(remoteStateRepositorySettingsAttributeKeyPrefix + "location", randomRepoPath().toAbsolutePath())
+            .put(routingTableRepositorySettingsAttributeKeyPrefix + "location", randomRepoPath().toAbsolutePath())
             .build();
     }
 
