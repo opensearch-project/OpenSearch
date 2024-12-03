@@ -50,6 +50,14 @@ public class BrainLogParserTests extends OpenSearchTestCase {
         parser = new BrainLogParser();
     }
 
+    public void testNewParserWithIllegalArgument() {
+        String exceptionMessage = "Threshold percentage must be between 0.0 and 1.0";
+        Throwable throwable = assertThrows(IllegalArgumentException.class, () -> new BrainLogParser(2, -1.0f));
+        assertEquals(exceptionMessage, throwable.getMessage());
+        throwable = assertThrows(IllegalArgumentException.class, () -> new BrainLogParser(2, 1.1f));
+        assertEquals(exceptionMessage, throwable.getMessage());
+    }
+
     public void testPreprocess() {
         String logMessage = "127.0.0.1 - 1234 something";
         String logId = "log1";
@@ -63,6 +71,18 @@ public class BrainLogParserTests extends OpenSearchTestCase {
         expectedResult = Arrays.asList("<*><*>", "something", "log2");
         result = parser.preprocess(logMessage, logId);
         assertEquals(expectedResult, result);
+    }
+
+    public void testPreprocessWithIllegalInput() {
+        String logMessage = "127.0.0.1 - 1234 something";
+        String logId = "log1";
+        String exceptionMessage = "log message or logId must not be null";
+        Throwable throwable = assertThrows(IllegalArgumentException.class, () -> parser.preprocess(null, logId));
+        assertEquals(exceptionMessage, throwable.getMessage());
+        throwable = assertThrows(IllegalArgumentException.class, () -> parser.preprocess(logMessage, null));
+        assertEquals(exceptionMessage, throwable.getMessage());
+        throwable = assertThrows(IllegalArgumentException.class, () -> parser.preprocess(null, null));
+        assertEquals(exceptionMessage, throwable.getMessage());
     }
 
     public void testPreprocessAllLogs() {
@@ -111,6 +131,13 @@ public class BrainLogParserTests extends OpenSearchTestCase {
         assertTrue(parser.getGroupTokenSetMap().get(sampleGroupTokenKey).contains("something"));
     }
 
+    public void testCalculateGroupTokenFreqWithIllegalInput() {
+        List<List<String>> preprocessedLogs = Arrays.asList(List.of());
+        String exceptionMessage = "Sorted word combinations must be non empty";
+        Throwable throwable = assertThrows(IllegalArgumentException.class, () -> parser.calculateGroupTokenFreq(preprocessedLogs));
+        assertEquals(exceptionMessage, throwable.getMessage());
+    }
+
     public void testParseLogPattern() {
         List<List<String>> preprocessedLogs = parser.preprocessAllLogs(TEST_HDFS_LOGS, List.of());
         parser.calculateGroupTokenFreq(preprocessedLogs);
@@ -149,5 +176,54 @@ public class BrainLogParserTests extends OpenSearchTestCase {
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().size()));
         assertEquals(expectedResult, logPatternByCountMap);
+    }
+
+    public void testParseLogPatternWhenLowerFrequencyTokenIsVariable() {
+        int testVariableCountThreshold = 3;
+        parser = new BrainLogParser(testVariableCountThreshold);
+        List<String> logMessages = Arrays.asList(
+            "Verification succeeded a blk_-1547954353065580372",
+            "Verification succeeded b blk_6996194389878584395",
+            "Verification succeeded c blk_6996194389878584395",
+            "Verification succeeded d blk_6996194389878584395"
+        );
+
+        Map<String, List<String>> expectedResult = Map.of("Verification succeeded <*> blk_<*>", Arrays.asList("0", "1", "2", "3"));
+        Map<String, List<String>> logPatternMap = parser.parseAllLogPatterns(logMessages, List.of());
+        assertEquals(expectedResult, logPatternMap);
+        /*
+         * 'a', 'b', 'c' and 'd' token is on the 3rd position in the group 2,3, their frequency is lower than
+         * representative frequency. Since that position's distinct token number exceeds the variable count threshold,
+         * the third position in this log group is treated as variable
+         */
+        assertTrue(parser.getTokenFreqMap().get("2-a") < parser.getTokenFreqMap().get("0-Verification"));
+        assertTrue(parser.getTokenFreqMap().get("2-b") < parser.getTokenFreqMap().get("0-Verification"));
+        assertTrue(testVariableCountThreshold <= parser.getGroupTokenSetMap().get("4-4,3-2").size());
+    }
+
+    public void testParseLogPatternWhenHigherFrequencyTokenIsVariable() {
+        List<String> logMessages = Arrays.asList(
+            "Verification succeeded for blk_-1547954353065580372",
+            "Verification succeeded for blk_6996194389878584395",
+            "Test succeeded for blk_6996194389878584395",
+            "Verification",
+            "Verification"
+        );
+
+        Map<String, List<String>> expectedResult = Map.of(
+            "<*> succeeded for blk_<*>",
+            Arrays.asList("0", "1", "2"),
+            "Verification",
+            Arrays.asList("3", "4")
+        );
+        Map<String, List<String>> logPatternMap = parser.parseAllLogPatterns(logMessages, List.of());
+        assertEquals(expectedResult, logPatternMap);
+        /*
+         * 'Verification' and 'Test' token is on the 1st position in the group 3,3, 'Verification' frequency is higher than
+         * representative frequency because there are other groups which have 'Verification' token on the 1st position as well.
+         * Since first position's distinct token number is not unique, 'Verification' is treated as variable eventually.
+         */
+        assertTrue(parser.getTokenFreqMap().get("0-Verification") > parser.getTokenFreqMap().get("1-succeeded"));
+        assertTrue(parser.getGroupTokenSetMap().get("4-3,3-0").size() > 1);
     }
 }

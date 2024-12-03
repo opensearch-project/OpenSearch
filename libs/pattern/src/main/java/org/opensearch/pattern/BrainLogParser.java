@@ -18,6 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -26,30 +27,37 @@ import java.util.stream.IntStream;
  */
 public class BrainLogParser {
 
-    private static final List<String> defaultFilterPatterns = List.of(
-        "(/|)([0-9]+\\.){3}[0-9]+(:[0-9]+|)(:|)", // IP
-        "(?<=[^A-Za-z0-9])(\\-?\\+?\\d+)(?=[^A-Za-z0-9])|[0-9]+$" // Numbers
+    private static final List<Pattern> DEFAULT_FILTER_PATTERNS = Arrays.asList(
+        Pattern.compile("(/|)([0-9]+\\.){3}[0-9]+(:[0-9]+|)(:|)"), // IP
+        Pattern.compile("(?<=[^A-Za-z0-9])(\\-?\\+?\\d+)(?=[^A-Za-z0-9])|[0-9]+$") // Numbers
     );
-    private static final List<String> defaultDelimiters = List.of(":", "=", "[", "]", "(", ")", "-", "|", ",", "+");
-    private static final String variableDenoter = "<*>";
+    private static final List<String> DEFAULT_DELIMITERS = List.of(":", "=", "[", "]", "(", ")", "-", "|", ",", "+");
+    private static final String VARIABLE_DENOTER = "<*>";
     // counting frequency will be grouped by composite of position and token string
-    private static final String positionedTokenKeyFormat = "%d-%s";
+    private static final String POSITIONED_TOKEN_KEY_FORMAT = "%d-%s";
     // Token set will be grouped by composite of tokens length per log message, word combination candidate and token position.
-    private static final String groupTokenSetKeyFormat = "%d-%s-%d";
+    private static final String GROUP_TOKEN_SET_KEY_FORMAT = "%d-%s-%d";
+    // By default, algorithm treats more than 2 different tokens in the group per position as variable token
+    private static final int DEFAULT_VARIABLE_COUNT_THRESHOLD = 2;
+    /*
+     * By default, algorithm treats the longest word combinations as the group root, no matter what its frequency is.
+     * Otherwise, the longest word combination will be selected when frequency >= highest frequency of log * threshold percentage
+     */
+    private static final float DEFAULT_FREQUENCY_THRESHOLD_PERCENTAGE = 0.0f;
 
     private final Map<String, Long> tokenFreqMap;
     private final Map<String, Set<String>> groupTokenSetMap;
     private final Map<String, String> logIdGroupCandidateMap;
     private final int variableCountThreshold;
     private final float thresholdPercentage;
-    private final List<String> filterPatterns;
+    private final List<Pattern> filterPatterns;
     private final List<String> delimiters;
 
     /**
      * Creates new Brain log parser with default parameters
      */
     public BrainLogParser() {
-        this(2, 0.0f, defaultFilterPatterns, defaultDelimiters);
+        this(DEFAULT_VARIABLE_COUNT_THRESHOLD, DEFAULT_FREQUENCY_THRESHOLD_PERCENTAGE, DEFAULT_FILTER_PATTERNS, DEFAULT_DELIMITERS);
     }
 
     /**
@@ -57,33 +65,47 @@ public class BrainLogParser {
      * @param variableCountThreshold the threshold to decide whether low frequency token is variable
      */
     public BrainLogParser(int variableCountThreshold) {
-        this(variableCountThreshold, 0.0f, defaultFilterPatterns, defaultDelimiters);
+        this(variableCountThreshold, DEFAULT_FREQUENCY_THRESHOLD_PERCENTAGE, DEFAULT_FILTER_PATTERNS, DEFAULT_DELIMITERS);
     }
 
     /**
-     * Creates new Brain log parser with overridden variableCountThreshold amd thresholdPercentage
+     * Creates new Brain log parser with overridden variableCountThreshold and thresholdPercentage
      * @param variableCountThreshold the threshold to decide whether low frequency token is variable
      * @param thresholdPercentage the threshold percentage to decide which frequency is representative
      *                            frequency per log message
      */
     public BrainLogParser(int variableCountThreshold, float thresholdPercentage) {
-        this(variableCountThreshold, thresholdPercentage, defaultFilterPatterns, defaultDelimiters);
+        this(variableCountThreshold, thresholdPercentage, DEFAULT_FILTER_PATTERNS, DEFAULT_DELIMITERS);
     }
 
     /**
-     * Creates new Brain log parser with overridden variableCountThreshold amd thresholdPercentage and
+     * Creates new Brain log parser with overridden variableCountThreshold, thresholdPercentage and filter patterns
+     * @param variableCountThreshold the threshold to decide whether low frequency token is variable
+     * @param thresholdPercentage the threshold percentage to decide which frequency is representative
+     *                            frequency per log message
+     * @param filterPatterns a list of regex to replace matched pattern with variable denoter
+     */
+    public BrainLogParser(int variableCountThreshold, float thresholdPercentage, List<Pattern> filterPatterns) {
+        this(variableCountThreshold, thresholdPercentage, filterPatterns, DEFAULT_DELIMITERS);
+    }
+
+    /**
+     * Creates new Brain log parser with overridden variableCountThreshold and thresholdPercentage and
      * overridden filter patterns and delimiters
      * @param variableCountThreshold the threshold to decide whether low frequency token is variable
      * @param thresholdPercentage the threshold percentage to decide which frequency is representative
      *                            frequency per log message
-     * @param filterPatterns a list of regex to replace matched pattern to be replaced with variable denoter
+     * @param filterPatterns a list of regex to replace matched pattern with variable denoter
      * @param delimiters a list of delimiters to be replaced with empty string after regex replacement
      */
-    public BrainLogParser(int variableCountThreshold, float thresholdPercentage, List<String> filterPatterns, List<String> delimiters) {
+    public BrainLogParser(int variableCountThreshold, float thresholdPercentage, List<Pattern> filterPatterns, List<String> delimiters) {
         this.tokenFreqMap = new HashMap<>();
         this.groupTokenSetMap = new HashMap<>();
         this.logIdGroupCandidateMap = new HashMap<>();
         this.variableCountThreshold = variableCountThreshold;
+        if (thresholdPercentage < 0.0f || thresholdPercentage > 1.0f) {
+            throw new IllegalArgumentException("Threshold percentage must be between 0.0 and 1.0");
+        }
         this.thresholdPercentage = thresholdPercentage;
         this.filterPatterns = filterPatterns;
         this.delimiters = delimiters;
@@ -96,9 +118,12 @@ public class BrainLogParser {
      * @return list of tokens by splitting preprocessed log message
      */
     public List<String> preprocess(String logMessage, String logId) {
+        if (logMessage == null || logId == null) {
+            throw new IllegalArgumentException("log message or logId must not be null");
+        }
         // match regex and replace it with variable denoter
-        for (String pattern : filterPatterns) {
-            logMessage = logMessage.replaceAll(pattern, variableDenoter);
+        for (Pattern pattern : filterPatterns) {
+            logMessage = pattern.matcher(logMessage).replaceAll(VARIABLE_DENOTER);
         }
 
         for (String delimiter : delimiters) {
@@ -118,7 +143,7 @@ public class BrainLogParser {
     public void processTokenHistogram(List<String> tokens) {
         // Ignore last element since it's designed to be appended logId
         for (int i = 0; i < tokens.size() - 1; i++) {
-            String tokenKey = String.format(Locale.ROOT, positionedTokenKeyFormat, i, tokens.get(i));
+            String tokenKey = String.format(Locale.ROOT, POSITIONED_TOKEN_KEY_FORMAT, i, tokens.get(i));
             tokenFreqMap.put(tokenKey, tokenFreqMap.getOrDefault(tokenKey, 0L) + 1);
         }
     }
@@ -137,10 +162,8 @@ public class BrainLogParser {
         for (int i = 0; i < size; i++) {
             String logId = logIds.isEmpty() ? String.valueOf(i) : logIds.get(i);
             List<String> tokens = this.preprocess(logMessages.get(i), logId);
-            if (tokens.size() > 1) {
-                preprocessedLogs.add(tokens);
-                this.processTokenHistogram(tokens);
-            }
+            preprocessedLogs.add(tokens);
+            this.processTokenHistogram(tokens);
         }
 
         return preprocessedLogs;
@@ -179,12 +202,12 @@ public class BrainLogParser {
         return IntStream.range(0, tokens.size() - 1).mapToObj(i -> new AbstractMap.SimpleEntry<>(i, tokens.get(i))).map(entry -> {
             int index = entry.getKey();
             String token = entry.getValue();
-            String tokenKey = String.format(Locale.ROOT, positionedTokenKeyFormat, index, token);
+            String tokenKey = String.format(Locale.ROOT, POSITIONED_TOKEN_KEY_FORMAT, index, token);
             assert this.tokenFreqMap.get(tokenKey) != null : String.format(Locale.ROOT, "Not found token: %s on position %d", token, index);
 
             boolean isHigherFrequency = this.tokenFreqMap.get(tokenKey) > repFreq;
             boolean isLowerFrequency = this.tokenFreqMap.get(tokenKey) < repFreq;
-            String groupTokenKey = String.format(Locale.ROOT, groupTokenSetKeyFormat, tokens.size() - 1, groupCandidateStr, index);
+            String groupTokenKey = String.format(Locale.ROOT, GROUP_TOKEN_SET_KEY_FORMAT, tokens.size() - 1, groupCandidateStr, index);
             assert this.groupTokenSetMap.get(groupTokenKey) != null : String.format(
                 Locale.ROOT,
                 "Not found any token in group: %s",
@@ -196,14 +219,14 @@ public class BrainLogParser {
                 // it's unique token on that position within the group
                 boolean isUniqueToken = this.groupTokenSetMap.get(groupTokenKey).size() == 1;
                 if (!isUniqueToken) {
-                    return variableDenoter;
+                    return VARIABLE_DENOTER;
                 }
             } else if (isLowerFrequency) {
                 // For lower frequency token that doesn't belong to word combination, it's likely to be constant token only if
                 // it doesn't exceed the preset variable count threshold. For example, some variable are limited number of enums,
                 // and sometimes they could be treated as constant tokens.
                 if (this.groupTokenSetMap.get(groupTokenKey).size() >= variableCountThreshold) {
-                    return variableDenoter;
+                    return VARIABLE_DENOTER;
                 }
             }
             return token;
@@ -259,7 +282,7 @@ public class BrainLogParser {
     private Map<Long, Integer> getWordOccurrences(List<String> tokens) {
         Map<Long, Integer> occurrences = new HashMap<>();
         for (int i = 0; i < tokens.size() - 1; i++) {
-            String tokenKey = String.format(Locale.ROOT, positionedTokenKeyFormat, i, tokens.get(i));
+            String tokenKey = String.format(Locale.ROOT, POSITIONED_TOKEN_KEY_FORMAT, i, tokens.get(i));
             Long tokenFreq = tokenFreqMap.get(tokenKey);
             occurrences.put(tokenFreq, occurrences.getOrDefault(tokenFreq, 0) + 1);
         }
@@ -269,10 +292,12 @@ public class BrainLogParser {
     private List<Map.Entry<Long, Integer>> getSortedWordCombinations(Map<Long, Integer> occurrences) {
         List<Map.Entry<Long, Integer>> sortedOccurrences = new ArrayList<>(occurrences.entrySet());
         sortedOccurrences.sort((entry1, entry2) -> {
+            // Sort by length of the word combination in descending order
             int wordCombinationLengthComparison = entry2.getValue().compareTo(entry1.getValue());
             if (wordCombinationLengthComparison != 0) {
                 return wordCombinationLengthComparison;
             } else {
+                // If the length of word combinations are the same, sort frequency in descending order
                 return entry2.getKey().compareTo(entry1.getKey());
             }
         });
@@ -281,14 +306,15 @@ public class BrainLogParser {
     }
 
     private Map.Entry<Long, Integer> findCandidate(List<Map.Entry<Long, Integer>> sortedWordCombinations) {
+        if (sortedWordCombinations.isEmpty()) {
+            throw new IllegalArgumentException("Sorted word combinations must be non empty");
+        }
         OptionalLong maxFreqOptional = sortedWordCombinations.stream().mapToLong(Map.Entry::getKey).max();
-        if (maxFreqOptional.isPresent()) {
-            long maxFreq = maxFreqOptional.getAsLong();
-            float threshold = maxFreq * this.thresholdPercentage;
-            for (Map.Entry<Long, Integer> entry : sortedWordCombinations) {
-                if (entry.getKey() > threshold) {
-                    return entry;
-                }
+        long maxFreq = maxFreqOptional.getAsLong();
+        float threshold = maxFreq * this.thresholdPercentage;
+        for (Map.Entry<Long, Integer> entry : sortedWordCombinations) {
+            if (entry.getKey() > threshold) {
+                return entry;
             }
         }
         return sortedWordCombinations.get(0);
@@ -297,7 +323,7 @@ public class BrainLogParser {
     private void updateGroupTokenFreqMap(List<String> tokens, String groupCandidateStr) {
         int tokensLen = tokens.size() - 1;
         for (int i = 0; i < tokensLen; i++) {
-            String groupTokenFreqKey = String.format(Locale.ROOT, groupTokenSetKeyFormat, tokensLen, groupCandidateStr, i);
+            String groupTokenFreqKey = String.format(Locale.ROOT, GROUP_TOKEN_SET_KEY_FORMAT, tokensLen, groupCandidateStr, i);
             this.groupTokenSetMap.computeIfAbsent(groupTokenFreqKey, k -> new HashSet<>()).add(tokens.get(i));
         }
     }
