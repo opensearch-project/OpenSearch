@@ -908,7 +908,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 Settings newRepositoryMetadataSettings = newRepositoryMetadata.settings();
                 Settings currentRepositoryMetadataSettings = currentRepositoryMetadata.settings();
 
-                assert Objects.nonNull(repository) : String.format("repository [%s] not present in RepositoryService", currentRepositoryMetadata.name());
+                assert Objects.nonNull(repository) : String.format(
+                    "repository [%s] not present in RepositoryService",
+                    currentRepositoryMetadata.name()
+                );
 
                 List<String> restrictedSettings = repository.getRestrictedSystemRepositorySettings()
                     .stream()

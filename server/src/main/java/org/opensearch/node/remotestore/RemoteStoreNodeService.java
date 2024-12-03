@@ -187,8 +187,11 @@ public class RemoteStoreNodeService {
                         // the commit operation failed, the cluster-state may have the repository metadata which is not applied into the
                         // repository service. This may lead to assertion failures down the line.
                         if (!repositoriesService.get().isRepositoryPresent(newRepositoryMetadata.name())) {
-                            logger.warn("remote repository [{}] in cluster-state but repository-service but not present "
-                                + "in repository-service, skipping checks", newRepositoryMetadata.name());
+                            logger.warn(
+                                "remote repository [{}] in cluster-state but repository-service but not present "
+                                    + "in repository-service, skipping checks",
+                                newRepositoryMetadata.name()
+                            );
                             break;
                         }
                         try {
