@@ -31,6 +31,7 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
     @Override
     public List<String> listAccessibleResourcesInPlugin(String systemIndexName) {
         // returns an empty list since security plugin is disabled
+        // TODO: check whether this should return all entries in the given index
         return List.of();
     }
 

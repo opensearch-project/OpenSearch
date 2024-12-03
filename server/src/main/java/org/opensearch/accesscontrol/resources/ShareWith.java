@@ -67,7 +67,6 @@ public class ShareWith implements ToXContentFragment, NamedWriteable {
     public static ShareWith fromXContent(XContentParser parser) throws IOException {
         List<SharedWithScope> sharedWithScopes = new ArrayList<>();
 
-        // Ensure we're at the start of the object
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             parser.nextToken();
         }
