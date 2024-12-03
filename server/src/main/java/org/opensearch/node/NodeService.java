@@ -47,6 +47,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.discovery.Discovery;
+import org.opensearch.grpc.GrpcServerTransport;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
@@ -87,6 +88,7 @@ public class NodeService implements Closeable {
     private final SettingsFilter settingsFilter;
     private final ScriptService scriptService;
     private final HttpServerTransport httpServerTransport;
+    private final GrpcServerTransport grpcServerTransport;
     private final ResponseCollectorService responseCollectorService;
     private final ResourceUsageCollectorService resourceUsageCollectorService;
     private final SearchTransportService searchTransportService;
@@ -114,6 +116,7 @@ public class NodeService implements Closeable {
         CircuitBreakerService circuitBreakerService,
         ScriptService scriptService,
         @Nullable HttpServerTransport httpServerTransport,
+        @Nullable GrpcServerTransport grpcServerTransport,
         IngestService ingestService,
         ClusterService clusterService,
         SettingsFilter settingsFilter,
@@ -140,6 +143,7 @@ public class NodeService implements Closeable {
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
         this.httpServerTransport = httpServerTransport;
+        this.grpcServerTransport = grpcServerTransport;
         this.ingestService = ingestService;
         this.settingsFilter = settingsFilter;
         this.scriptService = scriptService;
@@ -169,6 +173,7 @@ public class NodeService implements Closeable {
         boolean threadPool,
         boolean transport,
         boolean http,
+        boolean grpc,
         boolean plugin,
         boolean ingest,
         boolean aggs,
@@ -197,6 +202,9 @@ public class NodeService implements Closeable {
         if (http && httpServerTransport != null) {
             builder.setHttp(httpServerTransport.info());
         }
+        if (grpc && grpcServerTransport != null) {
+            builder.setGrpc(grpcServerTransport.info());
+        }
         if (plugin && pluginService != null) {
             builder.setPlugins(pluginService.info());
         }
@@ -224,6 +232,7 @@ public class NodeService implements Closeable {
         boolean fs,
         boolean transport,
         boolean http,
+        boolean grpc,
         boolean circuitBreaker,
         boolean script,
         boolean discoveryStats,
@@ -258,6 +267,7 @@ public class NodeService implements Closeable {
             fs ? monitorService.fsService().stats() : null,
             transport ? transportService.stats() : null,
             http ? (httpServerTransport == null ? null : httpServerTransport.stats()) : null,
+            grpc ? (grpcServerTransport == null ? null : grpcServerTransport.stats()) : null,
             circuitBreaker ? circuitBreakerService.stats() : null,
             script ? scriptService.stats() : null,
             discoveryStats ? discovery.stats() : null,

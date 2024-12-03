@@ -36,7 +36,9 @@ import org.opensearch.cli.Command;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.Environment;
+import org.opensearch.grpc.GrpcTransportSettings;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
@@ -69,6 +71,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.opensearch.common.util.FeatureFlags.GRPC_ENABLE_SETTING;
 import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 
@@ -402,6 +405,10 @@ final class Security {
     private static void addBindPermissions(Permissions policy, Settings settings) {
         addSocketPermissionForHttp(policy, settings);
         addSocketPermissionForTransportProfiles(policy, settings);
+
+        if (FeatureFlags.isEnabled(GRPC_ENABLE_SETTING)) {
+            addSocketPermissionForGrpc(policy, settings);
+        }
     }
 
     /**
@@ -414,6 +421,17 @@ final class Security {
         // http is simple
         final String httpRange = HttpTransportSettings.SETTING_HTTP_PORT.get(settings).getPortRangeString();
         addSocketPermissionForPortRange(policy, httpRange);
+    }
+
+    /**
+     * Add dynamic {@link SocketPermission} based on gRPC settings.
+     *
+     * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
+     * @param settings the {@link Settings} instance to read the gRPC settings from
+     */
+    private static void addSocketPermissionForGrpc(final Permissions policy, final Settings settings) {
+        final String grpcRange = GrpcTransportSettings.SETTING_GRPC_PORT.get(settings).getPortRangeString();
+        addSocketPermissionForPortRange(policy, grpcRange);
     }
 
     /**

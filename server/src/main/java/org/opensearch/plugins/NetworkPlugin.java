@@ -40,6 +40,8 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.grpc.GrpcServerTransport;
+import org.opensearch.grpc.services.GrpcServiceRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
@@ -104,6 +106,17 @@ public interface NetworkPlugin {
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns a map of {@link GrpcServerTransport} suppliers.
+     */
+    default Map<String, Supplier<GrpcServerTransport>> getGrpcTransports(
+        Settings settings,
+        NetworkService networkService,
+        GrpcServiceRegistry grpcServiceRegistry
     ) {
         return Collections.emptyMap();
     }

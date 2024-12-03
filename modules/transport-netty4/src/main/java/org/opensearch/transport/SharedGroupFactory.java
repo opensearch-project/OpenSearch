@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.grpc.netty4.Netty4GrpcServerTransport;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
 import org.opensearch.transport.netty4.Netty4Transport;
@@ -62,14 +63,17 @@ public final class SharedGroupFactory {
     private final Settings settings;
     private final int workerCount;
     private final int httpWorkerCount;
+    private final int grpcWorkerCount;
 
     private RefCountedGroup genericGroup;
     private SharedGroup dedicatedHttpGroup;
+    private SharedGroup dedicatedGRPCGroup;
 
     public SharedGroupFactory(Settings settings) {
         this.settings = settings;
         this.workerCount = Netty4Transport.WORKER_COUNT.get(settings);
         this.httpWorkerCount = Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.get(settings);
+        this.grpcWorkerCount = Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT.get(settings);
     }
 
     public Settings getSettings() {
@@ -96,6 +100,21 @@ public final class SharedGroupFactory {
                 dedicatedHttpGroup = new SharedGroup(new RefCountedGroup(eventLoopGroup));
             }
             return dedicatedHttpGroup;
+        }
+    }
+
+    public synchronized SharedGroup getGRPCGroup() {
+        if (grpcWorkerCount == 0) {
+            return getGenericGroup();
+        } else {
+            if (dedicatedGRPCGroup == null) {
+                NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(
+                    grpcWorkerCount,
+                    daemonThreadFactory(settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)
+                );
+                dedicatedGRPCGroup = new SharedGroup(new RefCountedGroup(eventLoopGroup));
+            }
+            return dedicatedGRPCGroup;
         }
     }
 

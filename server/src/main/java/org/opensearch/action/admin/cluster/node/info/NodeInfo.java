@@ -43,6 +43,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.http.HttpInfo;
+import org.opensearch.grpc.GrpcInfo;
 import org.opensearch.ingest.IngestInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
@@ -97,6 +98,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(ThreadPoolInfo.class, in.readOptionalWriteable(ThreadPoolInfo::new));
         addInfoIfNonNull(TransportInfo.class, in.readOptionalWriteable(TransportInfo::new));
         addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
+        addInfoIfNonNull(GrpcInfo.class, in.readOptionalWriteable(GrpcInfo::new));
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
         addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
@@ -116,6 +118,7 @@ public class NodeInfo extends BaseNodeResponse {
         @Nullable ThreadPoolInfo threadPool,
         @Nullable TransportInfo transport,
         @Nullable HttpInfo http,
+        @Nullable GrpcInfo grpc,
         @Nullable PluginsAndModules plugins,
         @Nullable IngestInfo ingest,
         @Nullable AggregationInfo aggsInfo,
@@ -132,6 +135,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(ThreadPoolInfo.class, threadPool);
         addInfoIfNonNull(TransportInfo.class, transport);
         addInfoIfNonNull(HttpInfo.class, http);
+        addInfoIfNonNull(GrpcInfo.class, grpc);
         addInfoIfNonNull(PluginsAndModules.class, plugins);
         addInfoIfNonNull(IngestInfo.class, ingest);
         addInfoIfNonNull(AggregationInfo.class, aggsInfo);
@@ -221,6 +225,7 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(ThreadPoolInfo.class));
         out.writeOptionalWriteable(getInfo(TransportInfo.class));
         out.writeOptionalWriteable(getInfo(HttpInfo.class));
+        out.writeOptionalWriteable(getInfo(GrpcInfo.class));
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
         out.writeOptionalWriteable(getInfo(AggregationInfo.class));
@@ -254,6 +259,7 @@ public class NodeInfo extends BaseNodeResponse {
         private ThreadPoolInfo threadPool;
         private TransportInfo transport;
         private HttpInfo http;
+        private GrpcInfo grpc;
         private PluginsAndModules plugins;
         private IngestInfo ingest;
         private AggregationInfo aggsInfo;
@@ -295,6 +301,11 @@ public class NodeInfo extends BaseNodeResponse {
             return this;
         }
 
+        public Builder setGrpc(GrpcInfo grpc) {
+            this.grpc = grpc;
+            return this;
+        }
+
         public Builder setPlugins(PluginsAndModules plugins) {
             this.plugins = plugins;
             return this;
@@ -332,6 +343,7 @@ public class NodeInfo extends BaseNodeResponse {
                 threadPool,
                 transport,
                 http,
+                grpc,
                 plugins,
                 ingest,
                 aggsInfo,

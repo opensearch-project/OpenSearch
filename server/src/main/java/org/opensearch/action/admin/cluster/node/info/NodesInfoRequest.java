@@ -178,6 +178,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         THREAD_POOL("thread_pool"),
         TRANSPORT("transport"),
         HTTP("http"),
+        GRPC("grpc"),
         PLUGINS("plugins"),
         INGEST("ingest"),
         AGGREGATIONS("aggregations"),

@@ -169,7 +169,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
-        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false, false);
+        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, false, true, false, false, false, false);
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
             isMetricRequired(Metric.OS, nodeRequest.request),
@@ -177,6 +177,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             isMetricRequired(Metric.JVM, nodeRequest.request),
             false,
             isMetricRequired(Metric.FS, nodeRequest.request),
+            false,
             false,
             false,
             false,
