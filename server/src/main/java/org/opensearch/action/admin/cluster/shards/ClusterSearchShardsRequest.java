@@ -41,6 +41,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.search.slice.SliceBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -61,6 +62,8 @@ public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<Cl
     @Nullable
     private String preference;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
+    @Nullable
+    private SliceBuilder sliceBuilder;
 
     public ClusterSearchShardsRequest() {}
 
@@ -165,5 +168,14 @@ public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<Cl
 
     public String preference() {
         return this.preference;
+    }
+
+    public ClusterSearchShardsRequest slice(SliceBuilder sliceBuilder) {
+        this.sliceBuilder = sliceBuilder;
+        return this;
+    }
+
+    public SliceBuilder slice() {
+        return this.sliceBuilder;
     }
 }
