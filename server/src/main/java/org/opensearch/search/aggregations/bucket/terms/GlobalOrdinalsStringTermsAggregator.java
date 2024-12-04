@@ -288,9 +288,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == globalOrds.advanceExact(doc)) {
                         return;
                     }
-                    int count = 0;
-                    for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_DOCS && count < globalOrds.docValueCount(); globalOrd =
-                        globalOrds.nextOrd(), ++count) {
+                    int count = globalOrds.docValueCount();
+                    long globalOrd;
+                    while ((count-- > 0) && (globalOrd = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
                 }
@@ -302,9 +302,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 if (false == globalOrds.advanceExact(doc)) {
                     return;
                 }
-                int count = 0;
-                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_DOCS && count < globalOrds.docValueCount(); globalOrd =
-                    globalOrds.nextOrd(), ++count) {
+                int count = globalOrds.docValueCount();
+                long globalOrd;
+                while ((count-- > 0) && (globalOrd = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                     if (false == acceptedGlobalOrdinals.test(globalOrd)) {
                         continue;
                     }
@@ -481,9 +481,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == segmentOrds.advanceExact(doc)) {
                         return;
                     }
-                    int count = 0;
-                    for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_DOCS
-                        && count < segmentOrds.docValueCount(); segmentOrd = segmentOrds.nextOrd(), ++count) {
+                    int count = segmentOrds.docValueCount();
+                    long segmentOrd;
+                    while ((count-- > 0) && (segmentOrd = segmentOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                         long docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(segmentOrd + 1, docCount);
                     }
