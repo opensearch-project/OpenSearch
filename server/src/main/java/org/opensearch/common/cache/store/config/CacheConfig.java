@@ -70,6 +70,12 @@ public class CacheConfig<K, V> {
 
     private final boolean statsTrackingEnabled;
 
+    private final String storagePath;
+
+    private final int segmentCount;
+
+    private final String cacheAlias;
+
     private CacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
         this.valueType = builder.valueType;
@@ -84,6 +90,9 @@ public class CacheConfig<K, V> {
         this.expireAfterAccess = builder.expireAfterAccess;
         this.clusterSettings = builder.clusterSettings;
         this.statsTrackingEnabled = builder.statsTrackingEnabled;
+        this.storagePath = builder.storagePath;
+        this.segmentCount = builder.segmentCount;
+        this.cacheAlias = builder.cacheAlias;
     }
 
     public Class<K> getKeyType() {
@@ -138,6 +147,18 @@ public class CacheConfig<K, V> {
         return statsTrackingEnabled;
     }
 
+    public String getStoragePath() {
+        return storagePath;
+    }
+
+    public int getSegmentCount() {
+        return segmentCount;
+    }
+
+    public String getCacheAlias() {
+        return cacheAlias;
+    }
+
     /**
      * Builder class to build Cache config related parameters.
      * @param <K> Type of key.
@@ -163,6 +184,9 @@ public class CacheConfig<K, V> {
         private TimeValue expireAfterAccess;
         private ClusterSettings clusterSettings;
         private boolean statsTrackingEnabled = true;
+        private String storagePath;
+        private int segmentCount;
+        private String cacheAlias;
 
         public Builder() {}
 
@@ -228,6 +252,21 @@ public class CacheConfig<K, V> {
 
         public Builder<K, V> setStatsTrackingEnabled(boolean statsTrackingEnabled) {
             this.statsTrackingEnabled = statsTrackingEnabled;
+            return this;
+        }
+
+        public Builder<K, V> setStoragePath(String storagePath) {
+            this.storagePath = storagePath;
+            return this;
+        }
+
+        public Builder<K, V> setSegmentCount(int segmentCount) {
+            this.segmentCount = segmentCount;
+            return this;
+        }
+
+        public Builder<K, V> setCacheAlias(String cacheAlias) {
+            this.cacheAlias = cacheAlias;
             return this;
         }
 

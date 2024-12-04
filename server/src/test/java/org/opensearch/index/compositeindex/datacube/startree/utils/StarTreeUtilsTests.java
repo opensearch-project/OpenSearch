@@ -17,6 +17,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,7 +44,7 @@ public class StarTreeUtilsTests extends OpenSearchTestCase {
 
     public void testGetFieldInfoList() {
         List<String> fieldNames = Arrays.asList("field1", "field2", "field3");
-        FieldInfo[] actualFieldInfos = StarTreeUtils.getFieldInfoList(fieldNames);
+        FieldInfo[] actualFieldInfos = StarTreeUtils.getFieldInfoList(fieldNames, new HashMap<>());
         for (int i = 0; i < fieldNames.size(); i++) {
             assertFieldInfos(actualFieldInfos[i], fieldNames.get(i), i);
         }
@@ -52,7 +53,7 @@ public class StarTreeUtilsTests extends OpenSearchTestCase {
     public void testGetFieldInfo() {
         String fieldName = UUID.randomUUID().toString();
         int fieldNumber = randomInt();
-        assertFieldInfos(StarTreeUtils.getFieldInfo(fieldName, fieldNumber), fieldName, fieldNumber);
+        assertFieldInfos(StarTreeUtils.getFieldInfo(fieldName, DocValuesType.SORTED_NUMERIC, fieldNumber), fieldName, fieldNumber);
 
     }
 

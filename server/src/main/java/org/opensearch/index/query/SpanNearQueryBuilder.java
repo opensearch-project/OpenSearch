@@ -167,11 +167,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static SpanNearQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         int slop = DEFAULT_SLOP;
@@ -327,7 +322,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
      *
      * @opensearch.internal
      */
-    public static class SpanGapQueryBuilder implements SpanQueryBuilder {
+    public static class SpanGapQueryBuilder implements SpanQueryBuilder, WithFieldName {
         public static final String NAME = "span_gap";
 
         /** Name of field to match against. */
@@ -363,6 +358,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         /**
          * @return fieldName  The name of the field
          */
+        @Override
         public String fieldName() {
             return fieldName;
         }

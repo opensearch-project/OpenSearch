@@ -56,7 +56,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
+public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> implements WithFieldName {
 
     private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "you can omit this option, "
         + "the [match] query can skip block of documents efficiently if the total number of hits is not tracked";
@@ -171,6 +171,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     /** Returns the field name used in this query. */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

@@ -479,11 +479,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static SimpleQueryStringBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         String queryBody = null;

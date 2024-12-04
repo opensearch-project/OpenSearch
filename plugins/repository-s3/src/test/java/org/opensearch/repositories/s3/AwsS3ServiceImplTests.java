@@ -35,6 +35,7 @@ package org.opensearch.repositories.s3;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
@@ -364,7 +365,7 @@ public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
         if (expectedUseThrottleRetries) {
             assertThat(
                 clientOverrideConfiguration.retryPolicy().get().throttlingBackoffStrategy(),
-                is(BackoffStrategy.defaultThrottlingStrategy())
+                is(BackoffStrategy.defaultThrottlingStrategy(RetryMode.STANDARD))
             );
         } else {
             assertThat(clientOverrideConfiguration.retryPolicy().get().throttlingBackoffStrategy(), is(BackoffStrategy.none()));

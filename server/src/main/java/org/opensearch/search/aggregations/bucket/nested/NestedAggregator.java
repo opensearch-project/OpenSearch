@@ -46,7 +46,6 @@ import org.apache.lucene.util.BitSet;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.ParseField;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -62,6 +61,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static org.opensearch.index.mapper.ObjectMapper.Nested.isParent;
 
 /**
  * Aggregate all docs that match a nested path
@@ -96,17 +97,6 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
         this.collectsFromSingleBucket = cardinality.map(estimate -> estimate < 2);
-    }
-
-    private boolean isParent(ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper, MapperService mapperService) {
-        if (parentObjectMapper == null) {
-            return false;
-        }
-        ObjectMapper parent;
-        do {
-            parent = childObjectMapper.getParentObjectMapper(mapperService);
-        } while (parent != null && parent != parentObjectMapper);
-        return parentObjectMapper == parent;
     }
 
     @Override

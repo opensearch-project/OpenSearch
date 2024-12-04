@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 public class IndexShardTestUtils {
+    public static final String MOCK_STATE_REPO_NAME = "state-test-repo";
     public static final String MOCK_SEGMENT_REPO_NAME = "segment-test-repo";
     public static final String MOCK_TLOG_REPO_NAME = "tlog-test-repo";
 
@@ -37,6 +38,7 @@ public class IndexShardTestUtils {
 
     public static DiscoveryNode getFakeRemoteEnabledNode(String id) {
         Map<String, String> remoteNodeAttributes = new HashMap<String, String>();
+        remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_STATE_REPO_NAME);
         remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_SEGMENT_REPO_NAME);
         remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_TLOG_REPO_NAME);
         return new DiscoveryNode(

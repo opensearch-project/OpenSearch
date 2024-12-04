@@ -32,7 +32,7 @@ public interface SegmentReplicationSource {
     /**
      * Get Metadata for a ReplicationCheckpoint.
      *
-     * @param replicationId {@link long} - ID of the replication event.
+     * @param replicationId long - ID of the replication event.
      * @param checkpoint    {@link ReplicationCheckpoint} Checkpoint to fetch metadata for.
      * @param listener      {@link ActionListener} listener that completes with a {@link CheckpointInfoResponse}.
      */
@@ -41,7 +41,7 @@ public interface SegmentReplicationSource {
     /**
      * Fetch the requested segment files.  Passes a listener that completes when files are stored locally.
      *
-     * @param replicationId {@link long} - ID of the replication event.
+     * @param replicationId long - ID of the replication event.
      * @param checkpoint    {@link ReplicationCheckpoint} Checkpoint to fetch metadata for.
      * @param filesToFetch  {@link List} List of files to fetch.
      * @param indexShard    {@link IndexShard} Reference to the IndexShard.

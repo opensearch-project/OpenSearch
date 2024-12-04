@@ -11,7 +11,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.data.StarTreeDataWriter;
-import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetaWriter;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadataWriter;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 
 import java.io.IOException;
@@ -54,6 +54,7 @@ public class StarTreeWriter {
      * @param metricAggregatorInfos  metric aggregator infos
      * @param numNodes               number of nodes in the star tree
      * @param segmentAggregatedCount segment aggregated count
+     * @param numStarTreeDocs           the total number of star tree documents for the segment
      * @param dataFilePointer        data file pointer
      * @param dataFileLength         data file length
      * @throws IOException when star-tree data serialization fails
@@ -64,15 +65,17 @@ public class StarTreeWriter {
         List<MetricAggregatorInfo> metricAggregatorInfos,
         Integer numNodes,
         Integer segmentAggregatedCount,
+        Integer numStarTreeDocs,
         long dataFilePointer,
         long dataFileLength
     ) throws IOException {
-        StarTreeMetaWriter.writeStarTreeMetadata(
+        StarTreeMetadataWriter.writeStarTreeMetadata(
             metaOut,
             starTreeField,
             metricAggregatorInfos,
             numNodes,
             segmentAggregatedCount,
+            numStarTreeDocs,
             dataFilePointer,
             dataFileLength
         );

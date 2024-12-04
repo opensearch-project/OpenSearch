@@ -47,9 +47,11 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.HttpServerTransport.Dispatcher;
 import org.opensearch.http.nio.NioHttpServerTransport;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -66,6 +68,7 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
     public static final String NIO_TRANSPORT_NAME = "nio-transport";
     public static final String NIO_HTTP_TRANSPORT_NAME = "nio-http-transport";
+    public static final String NIO_SECURE_HTTP_TRANSPORT_NAME = "nio-http-transport-secure";
 
     private static final Logger logger = LogManager.getLogger(NioTransportPlugin.class);
 
@@ -135,6 +138,38 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                 dispatcher,
                 getNioGroupFactory(settings),
                 clusterSettings,
+                tracer
+            )
+        );
+    }
+
+    @Override
+    public Map<String, Supplier<HttpServerTransport>> getSecureHttpTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
+        Tracer tracer
+    ) {
+        return Collections.singletonMap(
+            NIO_SECURE_HTTP_TRANSPORT_NAME,
+            () -> new NioHttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                pageCacheRecycler,
+                threadPool,
+                xContentRegistry,
+                dispatcher,
+                getNioGroupFactory(settings),
+                clusterSettings,
+                secureHttpTransportSettingsProvider,
                 tracer
             )
         );

@@ -210,7 +210,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-        searchRequest.pipeline(request.param("search_pipeline"));
+        searchRequest.pipeline(request.param("search_pipeline", searchRequest.source().pipeline()));
 
         checkRestTotalHits(request, searchRequest);
         request.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);

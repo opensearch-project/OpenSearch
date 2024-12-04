@@ -9,6 +9,7 @@
 package org.opensearch.index.codec.composite;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.compositeindex.datacube.startree.index.CompositeIndexValues;
 
 import java.io.IOException;
 import java.util.List;

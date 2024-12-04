@@ -41,7 +41,7 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.AliasAction;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexAbstraction;
@@ -123,7 +123,7 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
         for (IndicesAliasesRequest.AliasActions aliasAction : request.aliasActions()) {
             Collections.addAll(indices, aliasAction.indices());
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[0]));
+        return ClusterBlocks.indicesWithRemoteSnapshotBlockedException(indices, state);
     }
 
     @Override

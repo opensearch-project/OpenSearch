@@ -44,7 +44,6 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.identity.IdentityService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.search.AbstractSearchTestCase;
@@ -61,7 +60,6 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -75,15 +73,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static IdentityService identityService = new IdentityService(Settings.EMPTY, threadPool, List.of());
-    private static RestController controller = new RestController(
-        emptySet(),
-        null,
-        client,
-        new NoneCircuitBreakerService(),
-        usageService,
-        identityService
-    );
+    private static RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
     private static RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**

@@ -140,7 +140,12 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
         DiscoveryNodes discoveryNodes = getDiscoveryNodes();
         String fileName = randomAlphaOfLength(10);
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
-            DISCOVERY_NODES_FORMAT.serialize(discoveryNodes, fileName, compressor).streamInput()
+            DISCOVERY_NODES_FORMAT.serialize(
+                (out, discoveryNode) -> discoveryNode.writeToWithAttribute(out),
+                discoveryNodes,
+                fileName,
+                compressor
+            ).streamInput()
         );
         RemoteDiscoveryNodes remoteObjForDownload = new RemoteDiscoveryNodes(fileName, "cluster-uuid", compressor);
         CountDownLatch latch = new CountDownLatch(1);

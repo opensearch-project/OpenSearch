@@ -62,7 +62,6 @@ setup:
           },
           "required_matches": 1
         }
-
   # Do index refresh
   - do:
       indices.refresh:
@@ -74,7 +73,52 @@ teardown:
   - do:
       indices.delete:
         index: test
-
+---
+"Invalid docs":
+  - skip:
+      version: "- 2.17.99"
+      reason: "parsing of these objects would infinite loop prior to 2.18"
+  # The following documents are invalid.
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": [ "Arrays in Action" ],
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": "Strings in Action",
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": 12345,
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": [ 12345 ],
+          "required_matches": 1
+        }
 ---
 # Verify that mappings under the catalog field did not expand
 # and no dynamic fields were created.
@@ -625,38 +669,6 @@ teardown:
 
   - match: { error.root_cause.0.type: "mapper_parsing_exception" }
   - match: { error.root_cause.0.reason: "Mapping definition for [data] has unsupported parameters:  [analyzer : standard]"}
-  - match: { status: 400 }
-
-  # Wildcard Query with dot path.
-  - do:
-      catch: bad_request
-      search:
-        body: {
-          _source: true,
-          query: {
-            "wildcard": {
-              "catalog.title": "Mock*"
-            }
-          }
-        }
-  - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "Can only use wildcard queries on keyword and text fields - not on [catalog.title] which is of type [flat_object]"}
-  - match: { status: 400 }
-
-  # Wildcard Query without dot path.
-  - do:
-      catch: bad_request
-      search:
-        body: {
-          _source: true,
-          query: {
-            "wildcard": {
-              "catalog": "Mock*"
-            }
-          }
-        }
-  - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "Can only use wildcard queries on keyword and text fields - not on [catalog] which is of type [flat_object]" }
   - match: { status: 400 }
 
   # Aggregation and Match Query with dot path.

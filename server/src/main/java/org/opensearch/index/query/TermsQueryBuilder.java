@@ -79,7 +79,7 @@ import java.util.stream.IntStream;
  *
  * @opensearch.internal
  */
-public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
+public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> implements WithFieldName {
     public static final String NAME = "terms";
 
     private final String fieldName;
@@ -269,6 +269,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
     }
 
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

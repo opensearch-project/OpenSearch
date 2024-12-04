@@ -8,7 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
 
 /**
  * Unit tests for {@link DocCountAggregator}.
@@ -17,8 +17,8 @@ public class DocCountAggregatorTests extends AbstractValueAggregatorTests {
 
     private DocCountAggregator aggregator;
 
-    public DocCountAggregatorTests(StarTreeNumericType starTreeNumericType) {
-        super(starTreeNumericType);
+    public DocCountAggregatorTests(FieldValueConverter fieldValueConverter) {
+        super(fieldValueConverter);
     }
 
     public void testMergeAggregatedValueAndSegmentValue() {
@@ -52,7 +52,7 @@ public class DocCountAggregatorTests extends AbstractValueAggregatorTests {
         assertEquals(randomLong, (long) aggregator.getInitialAggregatedValue(randomLong));
     }
 
-    public void testToStarTreeNumericTypeValue() {
+    public void testToAggregatedValueType() {
         long randomLong = randomLong();
         assertEquals(randomLong, (long) aggregator.toAggregatedValueType(randomLong));
     }
@@ -62,7 +62,7 @@ public class DocCountAggregatorTests extends AbstractValueAggregatorTests {
     }
 
     @Override
-    public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
+    public ValueAggregator getValueAggregator(FieldValueConverter fieldValueConverter) {
         aggregator = new DocCountAggregator();
         return aggregator;
     }

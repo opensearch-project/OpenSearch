@@ -88,7 +88,7 @@ public class EhcacheDiskCacheSettings {
      */
     public static final Setting.AffixSetting<String> DISK_CACHE_ALIAS_SETTING = Setting.suffixKeySetting(
         EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".alias",
-        (key) -> Setting.simpleString(key, "", NodeScope)
+        (key) -> Setting.simpleString(key, "ehcache_disk", NodeScope)
     );
 
     /**

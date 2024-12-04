@@ -52,7 +52,7 @@ import java.util.Objects;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class ClusterBlock implements Writeable, ToXContentFragment {
+public class ClusterBlock implements Writeable, ToXContentFragment, Comparable<ClusterBlock> {
 
     private final int id;
     @Nullable
@@ -217,7 +217,13 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         return Objects.hash(id, uuid);
     }
 
+    @Override
+    public int compareTo(ClusterBlock block) {
+        return Integer.compare(block.id(), this.id());
+    }
+
     public boolean isAllowReleaseResources() {
         return allowReleaseResources;
     }
+
 }

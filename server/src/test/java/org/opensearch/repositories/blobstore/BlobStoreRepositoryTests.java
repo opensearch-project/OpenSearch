@@ -54,6 +54,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -74,6 +75,7 @@ import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -90,6 +92,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.repositories.RepositoryDataTests.generateRandomRepoData;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.calculateMaxWithinIntLimit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -380,6 +383,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         IndexId indexId = repoData.getIndices().values().iterator().next();
         int shardCount = repoData.shardGenerations().getGens(indexId).size();
 
+        // Version 2.17 has file name starting with indexId
         String shardPath = String.join(
             SnapshotShardPaths.DELIMITER,
             indexId.getId(),
@@ -389,7 +393,19 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
             "1"
         );
         ShardInfo shardInfo = SnapshotShardPaths.parseShardPath(shardPath);
+        assertEquals(shardInfo.getIndexId(), indexId);
+        assertEquals(shardInfo.getShardCount(), shardCount);
 
+        // Version 2.17 has file name starting with snapshot_path_
+        shardPath = String.join(
+            SnapshotShardPaths.DELIMITER,
+            SnapshotShardPaths.FILE_PREFIX + indexId.getId(),
+            indexId.getName(),
+            String.valueOf(shardCount),
+            String.valueOf(indexId.getShardPathType()),
+            "1"
+        );
+        shardInfo = SnapshotShardPaths.parseShardPath(shardPath);
         assertEquals(shardInfo.getIndexId(), indexId);
         assertEquals(shardInfo.getShardCount(), shardCount);
     }
@@ -459,11 +475,18 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         foundIndices.put("stale-index", staleIndexContainer);
         foundIndices.put("current-index", currentIndexContainer);
 
+        List<SnapshotId> snapshotIds = new ArrayList<>();
+        snapshotIds.add(new SnapshotId("snap1", UUIDs.randomBase64UUID()));
+        snapshotIds.add(new SnapshotId("snap2", UUIDs.randomBase64UUID()));
+
         Set<String> survivingIndexIds = new HashSet<>();
         survivingIndexIds.add("current-index");
 
+        RepositoryData repositoryData = generateRandomRepoData();
+
         // Create a mock RemoteStoreLockManagerFactory
         RemoteStoreLockManagerFactory mockRemoteStoreLockManagerFactory = mock(RemoteStoreLockManagerFactory.class);
+        RemoteSegmentStoreDirectoryFactory mockRemoteSegmentStoreDirectoryFactory = mock(RemoteSegmentStoreDirectoryFactory.class);
         RemoteStoreLockManager mockLockManager = mock(RemoteStoreLockManager.class);
         when(mockRemoteStoreLockManagerFactory.newLockManager(anyString(), anyString(), anyString(), any())).thenReturn(mockLockManager);
 
@@ -479,9 +502,9 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         // Mock the cleanupStaleIndices method to call our test implementation
         doAnswer(invocation -> {
-            Map<String, BlobContainer> indices = invocation.getArgument(0);
-            Set<String> surviving = invocation.getArgument(1);
-            GroupedActionListener<DeleteResult> listener = invocation.getArgument(3);
+            Map<String, BlobContainer> indices = invocation.getArgument(1);
+            Set<String> surviving = invocation.getArgument(2);
+            GroupedActionListener<DeleteResult> listener = invocation.getArgument(6);
 
             // Simulate the cleanup process
             DeleteResult result = DeleteResult.ZERO;
@@ -494,7 +517,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
             listener.onResponse(result);
             return null;
-        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), anyMap());
+        }).when(repository).cleanupStaleIndices(any(), any(), any(), any(), any(), any(), any(), any(), anyMap());
 
         AtomicReference<Collection<DeleteResult>> resultReference = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -509,9 +532,12 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         // Call the method we're testing
         repository.cleanupStaleIndices(
+            snapshotIds,
             foundIndices,
             survivingIndexIds,
             mockRemoteStoreLockManagerFactory,
+            null,
+            repositoryData,
             listener,
             mockSnapshotShardPaths,
             Collections.emptyMap()
@@ -627,5 +653,54 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         assertTrue(settings.contains(BlobStoreRepository.READONLY_SETTING));
         assertTrue(settings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
         repository.close();
+    }
+
+    public void testSnapshotRepositoryDataCacheDefaultSetting() {
+        // given
+        BlobStoreRepository repository = setupRepo();
+        long maxThreshold = BlobStoreRepository.calculateMaxSnapshotRepositoryDataCacheThreshold();
+
+        // when
+        long expectedThreshold = Math.max(ByteSizeUnit.KB.toBytes(500), maxThreshold / 2);
+
+        // then
+        assertEquals(repository.repositoryDataCacheThreshold, expectedThreshold);
+    }
+
+    public void testHeapThresholdUsed() {
+        // given
+        long defaultThresholdOfHeap = ByteSizeUnit.GB.toBytes(1);
+        long defaultAbsoluteThreshold = ByteSizeUnit.KB.toBytes(500);
+
+        // when
+        long expectedThreshold = calculateMaxWithinIntLimit(defaultThresholdOfHeap, defaultAbsoluteThreshold);
+
+        // then
+        assertEquals(defaultThresholdOfHeap, expectedThreshold);
+    }
+
+    public void testAbsoluteThresholdUsed() {
+        // given
+        long defaultThresholdOfHeap = ByteSizeUnit.KB.toBytes(499);
+        long defaultAbsoluteThreshold = ByteSizeUnit.KB.toBytes(500);
+
+        // when
+        long result = calculateMaxWithinIntLimit(defaultThresholdOfHeap, defaultAbsoluteThreshold);
+
+        // then
+        assertEquals(defaultAbsoluteThreshold, result);
+    }
+
+    public void testThresholdCappedAtIntMax() {
+        // given
+        int maxSafeArraySize = Integer.MAX_VALUE - 8;
+        long defaultThresholdOfHeap = (long) maxSafeArraySize + 1;
+        long defaultAbsoluteThreshold = ByteSizeUnit.KB.toBytes(500);
+
+        // when
+        long expectedThreshold = calculateMaxWithinIntLimit(defaultThresholdOfHeap, defaultAbsoluteThreshold);
+
+        // then
+        assertEquals(maxSafeArraySize, expectedThreshold);
     }
 }

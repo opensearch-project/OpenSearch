@@ -633,7 +633,7 @@ public abstract class StreamOutput extends OutputStream {
      * @param keyWriter The key writer
      * @param valueWriter The value writer
      */
-    public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
+    public <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter) throws IOException {
         writeVInt(map.size());
         for (final Map.Entry<K, V> entry : map.entrySet()) {
             keyWriter.write(this, entry.getKey());
@@ -969,9 +969,13 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
+        writeOptionalWriteable((out, writable) -> writable.writeTo(out), writeable);
+    }
+
+    public <T extends Writeable> void writeOptionalWriteable(final Writer<T> writer, @Nullable T writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
-            writeable.writeTo(this);
+            writer.write(this, writeable);
         } else {
             writeBoolean(false);
         }

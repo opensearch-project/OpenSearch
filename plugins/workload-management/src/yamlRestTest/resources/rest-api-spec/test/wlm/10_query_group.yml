@@ -30,6 +30,48 @@
   - match: { query_groups.0.resource_limits.memory: 0.2 }
 
   - do:
+      update_query_group_context:
+        name: "analytics"
+        body:
+          {
+            "resiliency_mode": "monitor",
+            "resource_limits": {
+              "cpu": 0.42,
+              "memory": 0.22
+            }
+          }
+
+  - match: { name: "analytics" }
+  - match: { resiliency_mode: "monitor" }
+  - match: { resource_limits.cpu: 0.42 }
+  - match: { resource_limits.memory: 0.22 }
+
+  - do:
+      catch: /resource_not_found_exception/
+      update_query_group_context:
+        name: "analytics5"
+        body:
+          {
+            "resiliency_mode": "monitor",
+            "resource_limits": {
+              "cpu": 0.42,
+              "memory": 0.22
+            }
+          }
+
+  - do:
+      catch: /illegal_argument_exception/
+      update_query_group_context:
+        name: "analytics"
+        body:
+          {
+            "resiliency_mode": "monitor",
+            "resource_limits": {
+              "cpu": 1.1
+            }
+          }
+
+  - do:
       catch: /illegal_argument_exception/
       create_query_group_context:
         body:

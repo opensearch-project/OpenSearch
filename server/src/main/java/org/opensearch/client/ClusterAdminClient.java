@@ -137,6 +137,8 @@ import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequestB
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
 import org.opensearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
 import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
@@ -319,6 +321,13 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Nodes stats of the cluster.
      */
     NodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
+
+    /**
+     * QueryGroup stats of the cluster.
+     * @param request The wlmStatsRequest
+     * @param listener A listener to be notified with a result
+     */
+    void wlmStats(WlmStatsRequest request, ActionListener<WlmStatsResponse> listener);
 
     void remoteStoreStats(RemoteStoreStatsRequest request, ActionListener<RemoteStoreStatsResponse> listener);
 

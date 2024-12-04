@@ -421,6 +421,27 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testSearchPipelineParsingAndSerialization() throws IOException {
+        String restContent = "{ \"query\": { \"match_all\": {} }, \"from\": 0, \"size\": 10, \"search_pipeline\": \"my_pipeline\" }";
+        String expectedContent = "{\"from\":0,\"size\":10,\"query\":{\"match_all\":{\"boost\":1.0}},\"search_pipeline\":\"my_pipeline\"}";
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            searchSourceBuilder = rewrite(searchSourceBuilder);
+
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                searchSourceBuilder.writeTo(output);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                    SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
+                    String actualContent = deserializedBuilder.toString();
+                    assertEquals(expectedContent, actualContent);
+                    assertEquals(searchSourceBuilder.hashCode(), deserializedBuilder.hashCode());
+                    assertNotSame(searchSourceBuilder, deserializedBuilder);
+                }
+            }
+        }
+    }
+
     public void testAggsParsing() throws IOException {
         {
             String restContent = "{\n"

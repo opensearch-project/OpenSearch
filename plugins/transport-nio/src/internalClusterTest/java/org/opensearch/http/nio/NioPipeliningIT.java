@@ -61,8 +61,8 @@ public class NioPipeliningIT extends NioIntegTestCase {
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
         TransportAddress transportAddress = randomFrom(boundAddresses);
 
-        try (NioHttpClient nettyHttpClient = new NioHttpClient()) {
-            Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests);
+        try (NioHttpClient client = NioHttpClient.http()) {
+            Collection<FullHttpResponse> responses = client.get(transportAddress.address(), requests);
             assertThat(responses, hasSize(5));
 
             Collection<String> opaqueIds = NioHttpClient.returnOpaqueIds(responses);

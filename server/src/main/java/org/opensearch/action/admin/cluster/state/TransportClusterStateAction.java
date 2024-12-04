@@ -46,10 +46,12 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -80,7 +82,8 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        @Nullable RemoteClusterStateService remoteClusterStateService
     ) {
         super(
             ClusterStateAction.NAME,
@@ -93,6 +96,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
             indexNameExpressionResolver
         );
         this.localExecuteSupported = true;
+        this.remoteClusterStateService = remoteClusterStateService;
     }
 
     @Override

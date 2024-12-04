@@ -27,7 +27,7 @@ public class GetAllPitNodesRequest extends BaseNodesRequest<GetAllPitNodesReques
 
     @Inject
     public GetAllPitNodesRequest(DiscoveryNode... concreteNodes) {
-        super(concreteNodes);
+        super(false, concreteNodes);
     }
 
     public GetAllPitNodesRequest(StreamInput in) throws IOException {

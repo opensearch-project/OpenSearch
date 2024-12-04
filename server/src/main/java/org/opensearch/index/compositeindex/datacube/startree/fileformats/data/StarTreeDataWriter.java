@@ -14,10 +14,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Queue;
 
 import static org.opensearch.index.compositeindex.datacube.startree.fileformats.node.FixedLengthStarTreeNode.SERIALIZABLE_DATA_SIZE_IN_BYTES;
@@ -66,21 +63,26 @@ public class StarTreeDataWriter {
         while (!queue.isEmpty()) {
             InMemoryTreeNode node = queue.remove();
 
-            if (node.children == null || node.children.isEmpty()) {
+            if (!node.hasChild()) {
                 writeStarTreeNode(output, node, ALL, ALL);
             } else {
 
-                // Sort all children nodes based on dimension value
-                List<InMemoryTreeNode> sortedChildren = new ArrayList<>(node.children.values());
-                sortedChildren.sort(
-                    Comparator.comparingInt(InMemoryTreeNode::getNodeType).thenComparingLong(InMemoryTreeNode::getDimensionValue)
-                );
-
+                int totalNumberOfChildren = 0;
                 int firstChildId = currentNodeId + queue.size() + 1;
-                int lastChildId = firstChildId + sortedChildren.size() - 1;
+
+                if (node.getChildStarNode() != null) {
+                    totalNumberOfChildren++;
+                    queue.add(node.getChildStarNode());
+                }
+
+                if (node.getChildren() != null) {
+                    totalNumberOfChildren = totalNumberOfChildren + node.getChildren().values().size();
+                    queue.addAll(node.getChildren().values());
+                }
+
+                int lastChildId = firstChildId + totalNumberOfChildren - 1;
                 writeStarTreeNode(output, node, firstChildId, lastChildId);
 
-                queue.addAll(sortedChildren);
             }
 
             currentNodeId++;
@@ -97,12 +99,12 @@ public class StarTreeDataWriter {
      * @throws IOException if an I/O error occurs while writing the node
      */
     private static void writeStarTreeNode(IndexOutput output, InMemoryTreeNode node, int firstChildId, int lastChildId) throws IOException {
-        output.writeInt(node.dimensionId);
-        output.writeLong(node.dimensionValue);
-        output.writeInt(node.startDocId);
-        output.writeInt(node.endDocId);
-        output.writeInt(node.aggregatedDocId);
-        output.writeByte(node.nodeType);
+        output.writeInt(node.getDimensionId());
+        output.writeLong(node.getDimensionValue());
+        output.writeInt(node.getStartDocId());
+        output.writeInt(node.getEndDocId());
+        output.writeInt(node.getAggregatedDocId());
+        output.writeByte(node.getNodeType());
         output.writeInt(firstChildId);
         output.writeInt(lastChildId);
     }

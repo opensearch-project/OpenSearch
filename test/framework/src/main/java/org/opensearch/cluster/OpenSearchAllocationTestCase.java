@@ -180,6 +180,19 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
 
     protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
         List<ShardRouting> initializingShards = clusterState.getRoutingNodes().shardsWithState(INITIALIZING);
+        return startInitialisingShardsAndReroute(strategy, clusterState, initializingShards);
+    }
+
+    protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy, String index) {
+        List<ShardRouting> initializingShards = clusterState.getRoutingNodes().shardsWithState(index, INITIALIZING);
+        return startInitialisingShardsAndReroute(strategy, clusterState, initializingShards);
+    }
+
+    private static ClusterState startInitialisingShardsAndReroute(
+        AllocationService strategy,
+        ClusterState clusterState,
+        List<ShardRouting> initializingShards
+    ) {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }

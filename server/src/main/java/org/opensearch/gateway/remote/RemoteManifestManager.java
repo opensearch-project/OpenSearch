@@ -10,6 +10,7 @@ package org.opensearch.gateway.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
@@ -98,8 +99,8 @@ public class RemoteManifestManager {
         RemoteClusterStateUtils.UploadedMetadataResults uploadedMetadataResult,
         String previousClusterUUID,
         ClusterStateDiffManifest clusterDiffManifest,
-        boolean committed,
-        int codecVersion
+        ClusterStateChecksum clusterStateChecksum,
+        boolean committed
     ) {
         synchronized (this) {
             ClusterMetadataManifest.Builder manifestBuilder = ClusterMetadataManifest.builder();
@@ -110,7 +111,7 @@ public class RemoteManifestManager {
                 .opensearchVersion(Version.CURRENT)
                 .nodeId(nodeId)
                 .committed(committed)
-                .codecVersion(codecVersion)
+                .codecVersion(ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION)
                 .indices(uploadedMetadataResult.uploadedIndexMetadata)
                 .previousClusterUUID(previousClusterUUID)
                 .clusterUUIDCommitted(clusterState.metadata().clusterUUIDCommitted())
@@ -126,8 +127,10 @@ public class RemoteManifestManager {
                 .metadataVersion(clusterState.metadata().version())
                 .transientSettingsMetadata(uploadedMetadataResult.uploadedTransientSettingsMetadata)
                 .clusterStateCustomMetadataMap(uploadedMetadataResult.uploadedClusterStateCustomMetadataMap)
-                .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings);
+                .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings)
+                .checksum(clusterStateChecksum);
             final ClusterMetadataManifest manifest = manifestBuilder.build();
+            logger.trace(() -> new ParameterizedMessage("[{}] uploading manifest", manifest));
             String manifestFileName = writeMetadataManifest(clusterState.metadata().clusterUUID(), manifest);
             return new RemoteClusterStateManifestInfo(manifest, manifestFileName);
         }
@@ -187,6 +190,17 @@ public class RemoteManifestManager {
      */
     public Optional<ClusterMetadataManifest> getLatestClusterMetadataManifest(String clusterName, String clusterUUID) {
         Optional<String> latestManifestFileName = getLatestManifestFileName(clusterName, clusterUUID);
+        return latestManifestFileName.map(s -> fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, s));
+    }
+
+    public Optional<ClusterMetadataManifest> getClusterMetadataManifestByTermVersion(
+        String clusterName,
+        String clusterUUID,
+        long term,
+        long version
+    ) {
+        String prefix = RemoteManifestManager.getManifestFilePrefixForTermVersion(term, version);
+        Optional<String> latestManifestFileName = getManifestFileNameByPrefix(clusterName, clusterUUID, prefix);
         return latestManifestFileName.map(s -> fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, s));
     }
 
@@ -289,7 +303,7 @@ public class RemoteManifestManager {
         }
     }
 
-    static String getManifestFilePrefixForTermVersion(long term, long version) {
+    public static String getManifestFilePrefixForTermVersion(long term, long version) {
         return String.join(
             DELIMITER,
             RemoteClusterMetadataManifest.MANIFEST,
@@ -312,6 +326,16 @@ public class RemoteManifestManager {
             RemoteClusterMetadataManifest.MANIFEST + DELIMITER,
             1
         );
+        if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
+            return Optional.of(manifestFilesMetadata.get(0).name());
+        }
+        logger.info("No manifest file present in remote store for cluster name: {}, cluster UUID: {}", clusterName, clusterUUID);
+        return Optional.empty();
+    }
+
+    private Optional<String> getManifestFileNameByPrefix(String clusterName, String clusterUUID, String filePrefix)
+        throws IllegalStateException {
+        List<BlobMetadata> manifestFilesMetadata = getManifestFileNames(clusterName, clusterUUID, filePrefix, 1);
         if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
             return Optional.of(manifestFilesMetadata.get(0).name());
         }

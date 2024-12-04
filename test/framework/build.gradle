@@ -80,7 +80,8 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log4j.Priority',
   'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
   'org.opentest4j.AssertionFailedError',
-  'net.bytebuddy.agent.ByteBuddyAgent'
+  'net.bytebuddy.agent.ByteBuddyAgent',
+  'net.bytebuddy.agent.Installer'
 )
 // TODO - OpenSearch remove this violation. Issue: https://github.com/opensearch-project/OpenSearch/issues/420
 thirdPartyAudit.ignoreViolations(

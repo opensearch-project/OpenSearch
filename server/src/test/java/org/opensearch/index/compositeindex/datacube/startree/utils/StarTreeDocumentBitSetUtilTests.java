@@ -16,6 +16,8 @@ import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.function.Function;
@@ -46,7 +48,11 @@ public class StarTreeDocumentBitSetUtilTests extends OpenSearchTestCase {
         FSDirectory fsDirectory = FSDirectory.open(basePath);
         String TEST_FILE = "test_file";
         IndexOutput indexOutput = fsDirectory.createOutput(TEST_FILE, IOContext.DEFAULT);
-        StarTreeDocumentBitSetUtil.writeBitSet(dims, indexOutput);
+        int numBytes = getLength(dims);
+        byte[] bytes = new byte[numBytes];
+        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.nativeOrder());
+        StarTreeDocumentBitSetUtil.writeBitSet(dims, buffer);
+        indexOutput.writeBytes(bytes, numBytes);
         indexOutput.close();
 
         // test null value on read
@@ -68,5 +74,9 @@ public class StarTreeDocumentBitSetUtilTests extends OpenSearchTestCase {
         assertEquals(randomLong, (long) dims1[randomNullIndex1]);
         assertEquals(randomLong, (long) dims1[randomNullIndex2]);
         in.close();
+    }
+
+    private static int getLength(Object[] array) {
+        return (array.length / 8) + (array.length % 8 == 0 ? 0 : 1);
     }
 }

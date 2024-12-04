@@ -64,7 +64,7 @@ public class StartJoinRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        sourceNode.writeTo(out);
+        sourceNode.writeToWithAttribute(out);
         out.writeLong(term);
     }
 

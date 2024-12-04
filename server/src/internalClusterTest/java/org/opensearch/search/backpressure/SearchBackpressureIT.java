@@ -39,6 +39,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.wlm.QueryGroupTask;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -411,6 +412,7 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
             threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
                 try {
                     CancellableTask cancellableTask = (CancellableTask) task;
+                    ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
                     long startTime = System.nanoTime();
 
                     // Doing a busy-wait until task cancellation or timeout.

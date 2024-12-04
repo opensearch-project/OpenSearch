@@ -299,33 +299,37 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private void runTasks(TaskInputs taskInputs) {
-        final String longSummary = logger.isTraceEnabled() ? taskInputs.taskSummaryGenerator.apply(true) : "";
-        final String shortSummary = taskInputs.taskSummaryGenerator.apply(false);
+        final String summary;
+        if (logger.isTraceEnabled()) {
+            summary = taskInputs.taskSummaryGenerator.apply(true);
+        } else {
+            summary = taskInputs.taskSummaryGenerator.apply(false);
+        }
 
         if (!lifecycle.started()) {
-            logger.debug("processing [{}]: ignoring, cluster-manager service not started", shortSummary);
+            logger.debug("processing [{}]: ignoring, cluster-manager service not started", summary);
             return;
         }
 
         if (logger.isTraceEnabled()) {
-            logger.trace("executing cluster state update for [{}]", longSummary);
+            logger.trace("executing cluster state update for [{}]", summary);
         } else {
-            logger.debug("executing cluster state update for [{}]", shortSummary);
+            logger.debug("executing cluster state update for [{}]", summary);
         }
 
         final ClusterState previousClusterState = state();
 
         if (!previousClusterState.nodes().isLocalNodeElectedClusterManager() && taskInputs.runOnlyWhenClusterManager()) {
-            logger.debug("failing [{}]: local node is no longer cluster-manager", shortSummary);
+            logger.debug("failing [{}]: local node is no longer cluster-manager", summary);
             taskInputs.onNoLongerClusterManager();
             return;
         }
 
         final long computationStartTime = threadPool.preciseRelativeTimeInNanos();
-        final TaskOutputs taskOutputs = calculateTaskOutputs(taskInputs, previousClusterState, shortSummary);
+        final TaskOutputs taskOutputs = calculateTaskOutputs(taskInputs, previousClusterState, summary);
         taskOutputs.notifyFailedTasks();
         final TimeValue computationTime = getTimeSince(computationStartTime);
-        logExecutionTime(computationTime, "compute cluster state update", shortSummary);
+        logExecutionTime(computationTime, "compute cluster state update", summary);
 
         clusterManagerMetrics.recordLatency(
             clusterManagerMetrics.clusterStateComputeHistogram,
@@ -337,17 +341,17 @@ public class MasterService extends AbstractLifecycleComponent {
             final long notificationStartTime = threadPool.preciseRelativeTimeInNanos();
             taskOutputs.notifySuccessfulTasksOnUnchangedClusterState();
             final TimeValue executionTime = getTimeSince(notificationStartTime);
-            logExecutionTime(executionTime, "notify listeners on unchanged cluster state", shortSummary);
+            logExecutionTime(executionTime, "notify listeners on unchanged cluster state", summary);
         } else {
             final ClusterState newClusterState = taskOutputs.newClusterState;
             if (logger.isTraceEnabled()) {
-                logger.trace("cluster state updated, source [{}]\n{}", longSummary, newClusterState);
+                logger.trace("cluster state updated, source [{}]\n{}", summary, newClusterState);
             } else {
-                logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), shortSummary);
+                logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), summary);
             }
             final long publicationStartTime = threadPool.preciseRelativeTimeInNanos();
             try {
-                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(shortSummary, newClusterState, previousClusterState);
+                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(summary, newClusterState, previousClusterState);
                 // new cluster state, notify all listeners
                 final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
                 if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
@@ -355,7 +359,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     if (nodesDeltaSummary.length() > 0) {
                         logger.info(
                             "{}, term: {}, version: {}, delta: {}",
-                            shortSummary,
+                            summary,
                             newClusterState.term(),
                             newClusterState.version(),
                             nodesDeltaSummary
@@ -366,7 +370,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 logger.debug("publishing cluster state version [{}]", newClusterState.version());
                 publish(clusterChangedEvent, taskOutputs, publicationStartTime);
             } catch (Exception e) {
-                handleException(shortSummary, publicationStartTime, newClusterState, e);
+                handleException(summary, publicationStartTime, newClusterState, e);
             }
         }
     }

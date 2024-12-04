@@ -67,7 +67,7 @@ import java.util.Objects;
  * @opensearch.internal
  */
 @Deprecated
-public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
+public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> implements WithFieldName {
 
     public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "[match] query which can efficiently "
         + "skip blocks of documents if the total number of hits is not tracked";
@@ -152,6 +152,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         out.writeFloat(cutoffFrequency);
     }
 
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

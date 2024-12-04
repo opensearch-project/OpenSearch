@@ -433,6 +433,74 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testComputeIfAbsentConcurrentlyWithMultipleEhcacheDiskCache() throws IOException {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        List<ICache<String, String>> iCaches = new ArrayList<>();
+        int segments = 4;
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            ICache.Factory ehcacheFactory = new EhcacheDiskCache.EhcacheDiskCacheFactory();
+            for (int i = 1; i <= segments; i++) {
+                ICache<String, String> ehcacheTest = ehcacheFactory.create(
+                    new CacheConfig.Builder<String, String>().setValueType(String.class)
+                        .setKeyType(String.class)
+                        .setRemovalListener(removalListener)
+                        .setKeySerializer(new StringSerializer())
+                        .setValueSerializer(new StringSerializer())
+                        .setDimensionNames(List.of(dimensionName))
+                        .setWeigher(getWeigher())
+                        .setMaxSizeInBytes(CACHE_SIZE_IN_BYTES * 100)
+                        .setSettings(
+                            Settings.builder()
+                                .put(
+                                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                                        .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                                        .getKey(),
+                                    CACHE_SIZE_IN_BYTES
+                                )
+                                .put(
+                                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                                        .get(DISK_STORAGE_PATH_KEY)
+                                        .getKey(),
+                                    env.nodePaths()[0].indicesPath.toString() + "/request_cache/" + i
+                                )
+                                .put(
+                                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                                        .get(DISK_LISTENER_MODE_SYNC_KEY)
+                                        .getKey(),
+                                    true
+                                )
+                                .build()
+                        )
+                        .build(),
+                    CacheType.INDICES_REQUEST_CACHE,
+                    Map.of()
+                );
+                iCaches.add(ehcacheTest);
+            }
+            int randomKeys = randomIntBetween(100, 300);
+            Map<ICacheKey<String>, String> keyValueMap = new HashMap<>();
+            for (int i = 0; i < randomKeys; i++) {
+                keyValueMap.put(getICacheKey(UUID.randomUUID().toString()), UUID.randomUUID().toString());
+            }
+            for (Map.Entry<ICacheKey<String>, String> entry : keyValueMap.entrySet()) {
+                ICache<String, String> ehcacheTest = iCaches.get(entry.getKey().hashCode() & (segments - 1));
+                ehcacheTest.put(entry.getKey(), entry.getValue());
+            }
+            for (Map.Entry<ICacheKey<String>, String> entry : keyValueMap.entrySet()) {
+                ICache<String, String> ehcacheTest = iCaches.get(entry.getKey().hashCode() & (segments - 1));
+                String value = ehcacheTest.get(entry.getKey());
+                assertEquals(entry.getValue(), value);
+            }
+            int count = 0;
+            for (int i = 0; i < segments; i++) {
+                count += iCaches.get(i).count();
+                iCaches.get(i).close();
+            }
+            assertEquals(randomKeys, count);
+        }
+    }
+
     public void testComputeIfAbsentConcurrentlyAndThrowsException() throws Exception {
         Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();

@@ -35,6 +35,7 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
     public static final int SPLITTED_MANIFEST_FILE_LENGTH = 6;
 
     public static final String METADATA_MANIFEST_NAME_FORMAT = "%s";
+
     public static final String COMMITTED = "C";
     public static final String PUBLISHED = "P";
 
@@ -51,6 +52,9 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
 
     public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT_V2 =
         new ChecksumBlobStoreFormat<>("cluster-metadata-manifest", METADATA_MANIFEST_NAME_FORMAT, ClusterMetadataManifest::fromXContentV2);
+
+    public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT_V3 =
+        new ChecksumBlobStoreFormat<>("cluster-metadata-manifest", METADATA_MANIFEST_NAME_FORMAT, ClusterMetadataManifest::fromXContentV3);
 
     /**
      * Manifest format compatible with codec v2, where we introduced codec versions/global metadata.
@@ -151,6 +155,8 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
         long codecVersion = getManifestCodecVersion();
         if (codecVersion == ClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION) {
             return CLUSTER_METADATA_MANIFEST_FORMAT;
+        } else if (codecVersion == ClusterMetadataManifest.CODEC_V3) {
+            return CLUSTER_METADATA_MANIFEST_FORMAT_V3;
         } else if (codecVersion == ClusterMetadataManifest.CODEC_V2) {
             return CLUSTER_METADATA_MANIFEST_FORMAT_V2;
         } else if (codecVersion == ClusterMetadataManifest.CODEC_V1) {

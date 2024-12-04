@@ -8,12 +8,15 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Composite index numeric dimension class
@@ -31,6 +34,26 @@ public class NumericDimension implements Dimension {
 
     public String getField() {
         return field;
+    }
+
+    @Override
+    public int getNumSubDimensions() {
+        return 1;
+    }
+
+    @Override
+    public void setDimensionValues(final Long val, final Consumer<Long> dimSetter) {
+        dimSetter.accept(val);
+    }
+
+    @Override
+    public List<String> getSubDimensionNames() {
+        return List.of(field);
+    }
+
+    @Override
+    public DocValuesType getDocValuesType() {
+        return DocValuesType.SORTED_NUMERIC;
     }
 
     @Override

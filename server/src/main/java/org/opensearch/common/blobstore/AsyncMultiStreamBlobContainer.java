@@ -14,6 +14,7 @@ import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * An extension of {@link BlobContainer} that adds {@link AsyncMultiStreamBlobContainer#asyncBlobUpload} to allow
@@ -48,4 +49,8 @@ public interface AsyncMultiStreamBlobContainer extends BlobContainer {
      * by underlying blobContainer. In this case, caller doesn't need to ensure integrity of data.
      */
     boolean remoteIntegrityCheckSupported();
+
+    void deleteAsync(ActionListener<DeleteResult> completionListener);
+
+    void deleteBlobsAsyncIgnoringIfNotExists(List<String> blobNames, ActionListener<Void> completionListener);
 }

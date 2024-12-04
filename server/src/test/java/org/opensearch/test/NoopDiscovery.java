@@ -32,6 +32,7 @@
 package org.opensearch.test;
 
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.core.action.ActionListener;
@@ -52,6 +53,11 @@ public class NoopDiscovery implements Discovery {
 
     @Override
     public void startInitialJoin() {
+
+    }
+
+    @Override
+    public void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
 
     }
 

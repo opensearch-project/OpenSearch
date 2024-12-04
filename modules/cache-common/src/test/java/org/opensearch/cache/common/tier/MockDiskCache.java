@@ -62,6 +62,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         if (this.cache.size() >= maxSize) { // For simplification
             this.removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EVICTED));
             this.statsHolder.decrementItems(List.of());
+            return;
         }
         try {
             Thread.sleep(delay);
@@ -86,8 +87,10 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
     @Override
     public void invalidate(ICacheKey<K> key) {
-        removalListener.onRemoval(new RemovalNotification<>(key, cache.get(key), RemovalReason.INVALIDATED));
-        this.cache.remove(key);
+        V value = this.cache.remove(key);
+        if (value != null) {
+            removalListener.onRemoval(new RemovalNotification<>(key, cache.get(key), RemovalReason.INVALIDATED));
+        }
     }
 
     @Override
@@ -131,11 +134,13 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         final long delay;
         final int maxSize;
         final boolean statsTrackingEnabled;
+        final int keyValueSize;
 
-        public MockDiskCacheFactory(long delay, int maxSize, boolean statsTrackingEnabled) {
+        public MockDiskCacheFactory(long delay, int maxSize, boolean statsTrackingEnabled, int keyValueSize) {
             this.delay = delay;
             this.maxSize = maxSize;
             this.statsTrackingEnabled = statsTrackingEnabled;
+            this.keyValueSize = keyValueSize;
         }
 
         @Override
@@ -145,13 +150,21 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
             // cache would require.
             assert config.getKeySerializer() != null;
             assert config.getValueSerializer() != null;
-            return new Builder<K, V>().setKeySerializer((Serializer<K, byte[]>) config.getKeySerializer())
+            MockDiskCache.Builder<K, V> builder = (Builder<K, V>) new Builder<K, V>().setKeySerializer(
+                (Serializer<K, byte[]>) config.getKeySerializer()
+            )
                 .setValueSerializer((Serializer<V, byte[]>) config.getValueSerializer())
-                .setMaxSize(maxSize)
                 .setDeliberateDelay(delay)
                 .setRemovalListener(config.getRemovalListener())
-                .setStatsTrackingEnabled(config.getStatsTrackingEnabled())
-                .build();
+                .setStatsTrackingEnabled(config.getStatsTrackingEnabled());
+
+            // For mock disk cache, size refers to number of entries for simplicity.
+            if (config.getMaxSizeInBytes() > 0) {
+                builder.setMaxSize(Math.toIntExact(config.getMaxSizeInBytes()));
+            } else {
+                builder.setMaxSize(maxSize);
+            }
+            return builder.build();
         }
 
         @Override

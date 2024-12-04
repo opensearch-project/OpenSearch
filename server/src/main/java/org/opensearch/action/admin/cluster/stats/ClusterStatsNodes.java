@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.annotation.PublicApi;
@@ -89,10 +90,29 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final PackagingTypes packagingTypes;
     private final IngestStats ingestStats;
 
+    public static final Set<Metric> NODE_STATS_METRICS = Set.of(
+        // Stats computed from node info and node stat
+        Metric.OS,
+        Metric.JVM,
+        // Stats computed from node stat
+        Metric.FS,
+        Metric.PROCESS,
+        Metric.INGEST,
+        // Stats computed from node info
+        Metric.PLUGINS,
+        Metric.NETWORK_TYPES,
+        Metric.DISCOVERY_TYPES,
+        Metric.PACKAGING_TYPES
+    );
+
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
+        this(Set.of(Metric.values()), nodeResponses);
+    }
+
+    ClusterStatsNodes(Set<Metric> requestedMetrics, List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
-        this.fs = new FsInfo.Path();
-        this.plugins = new HashSet<>();
+        this.fs = requestedMetrics.contains(ClusterStatsRequest.Metric.FS) ? new FsInfo.Path() : null;
+        this.plugins = requestedMetrics.contains(ClusterStatsRequest.Metric.PLUGINS) ? new HashSet<>() : null;
 
         Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.size());
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
@@ -101,7 +121,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
             nodeInfos.add(nodeResponse.nodeInfo());
             nodeStats.add(nodeResponse.nodeStats());
             this.versions.add(nodeResponse.nodeInfo().getVersion());
-            this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
+            if (requestedMetrics.contains(ClusterStatsRequest.Metric.PLUGINS)) {
+                this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
+            }
 
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
             TransportAddress publishAddress = nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
@@ -109,18 +131,19 @@ public class ClusterStatsNodes implements ToXContentFragment {
             if (!seenAddresses.add(inetAddress)) {
                 continue;
             }
-            if (nodeResponse.nodeStats().getFs() != null) {
+            if (requestedMetrics.contains(ClusterStatsRequest.Metric.FS) && nodeResponse.nodeStats().getFs() != null) {
                 this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
             }
         }
+
         this.counts = new Counts(nodeInfos);
-        this.os = new OsStats(nodeInfos, nodeStats);
-        this.process = new ProcessStats(nodeStats);
-        this.jvm = new JvmStats(nodeInfos, nodeStats);
-        this.networkTypes = new NetworkTypes(nodeInfos);
-        this.discoveryTypes = new DiscoveryTypes(nodeInfos);
-        this.packagingTypes = new PackagingTypes(nodeInfos);
-        this.ingestStats = new IngestStats(nodeStats);
+        this.networkTypes = requestedMetrics.contains(ClusterStatsRequest.Metric.NETWORK_TYPES) ? new NetworkTypes(nodeInfos) : null;
+        this.discoveryTypes = requestedMetrics.contains(ClusterStatsRequest.Metric.DISCOVERY_TYPES) ? new DiscoveryTypes(nodeInfos) : null;
+        this.packagingTypes = requestedMetrics.contains(ClusterStatsRequest.Metric.PACKAGING_TYPES) ? new PackagingTypes(nodeInfos) : null;
+        this.ingestStats = requestedMetrics.contains(ClusterStatsRequest.Metric.INGEST) ? new IngestStats(nodeStats) : null;
+        this.process = requestedMetrics.contains(ClusterStatsRequest.Metric.PROCESS) ? new ProcessStats(nodeStats) : null;
+        this.os = requestedMetrics.contains(ClusterStatsRequest.Metric.OS) ? new OsStats(nodeInfos, nodeStats) : null;
+        this.jvm = requestedMetrics.contains(ClusterStatsRequest.Metric.JVM) ? new JvmStats(nodeInfos, nodeStats) : null;
     }
 
     public Counts getCounts() {
@@ -179,36 +202,54 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
         builder.endArray();
 
-        builder.startObject(Fields.OS);
-        os.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject(Fields.PROCESS);
-        process.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject(Fields.JVM);
-        jvm.toXContent(builder, params);
-        builder.endObject();
-
-        builder.field(Fields.FS);
-        fs.toXContent(builder, params);
-
-        builder.startArray(Fields.PLUGINS);
-        for (PluginInfo pluginInfo : plugins) {
-            pluginInfo.toXContent(builder, params);
+        if (os != null) {
+            builder.startObject(Fields.OS);
+            os.toXContent(builder, params);
+            builder.endObject();
         }
-        builder.endArray();
 
-        builder.startObject(Fields.NETWORK_TYPES);
-        networkTypes.toXContent(builder, params);
-        builder.endObject();
+        if (process != null) {
+            builder.startObject(Fields.PROCESS);
+            process.toXContent(builder, params);
+            builder.endObject();
+        }
 
-        discoveryTypes.toXContent(builder, params);
+        if (jvm != null) {
+            builder.startObject(Fields.JVM);
+            jvm.toXContent(builder, params);
+            builder.endObject();
+        }
 
-        packagingTypes.toXContent(builder, params);
+        if (fs != null) {
+            builder.field(Fields.FS);
+            fs.toXContent(builder, params);
+        }
 
-        ingestStats.toXContent(builder, params);
+        if (plugins != null) {
+            builder.startArray(Fields.PLUGINS);
+            for (PluginInfo pluginInfo : plugins) {
+                pluginInfo.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+
+        if (networkTypes != null) {
+            builder.startObject(Fields.NETWORK_TYPES);
+            networkTypes.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        if (discoveryTypes != null) {
+            discoveryTypes.toXContent(builder, params);
+        }
+
+        if (packagingTypes != null) {
+            packagingTypes.toXContent(builder, params);
+        }
+
+        if (ingestStats != null) {
+            ingestStats.toXContent(builder, params);
+        }
 
         return builder;
     }

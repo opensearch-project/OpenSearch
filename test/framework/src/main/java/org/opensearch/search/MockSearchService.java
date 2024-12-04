@@ -45,6 +45,7 @@ import org.opensearch.search.query.QueryPhase;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -111,7 +112,8 @@ public class MockSearchService extends SearchService {
             null,
             circuitBreakerService,
             indexSearcherExecutor,
-            taskResourceTrackingService
+            taskResourceTrackingService,
+            Collections.emptyList()
         );
     }
 

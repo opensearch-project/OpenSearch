@@ -67,8 +67,8 @@ import io.netty.handler.ssl.SslHandler;
  * @see <a href="https://github.com/opensearch-project/security/blob/d526c9f6c2a438c14db8b413148204510b9fe2e2/src/main/java/org/opensearch/security/ssl/http/netty/SecuritySSLNettyHttpServerTransport.java">SecuritySSLNettyHttpServerTransport</a>
  */
 public class SecureNetty4HttpServerTransport extends Netty4HttpServerTransport {
-    public static final String REQUEST_HEADER_VERIFIER = "HeaderVerifier";
-    public static final String REQUEST_DECOMPRESSOR = "RequestDecompressor";
+    public static final String REQUEST_HEADER_VERIFIER = SecureHttpTransportSettingsProvider.REQUEST_HEADER_VERIFIER;
+    public static final String REQUEST_DECOMPRESSOR = SecureHttpTransportSettingsProvider.REQUEST_DECOMPRESSOR;
 
     private static final Logger logger = LogManager.getLogger(SecureNetty4HttpServerTransport.class);
     private final SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;

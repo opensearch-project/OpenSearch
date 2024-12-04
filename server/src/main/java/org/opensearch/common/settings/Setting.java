@@ -1855,6 +1855,10 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    public static Setting<Double> doubleSetting(String key, double defaultValue, Validator<Double> validator, Property... properties) {
+        return new Setting<>(key, Double.toString(defaultValue), Double::parseDouble, validator, properties);
+    }
+
     /**
      * A writeable parser for double
      *
@@ -1959,6 +1963,15 @@ public class Setting<T> implements ToXContentObject {
             validator,
             properties
         );
+    }
+
+    public static Setting<Double> doubleSetting(
+        String key,
+        Setting<Double> fallbackSetting,
+        Validator<Double> validator,
+        Property... properties
+    ) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, Double::parseDouble, validator, properties);
     }
 
     /// simpleString

@@ -44,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -152,6 +153,6 @@ public class IngestUserAgentModulePlugin extends Plugin implements IngestPlugin 
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(CACHE_SIZE_SETTING);
+        return Arrays.asList(CACHE_SIZE_SETTING, PROCESSORS_ALLOWLIST_SETTING);
     }
 }

@@ -57,6 +57,7 @@ import java.util.stream.Stream;
 public final class MediaTypeRegistry {
     private static Map<String, MediaType> formatToMediaType = Map.of();
     private static Map<String, MediaType> typeWithSubtypeToMediaType = Map.of();
+    private static Map<String, MediaType> knownStringsToMediaType = Map.of();
 
     // Default mediaType singleton
     private static MediaType DEFAULT_MEDIA_TYPE;
@@ -84,6 +85,8 @@ public final class MediaTypeRegistry {
         // ensures the map is not overwritten:
         Map<String, MediaType> typeMap = new HashMap<>(typeWithSubtypeToMediaType);
         Map<String, MediaType> formatMap = new HashMap<>(formatToMediaType);
+        Map<String, MediaType> knownStringMap = new HashMap<>(knownStringsToMediaType);
+
         for (MediaType mediaType : acceptedMediaTypes) {
             if (formatMap.containsKey(mediaType.format())) {
                 throw new IllegalArgumentException("unable to register mediaType: [" + mediaType.format() + "]. Type already exists.");
@@ -107,13 +110,24 @@ public final class MediaTypeRegistry {
             MediaType mediaType = entry.getValue();
             typeMap.put(typeWithSubtype, mediaType);
             formatMap.putIfAbsent(mediaType.format(), mediaType); // ignore if the additional type mapping already exists
+            knownStringMap.put(mediaType.mediaType(), mediaType);
+            knownStringMap.put(mediaType.mediaTypeWithoutParameters(), mediaType);
         }
 
         formatToMediaType = Map.copyOf(formatMap);
         typeWithSubtypeToMediaType = Map.copyOf(typeMap);
+        knownStringsToMediaType = Map.copyOf(knownStringMap);
     }
 
     public static MediaType fromMediaType(String mediaType) {
+        if (mediaType == null) {
+            return null;
+        }
+        // Skip parsing if the string is an exact match for any known string value
+        final MediaType knownMediaType = knownStringsToMediaType.get(mediaType);
+        if (knownMediaType != null) {
+            return knownMediaType;
+        }
         ParsedMediaType parsedMediaType = parseMediaType(mediaType);
         return parsedMediaType != null ? parsedMediaType.getMediaType() : null;
     }

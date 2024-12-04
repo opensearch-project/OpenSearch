@@ -647,11 +647,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static QueryStringQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;

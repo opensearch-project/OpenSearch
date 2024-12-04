@@ -165,7 +165,12 @@ public final class AnalysisModule {
             )
         );
 
-        tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
+        for (AnalysisPlugin plugin : plugins) {
+            Map<String, AnalysisProvider<TokenFilterFactory>> filters = plugin.getTokenFilters(this);
+            for (Map.Entry<String, AnalysisProvider<TokenFilterFactory>> entry : filters.entrySet()) {
+                tokenFilters.register(entry.getKey(), entry.getValue());
+            }
+        }
         return tokenFilters;
     }
 

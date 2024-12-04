@@ -8,11 +8,8 @@
 
 package org.opensearch.gateway.remote.routingtable;
 
-import org.opensearch.Version;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.common.blobstore.BlobPath;
@@ -35,14 +32,12 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateServiceTests.generateClusterStateWithOneIndex;
 import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE;
 import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_PATH_TOKEN;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -87,22 +82,14 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
     }
 
     public void testClusterUUID() {
-        Map<String, Diff<IndexRoutingTable>> diffs = new HashMap<>();
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        int numberOfShards = randomIntBetween(1, 10);
-        int numberOfReplicas = randomIntBetween(1, 10);
+        ClusterState previousState = generateClusterStateWithOneIndex(indexName, 5, 1, false).build();
+        ClusterState currentState = generateClusterStateWithOneIndex(indexName, 5, 2, true).build();
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(numberOfShards)
-            .numberOfReplicas(numberOfReplicas)
-            .build();
-
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
-
-        diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
-
-        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(
+            previousState.getRoutingTable(),
+            currentState.getRoutingTable()
+        );
 
         RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
             routingTableIncrementalDiff,
@@ -118,21 +105,14 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
     }
 
     public void testFullBlobName() {
-        Map<String, Diff<IndexRoutingTable>> diffs = new HashMap<>();
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        int numberOfShards = randomIntBetween(1, 10);
-        int numberOfReplicas = randomIntBetween(1, 10);
+        ClusterState previousState = generateClusterStateWithOneIndex(indexName, 5, 1, false).build();
+        ClusterState currentState = generateClusterStateWithOneIndex(indexName, 5, 2, true).build();
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(numberOfShards)
-            .numberOfReplicas(numberOfReplicas)
-            .build();
-
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
-
-        diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
-        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(
+            previousState.getRoutingTable(),
+            currentState.getRoutingTable()
+        );
 
         RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
             routingTableIncrementalDiff,
@@ -148,21 +128,14 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
     }
 
     public void testBlobFileName() {
-        Map<String, Diff<IndexRoutingTable>> diffs = new HashMap<>();
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        int numberOfShards = randomIntBetween(1, 10);
-        int numberOfReplicas = randomIntBetween(1, 10);
+        ClusterState previousState = generateClusterStateWithOneIndex(indexName, 5, 1, false).build();
+        ClusterState currentState = generateClusterStateWithOneIndex(indexName, 5, 2, true).build();
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(numberOfShards)
-            .numberOfReplicas(numberOfReplicas)
-            .build();
-
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
-
-        diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
-        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(
+            previousState.getRoutingTable(),
+            currentState.getRoutingTable()
+        );
 
         RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
             routingTableIncrementalDiff,
@@ -178,21 +151,14 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
     }
 
     public void testBlobPathParameters() {
-        Map<String, Diff<IndexRoutingTable>> diffs = new HashMap<>();
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        int numberOfShards = randomIntBetween(1, 10);
-        int numberOfReplicas = randomIntBetween(1, 10);
+        ClusterState previousState = generateClusterStateWithOneIndex(indexName, 5, 1, false).build();
+        ClusterState currentState = generateClusterStateWithOneIndex(indexName, 5, 2, true).build();
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(numberOfShards)
-            .numberOfReplicas(numberOfReplicas)
-            .build();
-
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
-
-        diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
-        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(
+            previousState.getRoutingTable(),
+            currentState.getRoutingTable()
+        );
 
         RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
             routingTableIncrementalDiff,
@@ -210,21 +176,14 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
     }
 
     public void testGenerateBlobFileName() {
-        Map<String, Diff<IndexRoutingTable>> diffs = new HashMap<>();
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        int numberOfShards = randomIntBetween(1, 10);
-        int numberOfReplicas = randomIntBetween(1, 10);
+        ClusterState previousState = generateClusterStateWithOneIndex(indexName, 5, 1, false).build();
+        ClusterState currentState = generateClusterStateWithOneIndex(indexName, 5, 2, true).build();
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(numberOfShards)
-            .numberOfReplicas(numberOfReplicas)
-            .build();
-
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
-
-        diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
-        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(
+            previousState.getRoutingTable(),
+            currentState.getRoutingTable()
+        );
 
         RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
             routingTableIncrementalDiff,
@@ -243,21 +202,14 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
     }
 
     public void testGetUploadedMetadata() throws IOException {
-        Map<String, Diff<IndexRoutingTable>> diffs = new HashMap<>();
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        int numberOfShards = randomIntBetween(1, 10);
-        int numberOfReplicas = randomIntBetween(1, 10);
+        ClusterState previousState = generateClusterStateWithOneIndex(indexName, 5, 1, false).build();
+        ClusterState currentState = generateClusterStateWithOneIndex(indexName, 5, 2, true).build();
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(numberOfShards)
-            .numberOfReplicas(numberOfReplicas)
-            .build();
-
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
-
-        diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
-        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(
+            previousState.getRoutingTable(),
+            currentState.getRoutingTable()
+        );
 
         RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
             routingTableIncrementalDiff,
@@ -277,41 +229,35 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         int numberOfShards = randomIntBetween(1, 10);
         int numberOfReplicas = randomIntBetween(1, 10);
 
-        Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder(indexName)
-                    .settings(settings(Version.CURRENT))
-                    .numberOfShards(numberOfShards)
-                    .numberOfReplicas(numberOfReplicas)
-            )
-            .build();
+        ClusterState previousState = generateClusterStateWithOneIndex(indexName, numberOfShards, numberOfReplicas, false).build();
+        ClusterState currentState = generateClusterStateWithOneIndex(indexName, numberOfShards, numberOfReplicas + 1, true).build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index(indexName)).build();
-        Map<String, Diff<IndexRoutingTable>> diffs = new HashMap<>();
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(
+            previousState.getRoutingTable(),
+            currentState.getRoutingTable()
+        );
 
-        initialRoutingTable.getIndicesRouting().values().forEach(indexRoutingTable -> {
-            diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
-            RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
+        RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
+            routingTableIncrementalDiff,
+            clusterUUID,
+            compressor,
+            STATE_TERM,
+            STATE_VERSION
+        );
 
-            RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
-                routingTableIncrementalDiff,
-                clusterUUID,
-                compressor,
-                STATE_TERM,
-                STATE_VERSION
-            );
+        // Serialize the remote diff
+        InputStream inputStream = remoteDiffForUpload.serialize();
 
-            assertThrows(AssertionError.class, remoteDiffForUpload::getUploadedMetadata);
+        // Create a new instance for deserialization
+        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
 
-            try (InputStream inputStream = remoteDiffForUpload.serialize()) {
-                remoteDiffForUpload.setFullBlobName(BlobPath.cleanPath());
-                assertThat(inputStream.available(), greaterThan(0));
+        // Deserialize the remote diff
+        Diff<RoutingTable> deserializedDiff = remoteDiffForDownload.deserialize(inputStream);
 
-                routingTableIncrementalDiff = remoteDiffForUpload.deserialize(inputStream);
-                assertEquals(remoteDiffForUpload.getDiffs().size(), routingTableIncrementalDiff.getDiffs().size());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        // Assert that the indices routing table created from routingTableIncrementalDiff and deserializedDiff is equal
+        assertEquals(
+            routingTableIncrementalDiff.apply(previousState.getRoutingTable()).getIndicesRouting(),
+            deserializedDiff.apply(previousState.getRoutingTable()).getIndicesRouting()
+        );
     }
 }

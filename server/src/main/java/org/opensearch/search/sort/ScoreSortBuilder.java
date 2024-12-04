@@ -161,11 +161,6 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
-    @Override
     public boolean equals(Object object) {
         if (this == object) {
             return true;

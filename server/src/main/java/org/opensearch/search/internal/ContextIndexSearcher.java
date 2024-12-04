@@ -69,6 +69,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
@@ -218,6 +219,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);
+        } else if (query instanceof ApproximateScoreQuery) {
+            ((ApproximateScoreQuery) query).setContext(searchContext);
+            return super.createWeight(query, scoreMode, boost);
         } else {
             return super.createWeight(query, scoreMode, boost);
         }
@@ -299,7 +303,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * {@link LeafCollector#collect(int)} is called for every matching document in
      * the provided <code>ctx</code>.
      */
-    private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    @Override
+    protected void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
 
         // Check if at all we need to call this leaf for collecting results.
         if (canMatch(ctx) == false) {

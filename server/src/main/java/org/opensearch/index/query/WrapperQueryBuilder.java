@@ -131,11 +131,6 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static WrapperQueryBuilder fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {

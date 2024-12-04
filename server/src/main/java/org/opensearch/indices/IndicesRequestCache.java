@@ -68,6 +68,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -146,6 +147,22 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         Property.NodeScope
     );
 
+    /**
+     * Sets the maximum size of a query which is allowed in the request cache.
+     * This refers to the number of documents returned, not the size in bytes.
+     * Default value of 0 only allows size == 0 queries, matching earlier behavior.
+     * Fundamentally non-cacheable queries like DFS queries, queries using the `now` keyword, and
+     * scroll requests are never cached, regardless of this setting.
+     */
+    public static final Setting<Integer> INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING = Setting.intSetting(
+        "indices.requests.cache.maximum_cacheable_size",
+        0,
+        0,
+        10_000,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
@@ -167,7 +184,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         Function<ShardId, Optional<CacheEntity>> cacheEntityFunction,
         CacheService cacheService,
         ThreadPool threadPool,
-        ClusterService clusterService
+        ClusterService clusterService,
+        NodeEnvironment nodeEnvironment
     ) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
@@ -202,6 +220,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                 .setKeySerializer(new IRCKeyWriteableSerializer())
                 .setValueSerializer(new BytesReferenceSerializer())
                 .setClusterSettings(clusterService.getClusterSettings())
+                .setStoragePath(nodeEnvironment.nodePaths()[0].path.toString() + "/request_cache")
                 .build(),
             CacheType.INDICES_REQUEST_CACHE
         );

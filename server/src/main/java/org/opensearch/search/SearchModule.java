@@ -239,6 +239,7 @@ import org.opensearch.search.aggregations.pipeline.SimpleModel;
 import org.opensearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.ExplainPhase;
@@ -282,6 +283,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -316,6 +318,8 @@ public class SearchModule {
     private final QueryPhaseSearcher queryPhaseSearcher;
     private final SearchPlugin.ExecutorServiceProvider indexSearcherExecutorProvider;
 
+    private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
+
     /**
      * Constructs a new SearchModule object
      * <p>
@@ -344,6 +348,23 @@ public class SearchModule {
         queryPhaseSearcher = registerQueryPhaseSearcher(plugins);
         indexSearcherExecutorProvider = registerIndexSearcherExecutorProvider(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
+        concurrentSearchDeciderFactories = registerConcurrentSearchDeciderFactories(plugins);
+    }
+
+    private Collection<ConcurrentSearchRequestDecider.Factory> registerConcurrentSearchDeciderFactories(List<SearchPlugin> plugins) {
+        List<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories = new ArrayList<>();
+        for (SearchPlugin plugin : plugins) {
+            final Optional<ConcurrentSearchRequestDecider.Factory> deciderFactory = plugin.getConcurrentSearchRequestDeciderFactory();
+            deciderFactory.ifPresent(concurrentSearchDeciderFactories::add);
+        }
+        return concurrentSearchDeciderFactories;
+    }
+
+    /**
+     * Returns the concurrent search decider factories that the plugins have registered
+     */
+    public Collection<ConcurrentSearchRequestDecider.Factory> getConcurrentSearchRequestDeciderFactories() {
+        return concurrentSearchDeciderFactories;
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

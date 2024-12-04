@@ -42,6 +42,8 @@ import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
+import org.opensearch.common.breaker.ResponseLimitBreachedException;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.engine.Segment;
@@ -52,9 +54,11 @@ import org.opensearch.rest.action.RestResponseListener;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
+import static org.opensearch.common.breaker.ResponseLimitSettings.LimitEntity.INDICES;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
@@ -65,6 +69,12 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 public class RestSegmentsAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSegmentsAction.class);
+
+    private final ResponseLimitSettings responseLimitSettings;
+
+    public RestSegmentsAction(ResponseLimitSettings responseLimitSettings) {
+        this.responseLimitSettings = responseLimitSettings;
+    }
 
     @Override
     public List<Route> routes() {
@@ -78,6 +88,11 @@ public class RestSegmentsAction extends AbstractCatAction {
 
     @Override
     public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
+    public boolean isRequestLimitCheckSupported() {
         return true;
     }
 
@@ -96,6 +111,7 @@ public class RestSegmentsAction extends AbstractCatAction {
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
+                validateRequestLimit(clusterStateResponse);
                 final IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest();
                 indicesSegmentsRequest.indices(indices);
                 client.admin().indices().segments(indicesSegmentsRequest, new RestResponseListener<IndicesSegmentResponse>(channel) {
@@ -108,6 +124,15 @@ public class RestSegmentsAction extends AbstractCatAction {
                 });
             }
         });
+    }
+
+    private void validateRequestLimit(final ClusterStateResponse clusterStateResponse) {
+        if (isRequestLimitCheckSupported() && Objects.nonNull(clusterStateResponse) && Objects.nonNull(clusterStateResponse.getState())) {
+            int limit = responseLimitSettings.getCatSegmentsResponseLimit();
+            if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getRoutingTable(), INDICES, limit)) {
+                throw new ResponseLimitBreachedException("Segments from too many indices requested.", limit, INDICES);
+            }
+        }
     }
 
     @Override

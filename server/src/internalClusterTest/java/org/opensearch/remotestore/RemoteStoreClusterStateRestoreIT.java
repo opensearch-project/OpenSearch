@@ -42,6 +42,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -328,14 +329,22 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         internalCluster().stopAllNodes();
         // Step - 3 Delete index metadata file in remote
         try {
-            Files.move(
-                segmentRepoPath.resolve(encodeString(clusterName) + "/cluster-state/" + prevClusterUUID + "/index"),
-                segmentRepoPath.resolve("cluster-state/")
+            RemoteClusterStateService remoteClusterStateService = internalCluster().getInstance(
+                RemoteClusterStateService.class,
+                internalCluster().getClusterManagerName()
             );
+            ClusterMetadataManifest manifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+                getClusterState().getClusterName().value(),
+                getClusterState().metadata().clusterUUID()
+            ).get();
+            for (UploadedIndexMetadata md : manifest.getIndices()) {
+                Files.move(segmentRepoPath.resolve(md.getUploadedFilename()), segmentRepoPath.resolve("cluster-state/"));
+            }
+            internalCluster().stopAllNodes();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        assertThrows(IllegalStateException.class, () -> addNewNodes(dataNodeCount, clusterManagerNodeCount));
+        assertThrows(IOError.class, () -> internalCluster().client());
         // Test is complete
 
         // Starting a node without remote state to ensure test cleanup

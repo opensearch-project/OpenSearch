@@ -242,7 +242,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         Exception exception = assertThrows(IOException.class, GoogleCredentials::getApplicationDefault);
         assertNotNull(storageOptions);
         assertNull(storageOptions.getCredentials());
-        MatcherAssert.assertThat(exception.getMessage(), containsString("The Application Default Credentials are not available"));
+        MatcherAssert.assertThat(exception.getMessage(), containsString("Your default credentials were not found"));
     }
 
     /**
@@ -254,7 +254,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         GoogleCredentials credentials = googleApplicationDefaultCredentials.get();
         assertNull(credentials);
         Exception exception = assertThrows(IOException.class, GoogleCredentials::getApplicationDefault);
-        MatcherAssert.assertThat(exception.getMessage(), containsString("The Application Default Credentials are not available"));
+        MatcherAssert.assertThat(exception.getMessage(), containsString("Your default credentials were not found"));
     }
 
     /**

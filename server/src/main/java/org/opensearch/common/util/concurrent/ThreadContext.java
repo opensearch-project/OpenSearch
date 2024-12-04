@@ -548,6 +548,15 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Remove the {@code value} for the specified {@code key}.
+     *
+     * @param key         the header name
+     */
+    public void removeResponseHeader(final String key) {
+        threadLocal.get().responseHeaders.remove(key);
+    }
+
+    /**
      * Saves the current thread context and wraps command in a Runnable that restores that context before running command. If
      * <code>command</code> has already been passed through this method then it is returned unaltered rather than wrapped twice.
      */

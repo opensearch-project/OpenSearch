@@ -105,6 +105,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (level != null) {
             clusterHealthRequest.setLevel(level);
         }
+        clusterHealthRequest.setApplyLevelAtTransportLayer(true);
         String waitForStatus = request.param("wait_for_status");
         if (waitForStatus != null) {
             clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));

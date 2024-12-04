@@ -302,11 +302,6 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public FunctionScoreQueryBuilder setMinScore(float minScore) {
         this.minScore = minScore;
         return this;

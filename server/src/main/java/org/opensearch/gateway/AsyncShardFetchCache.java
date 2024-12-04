@@ -14,6 +14,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -51,10 +52,12 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
 
     private final Logger logger;
     private final String type;
+    private final ClusterManagerMetrics clusterManagerMetrics;
 
-    protected AsyncShardFetchCache(Logger logger, String type) {
+    protected AsyncShardFetchCache(Logger logger, String type, ClusterManagerMetrics clusterManagerMetrics) {
         this.logger = logger;
         this.type = type;
+        this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
     abstract void initData(DiscoveryNode node);
@@ -162,6 +165,7 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
     }
 
     void processResponses(List<K> responses, long fetchingRound) {
+        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchSuccessCounter, Double.valueOf(responses.size()));
         for (K response : responses) {
             BaseNodeEntry nodeEntry = getCache().get(response.getNode().getId());
             if (nodeEntry != null) {
@@ -222,6 +226,7 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
     }
 
     void processFailures(List<FailedNodeException> failures, long fetchingRound) {
+        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.asyncFetchFailureCounter, Double.valueOf(failures.size()));
         for (FailedNodeException failure : failures) {
             logger.trace("processing failure {} for [{}]", failure, type);
             BaseNodeEntry nodeEntry = getCache().get(failure.nodeId());

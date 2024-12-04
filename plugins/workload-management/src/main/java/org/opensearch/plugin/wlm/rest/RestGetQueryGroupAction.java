@@ -27,7 +27,7 @@ import java.util.List;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
- * Rest action to get a QueryGroup0
+ * Rest action to get a QueryGroup
  *
  * @opensearch.experimental
  */

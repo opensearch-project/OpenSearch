@@ -23,6 +23,8 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.IndicesModule;
@@ -93,7 +95,15 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
 
     public void testClusterUUID() {
         IndexMetadata indexMetadata = getIndexMetadata();
-        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
+        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(
+            indexMetadata,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry,
+            null,
+            null,
+            null
+        );
         assertThat(remoteObjectForUpload.clusterUUID(), is(clusterUUID));
 
         RemoteIndexMetadata remoteObjectForDownload = new RemoteIndexMetadata(
@@ -107,7 +117,15 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
 
     public void testFullBlobName() {
         IndexMetadata indexMetadata = getIndexMetadata();
-        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
+        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(
+            indexMetadata,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry,
+            null,
+            null,
+            null
+        );
         assertThat(remoteObjectForUpload.getFullBlobName(), nullValue());
 
         RemoteIndexMetadata remoteObjectForDownload = new RemoteIndexMetadata(
@@ -121,7 +139,15 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
 
     public void testBlobFileName() {
         IndexMetadata indexMetadata = getIndexMetadata();
-        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
+        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(
+            indexMetadata,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry,
+            null,
+            null,
+            null
+        );
         assertThat(remoteObjectForUpload.getBlobFileName(), nullValue());
 
         RemoteIndexMetadata remoteObjectForDownload = new RemoteIndexMetadata(
@@ -135,7 +161,15 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
 
     public void testBlobPathParameters() {
         IndexMetadata indexMetadata = getIndexMetadata();
-        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
+        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(
+            indexMetadata,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry,
+            null,
+            null,
+            null
+        );
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
         assertThat(params.getPathTokens(), is(List.of(INDEX, indexMetadata.getIndexUUID())));
         assertThat(params.getFilePrefix(), is("metadata"));
@@ -143,7 +177,15 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
 
     public void testGenerateBlobFileName() {
         IndexMetadata indexMetadata = getIndexMetadata();
-        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
+        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(
+            indexMetadata,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry,
+            null,
+            null,
+            null
+        );
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
         assertThat(nameTokens[0], is("metadata"));
@@ -154,7 +196,15 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
 
     public void testGetUploadedMetadata() throws IOException {
         IndexMetadata indexMetadata = getIndexMetadata();
-        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
+        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(
+            indexMetadata,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry,
+            null,
+            null,
+            null
+        );
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
         remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
         UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
@@ -163,12 +213,39 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
 
     public void testSerDe() throws IOException {
         IndexMetadata indexMetadata = getIndexMetadata();
-        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
+        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(
+            indexMetadata,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry,
+            null,
+            null,
+            null
+        );
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             assertThat(inputStream.available(), greaterThan(0));
             IndexMetadata readIndexMetadata = remoteObjectForUpload.deserialize(inputStream);
             assertThat(readIndexMetadata, is(indexMetadata));
         }
+    }
+
+    public void testPrefixedPath() {
+        IndexMetadata indexMetadata = getIndexMetadata();
+        String fixedPrefix = "*";
+        RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(
+            indexMetadata,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry,
+            PathType.HASHED_PREFIX,
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1,
+            fixedPrefix
+        );
+        String testPath = "test-path";
+        String expectedPath = fixedPrefix + "410100110100101/test-path/index-uuid/";
+        BlobPath prefixedPath = remoteObjectForUpload.getPrefixedPath(BlobPath.cleanPath().add(testPath));
+        assertThat(prefixedPath.buildAsString(), is(expectedPath));
+
     }
 
     private IndexMetadata getIndexMetadata() {

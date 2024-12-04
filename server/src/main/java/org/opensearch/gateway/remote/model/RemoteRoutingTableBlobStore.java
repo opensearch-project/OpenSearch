@@ -15,6 +15,7 @@ import org.opensearch.common.remote.RemoteWriteableEntity;
 import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.index.remote.RemoteStoreEnums;
@@ -58,8 +59,19 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractCl
         Setting.Property.Dynamic
     );
 
+    /**
+     * Controls the fixed prefix for the routing table path on remote store.
+     */
+    public static final Setting<String> CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX = Setting.simpleString(
+        "cluster.remote_store.routing_table.path.prefix",
+        "",
+        Property.NodeScope,
+        Property.Final
+    );
+
     private RemoteStoreEnums.PathType pathType;
     private RemoteStoreEnums.PathHashAlgorithm pathHashAlgo;
+    private String pathPrefix;
 
     public RemoteRoutingTableBlobStore(
         BlobStoreTransferService blobStoreTransferService,
@@ -79,6 +91,7 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractCl
         );
         this.pathType = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING);
         this.pathHashAlgo = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING);
+        this.pathPrefix = clusterSettings.get(CLUSTER_REMOTE_STORE_ROUTING_TABLE_PATH_PREFIX);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING, this::setPathTypeSetting);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING, this::setPathHashAlgoSetting);
     }
@@ -90,6 +103,7 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractCl
 
         BlobPath path = pathType.path(
             RemoteStorePathStrategy.PathInput.builder()
+                .fixedPrefix(pathPrefix)
                 .basePath(indexRoutingPath)
                 .indexUUID(String.join("", obj.getBlobPathParameters().getPathTokens()))
                 .build(),

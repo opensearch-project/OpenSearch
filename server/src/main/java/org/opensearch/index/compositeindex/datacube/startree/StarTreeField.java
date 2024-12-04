@@ -8,13 +8,17 @@
 
 package org.opensearch.index.compositeindex.datacube.startree;
 
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -29,12 +33,29 @@ public class StarTreeField implements ToXContent {
     private final List<Dimension> dimensionsOrder;
     private final List<Metric> metrics;
     private final StarTreeFieldConfiguration starTreeConfig;
+    private final List<String> dimensionNames;
+    private final List<DocValuesType> dimensionDocValueTypes;
+    private final List<String> metricNames;
 
     public StarTreeField(String name, List<Dimension> dimensions, List<Metric> metrics, StarTreeFieldConfiguration starTreeConfig) {
         this.name = name;
         this.dimensionsOrder = dimensions;
         this.metrics = metrics;
         this.starTreeConfig = starTreeConfig;
+        dimensionNames = new ArrayList<>();
+        dimensionDocValueTypes = new ArrayList<>();
+        for (Dimension dimension : dimensions) {
+            for (String dimensionName : dimension.getSubDimensionNames()) {
+                dimensionNames.add(dimensionName);
+                dimensionDocValueTypes.add(dimension.getDocValuesType());
+            }
+        }
+        metricNames = new ArrayList<>();
+        for (Metric metric : metrics) {
+            for (MetricStat metricStat : metric.getMetrics()) {
+                metricNames.add(metric.getField() + "_" + metricStat.name());
+            }
+        }
     }
 
     public String getName() {
@@ -43,6 +64,18 @@ public class StarTreeField implements ToXContent {
 
     public List<Dimension> getDimensionsOrder() {
         return dimensionsOrder;
+    }
+
+    public List<String> getDimensionNames() {
+        return dimensionNames;
+    }
+
+    public List<DocValuesType> getDimensionDocValueTypes() {
+        return dimensionDocValueTypes;
+    }
+
+    public List<String> getMetricNames() {
+        return metricNames;
     }
 
     public List<Metric> getMetrics() {
@@ -57,12 +90,21 @@ public class StarTreeField implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("name", name);
+        DateDimension dateDim = null;
         if (dimensionsOrder != null && !dimensionsOrder.isEmpty()) {
             builder.startArray("ordered_dimensions");
             for (Dimension dimension : dimensionsOrder) {
+                // Handle dateDimension for later
+                if (dimension instanceof DateDimension) {
+                    dateDim = (DateDimension) dimension;
+                    continue;
+                }
                 dimension.toXContent(builder, params);
             }
             builder.endArray();
+        }
+        if (dateDim != null) {
+            dateDim.toXContent(builder, params);
         }
         if (metrics != null && !metrics.isEmpty()) {
             builder.startArray("metrics");

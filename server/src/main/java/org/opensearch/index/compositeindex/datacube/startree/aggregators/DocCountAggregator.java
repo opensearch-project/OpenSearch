@@ -8,7 +8,8 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
+import org.opensearch.index.mapper.NumberFieldMapper;
 
 /**
  * Aggregator to handle '_doc_count' field
@@ -17,12 +18,12 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  */
 public class DocCountAggregator implements ValueAggregator<Long> {
 
-    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.LONG;
+    private static final FieldValueConverter VALUE_AGGREGATOR_TYPE = NumberFieldMapper.NumberType.LONG;
 
     public DocCountAggregator() {}
 
     @Override
-    public StarTreeNumericType getAggregatedValueType() {
+    public FieldValueConverter getAggregatedValueType() {
         return VALUE_AGGREGATOR_TYPE;
     }
 

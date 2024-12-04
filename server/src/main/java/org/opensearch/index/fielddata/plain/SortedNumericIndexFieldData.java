@@ -41,6 +41,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.fielddata.FieldData;
@@ -571,6 +572,28 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public final SortedBinaryDocValues getBytesValues() {
             return FieldData.toUnsignedString(getLongValues());
+        }
+
+        @Override
+        public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+            SortedNumericDocValues values = getLongValues();
+            return new DocValueFetcher.Leaf() {
+                @Override
+                public boolean advanceExact(int docId) throws IOException {
+                    return values.advanceExact(docId);
+                }
+
+                @Override
+                public int docValueCount() {
+                    return values.docValueCount();
+                }
+
+                @Override
+                public Object nextValue() throws IOException {
+                    final BigInteger value = Numbers.toUnsignedBigInteger(values.nextValue());
+                    return format.format(value);
+                }
+            };
         }
 
         @Override

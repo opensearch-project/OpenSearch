@@ -64,6 +64,15 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
+    /**
+     This set is used only by cluster-manager nodes.
+     Nodes are marked as pending disconnect right before cluster state publish phase.
+     They are cleared up as part of cluster state apply commit phase
+     This is to avoid connections from being made to nodes that are in the process of leaving the cluster
+     Note: If a disconnect is initiated while a connect is in progress, this Set will not handle this case.
+     Callers need to ensure that connects and disconnects are sequenced.
+     */
+    private final Set<DiscoveryNode> pendingDisconnections = ConcurrentCollections.newConcurrentSet();
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
@@ -122,9 +131,16 @@ public class ClusterConnectionManager implements ConnectionManager {
         ConnectionValidator connectionValidator,
         ActionListener<Void> listener
     ) throws ConnectTransportException {
+        logger.trace("connecting to node [{}]", node);
         ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
         if (node == null) {
             listener.onFailure(new ConnectTransportException(null, "can't connect to a null node"));
+            return;
+        }
+
+        // if node-left is still in progress, we fail the connect request early
+        if (pendingDisconnections.contains(node)) {
+            listener.onFailure(new IllegalStateException("cannot make a new connection as disconnect to node [" + node + "] is pending"));
             return;
         }
 
@@ -170,6 +186,7 @@ public class ClusterConnectionManager implements ConnectionManager {
                             conn.addCloseListener(ActionListener.wrap(() -> {
                                 logger.trace("unregistering {} after connection close and marking as disconnected", node);
                                 connectedNodes.remove(node, finalConnection);
+                                pendingDisconnections.remove(node);
                                 connectionListener.onNodeDisconnected(node, conn);
                             }));
                         }
@@ -226,6 +243,19 @@ public class ClusterConnectionManager implements ConnectionManager {
             // if we found it and removed it we close
             nodeChannels.close();
         }
+        pendingDisconnections.remove(node);
+        logger.trace("Removed node [{}] from pending disconnections list", node);
+    }
+
+    @Override
+    public void setPendingDisconnection(DiscoveryNode node) {
+        logger.trace("marking disconnection as pending for node: [{}]", node);
+        pendingDisconnections.add(node);
+    }
+
+    @Override
+    public void clearPendingDisconnections() {
+        pendingDisconnections.clear();
     }
 
     /**

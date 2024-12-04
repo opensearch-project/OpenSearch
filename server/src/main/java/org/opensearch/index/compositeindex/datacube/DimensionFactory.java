@@ -8,21 +8,23 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
-import org.opensearch.common.Rounding;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.Mapper;
-import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.compositeindex.datacube.DateDimension.CALENDAR_INTERVALS;
+import static org.opensearch.index.compositeindex.datacube.KeywordDimension.KEYWORD;
 
 /**
  * Dimension factory class mainly used to parse and create dimension from the mappings
@@ -42,6 +44,8 @@ public class DimensionFactory {
                 return parseAndCreateDateDimension(name, dimensionMap, c);
             case NumericDimension.NUMERIC:
                 return new NumericDimension(name);
+            case KEYWORD:
+                return new KeywordDimension(name);
             default:
                 throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "unsupported field type associated with dimension [%s] as part of star tree field", name)
@@ -55,14 +59,23 @@ public class DimensionFactory {
         Map<String, Object> dimensionMap,
         Mapper.TypeParser.ParserContext c
     ) {
-        if (builder instanceof DateFieldMapper.Builder) {
-            return parseAndCreateDateDimension(name, dimensionMap, c);
-        } else if (builder instanceof NumberFieldMapper.Builder) {
-            return new NumericDimension(name);
+        if (builder.getSupportedDataCubeDimensionType().isEmpty()) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "unsupported field type associated with star tree dimension [%s]", name)
+            );
         }
-        throw new IllegalArgumentException(
-            String.format(Locale.ROOT, "unsupported field type associated with star tree dimension [%s]", name)
-        );
+        switch (builder.getSupportedDataCubeDimensionType().get()) {
+            case DATE:
+                return parseAndCreateDateDimension(name, dimensionMap, c);
+            case NUMERIC:
+                return new NumericDimension(name);
+            case KEYWORD:
+                return new KeywordDimension(name);
+            default:
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "unsupported field type associated with star tree dimension [%s]", name)
+                );
+        }
     }
 
     private static DateDimension parseAndCreateDateDimension(
@@ -70,13 +83,13 @@ public class DimensionFactory {
         Map<String, Object> dimensionMap,
         Mapper.TypeParser.ParserContext c
     ) {
-        List<Rounding.DateTimeUnit> calendarIntervals = new ArrayList<>();
+        Set<DateTimeUnitRounding> calendarIntervals;
         List<String> intervalStrings = XContentMapValues.extractRawValues(CALENDAR_INTERVALS, dimensionMap)
             .stream()
             .map(Object::toString)
             .collect(Collectors.toList());
         if (intervalStrings == null || intervalStrings.isEmpty()) {
-            calendarIntervals = StarTreeIndexSettings.DEFAULT_DATE_INTERVALS.get(c.getSettings());
+            calendarIntervals = new LinkedHashSet<>(StarTreeIndexSettings.DEFAULT_DATE_INTERVALS.get(c.getSettings()));
         } else {
             if (intervalStrings.size() > StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING.get(c.getSettings())) {
                 throw new IllegalArgumentException(
@@ -88,12 +101,17 @@ public class DimensionFactory {
                     )
                 );
             }
+            calendarIntervals = new LinkedHashSet<>();
             for (String interval : intervalStrings) {
                 calendarIntervals.add(StarTreeIndexSettings.getTimeUnit(interval));
             }
-            calendarIntervals = new ArrayList<>(calendarIntervals);
         }
         dimensionMap.remove(CALENDAR_INTERVALS);
-        return new DateDimension(name, calendarIntervals);
+        DateFieldMapper.Resolution resolution = null;
+        if (c != null && c.mapperService() != null && c.mapperService().fieldType(name) != null) {
+            resolution = ((DateFieldMapper.DateFieldType) c.mapperService().fieldType(name)).resolution();
+        }
+
+        return new DateDimension(name, new ArrayList<>(calendarIntervals), resolution);
     }
 }

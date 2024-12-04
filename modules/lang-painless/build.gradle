@@ -115,11 +115,17 @@ testClusters {
   }
 }
 
+interface InjectedExecOps {
+  @Inject ExecOperations getExecOps()
+}
+
+
 tasks.register("generateContextDoc", DefaultTestClustersTask) {
   dependsOn sourceSets.doc.runtimeClasspath
   useCluster testClusters.generateContextCluster
   doFirst {
-    project.javaexec {
+    def execOps = project.objects.newInstance(InjectedExecOps)
+    execOps.execOps.javaexec {
       mainClass = 'org.opensearch.painless.ContextDocGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI().get(0)}"

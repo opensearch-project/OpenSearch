@@ -401,11 +401,6 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     }
 
     @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
-    @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         final MappedFieldType ft = context.fieldMapper(field);
 

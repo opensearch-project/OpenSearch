@@ -49,9 +49,12 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -81,6 +84,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.snapshots.SnapshotsService.MAX_SHARDS_ALLOWED_IN_STATUS_API;
 
 /**
  * Transport action for accessing snapshot status
@@ -94,6 +98,14 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
     private final RepositoriesService repositoriesService;
 
     private final TransportNodesSnapshotsStatus transportNodesSnapshotsStatus;
+
+    private Set<String> requestedIndexNames;
+
+    private long maximumAllowedShardCount;
+
+    private int totalShardsRequiredInResponse;
+
+    private boolean requestUsesIndexFilter;
 
     @Inject
     public TransportSnapshotsStatusAction(
@@ -139,25 +151,21 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         final ClusterState state,
         final ActionListener<SnapshotsStatusResponse> listener
     ) throws Exception {
+        setupForRequest(request);
+
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
             snapshotsInProgress,
             request.repository(),
             Arrays.asList(request.snapshots())
         );
+
         if (currentSnapshots.isEmpty()) {
             buildResponse(snapshotsInProgress, request, currentSnapshots, null, listener);
             return;
         }
 
-        Set<String> nodesIds = new HashSet<>();
-        for (SnapshotsInProgress.Entry entry : currentSnapshots) {
-            for (final SnapshotsInProgress.ShardSnapshotStatus status : entry.shards().values()) {
-                if (status.nodeId() != null) {
-                    nodesIds.add(status.nodeId());
-                }
-            }
-        }
+        Set<String> nodesIds = getNodeIdsOfCurrentSnapshots(request, currentSnapshots);
 
         if (!nodesIds.isEmpty()) {
             // There are still some snapshots running - check their progress
@@ -186,6 +194,97 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
 
     }
 
+    private void setupForRequest(SnapshotsStatusRequest request) {
+        requestedIndexNames = new HashSet<>(Arrays.asList(request.indices()));
+        requestUsesIndexFilter = requestedIndexNames.isEmpty() == false;
+        totalShardsRequiredInResponse = 0;
+        maximumAllowedShardCount = clusterService.getClusterSettings().get(MAX_SHARDS_ALLOWED_IN_STATUS_API);
+    }
+
+    /*
+    * To get the node IDs of the relevant (according to the index filter) shards which are part of current snapshots
+    * It also deals with any missing indices (for index-filter case) and calculates the number of shards contributed by all
+    * the current snapshots to the total count (irrespective of index-filter)
+    * If this count exceeds the limit, CircuitBreakingException is thrown
+    * */
+    private Set<String> getNodeIdsOfCurrentSnapshots(final SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshots)
+        throws CircuitBreakingException {
+        Set<String> nodesIdsOfCurrentSnapshotShards = new HashSet<>();
+        int totalShardsAcrossCurrentSnapshots = 0;
+
+        for (SnapshotsInProgress.Entry currentSnapshotEntry : currentSnapshots) {
+            if (currentSnapshotEntry.remoteStoreIndexShallowCopyV2()) {
+                // skip current shallow v2 snapshots
+                continue;
+            }
+            if (requestUsesIndexFilter) {
+                // index-filter is allowed only for a single snapshot, which has to be this one
+                // first check if any requested indices are missing from this current snapshot
+
+                final Set<String> indicesInCurrentSnapshot = currentSnapshotEntry.indices()
+                    .stream()
+                    .map(IndexId::getName)
+                    .collect(Collectors.toSet());
+
+                final Set<String> indicesNotFound = requestedIndexNames.stream()
+                    .filter(index -> indicesInCurrentSnapshot.contains(index) == false)
+                    .collect(Collectors.toSet());
+
+                if (indicesNotFound.isEmpty() == false) {
+                    handleIndexNotFound(
+                        requestedIndexNames,
+                        indicesNotFound,
+                        request,
+                        currentSnapshotEntry.snapshot().getSnapshotId().getName(),
+                        false
+                    );
+                }
+                // the actual no. of shards contributed by this current snapshot will now be calculated
+            } else {
+                // all shards of this current snapshot are required in response
+                totalShardsAcrossCurrentSnapshots += currentSnapshotEntry.shards().size();
+            }
+
+            for (final Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardStatusEntry : currentSnapshotEntry.shards()
+                .entrySet()) {
+                SnapshotsInProgress.ShardSnapshotStatus shardStatus = shardStatusEntry.getValue();
+                boolean indexPresentInFilter = requestedIndexNames.contains(shardStatusEntry.getKey().getIndexName());
+
+                if (requestUsesIndexFilter && indexPresentInFilter) {
+                    // count only those shards whose index belongs to the index-filter
+                    totalShardsAcrossCurrentSnapshots++;
+
+                    // for non-index filter case, we already counted all the shards of this current snapshot (non-shallow v2)
+                }
+
+                if (shardStatus.nodeId() != null) {
+                    if (requestUsesIndexFilter) {
+                        if (indexPresentInFilter) {
+                            // include node only if the index containing this shard belongs to the index filter
+                            nodesIdsOfCurrentSnapshotShards.add(shardStatus.nodeId());
+                        }
+                    } else {
+                        nodesIdsOfCurrentSnapshotShards.add(shardStatus.nodeId());
+                    }
+                }
+            }
+        }
+
+        totalShardsRequiredInResponse += totalShardsAcrossCurrentSnapshots;
+        if (totalShardsRequiredInResponse > maximumAllowedShardCount) {
+            // index-filter is allowed only for a single snapshot. If index-filter is being used and limit got exceeded,
+            // this snapshot is current and its relevant indices contribute more shards than the limit
+
+            // if index-filter is not being used and limit got exceed, there could be more shards required in response coming from completed
+            // snapshots
+            // but since the limit is already exceeded, we can fail request here
+            boolean couldInvolveMoreShards = requestUsesIndexFilter == false;
+            handleMaximumAllowedShardCountExceeded(request.repository(), totalShardsRequiredInResponse, couldInvolveMoreShards);
+        }
+
+        return nodesIdsOfCurrentSnapshotShards;
+    }
+
     private void buildResponse(
         SnapshotsInProgress snapshotsInProgress,
         SnapshotsStatusRequest request,
@@ -209,6 +308,10 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                 Map<String, IndexId> indexIdLookup = null;
                 for (final Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
+                    if (requestUsesIndexFilter && requestedIndexNames.contains(shardEntry.getKey().getIndexName()) == false) {
+                        // skip shard if its index does not belong to the index-filter
+                        continue;
+                    }
                     SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
                     if (status.nodeId() != null) {
                         // We should have information about this shard from the shard:
@@ -314,38 +417,32 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         String repositoryName,
         ActionListener<SnapshotsStatusResponse> listener
     ) {
-        final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
         repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
         repositoryDataListener.whenComplete(repositoryData -> {
-            final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds()
-                .stream()
-                .filter(s -> requestedSnapshotNames.contains(s.getName()))
-                .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
-            for (final String snapshotName : request.snapshots()) {
-                if (currentSnapshotNames.contains(snapshotName)) {
-                    // we've already found this snapshot in the current snapshot entries, so skip over
-                    continue;
-                }
-                SnapshotId snapshotId = matchedSnapshotIds.get(snapshotName);
-                if (snapshotId == null) {
-                    // neither in the current snapshot entries nor found in the repository
-                    if (request.ignoreUnavailable()) {
-                        // ignoring unavailable snapshots, so skip over
-                        logger.debug(
-                            "snapshot status request ignoring snapshot [{}], not found in repository [{}]",
-                            snapshotName,
-                            repositoryName
-                        );
-                        continue;
-                    } else {
-                        throw new SnapshotMissingException(repositoryName, snapshotName);
-                    }
-                }
-                SnapshotInfo snapshotInfo = snapshot(snapshotsInProgress, repositoryName, snapshotId);
+            Map<SnapshotId, SnapshotInfo> snapshotsInfoMap = snapshotsInfo(
+                request,
+                repositoryName,
+                repositoryData,
+                snapshotsInProgress,
+                currentSnapshotNames
+            );
+            for (Map.Entry<SnapshotId, SnapshotInfo> entry : snapshotsInfoMap.entrySet()) {
+                SnapshotId snapshotId = entry.getKey();
+                SnapshotInfo snapshotInfo = entry.getValue();
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                 if (snapshotInfo.state().completed()) {
-                    Map<ShardId, IndexShardSnapshotStatus> shardStatuses = snapshotShards(repositoryName, repositoryData, snapshotInfo);
+                    Map<ShardId, IndexShardSnapshotStatus> shardStatuses = snapshotShards(
+                        request,
+                        repositoryName,
+                        repositoryData,
+                        snapshotInfo
+                    );
+                    boolean isShallowV2Snapshot = snapshotInfo.getPinnedTimestamp() > 0;
+                    if (isShallowV2Snapshot && requestUsesIndexFilter == false) {
+                        // TODO: add primary store size in bytes at the snapshot level
+                    }
+
                     for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatuses.entrySet()) {
                         IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue().asCopy();
                         shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
@@ -407,27 +504,130 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
     }
 
     /**
+     * Returns snapshot info for finished snapshots
+     * @param request         snapshot status request
+     * @param repositoryName  repository name
+     * @param repositoryData    repository data
+     * @param snapshotsInProgress    currently running snapshots
+     * @param currentSnapshotNames    list of names of currently running snapshots
+     * @return map of snapshot id to snapshot info
+     */
+    private Map<SnapshotId, SnapshotInfo> snapshotsInfo(
+        SnapshotsStatusRequest request,
+        String repositoryName,
+        RepositoryData repositoryData,
+        SnapshotsInProgress snapshotsInProgress,
+        Set<String> currentSnapshotNames
+    ) {
+        final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
+        final Map<SnapshotId, SnapshotInfo> snapshotsInfoMap = new HashMap<>();
+        final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds()
+            .stream()
+            .filter(s -> requestedSnapshotNames.contains(s.getName()))
+            .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
+
+        // for no index filter-case and excludes shards from shallow v2 snapshots
+        int totalShardsAcrossSnapshots = 0;
+
+        for (final String snapshotName : request.snapshots()) {
+            if (currentSnapshotNames.contains(snapshotName)) {
+                // we've already found this snapshot in the current snapshot entries, so skip over
+                continue;
+            }
+            SnapshotId snapshotId = matchedSnapshotIds.get(snapshotName);
+            if (snapshotId == null) {
+                // neither in the current snapshot entries nor found in the repository
+                if (request.ignoreUnavailable()) {
+                    // ignoring unavailable snapshots, so skip over
+                    logger.debug(
+                        "snapshot status request ignoring snapshot [{}], not found in repository [{}]",
+                        snapshotName,
+                        repositoryName
+                    );
+                    continue;
+                } else {
+                    throw new SnapshotMissingException(repositoryName, snapshotName);
+                }
+            }
+            SnapshotInfo snapshotInfo = snapshot(snapshotsInProgress, repositoryName, snapshotId);
+            boolean isV2Snapshot = snapshotInfo.getPinnedTimestamp() > 0;
+            if (isV2Snapshot == false && requestUsesIndexFilter == false) {
+                totalShardsAcrossSnapshots += snapshotInfo.totalShards();
+            }
+            snapshotsInfoMap.put(snapshotId, snapshotInfo);
+        }
+        totalShardsRequiredInResponse += totalShardsAcrossSnapshots;
+        if (totalShardsRequiredInResponse > maximumAllowedShardCount && requestUsesIndexFilter == false) {
+            // includes shard contributions from all snapshots (current and completed)
+            handleMaximumAllowedShardCountExceeded(repositoryName, totalShardsRequiredInResponse, false);
+        }
+        return unmodifiableMap(snapshotsInfoMap);
+    }
+
+    /**
      * Returns status of shards currently finished snapshots
      * <p>
      * This method is executed on cluster-manager node and it's complimentary to the
      * {@link SnapshotShardsService#currentSnapshotShards(Snapshot)} because it
      * returns similar information but for already finished snapshots.
      * </p>
-     *
+     * @param request         snapshot status request
      * @param repositoryName  repository name
      * @param snapshotInfo    snapshot info
      * @return map of shard id to snapshot status
      */
     private Map<ShardId, IndexShardSnapshotStatus> snapshotShards(
+        final SnapshotsStatusRequest request,
         final String repositoryName,
         final RepositoryData repositoryData,
         final SnapshotInfo snapshotInfo
     ) throws IOException {
+        String snapshotName = snapshotInfo.snapshotId().getName();
+        Set<String> indicesToProcess;
+        if (requestUsesIndexFilter) {
+            Set<String> snapshotIndices = Sets.newHashSet(snapshotInfo.indices());
+            Set<String> indicesNotFound = requestedIndexNames.stream()
+                .filter(index -> snapshotIndices.contains(index) == false)
+                .collect(Collectors.toSet());
+            if (indicesNotFound.isEmpty() == false) {
+                boolean moreMissingIndicesPossible = indicesNotFound.size() == requestedIndexNames.size();
+                handleIndexNotFound(requestedIndexNames, indicesNotFound, request, snapshotName, moreMissingIndicesPossible);
+            }
+            indicesToProcess = requestedIndexNames;
+        } else {
+            // all indices of this snapshot
+            indicesToProcess = Sets.newHashSet(snapshotInfo.indices());
+        }
+
         final Repository repository = repositoriesService.repository(repositoryName);
-        final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
-        for (String index : snapshotInfo.indices()) {
+        boolean isV2Snapshot = snapshotInfo.getPinnedTimestamp() > 0;
+
+        // for index filter-case and excludes shards from shallow v2 snapshots
+        int totalShardsAcrossIndices = 0;
+        final Map<IndexId, IndexMetadata> indexMetadataMap = new HashMap<>();
+        for (String index : indicesToProcess) {
             IndexId indexId = repositoryData.resolveIndexId(index);
             IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), indexId);
+            if (indexMetadata != null) {
+                if (requestUsesIndexFilter && isV2Snapshot == false) {
+                    totalShardsAcrossIndices += indexMetadata.getNumberOfShards();
+                }
+                indexMetadataMap.put(indexId, indexMetadata);
+            } else if (requestUsesIndexFilter) {
+                handleIndexNotFound(indicesToProcess, Collections.singleton(index), request, snapshotName, true);
+            }
+        }
+
+        totalShardsRequiredInResponse += totalShardsAcrossIndices;
+        if (totalShardsRequiredInResponse > maximumAllowedShardCount && requestUsesIndexFilter && isV2Snapshot == false) {
+            // index-filter is allowed only for a single snapshot, which has to be this one
+            handleMaximumAllowedShardCountExceeded(request.repository(), totalShardsRequiredInResponse, false);
+        }
+
+        final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
+        for (Map.Entry<IndexId, IndexMetadata> entry : indexMetadataMap.entrySet()) {
+            IndexId indexId = entry.getKey();
+            IndexMetadata indexMetadata = entry.getValue();
             if (indexMetadata != null) {
                 int numberOfShards = indexMetadata.getNumberOfShards();
                 for (int i = 0; i < numberOfShards; i++) {
@@ -447,7 +647,11 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                             // could not be taken due to partial being set to false.
                             shardSnapshotStatus = IndexShardSnapshotStatus.newFailed("skipped");
                         } else {
-                            shardSnapshotStatus = repository.getShardSnapshotStatus(snapshotInfo.snapshotId(), indexId, shardId);
+                            if (isV2Snapshot) {
+                                shardSnapshotStatus = IndexShardSnapshotStatus.newDone(0, 0, 0, 0, 0, 0, null);
+                            } else {
+                                shardSnapshotStatus = repository.getShardSnapshotStatus(snapshotInfo.snapshotId(), indexId, shardId);
+                            }
                         }
                         shardStatus.put(shardId, shardSnapshotStatus);
                     }
@@ -455,6 +659,55 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
             }
         }
         return unmodifiableMap(shardStatus);
+    }
+
+    private void handleIndexNotFound(
+        Set<String> indicesToProcess,
+        Set<String> indicesNotFound,
+        SnapshotsStatusRequest request,
+        String snapshotName,
+        boolean moreMissingIndicesPossible
+    ) throws IndexNotFoundException {
+        String indices = String.join(", ", indicesNotFound);
+        if (moreMissingIndicesPossible) {
+            indices = indices.concat(" and possibly more indices");
+        }
+        if (request.ignoreUnavailable()) {
+            // ignoring unavailable indices
+            logger.debug(
+                "snapshot status request ignoring indices [{}], not found in snapshot[{}] in repository [{}]",
+                indices,
+                snapshotName,
+                request.repository()
+            );
+
+            // remove unavailable indices from the set to be processed
+            indicesToProcess.removeAll(indicesNotFound);
+        } else {
+            String cause = "indices ["
+                + indices
+                + "] missing in snapshot ["
+                + snapshotName
+                + "] of repository ["
+                + request.repository()
+                + "]";
+            throw new IndexNotFoundException(indices, new IllegalArgumentException(cause));
+        }
+    }
+
+    private void handleMaximumAllowedShardCountExceeded(String repositoryName, int totalContributingShards, boolean couldInvolveMoreShards)
+        throws CircuitBreakingException {
+        String shardCount = "[" + totalContributingShards + (couldInvolveMoreShards ? "+" : "") + "]";
+        String message = "["
+            + repositoryName
+            + "] Total shard count "
+            + shardCount
+            + " is more than the maximum allowed value of shard count ["
+            + maximumAllowedShardCount
+            + "] for snapshot status request. Try narrowing down the request by using a snapshot list or "
+            + "an index list for a singular snapshot.";
+
+        throw new CircuitBreakingException(message, CircuitBreaker.Durability.PERMANENT);
     }
 
     private static SnapshotShardFailure findShardFailure(List<SnapshotShardFailure> shardFailures, ShardId shardId) {

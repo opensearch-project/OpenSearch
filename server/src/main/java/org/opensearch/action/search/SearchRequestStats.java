@@ -32,7 +32,7 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
     public static final String SEARCH_REQUEST_STATS_ENABLED_KEY = "search.request_stats_enabled";
     public static final Setting<Boolean> SEARCH_REQUEST_STATS_ENABLED = Setting.boolSetting(
         SEARCH_REQUEST_STATS_ENABLED_KEY,
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

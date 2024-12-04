@@ -33,6 +33,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.pagination.PageParams;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
@@ -65,6 +66,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.opensearch.action.pagination.PageParams.PARAM_NEXT_TOKEN;
+import static org.opensearch.action.pagination.PageParams.PARAM_SIZE;
+import static org.opensearch.action.pagination.PageParams.PARAM_SORT;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 
@@ -589,6 +593,10 @@ public class RestRequest implements ToXContent.Params {
             }
         }
         throw new IllegalArgumentException("empty Content-Type header");
+    }
+
+    public PageParams parsePaginatedQueryParams(String defaultSortOrder, int defaultPageSize) {
+        return new PageParams(param(PARAM_NEXT_TOKEN), param(PARAM_SORT, defaultSortOrder), paramAsInt(PARAM_SIZE, defaultPageSize));
     }
 
     /**

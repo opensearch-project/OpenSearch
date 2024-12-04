@@ -2144,6 +2144,17 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Returns the name of all the cluster managers in the cluster
+     */
+    public Set<String> getClusterManagerNames() {
+        return nodes.entrySet()
+            .stream()
+            .filter(entry -> CLUSTER_MANAGER_NODE_PREDICATE.test(entry.getValue()))
+            .map(entry -> entry.getKey())
+            .collect(Collectors.toSet());
+    }
+
+    /**
      * Returns the name of the current cluster-manager node in the cluster.
      */
     public String getClusterManagerName() {
@@ -2716,6 +2727,7 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
                     false,
                     false,
                     false,

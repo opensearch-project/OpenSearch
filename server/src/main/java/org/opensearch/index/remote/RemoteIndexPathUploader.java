@@ -25,7 +25,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.IndexMetadataUploadListener;
 import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
-import org.opensearch.node.Node;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -50,8 +50,8 @@ import static org.opensearch.index.remote.RemoteIndexPath.COMBINED_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.SEGMENT_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.TRANSLOG_PATH;
 import static org.opensearch.index.remote.RemoteStoreUtils.determineRemoteStorePathStrategy;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteClusterStateConfigured;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * Uploads the remote store path for all possible combinations of {@link org.opensearch.index.remote.RemoteStoreEnums.DataCategory}
@@ -69,16 +69,12 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
 
     private static final String TIMEOUT_EXCEPTION_MSG = "Timed out waiting while uploading remote index path file for indexes=%s";
     private static final String UPLOAD_EXCEPTION_MSG = "Exception occurred while uploading remote index paths for indexes=%s";
-    static final String TRANSLOG_REPO_NAME_KEY = Node.NODE_ATTRIBUTES.getKey()
-        + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
-    static final String SEGMENT_REPO_NAME_KEY = Node.NODE_ATTRIBUTES.getKey()
-        + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-
     private static final Logger logger = LogManager.getLogger(RemoteIndexPathUploader.class);
 
     private final Settings settings;
     private final boolean isRemoteDataAttributePresent;
     private final boolean isTranslogSegmentRepoSame;
+    private final RemoteStoreSettings remoteStoreSettings;
     private final Supplier<RepositoriesService> repositoriesService;
     private volatile TimeValue metadataUploadTimeout;
 
@@ -89,7 +85,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         ThreadPool threadPool,
         Settings settings,
         Supplier<RepositoriesService> repositoriesService,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         super(threadPool, ThreadPool.Names.GENERIC);
         this.settings = Objects.requireNonNull(settings);
@@ -100,6 +97,7 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         Objects.requireNonNull(clusterSettings);
         metadataUploadTimeout = clusterSettings.get(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setMetadataUploadTimeout);
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     @Override
@@ -208,7 +206,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
                 basePath,
                 pathType,
                 hashAlgorithm,
-                pathCreationMap
+                pathCreationMap,
+                remoteStoreSettings
             );
             String fileName = generateFileName(indexUUID, idxMD.getVersion(), remoteIndexPath.getVersion());
             REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(remoteIndexPath, blobContainer, fileName, actionListener);
@@ -221,29 +220,29 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         }
     }
 
-    private Repository validateAndGetRepository(String repoSetting) {
-        final String repo = settings.get(repoSetting);
-        assert repo != null : "Remote " + repoSetting + " repository is not configured";
+    private Repository validateAndGetRepository(String repo) {
+        assert repo != null : "Remote repository is not configured";
         final Repository repository = repositoriesService.get().repository(repo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         return repository;
     }
 
     public void start() {
-        assert isRemoteStoreClusterStateEnabled(settings) == true : "Remote cluster state is not enabled";
+        assert isRemoteClusterStateConfigured(settings) == true : "Remote cluster state is not configured";
         if (isRemoteDataAttributePresent == false) {
             // If remote store data attributes are not present than we skip this.
             return;
         }
-        translogRepository = (BlobStoreRepository) validateAndGetRepository(TRANSLOG_REPO_NAME_KEY);
-        segmentRepository = (BlobStoreRepository) validateAndGetRepository(SEGMENT_REPO_NAME_KEY);
+
+        translogRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings));
+        segmentRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings));
     }
 
     private boolean isTranslogSegmentRepoSame() {
         // TODO - The current comparison checks the repository name. But it is also possible that the repository are same
         // by attributes, but different by name. We need to handle this.
-        String translogRepoName = settings.get(TRANSLOG_REPO_NAME_KEY);
-        String segmentRepoName = settings.get(SEGMENT_REPO_NAME_KEY);
+        String translogRepoName = RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings);
+        String segmentRepoName = RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings);
         return Objects.equals(translogRepoName, segmentRepoName);
     }
 

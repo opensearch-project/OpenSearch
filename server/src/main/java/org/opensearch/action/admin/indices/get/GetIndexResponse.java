@@ -167,7 +167,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         }
         dataStreams = Collections.unmodifiableMap(dataStreamsMapBuilder);
 
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             final Map<String, Context> contextMapBuilder = new HashMap<>();
             int contextSize = in.readVInt();
             for (int i = 0; i < contextSize; i++) {
@@ -297,7 +297,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             out.writeOptionalString(indexEntry.getValue());
         }
 
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeVInt(contexts.size());
             for (final Map.Entry<String, Context> indexEntry : contexts.entrySet()) {
                 out.writeString(indexEntry.getKey());

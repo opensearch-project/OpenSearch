@@ -67,6 +67,7 @@ import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFil
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
 import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
@@ -540,6 +541,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
 
     private Map<String, String> getRemoteStoreNodeAttributes() {
         Map<String, String> remoteStoreNodeAttributes = new HashMap<>();
+        remoteStoreNodeAttributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-repo-1");
         remoteStoreNodeAttributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
         remoteStoreNodeAttributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
         return remoteStoreNodeAttributes;
@@ -635,7 +637,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         String metadataPrefix = "metadata__1__2__3__4__5__";
         Map<Long, String> metadataFiles = new HashMap<>();
         for (Long metadataFileTimestamp : metadataFileTimestamps) {
-            metadataFiles.put(metadataFileTimestamp, metadataPrefix + RemoteStoreUtils.invertLong(metadataFileTimestamp));
+            metadataFiles.put(metadataFileTimestamp, metadataPrefix + RemoteStoreUtils.invertLong(metadataFileTimestamp) + "__1");
         }
         return new Tuple<>(
             metadataFiles,
@@ -660,7 +662,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             String primaryTerm = RemoteStoreUtils.invertLong(metadataFileTimestampPrimaryTerm.getValue());
             String metadataPrefix = "metadata__" + primaryTerm + "__2__3__4__5__";
             long metadataFileTimestamp = metadataFileTimestampPrimaryTerm.getKey();
-            metadataFiles.put(metadataFileTimestamp, metadataPrefix + RemoteStoreUtils.invertLong(metadataFileTimestamp));
+            metadataFiles.put(metadataFileTimestamp, metadataPrefix + RemoteStoreUtils.invertLong(metadataFileTimestamp) + "__1");
         }
         return new Tuple<>(
             metadataFiles,
@@ -1080,5 +1082,102 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
     public void testIsPinnedTimestampStateStaleFeatureEnabled() {
         setupRemotePinnedTimestampFeature(true);
         assertTrue(RemoteStoreUtils.isPinnedTimestampStateStale());
+    }
+
+    public void testGetPinnedTimestampLockedFilesWithCache() {
+        setupRemotePinnedTimestampFeature(true);
+
+        Map<Long, String> metadataFilePinnedTimestampCache = new HashMap<>();
+
+        // Pinned timestamps 800, 900, 1000, 2000
+        // Metadata with timestamp 990, 995, 1000, 1001
+        // Metadata timestamp 1000 <= Pinned Timestamp 1000
+        // Metadata timestamp 1001 <= Pinned Timestamp 2000
+        Tuple<Map<Long, String>, Set<String>> metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L, 995L, 1000L, 1001L),
+            Set.of(800L, 900L, 1000L, 2000L),
+            metadataFilePinnedTimestampCache
+        );
+        Map<Long, String> metadataFiles = metadataAndLocks.v1();
+        Set<String> implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(2, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1000L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1001L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(1, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(1000L), metadataFilePinnedTimestampCache.get(1000L));
+
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L, 995L, 1000L, 1001L, 2000L, 2200L),
+            Set.of(800L, 900L, 1000L, 2000L, 3000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+        assertEquals(3, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(1000L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(2000L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(2200L)));
+        assertEquals(2, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(1000L), metadataFilePinnedTimestampCache.get(1000L));
+        assertEquals(metadataFiles.get(2000L), metadataFilePinnedTimestampCache.get(2000L));
+
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(990L, 995L, 1000L, 1001L, 2000L, 2200L, 2500L),
+            Set.of(2000L, 3000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+        assertEquals(2, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(2000L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(2500L)));
+        assertEquals(1, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(2000L), metadataFilePinnedTimestampCache.get(2000L));
+
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(2000L, 2200L, 2500L, 3001L, 4200L, 4600L, 5010L),
+            Set.of(3000L, 4000L, 5000L, 6000L),
+            metadataFilePinnedTimestampCache
+        );
+        metadataFiles = metadataAndLocks.v1();
+        implicitLockedFiles = metadataAndLocks.v2();
+        assertEquals(4, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(2500L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(3001L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(4600L)));
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(5010L)));
+        assertEquals(3, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(2500L), metadataFilePinnedTimestampCache.get(3000L));
+        assertEquals(metadataFiles.get(3001L), metadataFilePinnedTimestampCache.get(4000L));
+        assertEquals(metadataFiles.get(4600L), metadataFilePinnedTimestampCache.get(5000L));
+
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(),
+            Set.of(3000L, 4000L, 5000L, 6000L),
+            metadataFilePinnedTimestampCache
+        );
+        implicitLockedFiles = metadataAndLocks.v2();
+        assertEquals(0, implicitLockedFiles.size());
+        assertEquals(3, metadataFilePinnedTimestampCache.size());
+
+        assertThrows(
+            AssertionError.class,
+            () -> testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+                List.of(2000L, 2200L, 3001L, 4200L, 4600L, 5010L),
+                Set.of(3000L, 4000L, 5000L, 6000L),
+                metadataFilePinnedTimestampCache
+            )
+        );
+
+        metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            List.of(2000L, 2200L, 2500L, 3001L, 4200L, 4600L, 5010L),
+            Set.of(),
+            metadataFilePinnedTimestampCache
+        );
+        implicitLockedFiles = metadataAndLocks.v2();
+        assertEquals(0, implicitLockedFiles.size());
+        assertEquals(0, metadataFilePinnedTimestampCache.size());
     }
 }

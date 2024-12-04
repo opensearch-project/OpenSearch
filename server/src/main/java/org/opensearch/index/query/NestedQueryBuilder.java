@@ -205,11 +205,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         builder.endObject();
     }
 
-    @Override
-    public final String fieldName() {
-        return getDefaultFieldName();
-    }
-
     public static NestedQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         ScoreMode scoreMode = ScoreMode.Avg;
@@ -418,6 +413,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             try {
                 queryShardContext.setParentFilter(parentFilter);
                 queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
+                queryShardContext.setInnerHitQuery(true);
                 try {
                     NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
                         name,
@@ -432,6 +428,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
             } finally {
                 queryShardContext.setParentFilter(previousParentFilter);
+                queryShardContext.setInnerHitQuery(false);
             }
         }
     }

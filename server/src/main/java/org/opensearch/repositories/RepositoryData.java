@@ -111,6 +111,11 @@ public final class RepositoryData {
      * The indices found in the repository across all snapshots, as a name to {@link IndexId} mapping
      */
     private final Map<String, IndexId> indices;
+
+    public Map<IndexId, List<SnapshotId>> getIndexSnapshots() {
+        return indexSnapshots;
+    }
+
     /**
      * The snapshots that each index belongs to.
      */
@@ -546,7 +551,7 @@ public final class RepositoryData {
 
     // Visible for testing only
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion) throws IOException {
-        return snapshotsToXContent(builder, repoMetaVersion, Version.CURRENT);
+        return snapshotsToXContent(builder, repoMetaVersion, Version.V_2_17_0);
     }
 
     /**
@@ -584,7 +589,7 @@ public final class RepositoryData {
         for (final IndexId indexId : getIndices().values()) {
             builder.startObject(indexId.getName());
             builder.field(INDEX_ID, indexId.getId());
-            if (minNodeVersion.onOrAfter(Version.CURRENT)) {
+            if (minNodeVersion.onOrAfter(Version.V_2_17_0)) {
                 builder.field(IndexId.SHARD_PATH_TYPE, indexId.getShardPathType());
             }
             builder.startArray(SNAPSHOTS);

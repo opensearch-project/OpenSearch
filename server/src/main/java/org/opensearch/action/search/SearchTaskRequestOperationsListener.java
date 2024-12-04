@@ -25,6 +25,14 @@ public final class SearchTaskRequestOperationsListener extends SearchRequestOper
 
     @Override
     public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        // Refresh the coordinator node level resource usages
         taskResourceTrackingService.refreshResourceStats(context.getTask());
+        // Remove the shard level resource usages from thread context
+        taskResourceTrackingService.removeTaskResourceUsage();
+    }
+
+    @Override
+    public void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        taskResourceTrackingService.removeTaskResourceUsage();
     }
 }

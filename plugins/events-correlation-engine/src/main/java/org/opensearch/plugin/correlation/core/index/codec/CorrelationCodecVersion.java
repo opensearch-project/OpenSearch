@@ -8,8 +8,8 @@
 
 package org.opensearch.plugin.correlation.core.index.codec;
 
+import org.apache.lucene.backward_codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugin.correlation.core.index.codec.correlation990.CorrelationCodec;
 import org.opensearch.plugin.correlation.core.index.codec.correlation990.PerFieldCorrelationVectorsFormat;

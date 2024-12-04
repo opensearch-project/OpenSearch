@@ -310,6 +310,10 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             ) {
                 consumer.accept(searchRequest, parser);
             }
+
+            if (searchRequest.source() != null && searchRequest.source().pipeline() != null) {
+                searchRequest.pipeline(searchRequest.source().pipeline());
+            }
             // move pointers
             from = nextMarker + 1;
         }

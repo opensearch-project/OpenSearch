@@ -455,6 +455,28 @@
         index: test-iodvq
         body:
           query:
+            term:
+              ip_field: "192.168.0.1/24"
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            term:
+              ip_field: "192.168.0.1/31"
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
             range: {
               date_nanos: {
                 gte: "2018-10-29T12:12:12.123456789Z"
@@ -993,6 +1015,28 @@
         index: test-index
         body:
           query:
+            term:
+              ip_field: "192.168.0.1/24"
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            term:
+              ip_field: "192.168.0.1/31"
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
             range: {
               date_nanos: {
                 gte: "2018-10-29T12:12:12.123456789Z"
@@ -1077,8 +1121,8 @@
 "search on fields with only doc_values enabled":
   - skip:
       features: [ "headers" ]
-      version: " - 2.99.99"
-      reason: "searching with only doc_values was added in 3.0.0"
+      version: " - 2.18.99"
+      reason: "searching with only doc_values was finally added in 2.19.0"
   - do:
       indices.create:
         index: test-doc-values
@@ -1379,6 +1423,28 @@
         body:
           query:
             terms:
+              ip_field: ["192.168.0.1", "192.168.0.2"]
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            terms:
+              ip_field: ["192.168.0.1/31", "192.168.0.3"]
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            terms:
               boolean: [true, false]
 
   - match: { hits.total: 3 }
@@ -1515,6 +1581,28 @@
                 lte: "192.168.0.2"
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            term:
+              ip_field: "192.168.0.1/31"
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            term:
+              ip_field: "192.168.0.1/24"
+
+  - match: { hits.total: 3 }
 
   - do:
       search:

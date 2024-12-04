@@ -61,7 +61,7 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
      * passed, usage for all nodes will be returned.
      */
     public NodesUsageRequest(String... nodesIds) {
-        super(nodesIds);
+        super(false, nodesIds);
     }
 
     /**

@@ -78,7 +78,7 @@ public final class IndexId implements Writeable, ToXContentObject {
     public IndexId(final StreamInput in) throws IOException {
         this.name = in.readString();
         this.id = in.readString();
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             this.shardPathType = in.readVInt();
         } else {
             this.shardPathType = DEFAULT_SHARD_PATH_TYPE;
@@ -145,7 +145,7 @@ public final class IndexId implements Writeable, ToXContentObject {
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(id);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeVInt(shardPathType);
         }
     }

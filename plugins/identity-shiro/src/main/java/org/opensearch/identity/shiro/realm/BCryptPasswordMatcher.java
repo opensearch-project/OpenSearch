@@ -16,8 +16,6 @@ import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
 
 /**
  * Password matcher for BCrypt
- *
- * @opensearch.experimental
  */
 public class BCryptPasswordMatcher implements CredentialsMatcher {
 

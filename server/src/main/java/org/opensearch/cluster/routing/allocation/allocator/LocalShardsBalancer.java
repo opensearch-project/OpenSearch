@@ -30,6 +30,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.opensearch.action.admin.indices.tiering.TieringUtils.isPartialShard;
 import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
 
 /**
@@ -553,6 +555,16 @@ public class LocalShardsBalancer extends ShardsBalancer {
     }
 
     /**
+     * Checks if the shard can be skipped from the local shard balancer operations
+     * @param shardRouting the shard to be checked
+     * @return true if the shard can be skipped, false otherwise
+     */
+    private boolean canShardBeSkipped(ShardRouting shardRouting) {
+        return (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))
+            && !(FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX) && isPartialShard(shardRouting, allocation)));
+    }
+
+    /**
      * Move started shards that can not be allocated to a node anymore
      * <p>
      * For each shard to be moved this function executes a move operation
@@ -603,7 +615,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
             ShardRouting shardRouting = it.next();
 
-            if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
+            if (canShardBeSkipped(shardRouting)) {
                 continue;
             }
 
@@ -669,7 +681,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     MoveDecision decideMove(final ShardRouting shardRouting) {
-        if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
+        if (canShardBeSkipped(shardRouting)) {
             return MoveDecision.NOT_TAKEN;
         }
 
@@ -758,7 +770,9 @@ public class LocalShardsBalancer extends ShardsBalancer {
             for (ShardRouting shard : rn) {
                 assert rn.nodeId().equals(shard.currentNodeId());
                 /* we skip relocating shards here since we expect an initializing shard with the same id coming in */
-                if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)) && shard.state() != RELOCATING) {
+                if ((RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation))
+                    || (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX) && isPartialShard(shard, allocation)))
+                    && shard.state() != RELOCATING) {
                     node.addShard(shard);
                     ++totalShardCount;
                     if (logger.isTraceEnabled()) {

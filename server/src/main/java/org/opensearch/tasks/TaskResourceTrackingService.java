@@ -329,6 +329,13 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     /**
+     * Remove the current task level resource usages.
+     */
+    public void removeTaskResourceUsage() {
+        threadPool.getThreadContext().removeResponseHeader(TASK_RESOURCE_USAGE);
+    }
+
+    /**
      * Get the task resource usages from {@link ThreadContext}
      *
      * @return {@link TaskResourceInfo}

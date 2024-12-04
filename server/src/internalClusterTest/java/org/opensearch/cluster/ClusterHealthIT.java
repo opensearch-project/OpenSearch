@@ -37,6 +37,8 @@ import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.health.ClusterIndexHealth;
+import org.opensearch.cluster.health.ClusterShardHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
@@ -49,6 +51,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -438,5 +441,165 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
             keepSubmittingTasks.set(false);
             completionFuture.actionGet(TimeValue.timeValueSeconds(30));
         }
+    }
+
+    public void testHealthWithClusterLevelAppliedAtTransportLayer() {
+        createIndex(
+            "test1",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        ensureGreen();
+        ClusterHealthResponse healthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setApplyLevelAtTransportLayer(true)
+            .execute()
+            .actionGet();
+        assertEquals(ClusterHealthStatus.GREEN, healthResponse.getStatus());
+        assertTrue(healthResponse.getIndices().isEmpty());
+        assertEquals(1, healthResponse.getActiveShards());
+        assertEquals(1, healthResponse.getActivePrimaryShards());
+        assertEquals(0, healthResponse.getUnassignedShards());
+        assertEquals(0, healthResponse.getInitializingShards());
+        assertEquals(0, healthResponse.getRelocatingShards());
+        assertEquals(0, healthResponse.getDelayedUnassignedShards());
+    }
+
+    public void testHealthWithIndicesLevelAppliedAtTransportLayer() {
+        createIndex(
+            "test1",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        ensureGreen();
+        ClusterHealthResponse healthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setLevel("indices")
+            .setApplyLevelAtTransportLayer(true)
+            .execute()
+            .actionGet();
+        assertEquals(ClusterHealthStatus.GREEN, healthResponse.getStatus());
+
+        assertEquals(1, healthResponse.getActiveShards());
+        assertEquals(1, healthResponse.getActivePrimaryShards());
+        assertEquals(0, healthResponse.getUnassignedShards());
+        assertEquals(0, healthResponse.getInitializingShards());
+        assertEquals(0, healthResponse.getRelocatingShards());
+        assertEquals(0, healthResponse.getDelayedUnassignedShards());
+
+        Map<String, ClusterIndexHealth> indices = healthResponse.getIndices();
+        assertFalse(indices.isEmpty());
+        assertEquals(1, indices.size());
+        for (Map.Entry<String, ClusterIndexHealth> indicesHealth : indices.entrySet()) {
+            String indexName = indicesHealth.getKey();
+            assertEquals("test1", indexName);
+            ClusterIndexHealth indicesHealthValue = indicesHealth.getValue();
+            assertEquals(1, indicesHealthValue.getActiveShards());
+            assertEquals(1, indicesHealthValue.getActivePrimaryShards());
+            assertEquals(0, indicesHealthValue.getInitializingShards());
+            assertEquals(0, indicesHealthValue.getUnassignedShards());
+            assertEquals(0, indicesHealthValue.getDelayedUnassignedShards());
+            assertEquals(0, indicesHealthValue.getRelocatingShards());
+            assertEquals(ClusterHealthStatus.GREEN, indicesHealthValue.getStatus());
+            assertTrue(indicesHealthValue.getShards().isEmpty());
+        }
+    }
+
+    public void testHealthWithShardLevelAppliedAtTransportLayer() {
+        int dataNodes = internalCluster().getDataNodeNames().size();
+        int greenClusterReplicaCount = dataNodes - 1;
+        int yellowClusterReplicaCount = dataNodes;
+
+        createIndex(
+            "test1",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, greenClusterReplicaCount)
+                .build()
+        );
+        ensureGreen(TimeValue.timeValueSeconds(120), "test1");
+        createIndex(
+            "test2",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, greenClusterReplicaCount)
+                .build()
+        );
+        ensureGreen(TimeValue.timeValueSeconds(120));
+        client().admin()
+            .indices()
+            .prepareUpdateSettings()
+            .setIndices("test2")
+            .setSettings(Settings.builder().put("index.number_of_replicas", yellowClusterReplicaCount).build())
+            .execute()
+            .actionGet();
+        ClusterHealthResponse healthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setLevel("shards")
+            .setApplyLevelAtTransportLayer(true)
+            .execute()
+            .actionGet();
+        assertEquals(ClusterHealthStatus.YELLOW, healthResponse.getStatus());
+
+        assertEquals(2 * dataNodes, healthResponse.getActiveShards());
+        assertEquals(2, healthResponse.getActivePrimaryShards());
+        assertEquals(1, healthResponse.getUnassignedShards());
+        assertEquals(0, healthResponse.getInitializingShards());
+        assertEquals(0, healthResponse.getRelocatingShards());
+        assertEquals(0, healthResponse.getDelayedUnassignedShards());
+
+        Map<String, ClusterIndexHealth> indices = healthResponse.getIndices();
+        assertFalse(indices.isEmpty());
+        assertEquals(2, indices.size());
+        for (Map.Entry<String, ClusterIndexHealth> indicesHealth : indices.entrySet()) {
+            String indexName = indicesHealth.getKey();
+            boolean indexHasMoreReplicas = indexName.equals("test2");
+            ClusterIndexHealth indicesHealthValue = indicesHealth.getValue();
+            assertEquals(dataNodes, indicesHealthValue.getActiveShards());
+            assertEquals(1, indicesHealthValue.getActivePrimaryShards());
+            assertEquals(0, indicesHealthValue.getInitializingShards());
+            assertEquals(indexHasMoreReplicas ? 1 : 0, indicesHealthValue.getUnassignedShards());
+            assertEquals(0, indicesHealthValue.getDelayedUnassignedShards());
+            assertEquals(0, indicesHealthValue.getRelocatingShards());
+            assertEquals(indexHasMoreReplicas ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN, indicesHealthValue.getStatus());
+            Map<Integer, ClusterShardHealth> shards = indicesHealthValue.getShards();
+            assertFalse(shards.isEmpty());
+            assertEquals(1, shards.size());
+            for (Map.Entry<Integer, ClusterShardHealth> shardHealth : shards.entrySet()) {
+                ClusterShardHealth clusterShardHealth = shardHealth.getValue();
+                assertEquals(dataNodes, clusterShardHealth.getActiveShards());
+                assertEquals(indexHasMoreReplicas ? 1 : 0, clusterShardHealth.getUnassignedShards());
+                assertEquals(0, clusterShardHealth.getDelayedUnassignedShards());
+                assertEquals(0, clusterShardHealth.getRelocatingShards());
+                assertEquals(0, clusterShardHealth.getInitializingShards());
+                assertTrue(clusterShardHealth.isPrimaryActive());
+                assertEquals(indexHasMoreReplicas ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN, clusterShardHealth.getStatus());
+            }
+        }
+    }
+
+    public void testHealthWithAwarenessAttributesLevelAppliedAtTransportLayer() {
+        createIndex(
+            "test1",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        ensureGreen();
+        ClusterHealthResponse healthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setLevel("awareness_attributes")
+            .setApplyLevelAtTransportLayer(true)
+            .execute()
+            .actionGet();
+        assertEquals(ClusterHealthStatus.GREEN, healthResponse.getStatus());
+        assertTrue(healthResponse.getIndices().isEmpty());
+        assertNotNull(healthResponse.getClusterAwarenessHealth());
+        assertEquals(1, healthResponse.getActiveShards());
+        assertEquals(1, healthResponse.getActivePrimaryShards());
+        assertEquals(0, healthResponse.getUnassignedShards());
+        assertEquals(0, healthResponse.getInitializingShards());
+        assertEquals(0, healthResponse.getRelocatingShards());
+        assertEquals(0, healthResponse.getDelayedUnassignedShards());
     }
 }

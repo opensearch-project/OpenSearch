@@ -86,7 +86,7 @@ public class IndexIdTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
         IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomIntBetween(0, 2));
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.CURRENT);
+        out.setVersion(Version.V_2_17_0);
         indexId.writeTo(out);
         assertEquals(indexId, new IndexId(out.bytes().streamInput()));
     }

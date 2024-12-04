@@ -184,6 +184,14 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * The state that is persisted to store but may not be applied to cluster.
+     * @return ClusterState
+     */
+    public ClusterState preCommitState() {
+        return clusterApplierService.preCommitState();
+    }
+
+    /**
      * Adds a high priority applier of updated cluster states.
      */
     public void addHighPriorityApplier(ClusterStateApplier applier) {

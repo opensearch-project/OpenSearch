@@ -35,6 +35,6 @@ public class CreateQueryGroupRequestTests extends OpenSearchTestCase {
         List<QueryGroup> list2 = new ArrayList<>();
         list1.add(queryGroupOne);
         list2.add(otherRequest.getQueryGroup());
-        assertEqualQueryGroups(list1, list2);
+        assertEqualQueryGroups(list1, list2, false);
     }
 }

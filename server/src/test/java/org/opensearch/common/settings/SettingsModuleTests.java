@@ -290,20 +290,27 @@ public class SettingsModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), settingValue).build();
         SettingsModule settingsModule = new SettingsModule(settings);
         assertEquals(settingValue, SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.get(settingsModule.getSettings()));
+        assertSettingDeprecationsAndWarnings(new Setting[] { SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING });
     }
 
     public void testConcurrentSegmentSearchIndexSettings() {
         Settings.Builder target = Settings.builder().put(Settings.EMPTY);
         Settings.Builder update = Settings.builder();
-
+        boolean settingValue = randomBoolean();
         SettingsModule module = new SettingsModule(Settings.EMPTY);
         IndexScopedSettings indexScopedSettings = module.getIndexScopedSettings();
         indexScopedSettings.updateDynamicSettings(
-            Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build(),
+            Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), settingValue).build(),
             target,
             update,
             "node"
         );
+        // apply the setting update
+        module.getIndexScopedSettings()
+            .applySettings(Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), settingValue).build());
+        // assert value
+        assertEquals(settingValue, module.getIndexScopedSettings().get(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING));
+        assertSettingDeprecationsAndWarnings(new Setting[] { IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING });
     }
 
     public void testMaxSliceCountClusterSettingsForConcurrentSearch() {

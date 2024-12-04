@@ -66,6 +66,7 @@ import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -109,13 +110,16 @@ public class RemoteSplitIndexIT extends RemoteStoreBaseIntegTestCase {
         assertAcked(
             client().admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get()
         );
-        assertBusy(() -> {
-            try {
-                assertEquals(0, getFileCount(translogRepoPath));
-            } catch (IOException e) {
-                fail();
-            }
-        }, 30, TimeUnit.SECONDS);
+        // With pinned timestamp, we can have tlog files even after deletion.
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
+            assertBusy(() -> {
+                try {
+                    assertEquals(0, getFileCount(translogRepoPath));
+                } catch (IOException e) {
+                    fail();
+                }
+            }, 30, TimeUnit.SECONDS);
+        }
         super.teardown();
     }
 

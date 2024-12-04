@@ -272,6 +272,18 @@ public final class DiffableUtils {
         }
 
         @Override
+        public String toString() {
+            return new StringBuilder().append("MapDiff{deletes=")
+                .append(deletes)
+                .append(", diffs=")
+                .append(diffs)
+                .append(", upserts=")
+                .append(upserts)
+                .append("}")
+                .toString();
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(deletes, (o, v) -> keySerializer.writeKey(v, o));
             Version version = out.getVersion();

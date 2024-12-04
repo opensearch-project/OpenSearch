@@ -9,7 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class MetricAggregatorInfoTests extends OpenSearchTestCase {
@@ -19,7 +19,7 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE
+            NumberFieldMapper.NumberType.DOUBLE
         );
         assertEquals(MetricStat.SUM, pair.getMetricStat());
         assertEquals("column1", pair.getField());
@@ -30,7 +30,7 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.VALUE_COUNT,
             "anything",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE
+            NumberFieldMapper.NumberType.DOUBLE
         );
         assertEquals(MetricStat.VALUE_COUNT, pair.getMetricStat());
         assertEquals("anything", pair.getField());
@@ -41,7 +41,7 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.SUM,
             "column2",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE
+            NumberFieldMapper.NumberType.DOUBLE
         );
         assertEquals("star_tree_field_column2_sum", pair.toFieldName());
     }
@@ -51,23 +51,20 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE
+            NumberFieldMapper.NumberType.DOUBLE
         );
         MetricAggregatorInfo pair2 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE
+            NumberFieldMapper.NumberType.DOUBLE
         );
         assertEquals(pair1, pair2);
         assertNotEquals(
             pair1,
-            new MetricAggregatorInfo(MetricStat.VALUE_COUNT, "column1", "star_tree_field", IndexNumericFieldData.NumericType.DOUBLE)
+            new MetricAggregatorInfo(MetricStat.VALUE_COUNT, "column1", "star_tree_field", NumberFieldMapper.NumberType.DOUBLE)
         );
-        assertNotEquals(
-            pair1,
-            new MetricAggregatorInfo(MetricStat.SUM, "column2", "star_tree_field", IndexNumericFieldData.NumericType.DOUBLE)
-        );
+        assertNotEquals(pair1, new MetricAggregatorInfo(MetricStat.SUM, "column2", "star_tree_field", NumberFieldMapper.NumberType.DOUBLE));
     }
 
     public void testHashCode() {
@@ -75,13 +72,13 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE
+            NumberFieldMapper.NumberType.DOUBLE
         );
         MetricAggregatorInfo pair2 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE
+            NumberFieldMapper.NumberType.DOUBLE
         );
         assertEquals(pair1.hashCode(), pair2.hashCode());
     }
@@ -91,19 +88,19 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE
+            NumberFieldMapper.NumberType.DOUBLE
         );
         MetricAggregatorInfo pair2 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column2",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE
+            NumberFieldMapper.NumberType.DOUBLE
         );
         MetricAggregatorInfo pair3 = new MetricAggregatorInfo(
             MetricStat.VALUE_COUNT,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE
+            NumberFieldMapper.NumberType.DOUBLE
         );
         assertTrue(pair1.compareTo(pair2) < 0);
         assertTrue(pair2.compareTo(pair1) > 0);

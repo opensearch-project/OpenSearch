@@ -28,6 +28,16 @@ import java.util.Optional;
 @ExperimentalApi
 public interface SecureHttpTransportSettingsProvider {
     /**
+     * The well-known name of header verifier {@link TransportAdapterProvider} provider instance
+     */
+    final String REQUEST_HEADER_VERIFIER = "HeaderVerifier";
+
+    /**
+     * The well-known name of request decompressor {@link TransportAdapterProvider} provider instance
+     */
+    final String REQUEST_DECOMPRESSOR = "RequestDecompressor";
+
+    /**
      * Collection of additional {@link TransportAdapterProvider}s that are specific to particular HTTP transport
      * @param settings settings
      * @return a collection of additional {@link TransportAdapterProvider}s
