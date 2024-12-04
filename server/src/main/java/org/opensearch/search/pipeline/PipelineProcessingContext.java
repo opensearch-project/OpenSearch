@@ -8,7 +8,10 @@
 
 package org.opensearch.search.pipeline;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -16,6 +19,9 @@ import java.util.Map;
  */
 public class PipelineProcessingContext {
     private final Map<String, Object> attributes = new HashMap<>();
+
+    // Key for processor execution details
+    private static final String PROCESSOR_EXECUTION_DETAILS_KEY = "processorExecutionDetails";
 
     /**
      * Set a generic attribute in the state for this request. Overwrites any existing value.
@@ -35,4 +41,31 @@ public class PipelineProcessingContext {
     public Object getAttribute(String name) {
         return attributes.get(name);
     }
+
+    /**
+     * Add a ProcessorExecutionDetail to the list of execution details.
+     *
+     * @param detail the ProcessorExecutionDetail to add
+     */
+    @SuppressWarnings("unchecked")
+    public void addProcessorExecutionDetail(ProcessorExecutionDetail detail) {
+        attributes.computeIfAbsent(PROCESSOR_EXECUTION_DETAILS_KEY, k -> new ArrayList<ProcessorExecutionDetail>());
+        List<ProcessorExecutionDetail> details = (List<ProcessorExecutionDetail>) attributes.get(PROCESSOR_EXECUTION_DETAILS_KEY);
+        details.add(detail);
+    }
+
+    /**
+     * Get all ProcessorExecutionDetails recorded in this context.
+     *
+     * @return an unmodifiable list of ProcessorExecutionDetails
+     */
+    @SuppressWarnings("unchecked")
+    public List<ProcessorExecutionDetail> getProcessorExecutionDetails() {
+        Object details = attributes.get(PROCESSOR_EXECUTION_DETAILS_KEY);
+        if (details instanceof List) {
+            return Collections.unmodifiableList((List<ProcessorExecutionDetail>) details);
+        }
+        return Collections.emptyList();
+    }
+
 }

@@ -59,6 +59,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.pipeline.ProcessorExecutionDetail;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.suggest.Suggest;
@@ -394,6 +395,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         List<ShardSearchFailure> failures = new ArrayList<>();
         Clusters clusters = Clusters.EMPTY;
         List<SearchExtBuilder> extBuilders = new ArrayList<>();
+        List<ProcessorExecutionDetail> processorResult = new ArrayList<>();
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
             if (token == Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -530,7 +532,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             terminatedEarly,
             profile,
             numReducePhases,
-            extBuilders
+            extBuilders,
+            processorResult
         );
         return new SearchResponse(
             searchResponseSections,
