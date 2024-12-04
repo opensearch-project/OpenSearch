@@ -37,6 +37,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -164,6 +165,22 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
      */
     public SearchHit[] getHits() {
         return this.hits;
+    }
+
+    /**
+     * Creates a deep copy of this SearchHits instance.
+     *
+     * @return a deep copy of the current SearchHits object
+     * @throws IOException if an I/O exception occurs during serialization or deserialization
+     */
+    public SearchHits deepCopy() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            this.writeTo(out);
+
+            try (StreamInput in = out.bytes().streamInput()) {
+                return new SearchHits(in);
+            }
+        }
     }
 
     /**

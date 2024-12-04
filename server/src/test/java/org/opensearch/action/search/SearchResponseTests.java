@@ -176,7 +176,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 timedOut,
                 terminatedEarly,
                 numReducePhases,
-                searchExtBuilders
+                searchExtBuilders,
+                Collections.emptyList()
             );
         } else {
             internalSearchResponse = InternalSearchResponse.empty();
@@ -321,7 +322,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
                     false,
                     null,
                     1,
-                    List.of(new DummySearchExtBuilder(dummyId))
+                    List.of(new DummySearchExtBuilder(dummyId)),
+                    Collections.emptyList()
                 ),
                 null,
                 0,
