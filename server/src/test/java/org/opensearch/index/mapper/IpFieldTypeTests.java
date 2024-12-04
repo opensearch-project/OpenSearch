@@ -205,14 +205,12 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         );
 
         // if the list includes a prefix query we fallback to a bool query
-        assertEquals(
-            new ConstantScoreQuery(
-                new BooleanQuery.Builder().add(ft.termQuery("::42", null), Occur.SHOULD)
-                    .add(ft.termQuery("::2/16", null), Occur.SHOULD)
-                    .build()
-            ),
-            ft.termsQuery(Arrays.asList("::42", "::2/16"), null)
-        );
+        Query actual = ft.termsQuery(Arrays.asList("::42", "::2/16"), null);
+        assertTrue(actual instanceof ConstantScoreQuery);
+        assertTrue(((ConstantScoreQuery) actual).getQuery() instanceof BooleanQuery);
+        BooleanQuery bq = (BooleanQuery) ((ConstantScoreQuery) actual).getQuery();
+        assertEquals(2, bq.clauses().size());
+        assertTrue(bq.clauses().stream().allMatch(c -> c.getOccur() == Occur.SHOULD));
     }
 
     public void testDvOnlyTermsQuery() {
@@ -236,6 +234,14 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             ),
             dvOnly.termsQuery(Arrays.asList("::42", "::2/16"), null)
         );
+    }
+
+    public void testDvVsPoint() {
+        MappedFieldType indexOnly = new IpFieldMapper.IpFieldType("field", true, false, false, null, Collections.emptyMap());
+        MappedFieldType dvOnly = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
+        MappedFieldType indexDv = new IpFieldMapper.IpFieldType("field", true, false, true, null, Collections.emptyMap());
+        assertEquals("ignore DV", indexOnly.termsQuery(List.of("::2/16"), null), indexDv.termsQuery(List.of("::2/16"), null));
+        assertEquals(dvOnly.termQuery("::2/16", null), dvOnly.termsQuery(List.of("::2/16"), null));
     }
 
     public void testRangeQuery() {
