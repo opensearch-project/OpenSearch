@@ -301,11 +301,15 @@ public class BootstrapForTesting {
     private static Set<String> getTrustedHosts() {
         //
         try {
-            return Collections.list(NetworkInterface.getNetworkInterfaces())
+            List<String> hosts = Collections.list(NetworkInterface.getNetworkInterfaces())
                 .stream()
                 .flatMap(iface -> Collections.list(iface.getInetAddresses()).stream())
                 .map(address -> NetworkAddress.format(address))
-                .collect(Collectors.toSet());
+                .collect(Collectors.toList());
+            // 0:0:0:0:0:0:0:1 is simplified to ::1, in it test, the incoming address can be 0:0:0:0:0:0:0:1,
+            // so we should add it to trusted hosts.
+            hosts.add("0:0:0:0:0:0:0:1");
+            return Collections.unmodifiableSet(new HashSet<>(hosts));
         } catch (final SocketException e) {
             return Collections.emptySet();
         }
