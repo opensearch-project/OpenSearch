@@ -505,9 +505,9 @@ public enum MultiValueMode implements Writeable {
         @Override
         protected int pick(SortedSetDocValues values) throws IOException {
             long maxOrd = -1;
-            int count = 0;
-            for (long ord = values.nextOrd(); count < values.docValueCount() && ord != SortedSetDocValues.NO_MORE_DOCS; ord = values
-                .nextOrd(), ++count) {
+            int count = values.docValueCount();
+            long ord;
+            while ((count-- > 0) && (ord = values.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                 maxOrd = ord;
             }
             return Math.toIntExact(maxOrd);
