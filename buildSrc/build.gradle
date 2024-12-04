@@ -126,7 +126,7 @@ dependencies {
   }
   api 'org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r'
   api 'org.apache.rat:apache-rat:0.13'
-  api 'commons-io:commons-io:2.7'
+  api 'commons-io:commons-io:2.16.0'
   api "net.java.dev.jna:jna:5.5.0"
   api 'com.github.jengelman.gradle.plugins:shadow:6.0.0'
   api 'de.thetaphi:forbiddenapis:3.2'
