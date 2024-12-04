@@ -12,6 +12,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump `Netty` from 4.1.114.Final to 4.1.115.Final ([#16661](https://github.com/opensearch-project/OpenSearch/pull/16661))
 - Bump `avro` from 1.11.3 to 1.11.4 ([#16773](https://github.com/opensearch-project/OpenSearch/pull/16773))
 - Bump `protobuf-java` to 3.22.5 ([#16779](https://github.com/opensearch-project/OpenSearch/pull/16779))
+- Bump `commonsio` to 2.16.0 ([#16780](https://github.com/opensearch-project/OpenSearch/pull/16780))
 
 ### Changed
 ### Deprecated
