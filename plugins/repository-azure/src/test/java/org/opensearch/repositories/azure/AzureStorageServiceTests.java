@@ -43,6 +43,7 @@ import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 
 import java.io.IOException;
@@ -58,6 +59,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import reactor.core.scheduler.Schedulers;
+import reactor.netty.http.HttpResources;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
@@ -70,6 +72,16 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     @AfterClass
     public static void shutdownSchedulers() {
         Schedulers.shutdownNow();
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        try {
+            // Properly shut down resources
+            HttpResources.disposeLoopsAndConnectionsLater().block();
+        } finally {
+            super.tearDown();
+        }
     }
 
     public void testReadSecuredSettings() {
