@@ -61,9 +61,15 @@ public interface ResourceAccessControlPlugin {
      * @param resourceId if of the resource to be updated
      * @param systemIndexName index where this resource is defined
      * @param revokeAccess a map that contains entries of entities whose access should be revoked
+     * @param scopes Scopes to be checked for revoking access. If empty, all scopes will be checked.
      * @return the updated ResourceSharing record
      */
-    ResourceSharing revokeAccess(String resourceId, String systemIndexName, Map<EntityType, List<String>> revokeAccess);
+    ResourceSharing revokeAccess(
+        String resourceId,
+        String systemIndexName,
+        Map<EntityType, List<String>> revokeAccess,
+        List<String> scopes
+    );
 
     /**
      * Deletes an entry from .resource_sharing index

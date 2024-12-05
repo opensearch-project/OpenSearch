@@ -61,10 +61,16 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
      * @param resourceId if of the resource to be updated
      * @param systemIndexName index where this resource is defined
      * @param revokeAccess a map that contains entries of entities whose access should be revoked
+     * @param scopes a list of scopes to be checked for revoking access. If empty, all scopes will be checked.
      * @return null since security plugin is disabled in the cluster
      */
     @Override
-    public ResourceSharing revokeAccess(String resourceId, String systemIndexName, Map<EntityType, List<String>> revokeAccess) {
+    public ResourceSharing revokeAccess(
+        String resourceId,
+        String systemIndexName,
+        Map<EntityType, List<String>> revokeAccess,
+        List<String> scopes
+    ) {
         return null;
     }
 
