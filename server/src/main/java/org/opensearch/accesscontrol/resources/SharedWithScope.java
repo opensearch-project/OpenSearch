@@ -16,9 +16,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Defines the scope and who this scope is shared with
@@ -95,45 +94,45 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
         private static final String ROLES_FIELD = EntityType.ROLES.toString();
         private static final String BACKEND_ROLES_FIELD = EntityType.BACKEND_ROLES.toString();
 
-        private List<String> users;
+        private Set<String> users;
 
-        private List<String> roles;
+        private Set<String> roles;
 
-        private List<String> backendRoles;
+        private Set<String> backendRoles;
 
-        public SharedWithPerScope(List<String> users, List<String> roles, List<String> backendRoles) {
+        public SharedWithPerScope(Set<String> users, Set<String> roles, Set<String> backendRoles) {
             this.users = users;
             this.roles = roles;
             this.backendRoles = backendRoles;
         }
 
         public SharedWithPerScope(StreamInput in) throws IOException {
-            this.users = Arrays.asList(in.readStringArray());
-            this.roles = Arrays.asList(in.readStringArray());
-            this.backendRoles = Arrays.asList(in.readStringArray());
+            this.users = Set.of(in.readStringArray());
+            this.roles = Set.of(in.readStringArray());
+            this.backendRoles = Set.of(in.readStringArray());
         }
 
-        public List<String> getUsers() {
+        public Set<String> getUsers() {
             return users;
         }
 
-        public void setUsers(List<String> users) {
+        public void setUsers(Set<String> users) {
             this.users = users;
         }
 
-        public List<String> getRoles() {
+        public Set<String> getRoles() {
             return roles;
         }
 
-        public void setRoles(List<String> roles) {
+        public void setRoles(Set<String> roles) {
             this.roles = roles;
         }
 
-        public List<String> getBackendRoles() {
+        public Set<String> getBackendRoles() {
             return backendRoles;
         }
 
-        public void setBackendRoles(List<String> backendRoles) {
+        public void setBackendRoles(Set<String> backendRoles) {
             this.backendRoles = backendRoles;
         }
 
@@ -163,9 +162,9 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
         }
 
         public static SharedWithPerScope fromXContent(XContentParser parser) throws IOException {
-            List<String> users = new ArrayList<>();
-            List<String> roles = new ArrayList<>();
-            List<String> backendRoles = new ArrayList<>();
+            Set<String> users = new HashSet<>();
+            Set<String> roles = new HashSet<>();
+            Set<String> backendRoles = new HashSet<>();
 
             XContentParser.Token token;
             String currentFieldName = null;
@@ -194,7 +193,7 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
             return new SharedWithPerScope(users, roles, backendRoles);
         }
 
-        private void writeFieldOrEmptyArray(XContentBuilder builder, String fieldName, List<String> values) throws IOException {
+        private void writeFieldOrEmptyArray(XContentBuilder builder, String fieldName, Set<String> values) throws IOException {
             if (values != null) {
                 builder.field(fieldName, values);
             } else {
