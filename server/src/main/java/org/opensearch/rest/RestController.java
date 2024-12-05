@@ -41,7 +41,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.common.xcontent.XContentType;
@@ -54,11 +53,8 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpServerTransport;
-import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.Subject;
-import org.opensearch.identity.tokens.AuthToken;
-import org.opensearch.identity.tokens.RestTokenExtractor;
 import org.opensearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -71,11 +67,15 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+
+import org.reactivestreams.Subscriber;
+import reactor.core.publisher.Mono;
 
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
@@ -119,25 +119,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private final IdentityService identityService;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
-        UsageService usageService,
-        IdentityService identityService
+        UsageService usageService
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
+
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        this.identityService = identityService;
         registerHandlerNoWrap(
             RestRequest.Method.GET,
             "/favicon.ico",
@@ -258,6 +256,32 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     @Override
+    public Optional<RestHandler> dispatchHandler(String uri, String rawPath, RestRequest.Method method, Map<String, String> params) {
+        // Loop through all possible handlers, attempting to dispatch the request
+        final Iterator<RestMethodHandlers> allHandlers = getAllRestMethodHandlers(params, rawPath);
+
+        while (allHandlers.hasNext()) {
+            final RestHandler handler;
+            final RestMethodHandlers handlers = allHandlers.next();
+            if (handlers == null) {
+                handler = null;
+            } else {
+                handler = handlers.getHandler(method);
+            }
+            if (handler == null) {
+                final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
+                if (validMethodSet.contains(method) == false) {
+                    return Optional.empty();
+                }
+            } else {
+                return Optional.of(handler);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         try {
             tryAllHandlers(request, channel, threadContext);
@@ -294,8 +318,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
         final int contentLength = request.content().length();
+        final MediaType mediaType = request.getMediaType();
         if (contentLength > 0) {
-            final MediaType mediaType = request.getMediaType();
             if (mediaType == null) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
@@ -311,6 +335,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
+
         RestChannel responseChannel = channel;
         try {
             if (handler.canTripCircuitBreaker()) {
@@ -318,8 +343,30 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
-            // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+
+            if (handler.supportsStreaming()) {
+                // The handler may support streaming but not the engine, in this case we fail with the bad request
+                if (channel instanceof StreamingRestChannel) {
+                    responseChannel = new StreamHandlingHttpChannel((StreamingRestChannel) channel, circuitBreakerService, contentLength);
+                } else {
+                    throw new IllegalStateException(
+                        "The engine does not support HTTP streaming, unable to serve uri ["
+                            + request.getHttpRequest().uri()
+                            + "] and method ["
+                            + request.getHttpRequest().method()
+                            + "]"
+                    );
+                }
+
+                if (mediaType == null) {
+                    sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), responseChannel);
+                    return;
+                }
+            } else {
+                // if we could reserve bytes for the request we need to send the response also over this channel
+                responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            }
+
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -417,11 +464,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    if (FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {
-                        if (!handleAuthenticateUser(request, channel)) {
-                            return;
-                        }
-                    }
                     dispatchRequest(request, channel, handler);
                     return;
                 }
@@ -533,41 +575,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     /**
-     * Attempts to extract auth token and login.
-     *
-     * @return false if there was an error and the request should not continue being dispatched
-     * */
-    private boolean handleAuthenticateUser(final RestRequest request, final RestChannel channel) {
-        try {
-            final AuthToken token = RestTokenExtractor.extractToken(request);
-            // If no token was found, continue executing the request
-            if (token == null) {
-                // Authentication did not fail so return true. Authorization is handled at the action level.
-                return true;
-            }
-            final Subject currentSubject = identityService.getSubject();
-            currentSubject.authenticate(token);
-            logger.debug("Logged in as user " + currentSubject);
-        } catch (final Exception e) {
-            try {
-                final BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(
-                    channel,
-                    RestStatus.UNAUTHORIZED,
-                    e.getMessage()
-                );
-                channel.sendResponse(bytesRestResponse);
-            } catch (final Exception ex) {
-                final BytesRestResponse bytesRestResponse = new BytesRestResponse(RestStatus.UNAUTHORIZED, ex.getMessage());
-                channel.sendResponse(bytesRestResponse);
-            }
-            return false;
-        }
-
-        // Authentication did not fail so return true. Authorization is handled at the action level.
-        return true;
-    }
-
-    /**
      * Get the valid set of HTTP methods for a REST request.
      */
     private Set<RestRequest.Method> getValidHandlerMethodSet(String rawPath) {
@@ -642,7 +649,102 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
+    }
 
+    private static final class StreamHandlingHttpChannel implements StreamingRestChannel {
+        private final StreamingRestChannel delegate;
+        private final CircuitBreakerService circuitBreakerService;
+        private final int contentLength;
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private final AtomicBoolean subscribed = new AtomicBoolean();
+
+        StreamHandlingHttpChannel(StreamingRestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+            this.delegate = delegate;
+            this.circuitBreakerService = circuitBreakerService;
+            this.contentLength = contentLength;
+        }
+
+        @Override
+        public XContentBuilder newBuilder() throws IOException {
+            return delegate.newBuilder();
+        }
+
+        @Override
+        public XContentBuilder newErrorBuilder() throws IOException {
+            return delegate.newErrorBuilder();
+        }
+
+        @Override
+        public XContentBuilder newBuilder(@Nullable MediaType mediaType, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(mediaType, useFiltering);
+        }
+
+        @Override
+        public XContentBuilder newBuilder(MediaType mediaType, MediaType responseContentType, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(mediaType, responseContentType, useFiltering);
+        }
+
+        @Override
+        public BytesStreamOutput bytesOutput() {
+            return delegate.bytesOutput();
+        }
+
+        @Override
+        public RestRequest request() {
+            return delegate.request();
+        }
+
+        @Override
+        public boolean detailedErrorsEnabled() {
+            return delegate.detailedErrorsEnabled();
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            close();
+
+            // Check if subscribe() is already called, the headers and status are going to be sent
+            // over so we need to populate those **before** that, if possible.
+            if (subscribed.get() == false) {
+                prepareResponse(response.status(), Map.of("Content-Type", List.of(response.contentType())));
+            }
+
+            Mono.from(this).ignoreElement().then(Mono.just(response)).subscribe(delegate::sendResponse);
+        }
+
+        @Override
+        public void sendChunk(HttpChunk chunk) {
+            delegate.sendChunk(chunk);
+        }
+
+        @Override
+        public void prepareResponse(RestStatus status, Map<String, List<String>> headers) {
+            delegate.prepareResponse(status, headers);
+        }
+
+        @Override
+        public void subscribe(Subscriber<? super HttpChunk> subscriber) {
+            subscribed.set(true);
+            delegate.subscribe(subscriber);
+        }
+
+        private void close() {
+            // attempt to close once atomically
+            if (closed.compareAndSet(false, true) == false) {
+                throw new IllegalStateException("Channel is already closed");
+            }
+            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+        }
+
+        @Override
+        public boolean isReadable() {
+            return delegate.isReadable();
+        }
+
+        @Override
+        public boolean isWritable() {
+            return delegate.isWritable();
+        }
     }
 
     private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {

@@ -35,6 +35,7 @@ package org.opensearch.common.regex;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.opensearch.common.Glob;
 import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
@@ -125,39 +126,7 @@ public class Regex {
             pattern = Strings.toLowercaseAscii(pattern);
             str = Strings.toLowercaseAscii(str);
         }
-        return simpleMatchWithNormalizedStrings(pattern, str);
-    }
-
-    private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
-        int sIdx = 0, pIdx = 0, match = 0, wildcardIdx = -1;
-        while (sIdx < str.length()) {
-            // both chars matching, incrementing both pointers
-            if (pIdx < pattern.length() && str.charAt(sIdx) == pattern.charAt(pIdx)) {
-                sIdx++;
-                pIdx++;
-            } else if (pIdx < pattern.length() && pattern.charAt(pIdx) == '*') {
-                // wildcard found, only incrementing pattern pointer
-                wildcardIdx = pIdx;
-                match = sIdx;
-                pIdx++;
-            } else if (wildcardIdx != -1) {
-                // last pattern pointer was a wildcard, incrementing string pointer
-                pIdx = wildcardIdx + 1;
-                match++;
-                sIdx = match;
-            } else {
-                // current pattern pointer is not a wildcard, last pattern pointer was also not a wildcard
-                // characters do not match
-                return false;
-            }
-        }
-
-        // check for remaining characters in pattern
-        while (pIdx < pattern.length() && pattern.charAt(pIdx) == '*') {
-            pIdx++;
-        }
-
-        return pIdx == pattern.length();
+        return Glob.globMatch(pattern, str);
     }
 
     /**

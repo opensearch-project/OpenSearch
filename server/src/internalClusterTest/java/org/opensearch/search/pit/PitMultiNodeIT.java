@@ -104,7 +104,7 @@ public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertEquals(2, searchResponse.getSuccessfulShards());
         assertEquals(2, searchResponse.getTotalShards());
         validatePitStats("index", 2, 2);
-        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueDays(1));
         assertSegments(false, client(), pitResponse.getId());
     }
 
@@ -131,7 +131,12 @@ public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             public Settings onNodeStopped(String nodeName) throws Exception {
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 CreatePitResponse pitResponse = execute.get();
-                PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+                PitTestsUtil.assertUsingGetAllPits(
+                    client(),
+                    pitResponse.getId(),
+                    pitResponse.getCreationTime(),
+                    TimeValue.timeValueDays(1)
+                );
                 assertSegments(false, "index", 1, client(), pitResponse.getId());
                 assertEquals(1, pitResponse.getSuccessfulShards());
                 assertEquals(2, pitResponse.getTotalShards());
@@ -164,7 +169,12 @@ public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 assertEquals(0, searchResponse.getSkippedShards());
                 assertEquals(2, searchResponse.getTotalShards());
                 validatePitStats("index", 1, 1);
-                PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+                PitTestsUtil.assertUsingGetAllPits(
+                    client(),
+                    pitResponse.getId(),
+                    pitResponse.getCreationTime(),
+                    TimeValue.timeValueDays(1)
+                );
                 return super.onNodeStopped(nodeName);
             }
         });

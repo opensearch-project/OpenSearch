@@ -776,6 +776,9 @@ public final class IngestDocument {
             byte[] bytes = (byte[]) value;
             return Arrays.copyOf(bytes, bytes.length);
         } else if (value == null
+            || value instanceof Byte
+            || value instanceof Character
+            || value instanceof Short
             || value instanceof String
             || value instanceof Integer
             || value instanceof Long

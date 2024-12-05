@@ -32,6 +32,8 @@
 
 package org.opensearch.index.cache.request;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.metrics.CounterMetric;
@@ -45,13 +47,14 @@ import org.opensearch.core.common.bytes.BytesReference;
 @PublicApi(since = "1.0.0")
 public final class ShardRequestCache {
 
+    private static final Logger logger = LogManager.getLogger(ShardRequestCache.class);
     final CounterMetric evictionsMetric = new CounterMetric();
     final CounterMetric totalMetric = new CounterMetric();
     final CounterMetric hitCount = new CounterMetric();
     final CounterMetric missCount = new CounterMetric();
 
     public RequestCacheStats stats() {
-        return new RequestCacheStats(totalMetric.count(), evictionsMetric.count(), hitCount.count(), missCount.count());
+        return new RequestCacheStats(Math.max(0, totalMetric.count()), evictionsMetric.count(), hitCount.count(), missCount.count());
     }
 
     public void onHit() {
@@ -62,21 +65,37 @@ public final class ShardRequestCache {
         missCount.inc();
     }
 
+    // Functions used to increment size by passing in the size directly, Used now, as we use ICacheKey<Key> in the IndicesRequestCache..
+    public void onCached(long keyRamBytesUsed, BytesReference value) {
+        totalMetric.inc(keyRamBytesUsed + value.ramBytesUsed());
+    }
+
+    public void onRemoval(long keyRamBytesUsed, BytesReference value, boolean evicted) {
+        if (evicted) {
+            evictionsMetric.inc();
+        }
+        long dec = keyRamBytesUsed;
+        if (value != null) {
+            dec += value.ramBytesUsed();
+        }
+        totalMetric.dec(dec);
+        if (totalMetric.count() < 0) {
+            totalMetric.inc(dec);
+            logger.warn(
+                "Ignoring the operation to deduct memory: {} from RequestStats memory_size metric as it will "
+                    + "go negative. Current memory: {}. This is a bug.",
+                dec,
+                totalMetric.count()
+            );
+        }
+    }
+
+    // Old functions which increment size by passing in an Accountable. Functional but no longer used.
     public void onCached(Accountable key, BytesReference value) {
         totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
     }
 
     public void onRemoval(Accountable key, BytesReference value, boolean evicted) {
-        if (evicted) {
-            evictionsMetric.inc();
-        }
-        long dec = 0;
-        if (key != null) {
-            dec += key.ramBytesUsed();
-        }
-        if (value != null) {
-            dec += value.ramBytesUsed();
-        }
-        totalMetric.dec(dec);
+        onRemoval(key.ramBytesUsed(), value, evicted);
     }
 }

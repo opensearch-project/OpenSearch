@@ -128,6 +128,36 @@ class HttpTracer {
         );
     }
 
+    /**
+     * Logs the response chunk to a request that was logged by {@link #maybeTraceRequest(RestRequest, Exception)}.
+     *
+     * @param chunk         response chunk
+     * @param httpChannel   HttpChannel the response was sent on
+     * @param contentLength Value of the response content length header
+     * @param opaqueHeader  Value of HTTP header {@link Task#X_OPAQUE_ID}
+     * @param requestId     Request id as returned by {@link RestRequest#getRequestId()}
+     * @param success       Whether the response was successfully sent
+     */
+    void traceChunk(
+        HttpChunk chunk,
+        StreamingHttpChannel httpChannel,
+        String contentLength,
+        String opaqueHeader,
+        long requestId,
+        boolean success
+    ) {
+        logger.trace(
+            new ParameterizedMessage(
+                "[{}][{}][{}] sent next chunk to [{}] success [{}]",
+                requestId,
+                opaqueHeader,
+                contentLength,
+                httpChannel,
+                success
+            )
+        );
+    }
+
     private void setTracerLogInclude(List<String> tracerLogInclude) {
         this.tracerLogInclude = tracerLogInclude.toArray(Strings.EMPTY_ARRAY);
     }

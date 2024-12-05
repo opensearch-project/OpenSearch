@@ -73,6 +73,14 @@ public interface RestHandler {
     }
 
     /**
+     * Indicates if the RestHandler supports request / response streaming. Please note that the transport engine has to support
+     * streaming as well.
+     */
+    default boolean supportsStreaming() {
+        return false;
+    }
+
+    /**
      * Indicates if the RestHandler supports working with pooled buffers. If the request handler will not escape the return
      * {@link RestRequest#content()} or any buffers extracted from it then there is no need to make a copies of any pooled buffers in the
      * {@link RestRequest} instance before passing a request to this handler. If this instance does not support pooled/unsafe buffers
@@ -114,6 +122,13 @@ public interface RestHandler {
      * @return {@code true} if requests handled by this class should be allowed to access system indices.
      */
     default boolean allowSystemIndexAccessByDefault() {
+        return false;
+    }
+
+    /**
+     * Denotes whether the RestHandler will output paginated responses or not.
+     */
+    default boolean isActionPaginated() {
         return false;
     }
 
@@ -176,6 +191,16 @@ public interface RestHandler {
         @Override
         public boolean allowSystemIndexAccessByDefault() {
             return delegate.allowSystemIndexAccessByDefault();
+        }
+
+        @Override
+        public boolean isActionPaginated() {
+            return delegate.isActionPaginated();
+        }
+
+        @Override
+        public boolean supportsStreaming() {
+            return delegate.supportsStreaming();
         }
     }
 

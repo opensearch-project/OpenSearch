@@ -1,7 +1,7 @@
 {
   "explain":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-explain.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/explain/",
       "description":"Returns information about why a specific matches (or doesn't match) a query."
     },
     "stability":"stable",

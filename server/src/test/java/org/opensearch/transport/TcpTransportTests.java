@@ -43,7 +43,6 @@ import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
@@ -540,19 +539,7 @@ public class TcpTransportTests extends OpenSearchTestCase {
             final PlainActionFuture<Void> listener = new PlainActionFuture<>();
             channel.addCloseListener(listener);
 
-            TcpTransport.handleException(
-                channel,
-                exception,
-                lifecycle,
-                new OutboundHandler(
-                    randomAlphaOfLength(10),
-                    Version.CURRENT,
-                    new String[0],
-                    new StatsTracker(),
-                    testThreadPool,
-                    BigArrays.NON_RECYCLING_INSTANCE
-                )
-            );
+            TcpTransport.handleException(channel, exception, lifecycle, new OutboundHandler(new StatsTracker(), testThreadPool));
 
             if (expectClosed) {
                 assertTrue(listener.isDone());

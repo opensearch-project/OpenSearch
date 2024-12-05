@@ -49,8 +49,10 @@ import java.io.IOException;
 import java.io.StreamTokenizer;
 import java.io.StringReader;
 import java.text.ParseException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 
@@ -67,6 +69,7 @@ public class WellKnownText {
     public static final String RPAREN = ")";
     public static final String COMMA = ",";
     public static final String NAN = "NaN";
+    public static final int MAX_DEPTH_OF_GEO_COLLECTION = 1000;
 
     private final String NUMBER = "<NUMBER>";
     private final String EOF = "END-OF-STREAM";
@@ -279,6 +282,16 @@ public class WellKnownText {
     private Geometry parseGeometry(StreamTokenizer stream) throws IOException, ParseException {
         final String type = nextWord(stream).toLowerCase(Locale.ROOT);
         switch (type) {
+            case "geometrycollection":
+                return parseGeometryCollection(stream);
+            default:
+                return parseSimpleGeometry(stream, type);
+        }
+    }
+
+    private Geometry parseSimpleGeometry(StreamTokenizer stream, String type) throws IOException, ParseException {
+        assert "geometrycollection".equals(type) == false;
+        switch (type) {
             case "point":
                 return parsePoint(stream);
             case "multipoint":
@@ -294,7 +307,7 @@ public class WellKnownText {
             case "bbox":
                 return parseBBox(stream);
             case "geometrycollection":
-                return parseGeometryCollection(stream);
+                throw new IllegalStateException("Unexpected type: geometrycollection");
             case "circle": // Not part of the standard, but we need it for internal serialization
                 return parseCircle(stream);
         }
@@ -305,12 +318,56 @@ public class WellKnownText {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return GeometryCollection.EMPTY;
         }
-        List<Geometry> shapes = new ArrayList<>();
-        shapes.add(parseGeometry(stream));
-        while (nextCloserOrComma(stream).equals(COMMA)) {
-            shapes.add(parseGeometry(stream));
+
+        List<Geometry> topLevelShapes = new ArrayList<>();
+        Deque<List<Geometry>> deque = new ArrayDeque<>();
+        deque.push(topLevelShapes);
+        boolean isFirstIteration = true;
+        List<Geometry> currentLevelShapes = null;
+        while (!deque.isEmpty()) {
+            List<Geometry> previousShapes = deque.pop();
+            if (currentLevelShapes != null) {
+                previousShapes.add(new GeometryCollection<>(currentLevelShapes));
+            }
+            currentLevelShapes = previousShapes;
+
+            if (isFirstIteration == true) {
+                isFirstIteration = false;
+            } else {
+                if (nextCloserOrComma(stream).equals(COMMA) == false) {
+                    // Done with current level, continue with parent level
+                    continue;
+                }
+            }
+            while (true) {
+                final String type = nextWord(stream).toLowerCase(Locale.ROOT);
+                if (type.equals("geometrycollection")) {
+                    if (nextEmptyOrOpen(stream).equals(EMPTY) == false) {
+                        // GEOMETRYCOLLECTION() -> 1 depth, GEOMETRYCOLLECTION(GEOMETRYCOLLECTION()) -> 2 depth
+                        // When parsing the top level geometry collection, the queue size is zero.
+                        // When max depth is 1, we don't want to push any sub geometry collection in the queue.
+                        // Therefore, we subtract 2 from max depth.
+                        if (deque.size() >= MAX_DEPTH_OF_GEO_COLLECTION - 2) {
+                            throw new IllegalArgumentException(
+                                "a geometry collection with a depth greater than " + MAX_DEPTH_OF_GEO_COLLECTION + " is not supported"
+                            );
+                        }
+                        deque.push(currentLevelShapes);
+                        currentLevelShapes = new ArrayList<>();
+                        continue;
+                    }
+                    currentLevelShapes.add(GeometryCollection.EMPTY);
+                } else {
+                    currentLevelShapes.add(parseSimpleGeometry(stream, type));
+                }
+
+                if (nextCloserOrComma(stream).equals(COMMA) == false) {
+                    break;
+                }
+            }
         }
-        return new GeometryCollection<>(shapes);
+
+        return new GeometryCollection<>(topLevelShapes);
     }
 
     private Point parsePoint(StreamTokenizer stream) throws IOException, ParseException {

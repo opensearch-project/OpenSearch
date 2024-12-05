@@ -14,9 +14,15 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.store.RemoteBufferedOutputDirectory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
@@ -27,6 +33,8 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.comparesEqualTo;
@@ -36,6 +44,37 @@ import static org.hamcrest.Matchers.is;
 public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     private static final String REMOTE_REPO_NAME = "remote-store-repo-name";
+
+    public void testStaleIndexDeletion() throws Exception {
+        String indexName1 = ".testindex1";
+        String repoName = "test-restore-snapshot-repo";
+        String snapshotName1 = "test-restore-snapshot1";
+        Path absolutePath = randomRepoPath().toAbsolutePath();
+        logger.info("Path [{}]", absolutePath);
+
+        Client client = client();
+        // Write a document
+        String docId = Integer.toString(randomInt());
+        index(indexName1, "_doc", docId, "value", "expected");
+        createRepository(repoName, "fs", absolutePath);
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1)
+            .get();
+        assertTrue(createSnapshotResponse.getSnapshotInfo().successfulShards() > 0);
+        assertEquals(createSnapshotResponse.getSnapshotInfo().totalShards(), createSnapshotResponse.getSnapshotInfo().successfulShards());
+        assertEquals(SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
+
+        assertAcked(startDeleteSnapshot(repoName, snapshotName1).get());
+        assertBusy(() -> assertEquals(0, RemoteStoreBaseIntegTestCase.getFileCount(absolutePath.resolve(BlobStoreRepository.INDICES_DIR))));
+        assertBusy(() -> assertEquals(0, RemoteStoreBaseIntegTestCase.getFileCount(absolutePath.resolve(SnapshotShardPaths.DIR))));
+        // At the end there are 2 files that exists - index-N and index.latest
+        assertBusy(() -> assertEquals(2, RemoteStoreBaseIntegTestCase.getFileCount(absolutePath)));
+    }
 
     public void testDeleteSnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
@@ -277,11 +316,18 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == 0);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9208")
     public void testRemoteStoreCleanupForDeletedIndex() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath));
+        Settings settings = remoteStoreClusterSettings(REMOTE_REPO_NAME, remoteStoreRepoPath);
+        // Disabling pinned timestamp as this test is specifically for shallow snapshot.
+        settings = Settings.builder()
+            .put(settings)
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), false)
+            .build();
+        internalCluster().startClusterManagerOnlyNode(settings);
+        internalCluster().startDataOnlyNode(settings);
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
         ensureStableCluster(2);
 
@@ -307,7 +353,23 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         SnapshotInfo snapshotInfo1 = createFullSnapshot(snapshotRepoName, "snap1");
         SnapshotInfo snapshotInfo2 = createFullSnapshot(snapshotRepoName, "snap2");
 
-        String[] lockFiles = getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME);
+        final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
+        final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(REMOTE_REPO_NAME);
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        BlobPath shardLevelBlobPath = getShardLevelBlobPath(
+            client(),
+            remoteStoreEnabledIndexName,
+            remoteStoreRepository.basePath(),
+            "0",
+            SEGMENTS,
+            LOCK_FILES,
+            segmentsPathFixedPrefix
+        );
+        BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
+        String[] lockFiles;
+        try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
+            lockFiles = lockDirectory.listAll();
+        }
         assert (lockFiles.length == 2) : "lock files are " + Arrays.toString(lockFiles);
 
         // delete remote store index
@@ -320,7 +382,9 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertAcked(deleteSnapshotResponse);
 
-        lockFiles = getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME, indexUUID);
+        try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
+            lockFiles = lockDirectory.listAll();
+        }
         assert (lockFiles.length == 1) : "lock files are " + Arrays.toString(lockFiles);
         assertTrue(lockFiles[0].contains(snapshotInfo2.snapshotId().getUUID()));
 

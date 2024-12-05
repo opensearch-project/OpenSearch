@@ -78,6 +78,19 @@ public final class CompressorRegistry {
         return null;
     }
 
+    /**
+     * @param bytes The bytes to check the compression for
+     * @return The detected compressor. If no compressor detected then return NoneCompressor.
+     */
+    public static Compressor compressorForWritable(final BytesReference bytes) {
+        for (Compressor compressor : registeredCompressors.values()) {
+            if (compressor.isCompressed(bytes) == true) {
+                return compressor;
+            }
+        }
+        return CompressorRegistry.none();
+    }
+
     /** Decompress the provided {@link BytesReference}. */
     public static BytesReference uncompress(BytesReference bytes) throws IOException {
         Compressor compressor = compressor(bytes);

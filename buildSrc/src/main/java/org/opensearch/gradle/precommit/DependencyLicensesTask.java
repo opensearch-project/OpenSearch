@@ -39,6 +39,7 @@ import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
@@ -121,7 +122,7 @@ public class DependencyLicensesTask extends DefaultTask {
     /**
      * A collection of jar files that should be checked.
      */
-    private FileCollection dependencies;
+    private Property<FileCollection> dependenciesProvider;
 
     /**
      * The directory to find the license and sha files in.
@@ -158,12 +159,11 @@ public class DependencyLicensesTask extends DefaultTask {
     }
 
     @InputFiles
-    public FileCollection getDependencies() {
-        return dependencies;
-    }
-
-    public void setDependencies(FileCollection dependencies) {
-        this.dependencies = dependencies;
+    public Property<FileCollection> getDependencies() {
+        if (dependenciesProvider == null) {
+            dependenciesProvider = getProject().getObjects().property(FileCollection.class);
+        }
+        return dependenciesProvider;
     }
 
     @Optional
@@ -190,6 +190,11 @@ public class DependencyLicensesTask extends DefaultTask {
 
     @TaskAction
     public void checkDependencies() throws IOException, NoSuchAlgorithmException {
+        if (dependenciesProvider == null) {
+            throw new GradleException("No dependencies variable defined.");
+        }
+
+        final FileCollection dependencies = dependenciesProvider.get();
         if (dependencies == null) {
             throw new GradleException("No dependencies variable defined.");
         }
@@ -226,7 +231,7 @@ public class DependencyLicensesTask extends DefaultTask {
             }
         }
 
-        checkDependencies(licenses, notices, sources, shaFiles);
+        checkDependencies(dependencies, licenses, notices, sources, shaFiles);
 
         licenses.forEach((item, exists) -> failIfAnyMissing(item, exists, "license"));
 
@@ -255,6 +260,7 @@ public class DependencyLicensesTask extends DefaultTask {
     }
 
     private void checkDependencies(
+        FileCollection dependencies,
         Map<String, Boolean> licenses,
         Map<String, Boolean> notices,
         Map<String, Boolean> sources,

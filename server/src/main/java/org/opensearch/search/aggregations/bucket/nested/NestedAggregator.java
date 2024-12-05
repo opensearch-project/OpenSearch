@@ -43,6 +43,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.ParseField;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -60,6 +61,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static org.opensearch.index.mapper.ObjectMapper.Nested.isParent;
 
 /**
  * Aggregate all docs that match a nested path
@@ -88,7 +91,9 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
 
-        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter() : Queries.newNonNestedFilter();
+        Query parentFilter = isParent(parentObjectMapper, childObjectMapper, context.mapperService())
+            ? parentObjectMapper.nestedTypeFilter()
+            : Queries.newNonNestedFilter();
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
         this.collectsFromSingleBucket = cardinality.map(estimate -> estimate < 2);
@@ -107,20 +112,17 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         if (collectsFromSingleBucket) {
             return new LeafBucketCollectorBase(sub, null) {
                 @Override
-                public void collect(int parentDoc, long bucket) throws IOException {
-                    // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent
-                    // doc), so we can skip:
-                    if (parentDoc == 0 || parentDocs == null || childDocs == null) {
+                public void collect(int parentAggDoc, long bucket) throws IOException {
+                    // parentAggDoc can be 0 when aggregation:
+                    if (parentDocs == null || childDocs == null) {
                         return;
                     }
 
-                    final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-                    int childDocId = childDocs.docID();
-                    if (childDocId <= prevParentDoc) {
-                        childDocId = childDocs.advance(prevParentDoc + 1);
-                    }
+                    Tuple<Integer, Integer> res = getParentAndChildId(parentDocs, childDocs, parentAggDoc);
+                    int currentParentDoc = res.v1();
+                    int childDocId = res.v2();
 
-                    for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
+                    for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
                         collectBucket(sub, childDocId, bucket);
                     }
                 }
@@ -128,6 +130,43 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         } else {
             return bufferingNestedLeafBucketCollector = new BufferingNestedLeafBucketCollector(sub, parentDocs, childDocs);
         }
+    }
+
+    /**
+     * In one case, it's talking about the parent doc (from the Lucene block-join standpoint),
+     * while in the other case, it's talking about a child doc ID (from the block-join standpoint)
+     * from the parent aggregation, where we're trying to aggregate over a sibling of that child.
+     * So, we need to map from that document to its parent, then join to the appropriate sibling.
+     *
+     * @param parentAggDoc the parent aggregation's current doc
+     *                    (which may or may not be a block-level parent doc)
+     * @return a tuple consisting of the current block-level parent doc (the parent of the
+     *         parameter doc), and the next matching child doc (hopefully under this parent)
+     *         for the aggregation (according to the child doc iterator).
+     */
+    static Tuple<Integer, Integer> getParentAndChildId(BitSet parentDocs, DocIdSetIterator childDocs, int parentAggDoc) throws IOException {
+        int currentParentAggDoc;
+        int prevParentDoc = parentDocs.prevSetBit(parentAggDoc);
+        if (prevParentDoc == -1) {
+            currentParentAggDoc = parentDocs.nextSetBit(0);
+        } else if (prevParentDoc == parentAggDoc) {
+            // parentAggDoc is the parent of that child, and is belongs to parentDocs
+            currentParentAggDoc = parentAggDoc;
+            if (currentParentAggDoc == 0) {
+                prevParentDoc = -1;
+            } else {
+                prevParentDoc = parentDocs.prevSetBit(currentParentAggDoc - 1);
+            }
+        } else {
+            // parentAggDoc is the sibling of that child, and it means the block-join parent
+            currentParentAggDoc = parentDocs.nextSetBit(prevParentDoc + 1);
+        }
+
+        int childDocId = childDocs.docID();
+        if (childDocId <= prevParentDoc) {
+            childDocId = childDocs.advance(prevParentDoc + 1);
+        }
+        return Tuple.tuple(currentParentAggDoc, childDocId);
     }
 
     @Override
@@ -191,9 +230,8 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
         @Override
         public void collect(int parentDoc, long bucket) throws IOException {
-            // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent
-            // doc), so we can skip:
-            if (parentDoc == 0 || parentDocs == null || childDocs == null) {
+            // parentAggDoc can be 0 when aggregation:
+            if (parentDocs == null || childDocs == null) {
                 return;
             }
 
@@ -214,11 +252,9 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
                 return;
             }
 
-            final int prevParentDoc = parentDocs.prevSetBit(currentParentDoc - 1);
-            int childDocId = childDocs.docID();
-            if (childDocId <= prevParentDoc) {
-                childDocId = childDocs.advance(prevParentDoc + 1);
-            }
+            Tuple<Integer, Integer> res = getParentAndChildId(parentDocs, childDocs, currentParentDoc);
+            int currentParentDoc = res.v1();
+            int childDocId = res.v2();
 
             for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
                 cachedScorer.doc = childDocId;

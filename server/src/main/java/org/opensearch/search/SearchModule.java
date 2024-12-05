@@ -37,7 +37,6 @@ import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.ShapesAvailability;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ParseFieldRegistry;
 import org.opensearch.core.ParseField;
@@ -240,6 +239,7 @@ import org.opensearch.search.aggregations.pipeline.SimpleModel;
 import org.opensearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.ExplainPhase;
@@ -283,6 +283,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -302,13 +303,6 @@ import static org.opensearch.threadpool.ThreadPool.Names.INDEX_SEARCHER;
  * @opensearch.internal
  */
 public class SearchModule {
-    public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting(
-        "indices.query.bool.max_clause_count",
-        1024,
-        1,
-        Integer.MAX_VALUE,
-        Setting.Property.NodeScope
-    );
 
     private final Map<String, Highlighter> highlighters;
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
@@ -323,6 +317,8 @@ public class SearchModule {
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final QueryPhaseSearcher queryPhaseSearcher;
     private final SearchPlugin.ExecutorServiceProvider indexSearcherExecutorProvider;
+
+    private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
     /**
      * Constructs a new SearchModule object
@@ -352,6 +348,23 @@ public class SearchModule {
         queryPhaseSearcher = registerQueryPhaseSearcher(plugins);
         indexSearcherExecutorProvider = registerIndexSearcherExecutorProvider(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
+        concurrentSearchDeciderFactories = registerConcurrentSearchDeciderFactories(plugins);
+    }
+
+    private Collection<ConcurrentSearchRequestDecider.Factory> registerConcurrentSearchDeciderFactories(List<SearchPlugin> plugins) {
+        List<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories = new ArrayList<>();
+        for (SearchPlugin plugin : plugins) {
+            final Optional<ConcurrentSearchRequestDecider.Factory> deciderFactory = plugin.getConcurrentSearchRequestDeciderFactory();
+            deciderFactory.ifPresent(concurrentSearchDeciderFactories::add);
+        }
+        return concurrentSearchDeciderFactories;
+    }
+
+    /**
+     * Returns the concurrent search decider factories that the plugins have registered
+     */
+    public Collection<ConcurrentSearchRequestDecider.Factory> getConcurrentSearchRequestDeciderFactories() {
+        return concurrentSearchDeciderFactories;
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -1094,7 +1107,6 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new, MatchAllQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(QueryStringQueryBuilder.NAME, QueryStringQueryBuilder::new, QueryStringQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(BoostingQueryBuilder.NAME, BoostingQueryBuilder::new, BoostingQueryBuilder::fromXContent));
-        BooleanQuery.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         registerQuery(new QuerySpec<>(BoolQueryBuilder.NAME, BoolQueryBuilder::new, BoolQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermsQueryBuilder.NAME, TermsQueryBuilder::new, TermsQueryBuilder::fromXContent));

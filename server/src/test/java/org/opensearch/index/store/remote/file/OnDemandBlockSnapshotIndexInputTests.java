@@ -207,7 +207,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             // write 48, -80 alternatively
             for (int i = 0; i < numOfBlocks; i++) {
                 // create normal blocks
-                String blockName = BLOCK_FILE_PREFIX + "." + i;
+                String blockName = BLOCK_FILE_PREFIX + "_block_" + i;
                 IndexOutput output = fsDirectory.createOutput(blockName, null);
                 // since block size is always even number, safe to do division
                 for (int j = 0; j < blockSize / 2; j++) {
@@ -221,7 +221,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
             if (numOfBlocks > 1 && sizeOfLastBlock != 0) {
                 // create last block
-                String lastBlockName = BLOCK_FILE_PREFIX + "." + numOfBlocks;
+                String lastBlockName = BLOCK_FILE_PREFIX + "_block_" + numOfBlocks;
                 IndexOutput output = fsDirectory.createOutput(lastBlockName, null);
                 for (int i = 0; i < sizeOfLastBlock; i++) {
                     if ((i & 1) == 0) {

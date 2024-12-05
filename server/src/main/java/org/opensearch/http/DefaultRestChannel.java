@@ -58,11 +58,11 @@ import static org.opensearch.tasks.Task.X_OPAQUE_ID;
 
 /**
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
- * response. It will set necessary headers nad ensure that bytes are released after the response is sent.
+ * response. It will set necessary headers and ensure that bytes are released after the response is sent.
  *
  * @opensearch.internal
  */
-public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
+class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";

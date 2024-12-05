@@ -12,8 +12,6 @@ import org.opensearch.identity.NamedPrincipal;
 
 /**
  * A non-volatile and immutable object in the storage.
- *
- * @opensearch.experimental
  */
 public class User {
 

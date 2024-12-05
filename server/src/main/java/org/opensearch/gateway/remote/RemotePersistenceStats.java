@@ -10,28 +10,120 @@ package org.opensearch.gateway.remote;
 
 import org.opensearch.cluster.coordination.PersistedStateStats;
 
-import java.util.concurrent.atomic.AtomicLong;
-
 /**
  * Remote state related extended stats.
  *
  * @opensearch.internal
  */
-public class RemotePersistenceStats extends PersistedStateStats {
-    static final String CLEANUP_ATTEMPT_FAILED_COUNT = "cleanup_attempt_failed_count";
-    static final String REMOTE_UPLOAD = "remote_upload";
-    private AtomicLong cleanupAttemptFailedCount = new AtomicLong(0);
+public class RemotePersistenceStats {
+
+    RemoteUploadStats remoteUploadStats;
+    RemoteDownloadStats remoteDiffDownloadStats;
+    RemoteDownloadStats remoteFullDownloadStats;
+
+    public static final String FULL_DOWNLOAD_STATS = "remote_full_download";
+    public static final String DIFF_DOWNLOAD_STATS = "remote_diff_download";
 
     public RemotePersistenceStats() {
-        super(REMOTE_UPLOAD);
-        addToExtendedFields(CLEANUP_ATTEMPT_FAILED_COUNT, cleanupAttemptFailedCount);
+        remoteUploadStats = new RemoteUploadStats();
+        remoteDiffDownloadStats = new RemoteDownloadStats(DIFF_DOWNLOAD_STATS);
+        remoteFullDownloadStats = new RemoteDownloadStats(FULL_DOWNLOAD_STATS);
     }
 
     public void cleanUpAttemptFailed() {
-        cleanupAttemptFailedCount.incrementAndGet();
+        remoteUploadStats.cleanUpAttemptFailed();
     }
 
     public long getCleanupAttemptFailedCount() {
-        return cleanupAttemptFailedCount.get();
+        return remoteUploadStats.getCleanupAttemptFailedCount();
     }
+
+    public void indexRoutingFilesCleanupAttemptFailed() {
+        remoteUploadStats.indexRoutingFilesCleanupAttemptFailed();
+    }
+
+    public long getIndexRoutingFilesCleanupAttemptFailedCount() {
+        return remoteUploadStats.getIndexRoutingFilesCleanupAttemptFailedCount();
+    }
+
+    public void indicesRoutingDiffFileCleanupAttemptFailed() {
+        remoteUploadStats.indicesRoutingDiffFileCleanupAttemptFailed();
+    }
+
+    public long getIndicesRoutingDiffFileCleanupAttemptFailedCount() {
+        return remoteUploadStats.getIndicesRoutingDiffFileCleanupAttemptFailedCount();
+    }
+
+    public void stateUploadSucceeded() {
+        remoteUploadStats.stateSucceeded();
+    }
+
+    public void stateUploadTook(long durationMillis) {
+        remoteUploadStats.stateTook(durationMillis);
+    }
+
+    public void stateUploadFailed() {
+        remoteUploadStats.stateFailed();
+    }
+
+    public void stateFullDownloadSucceeded() {
+        remoteFullDownloadStats.stateSucceeded();
+    }
+
+    public void stateDiffDownloadSucceeded() {
+        remoteDiffDownloadStats.stateSucceeded();
+    }
+
+    public void stateFullDownloadTook(long durationMillis) {
+        remoteFullDownloadStats.stateTook(durationMillis);
+    }
+
+    public void stateDiffDownloadTook(long durationMillis) {
+        remoteDiffDownloadStats.stateTook(durationMillis);
+    }
+
+    public void stateFullDownloadFailed() {
+        remoteFullDownloadStats.stateFailed();
+    }
+
+    public void stateDiffDownloadFailed() {
+        remoteDiffDownloadStats.stateFailed();
+    }
+
+    public void stateDiffDownloadValidationFailed() {
+        remoteDiffDownloadStats.checksumValidationFailedCount();
+    }
+
+    public void stateFullDownloadValidationFailed() {
+        remoteFullDownloadStats.checksumValidationFailedCount();
+    }
+
+    public long getStateDiffDownloadValidationFailed() {
+        return remoteDiffDownloadStats.getChecksumValidationFailedCount();
+    }
+
+    public long getStateFullDownloadValidationFailed() {
+        return remoteFullDownloadStats.getChecksumValidationFailedCount();
+    }
+
+    public void stateDiffIncomingPublicationFailed() {
+        remoteDiffDownloadStats.incomingPublicationFailedCount();
+    }
+
+    public void stateFullIncomingPublicationFailed() {
+        remoteFullDownloadStats.incomingPublicationFailedCount();
+    }
+
+    public PersistedStateStats getUploadStats() {
+        return remoteUploadStats;
+    }
+
+    public PersistedStateStats getRemoteDiffDownloadStats() {
+        return remoteDiffDownloadStats;
+    }
+
+    public PersistedStateStats getRemoteFullDownloadStats() {
+        return remoteFullDownloadStats;
+    }
+
 }

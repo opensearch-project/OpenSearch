@@ -85,7 +85,8 @@ public class TransportClusterSearchShardsAction extends TransportClusterManagerN
             threadPool,
             actionFilters,
             ClusterSearchShardsRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            true
         );
         this.indicesService = indicesService;
     }

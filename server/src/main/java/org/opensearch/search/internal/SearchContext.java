@@ -76,6 +76,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collection;
@@ -113,13 +114,19 @@ public abstract class SearchContext implements Releasable {
             // should not be called when there is no aggregation collector
             throw new IllegalStateException("Unexpected toAggregators call on NO_OP_BUCKET_COLLECTOR_PROCESSOR");
         }
+
+        @Override
+        public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors) {
+            // should not be called when there is no aggregation collector
+            throw new IllegalStateException("Unexpected toInternalAggregations call on NO_OP_BUCKET_COLLECTOR_PROCESSOR");
+        }
     };
 
     private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
-
     private volatile boolean searchTimedOut;
+    private StarTreeQueryContext starTreeQueryContext;
 
     protected SearchContext() {}
 
@@ -187,10 +194,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchHighlightContext highlight();
 
     public abstract void highlight(SearchHighlightContext highlight);
-
-    public boolean hasInnerHits() {
-        return innerHitsContext != null;
-    }
 
     public InnerHitsContext innerHits() {
         if (innerHitsContext == null) {
@@ -516,4 +519,25 @@ public abstract class SearchContext implements Releasable {
     public abstract int getTargetMaxSliceCount();
 
     public abstract boolean shouldUseTimeSeriesDescSortOptimization();
+
+    public int maxAggRewriteFilters() {
+        return 0;
+    }
+
+    public int cardinalityAggregationPruningThreshold() {
+        return 0;
+    }
+
+    public boolean keywordIndexOrDocValuesEnabled() {
+        return false;
+    }
+
+    public SearchContext starTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
+        this.starTreeQueryContext = starTreeQueryContext;
+        return this;
+    }
+
+    public StarTreeQueryContext getStarTreeQueryContext() {
+        return this.starTreeQueryContext;
+    }
 }

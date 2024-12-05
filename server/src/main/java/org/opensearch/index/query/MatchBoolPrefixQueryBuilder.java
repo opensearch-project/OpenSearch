@@ -61,7 +61,7 @@ import static org.opensearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
  *
  * @opensearch.internal
  */
-public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolPrefixQueryBuilder> {
+public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolPrefixQueryBuilder> implements WithFieldName {
 
     public static final String NAME = "match_bool_prefix";
 
@@ -127,6 +127,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     /** Returns the field name used in this query. */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

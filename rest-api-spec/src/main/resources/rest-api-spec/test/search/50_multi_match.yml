@@ -1,0 +1,35 @@
+"Cross fields do not return negative scores":
+  - skip:
+      version: " - 2.99.99"
+      reason: "This fix is in 2.15. Until we do the BWC dance, we need to skip all pre-3.0, though."
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "color" : "orange red yellow" }
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "color": "orange red purple", "shape": "red square" }
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "color" : "orange red yellow purple" }
+  - do:
+      indices.refresh: { }
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "red"
+              type: "cross_fields"
+              fields: [ "color", "shape^100"]
+              tie_breaker: 0.1
+          explain: true
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - gt: { hits.hits.2._score: 0.0 }

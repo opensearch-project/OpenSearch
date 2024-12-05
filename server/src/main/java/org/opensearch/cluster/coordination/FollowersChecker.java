@@ -35,6 +35,7 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -91,7 +92,8 @@ public class FollowersChecker {
         "cluster.fault_detection.follower_check.interval",
         TimeValue.timeValueMillis(1000),
         TimeValue.timeValueMillis(100),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // the timeout for each check sent to each node
@@ -99,7 +101,7 @@ public class FollowersChecker {
         "cluster.fault_detection.follower_check.timeout",
         TimeValue.timeValueMillis(10000),
         TimeValue.timeValueMillis(1),
-        TimeValue.timeValueMillis(60000),
+        TimeValue.timeValueMillis(150000),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -114,7 +116,7 @@ public class FollowersChecker {
 
     private final Settings settings;
 
-    private final TimeValue followerCheckInterval;
+    private TimeValue followerCheckInterval;
     private TimeValue followerCheckTimeout;
     private final int followerCheckRetryCount;
     private final BiConsumer<DiscoveryNode, String> onNodeFailure;
@@ -127,6 +129,7 @@ public class FollowersChecker {
     private final TransportService transportService;
     private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
+    private ClusterManagerMetrics clusterManagerMetrics;
 
     public FollowersChecker(
         Settings settings,
@@ -134,7 +137,8 @@ public class FollowersChecker {
         TransportService transportService,
         Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
         BiConsumer<DiscoveryNode, String> onNodeFailure,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -145,6 +149,7 @@ public class FollowersChecker {
         followerCheckInterval = FOLLOWER_CHECK_INTERVAL_SETTING.get(settings);
         followerCheckTimeout = FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings);
         followerCheckRetryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(FOLLOWER_CHECK_INTERVAL_SETTING, this::setFollowerCheckInterval);
         clusterSettings.addSettingsUpdateConsumer(FOLLOWER_CHECK_TIMEOUT_SETTING, this::setFollowerCheckTimeout);
         updateFastResponseState(0, Mode.CANDIDATE);
         transportService.registerRequestHandler(
@@ -161,6 +166,11 @@ public class FollowersChecker {
                 handleDisconnectedNode(node);
             }
         });
+        this.clusterManagerMetrics = clusterManagerMetrics;
+    }
+
+    private void setFollowerCheckInterval(TimeValue followerCheckInterval) {
+        this.followerCheckInterval = followerCheckInterval;
     }
 
     private void setFollowerCheckTimeout(TimeValue followerCheckTimeout) {
@@ -413,6 +423,7 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerChecksFailureCounter, 1.0);
             transportService.getThreadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {

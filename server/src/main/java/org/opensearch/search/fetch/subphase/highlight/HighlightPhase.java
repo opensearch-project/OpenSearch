@@ -146,6 +146,9 @@ public class HighlightPhase implements FetchSubPhase {
             for (String fieldName : fieldNamesToHighlight) {
                 MappedFieldType fieldType = context.mapperService().fieldType(fieldName);
                 if (fieldType == null) {
+                    fieldType = context.getQueryShardContext().resolveDerivedFieldType(fieldName);
+                }
+                if (fieldType == null) {
                     continue;
                 }
 
@@ -170,12 +173,13 @@ public class HighlightPhase implements FetchSubPhase {
                 Query highlightQuery = field.fieldOptions().highlightQuery();
 
                 boolean forceSource = highlightContext.forceSource(field);
+                MappedFieldType finalFieldType = fieldType;
                 builders.put(
                     fieldName,
                     hc -> new FieldHighlightContext(
-                        fieldType.name(),
+                        finalFieldType.name(),
                         field,
-                        fieldType,
+                        finalFieldType,
                         context,
                         hc,
                         highlightQuery == null ? query : highlightQuery,

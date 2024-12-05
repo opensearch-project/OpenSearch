@@ -36,14 +36,16 @@ fi
 
 # get keystore password before setting java options to avoid
 # conflicting GC configurations for the keystore tools
-unset KEYSTORE_PASSWORD
-KEYSTORE_PASSWORD=
 if [[ $CHECK_KEYSTORE = true ]] \
     && bin/opensearch-keystore has-passwd --silent
 then
-  if ! read -s -r -p "OpenSearch keystore password: " KEYSTORE_PASSWORD ; then
-    echo "Failed to read keystore password on console" 1>&2
-    exit 1
+  if [[ ! -z "${KEYSTORE_PASSWORD}" ]]; then
+    echo "Using value of KEYSTORE_PASSWORD from the environment"
+  else
+    if ! read -s -r -p "OpenSearch keystore password: " KEYSTORE_PASSWORD ; then
+      echo "Failed to read keystore password on console" 1>&2
+      exit 1
+    fi
   fi
 fi
 

@@ -177,7 +177,6 @@ public abstract class TaskBatcher {
         // to give other tasks with different batching key a chance to execute.
         if (updateTask.processed.get() == false) {
             final List<BatchedTask> toExecute = new ArrayList<>();
-            final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
             // While removing task, need to remove task first from taskMap and then remove identity from identityMap.
             // Changing this order might lead to duplicate task during submission.
             LinkedHashSet<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
@@ -187,7 +186,6 @@ public abstract class TaskBatcher {
                     if (task.processed.getAndSet(true) == false) {
                         logger.trace("will process {}", task);
                         toExecute.add(task);
-                        processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task);
                     } else {
                         logger.trace("skipping {}, already processed", task);
                     }
@@ -195,22 +193,46 @@ public abstract class TaskBatcher {
             }
 
             if (toExecute.isEmpty() == false) {
-                final String tasksSummary = processTasksBySource.entrySet().stream().map(entry -> {
-                    String tasks = updateTask.describeTasks(entry.getValue());
-                    return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
-                }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
-
+                Function<Boolean, String> taskSummaryGenerator = (longSummaryRequired) -> {
+                    if (longSummaryRequired == null || !longSummaryRequired) {
+                        final List<BatchedTask> sampleTasks = toExecute.stream()
+                            .limit(Math.min(1000, toExecute.size()))
+                            .collect(Collectors.toList());
+                        return buildShortSummary(updateTask.batchingKey, toExecute.size(), getSummary(updateTask, sampleTasks));
+                    }
+                    return getSummary(updateTask, toExecute);
+                };
                 taskBatcherListener.onBeginProcessing(toExecute);
-                run(updateTask.batchingKey, toExecute, tasksSummary);
+                run(updateTask.batchingKey, toExecute, taskSummaryGenerator);
             }
         }
+    }
+
+    private String getSummary(final BatchedTask updateTask, final List<BatchedTask> toExecute) {
+        final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
+        for (final BatchedTask task : toExecute) {
+            processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task);
+        }
+        return processTasksBySource.entrySet().stream().map(entry -> {
+            String tasks = updateTask.describeTasks(entry.getValue());
+            return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
+        }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
+    }
+
+    private String buildShortSummary(final Object batchingKey, final int taskCount, final String sampleTasks) {
+        return "Tasks batched with key: "
+            + batchingKey.toString().split("\\$")[0]
+            + ", count:"
+            + taskCount
+            + " and sample tasks: "
+            + sampleTasks;
     }
 
     /**
      * Action to be implemented by the specific batching implementation
      * All tasks have the given batching key.
      */
-    protected abstract void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary);
+    protected abstract void run(Object batchingKey, List<? extends BatchedTask> tasks, Function<Boolean, String> taskSummaryGenerator);
 
     /**
      * Represents a runnable task that supports batching.

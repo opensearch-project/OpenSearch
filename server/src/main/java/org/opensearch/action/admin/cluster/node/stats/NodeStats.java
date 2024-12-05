@@ -39,6 +39,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.cache.service.NodeCacheStats;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
@@ -58,6 +59,7 @@ import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
+import org.opensearch.node.remotestore.RemoteStoreNodeStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.repositories.RepositoriesStats;
 import org.opensearch.script.ScriptCacheStats;
@@ -158,6 +160,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AdmissionControlStats admissionControlStats;
 
+    @Nullable
+    private NodeCacheStats nodeCacheStats;
+
+    @Nullable
+    private RemoteStoreNodeStats remoteStoreNodeStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -234,6 +242,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             admissionControlStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
+            nodeCacheStats = in.readOptionalWriteable(NodeCacheStats::new);
+        } else {
+            nodeCacheStats = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
+            remoteStoreNodeStats = in.readOptionalWriteable(RemoteStoreNodeStats::new);
+        } else {
+            remoteStoreNodeStats = null;
+        }
     }
 
     public NodeStats(
@@ -264,7 +282,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable SearchPipelineStats searchPipelineStats,
         @Nullable SegmentReplicationRejectionStats segmentReplicationRejectionStats,
         @Nullable RepositoriesStats repositoriesStats,
-        @Nullable AdmissionControlStats admissionControlStats
+        @Nullable AdmissionControlStats admissionControlStats,
+        @Nullable NodeCacheStats nodeCacheStats,
+        @Nullable RemoteStoreNodeStats remoteStoreNodeStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -294,6 +314,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.segmentReplicationRejectionStats = segmentReplicationRejectionStats;
         this.repositoriesStats = repositoriesStats;
         this.admissionControlStats = admissionControlStats;
+        this.nodeCacheStats = nodeCacheStats;
+        this.remoteStoreNodeStats = remoteStoreNodeStats;
     }
 
     public long getTimestamp() {
@@ -451,6 +473,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return admissionControlStats;
     }
 
+    @Nullable
+    public NodeCacheStats getNodeCacheStats() {
+        return nodeCacheStats;
+    }
+
+    @Nullable
+    public RemoteStoreNodeStats getRemoteStoreNodeStats() {
+        return remoteStoreNodeStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -505,6 +537,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalWriteable(admissionControlStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
+            out.writeOptionalWriteable(nodeCacheStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
+            out.writeOptionalWriteable(remoteStoreNodeStats);
         }
     }
 
@@ -608,6 +646,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getAdmissionControlStats() != null) {
             getAdmissionControlStats().toXContent(builder, params);
+        }
+        if (getNodeCacheStats() != null) {
+            getNodeCacheStats().toXContent(builder, params);
+        }
+        if (getRemoteStoreNodeStats() != null) {
+            getRemoteStoreNodeStats().toXContent(builder, params);
         }
         return builder;
     }

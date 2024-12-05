@@ -32,6 +32,8 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
@@ -76,6 +78,20 @@ public interface BlobContainer {
      * @throws  IOException if the blob can not be read.
      */
     InputStream readBlob(String blobName) throws IOException;
+
+    /**
+     * Creates a new {@link InputStreamWithMetadata} for the given blob name.
+     *
+     * @param   blobName
+     *          The name of the blob to get an {@link InputStream} for.
+     * @return  The {@link InputStreamWithMetadata} of the blob.
+     * @throws  NoSuchFileException if the blob does not exist
+     * @throws  IOException if the blob can not be read.
+     */
+    @ExperimentalApi
+    default InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
+        throw new UnsupportedOperationException("readBlobWithMetadata is not implemented yet");
+    };
 
     /**
      * Creates a new {@link InputStream} that can be used to read the given blob starting from
@@ -129,6 +145,36 @@ public interface BlobContainer {
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
 
     /**
+     * Reads blob content from the input stream and writes it to the container in a new blob with the given name, and metadata.
+     * This method assumes the container does not already contain a blob of the same blobName. If a blob by the
+     * same name already exists, the operation will fail and an {@link IOException} will be thrown.
+     *
+     * @param   blobName
+     *          The name of the blob to write the contents of the input stream to.
+     * @param   inputStream
+     *          The input stream from which to retrieve the bytes to write to the blob.
+     * @param   metadata
+     *          The metadata to be associate with the blob upload.
+     * @param   blobSize
+     *          The size of the blob to be written, in bytes.  It is implementation dependent whether
+     *          this value is used in writing the blob to the repository.
+     * @param   failIfAlreadyExists
+     *          whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
+     */
+    @ExperimentalApi
+    default void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata
+    ) throws IOException {
+        throw new UnsupportedOperationException("writeBlobWithMetadata is not implemented yet");
+    };
+
+    /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
      * <p>
@@ -148,6 +194,38 @@ public interface BlobContainer {
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+
+    /**
+     * Reads blob content from the input stream and writes it to the container in a new blob with the given name, and metadata
+     * using an atomic write operation if the implementation supports it.
+     * <p>
+     * This method assumes the container does not already contain a blob of the same blobName. If a blob by the
+     * same name already exists, the operation will fail and an {@link IOException} will be thrown.
+     *
+     * @param   blobName
+     *          The name of the blob to write the contents of the input stream to.
+     * @param   inputStream
+     *          The input stream from which to retrieve the bytes to write to the blob.
+     * @param   metadata
+     *          The metadata to be associate with the blob upload.
+     * @param   blobSize
+     *          The size of the blob to be written, in bytes.  It is implementation dependent whether
+     *          this value is used in writing the blob to the repository.
+     * @param   failIfAlreadyExists
+     *          whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
+     */
+    @ExperimentalApi
+    default void writeBlobAtomicWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        @Nullable Map<String, String> metadata,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        throw new UnsupportedOperationException("writeBlobAtomicWithMetadata is not implemented yet");
+    };
 
     /**
      * Deletes this container and all its contents from the repository.

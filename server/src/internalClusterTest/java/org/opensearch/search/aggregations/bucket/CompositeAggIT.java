@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static org.opensearch.indices.IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
@@ -50,23 +51,25 @@ public class CompositeAggIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertAcked(
             prepareCreate(
                 "idx",
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)
             ).setMapping("type", "type=keyword", "num", "type=integer", "score", "type=integer")
         );
         waitForRelocation(ClusterHealthStatus.GREEN);
 
-        client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "1", "score", "5").get();
-        client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "11", "score", "50").get();
-        refresh("idx");
-        client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "1", "score", "2").get();
-        client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "12", "score", "20").get();
-        refresh("idx");
-        client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "3", "score", "10").get();
-        client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "13", "score", "15").get();
-        refresh("idx");
-        client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "3", "score", "1").get();
-        client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "13", "score", "100").get();
-        refresh("idx");
+        indexRandom(
+            true,
+            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "1", "score", "5"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "11", "score", "50"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "1", "score", "2"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "12", "score", "20"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "3", "score", "10"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "13", "score", "15"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type1", "num", "3", "score", "1"),
+            client().prepareIndex("idx").setId("1").setSource("type", "type2", "num", "13", "score", "100")
+        );
 
         waitForRelocation(ClusterHealthStatus.GREEN);
         refresh();

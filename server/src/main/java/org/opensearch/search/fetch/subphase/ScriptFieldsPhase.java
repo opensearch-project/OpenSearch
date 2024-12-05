@@ -54,7 +54,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
-        if (context.hasScriptFields() == false) {
+        if (context.scriptFields() == null) {
             return null;
         }
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();

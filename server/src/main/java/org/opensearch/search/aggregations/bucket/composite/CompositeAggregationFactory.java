@@ -80,7 +80,6 @@ class CompositeAggregationFactory extends AggregatorFactory {
 
     @Override
     protected boolean supportsConcurrentSegmentSearch() {
-        // See https://github.com/opensearch-project/OpenSearch/issues/12331 for details
-        return false;
+        return true;
     }
 }

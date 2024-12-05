@@ -1782,6 +1782,37 @@
     - match:  { tokens.0.token: abschliess }
 
 ---
+"persian_stem":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              filter:
+                my_persian_stem:
+                  type: persian_stem
+  - do:
+      indices.analyze:
+        index: test
+        body:
+          text: جامدات
+          tokenizer: keyword
+          filter:    [my_persian_stem]
+  - length: { tokens: 1 }
+  - match:  { tokens.0.token: جامد }
+
+  # Test pre-configured token filter too:
+  - do:
+      indices.analyze:
+        body:
+          text: جامدات
+          tokenizer: keyword
+          filter:    [persian_stem]
+  - length: { tokens: 1 }
+  - match:  { tokens.0.token: جامد }
+
+---
 "russian_stem":
     - do:
         indices.create:

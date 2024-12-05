@@ -60,6 +60,7 @@ import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.IngestScript;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.ScriptContext;
@@ -107,6 +108,11 @@ public final class PainlessModulePlugin extends Plugin implements ScriptPlugin, 
         List<Allowlist> ingest = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
         ingest.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.ingest.txt"));
         map.put(IngestScript.CONTEXT, ingest);
+
+        // Functions available to derived fields
+        List<Allowlist> derived = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        derived.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.derived.txt"));
+        map.put(DerivedFieldScript.CONTEXT, derived);
 
         allowlists = map;
     }

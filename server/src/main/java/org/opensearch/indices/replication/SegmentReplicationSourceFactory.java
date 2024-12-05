@@ -38,7 +38,7 @@ public class SegmentReplicationSourceFactory {
     }
 
     public SegmentReplicationSource get(IndexShard shard) {
-        if (shard.indexSettings().isSegRepWithRemoteEnabled()) {
+        if (shard.indexSettings().isAssignedOnRemoteNode()) {
             return new RemoteStoreReplicationSource(shard);
         } else {
             return new PrimaryShardReplicationSource(
@@ -53,6 +53,10 @@ public class SegmentReplicationSourceFactory {
 
     private DiscoveryNode getPrimaryNode(ShardId shardId) {
         ShardRouting primaryShard = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
-        return clusterService.state().nodes().get(primaryShard.currentNodeId());
+        DiscoveryNode node = clusterService.state().nodes().get(primaryShard.currentNodeId());
+        if (node == null) {
+            throw new IllegalStateException("Cannot replicate, primary shard for " + shardId + " is not allocated on any node");
+        }
+        return node;
     }
 }

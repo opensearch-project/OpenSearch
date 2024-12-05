@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations.bucket;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
@@ -34,6 +35,7 @@ import java.util.Set;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -93,7 +95,7 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
         final SearchResponse allResponse = client().prepareSearch("idx")
             .setSize(0)
             .setQuery(QUERY)
-            .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).minDocCount(0))
+            .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.DAY).minDocCount(0))
             .get();
 
         final Histogram allHisto = allResponse.getAggregations().get("histo");
@@ -103,5 +105,37 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
         for (Map.Entry<String, Long> entry : expected.entrySet()) {
             assertEquals(entry.getValue(), results.get(entry.getKey()));
         }
+    }
+
+    public void testDisableOptimizationGivesSameResults() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+            .setSize(0)
+            .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.DAY).minDocCount(0))
+            .get();
+
+        final Histogram allHisto1 = response.getAggregations().get("histo");
+
+        final ClusterUpdateSettingsResponse updateSettingResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(MAX_AGGREGATION_REWRITE_FILTERS.getKey(), 0))
+            .get();
+
+        assertEquals(updateSettingResponse.getTransientSettings().get(MAX_AGGREGATION_REWRITE_FILTERS.getKey()), "0");
+
+        response = client().prepareSearch("idx")
+            .setSize(0)
+            .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.DAY).minDocCount(0))
+            .get();
+
+        final Histogram allHisto2 = response.getAggregations().get("histo");
+
+        assertEquals(allHisto1, allHisto2);
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(MAX_AGGREGATION_REWRITE_FILTERS.getKey()))
+            .get();
     }
 }

@@ -112,6 +112,13 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
         parser.parse(request, "foo", null, null, null, true, false, MediaTypeRegistry.JSON, req -> fail(), updateRequest -> {
             assertFalse(updateRequest.isRequireAlias());
         }, req -> fail());
+
+        request = new BytesArray(
+            "{ \"update\":{ \"_id\": \"bar\", \"require_alias\": false, \"pipeline\": \"testPipeline\" } }\n{\"upsert\": {\"x\": 1}}\n"
+        );
+        parser.parse(request, "foo", null, null, null, true, false, MediaTypeRegistry.JSON, req -> fail(), updateRequest -> {
+            assertEquals(updateRequest.upsertRequest().getPipeline(), "testPipeline");
+        }, req -> fail());
     }
 
     public void testBarfOnLackOfTrailingNewline() {

@@ -1482,6 +1482,33 @@ public class MetadataTests extends OpenSearchTestCase {
         assertFalse(metadata.isSegmentReplicationEnabled(indexName));
     }
 
+    public void testTemplatesMetadata() {
+        TemplatesMetadata templatesMetadata1 = TemplatesMetadata.builder()
+            .put(
+                IndexTemplateMetadata.builder("template_1")
+                    .patterns(Arrays.asList("bar-*", "foo-*"))
+                    .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
+                    .build()
+            )
+            .build();
+        Metadata metadata1 = Metadata.builder().templates(templatesMetadata1).build();
+        assertThat(metadata1.templates(), is(templatesMetadata1.getTemplates()));
+
+        TemplatesMetadata templatesMetadata2 = TemplatesMetadata.builder()
+            .put(
+                IndexTemplateMetadata.builder("template_2")
+                    .patterns(Arrays.asList("bar-*", "foo-*"))
+                    .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
+                    .build()
+            )
+            .build();
+
+        Metadata metadata2 = Metadata.builder(metadata1).templates(templatesMetadata2).build();
+
+        assertThat(metadata2.templates(), is(templatesMetadata2.getTemplates()));
+
+    }
+
     public static Metadata randomMetadata() {
         Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
@@ -1507,6 +1534,41 @@ public class MetadataTests extends OpenSearchTestCase {
         md.put(randomDataStream);
 
         return md.build();
+    }
+
+    public void testXContentWithTemplateMetadata() throws IOException {
+        final TemplatesMetadata templatesMetadata = getTemplatesMetadata(0);
+        verifyTemplatesMetadata(templatesMetadata);
+        final TemplatesMetadata templatesMetadata2 = getTemplatesMetadata(2);
+        verifyTemplatesMetadata(templatesMetadata2);
+    }
+
+    private void verifyTemplatesMetadata(TemplatesMetadata templatesMetadata) throws IOException {
+        final Metadata originalMeta = Metadata.builder().templates(templatesMetadata).build();
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        Metadata.FORMAT.toXContent(builder, originalMeta);
+        builder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final Metadata fromXContentMeta = Metadata.fromXContent(parser);
+            assertThat(fromXContentMeta.templates(), equalTo(originalMeta.templates()));
+        }
+    }
+
+    private static TemplatesMetadata getTemplatesMetadata(int numberOfTemplates) {
+        TemplatesMetadata.Builder builder = TemplatesMetadata.builder();
+        for (int i = 0; i < numberOfTemplates; i++) {
+            builder.put(
+                IndexTemplateMetadata.builder("template" + i)
+                    .order(1234)
+                    .patterns(Arrays.asList(randomAlphaOfLength(3) + "-*"))
+                    .settings(
+                        Settings.builder().put("index.random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build()
+                    )
+                    .build()
+            );
+        }
+        return builder.build();
     }
 
     private static CreateIndexResult createIndices(int numIndices, int numBackingIndices, String dataStreamName) {

@@ -26,6 +26,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Netty4ModulePlugin;
 import org.opensearch.transport.nio.NioTransportPlugin;
+import org.opensearch.transport.reactor.ReactorNetty4Plugin;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 
@@ -36,13 +38,12 @@ public class IdentityAuthenticationIT extends HttpSmokeTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(FeatureFlags.IDENTITY, "true")
             .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(OpenSearchTestCase.getTestTransportPlugin(), Netty4ModulePlugin.class, NioTransportPlugin.class, ShiroIdentityPlugin.class);
+        return Arrays.asList(OpenSearchTestCase.getTestTransportPlugin(), Netty4ModulePlugin.class, NioTransportPlugin.class, ReactorNetty4Plugin.class, ShiroIdentityPlugin.class);
     }
 
 

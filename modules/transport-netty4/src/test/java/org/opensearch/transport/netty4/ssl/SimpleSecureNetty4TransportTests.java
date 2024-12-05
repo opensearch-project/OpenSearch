@@ -20,8 +20,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.http.HttpServerTransport;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
+import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
@@ -55,6 +55,7 @@ import java.util.Optional;
 
 import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -69,40 +70,12 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final SecureTransportSettingsProvider secureTransportSettingsProvider = new SecureTransportSettingsProvider() {
             @Override
-            public Optional<ServerExceptionHandler> buildHttpServerExceptionHandler(Settings settings, HttpServerTransport transport) {
+            public Optional<TransportExceptionHandler> buildServerTransportExceptionHandler(Settings settings, Transport transport) {
                 return Optional.empty();
             }
 
             @Override
-            public Optional<ServerExceptionHandler> buildServerTransportExceptionHandler(Settings settings, TcpTransport transport) {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
-                try {
-                    final KeyStore keyStore = KeyStore.getInstance("PKCS12");
-                    keyStore.load(
-                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure.jks"),
-                        "password".toCharArray()
-                    );
-
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
-                    keyManagerFactory.init(keyStore, "password".toCharArray());
-
-                    SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
-                        .trustManager(TrustAllManager.INSTANCE)
-                        .build()
-                        .newEngine(NettyAllocator.getAllocator());
-                    return Optional.of(engine);
-                } catch (final IOException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException
-                    | CertificateException ex) {
-                    throw new SSLException(ex);
-                }
-            }
-
-            @Override
-            public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, TcpTransport transport) throws SSLException {
+            public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, Transport transport) throws SSLException {
                 try {
                     final KeyStore keyStore = KeyStore.getInstance("PKCS12");
                     keyStore.load(
@@ -115,7 +88,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
                         .clientAuth(ClientAuth.NONE)
-                        .trustManager(TrustAllManager.INSTANCE)
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator());
                     return Optional.of(engine);
@@ -131,7 +104,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
                 return Optional.of(
                     SslContextBuilder.forClient()
                         .clientAuth(ClientAuth.NONE)
-                        .trustManager(TrustAllManager.INSTANCE)
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator())
                 );

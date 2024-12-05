@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.termvectors.TermVectorsService;
 import org.opensearch.search.DocValueFormat;
@@ -45,8 +46,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assume.assumeThat;
 
 public class DateFieldMapperTests extends MapperTestCase {
 
@@ -146,7 +149,22 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(1457654400000L, storedField.numericValue().longValue());
     }
 
+    public void testIgnoreMalformedLegacy() throws IOException {
+        assumeThat("Using legacy datetime format as default", FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING), is(false));
+        testIgnoreMalformedForValue(
+            "2016-03-99",
+            "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"
+        );
+        testIgnoreMalformedForValue("-2147483648", "Invalid value for Year (valid values -999999999 - 999999999): -2147483648");
+        testIgnoreMalformedForValue("-522000000", "long overflow");
+    }
+
     public void testIgnoreMalformed() throws IOException {
+        assumeThat(
+            "Using experimental datetime format as default",
+            FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING),
+            is(true)
+        );
         testIgnoreMalformedForValue(
             "2016-03-99",
             "failed to parse date field [2016-03-99] with format [strict_date_time_no_millis||strict_date_optional_time||epoch_millis]"
@@ -190,7 +208,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "de"))
         );
 
-        mapper.parse(source(b -> b.field("field", "Mi, 06 Dez 2000 02:55:00 -0800")));
+        mapper.parse(source(b -> b.field("field", "Mi., 06 Dez. 2000 02:55:00 -0800")));
     }
 
     public void testNullValue() throws IOException {

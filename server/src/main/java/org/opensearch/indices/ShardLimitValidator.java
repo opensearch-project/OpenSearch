@@ -261,14 +261,15 @@ public class ShardLimitValidator {
             return Optional.empty();
         }
 
+        int computedMaxShards = (int) Math.min(Integer.MAX_VALUE, (long) maxShardsPerNodeSetting * nodeCount);
         int maxShardsInCluster = maxShardsPerClusterSetting;
         if (maxShardsInCluster == -1) {
-            maxShardsInCluster = maxShardsPerNodeSetting * nodeCount;
+            maxShardsInCluster = computedMaxShards;
         } else {
-            maxShardsInCluster = Math.min(maxShardsInCluster, maxShardsPerNodeSetting * nodeCount);
+            maxShardsInCluster = Math.min(maxShardsInCluster, computedMaxShards);
         }
 
-        int currentOpenShards = state.getMetadata().getTotalOpenIndexShards();
+        long currentOpenShards = state.getMetadata().getTotalOpenIndexShards();
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
             String errorMessage = "this action would add ["
                 + newShards

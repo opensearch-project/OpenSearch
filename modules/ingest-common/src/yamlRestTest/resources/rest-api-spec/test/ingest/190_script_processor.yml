@@ -278,3 +278,78 @@ teardown:
         body: {source_field: "fooBar", foo: {foo: "bar"}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Iterable object is self-referencing itself (ingest script)" }
+
+---
+"Test painless data types":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "source" : "ctx.byte = (byte)127;ctx.short = (short)32767;ctx.int = (int)2147483647;ctx.long = (long)9223372036854775807L;ctx.float = (float)0.1;ctx.double = (double)0.1;ctx.boolean = (boolean)true"
+                }
+              },
+              {
+                "script" : {
+                  "source" : "ctx.other_field = 'other_field'"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "FooBar"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.byte: 127 }
+  - match: { _source.int: 2147483647 }
+  - match: { _source.long: 9223372036854775807 }
+  - gt: { _source.float: 0.0 }
+  - lt: { _source.float: 0.2 }
+  - gt: { _source.double: 0.0 }
+  - lt: { _source.double: 0.2 }
+  - match: { _source.boolean: true }
+
+---
+"Test char type fails":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "source" : "ctx.char = (char)'a'"
+                }
+              },
+              {
+                "script" : {
+                  "source" : "ctx.other_field = 'other_field'"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "FooBar"}
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }

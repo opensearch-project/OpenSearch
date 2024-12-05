@@ -34,6 +34,7 @@ package org.opensearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.opensearch.common.UUIDs;
@@ -43,8 +44,10 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContextAccess;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -74,7 +77,8 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
         super(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;
@@ -131,7 +135,7 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
                     scheduledNextTask = false;
                     final ThreadContext threadContext = threadPool.getThreadContext();
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                        threadContext.markAsSystemContext();
+                        ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
                         task.run();
                     }
                     if (waitForPublish == false) {

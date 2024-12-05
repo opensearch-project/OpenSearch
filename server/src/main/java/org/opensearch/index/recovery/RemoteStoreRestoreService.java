@@ -11,6 +11,7 @@ package org.opensearch.index.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlocks;
@@ -26,6 +27,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -48,6 +50,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 
 /**
@@ -93,7 +96,7 @@ public class RemoteStoreRestoreService {
      * @param listener restore listener
      */
     public void restore(RestoreRemoteStoreRequest request, final ActionListener<RestoreService.RestoreCompletionResponse> listener) {
-        clusterService.submitStateUpdateTask("restore[remote_store]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("restore[remote_store]", new ClusterStateUpdateTask(Priority.URGENT) {
             String restoreUUID;
             RestoreInfo restoreInfo = null;
 
@@ -150,7 +153,11 @@ public class RemoteStoreRestoreService {
                     throw new IllegalArgumentException("clusterUUID to restore from should be different from current cluster UUID");
                 }
                 logger.info("Restoring cluster state from remote store from cluster UUID : [{}]", restoreClusterUUID);
-                remoteState = remoteClusterStateService.getLatestClusterState(currentState.getClusterName().value(), restoreClusterUUID);
+                remoteState = remoteClusterStateService.getLatestClusterState(
+                    currentState.getClusterName().value(),
+                    restoreClusterUUID,
+                    false
+                );
                 remoteState.getMetadata().getIndices().values().forEach(indexMetadata -> {
                     indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
                 });
@@ -158,7 +165,12 @@ public class RemoteStoreRestoreService {
                 throw new IllegalStateException("Unable to restore remote index metadata", e);
             }
         } else {
-            for (String indexName : indexNames) {
+            List<String> filteredIndices = filterIndices(
+                List.of(currentState.metadata().getConcreteAllIndices()),
+                indexNames,
+                IndicesOptions.fromOptions(true, true, true, true)
+            );
+            for (String indexName : filteredIndices) {
                 IndexMetadata indexMetadata = currentState.metadata().index(indexName);
                 if (indexMetadata == null) {
                     logger.warn("Index restore is not supported for non-existent index. Skipping: {}", indexName);
@@ -216,7 +228,8 @@ public class RemoteStoreRestoreService {
                     .build();
             }
 
-            IndexId indexId = new IndexId(indexName, updatedIndexMetadata.getIndexUUID());
+            // This instance of IndexId is not related to Snapshot Restore. Hence, we are using the ctor without pathType.
+            IndexId indexId = new IndexId(indexName, updatedIndexMetadata.getIndexUUID(), IndexId.DEFAULT_SHARD_PATH_TYPE);
 
             if (metadataFromRemoteStore == false) {
                 Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap = currentState.routingTable()

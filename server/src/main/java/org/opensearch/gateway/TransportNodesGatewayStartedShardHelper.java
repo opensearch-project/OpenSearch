@@ -42,6 +42,8 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class TransportNodesGatewayStartedShardHelper {
+    public static final String INDEX_NOT_FOUND = "node doesn't have meta data for index";
+
     public static GatewayStartedShard getShardInfoOnLocalNode(
         Logger logger,
         final ShardId shardId,
@@ -72,7 +74,7 @@ public class TransportNodesGatewayStartedShardHelper {
                         customDataPath = new IndexSettings(metadata, settings).customDataPath();
                     } else {
                         logger.trace("{} node doesn't have meta data for the requests index", shardId);
-                        throw new OpenSearchException("node doesn't have meta data for index " + shardId.getIndex());
+                        throw new OpenSearchException(INDEX_NOT_FOUND + " " + shardId.getIndex());
                     }
                 }
                 // we don't have an open shard on the store, validate the files on disk are openable
@@ -229,6 +231,13 @@ public class TransportNodesGatewayStartedShardHelper {
             }
             buf.append("]");
             return buf.toString();
+        }
+
+        public static boolean isEmpty(GatewayStartedShard gatewayStartedShard) {
+            return gatewayStartedShard.allocationId() == null
+                && gatewayStartedShard.primary() == false
+                && gatewayStartedShard.storeException() == null
+                && gatewayStartedShard.replicationCheckpoint() == null;
         }
     }
 

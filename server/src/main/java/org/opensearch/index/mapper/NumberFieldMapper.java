@@ -46,8 +46,10 @@ import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -58,8 +60,10 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
+import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesSetQuery;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -68,19 +72,25 @@ import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.query.BitmapDocValuesQuery;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import org.roaringbitmap.RoaringBitmap;
 
 /**
  * A {@link FieldMapper} for numeric types: byte, short, int, long, float and double.
@@ -164,6 +174,22 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             MappedFieldType ft = new NumberFieldType(buildFullName(context), this);
             return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
+
+        @Override
+        public Optional<DimensionType> getSupportedDataCubeDimensionType() {
+
+            // unsigned long is not supported as dimension for star tree
+            if (type.numericType.equals(NumericType.UNSIGNED_LONG)) {
+                return Optional.empty();
+            }
+
+            return Optional.of(DimensionType.NUMERIC);
+        }
+
+        @Override
+        public boolean isDataCubeMetricSupported() {
+            return true;
+        }
     }
 
     /**
@@ -171,7 +197,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public enum NumberType {
+    public enum NumberType implements NumericPointEncoder, FieldValueConverter {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             public Float parse(Object value, boolean coerce) {
@@ -192,6 +218,18 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return HalfFloatPoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[HalfFloatPoint.BYTES];
+                HalfFloatPoint.encodeDimension(value.floatValue(), point, 0);
+                return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return HalfFloatPoint.sortableShortToHalfFloat((short) value);
             }
 
             @Override
@@ -332,6 +370,18 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Float.BYTES];
+                FloatPoint.encodeDimension(value.floatValue(), point, 0);
+                return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return NumericUtils.sortableIntToFloat((int) value);
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -455,6 +505,18 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return DoublePoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Double.BYTES];
+                DoublePoint.encodeDimension(value.doubleValue(), point, 0);
+                return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return NumericUtils.sortableLongToDouble(value);
             }
 
             @Override
@@ -583,6 +645,18 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Integer.BYTES];
+                IntPoint.encodeDimension(value.intValue(), point, 0);
+                return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return objectToDouble(value);
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
@@ -655,6 +729,18 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Integer.BYTES];
+                IntPoint.encodeDimension(value.intValue(), point, 0);
+                return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return (double) value;
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.shortValue(coerce);
             }
@@ -723,6 +809,18 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Integer.BYTES];
+                IntPoint.encodeDimension(value.intValue(), point, 0);
+                return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return (double) value;
+            }
+
+            @Override
             public Integer parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.intValue(coerce);
             }
@@ -778,6 +876,24 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     return SortedNumericDocValuesField.newSlowSetQuery(field, points);
                 }
                 return IntPoint.newSetQuery(field, v);
+            }
+
+            @Override
+            public Query bitmapQuery(String field, BytesArray bitmapArray, boolean isSearchable, boolean hasDocValues) {
+                RoaringBitmap bitmap = new RoaringBitmap();
+                try {
+                    bitmap.deserialize(ByteBuffer.wrap(bitmapArray.array()));
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Failed to deserialize the bitmap.", e);
+                }
+
+                if (isSearchable && hasDocValues) {
+                    return new IndexOrDocValuesQuery(bitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
+                }
+                if (isSearchable) {
+                    return bitmapIndexQuery(field, bitmap);
+                }
+                return new BitmapDocValuesQuery(field, bitmap);
             }
 
             @Override
@@ -866,6 +982,18 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return LongPoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Long.BYTES];
+                LongPoint.encodeDimension(value.longValue(), point, 0);
+                return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return (double) value;
             }
 
             @Override
@@ -989,6 +1117,18 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[BigIntegerPoint.BYTES];
+                BigIntegerPoint.encodeDimension(objectToUnsignedLong(value, false, true), point, 0);
+                return point;
+            }
+
+            @Override
+            public double toDoubleValue(long value) {
+                return Numbers.unsignedLongToDouble(value);
+            }
+
+            @Override
             public BigInteger parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.bigIntegerValue(coerce);
             }
@@ -1100,12 +1240,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             this.parser = new TypeParser((n, c) -> new Builder(n, this, c.getSettings()));
         }
 
-        /** Get the associated type name. */
+        /**
+         * Get the associated type name.
+         */
         public final String typeName() {
             return name;
         }
 
-        /** Get the associated numeric type */
+        /**
+         * Get the associated numeric type
+         */
         public final NumericType numericType() {
             return numericType;
         }
@@ -1117,6 +1261,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         public abstract Query termQuery(String field, Object value, boolean hasDocValues, boolean isSearchable);
 
         public abstract Query termsQuery(String field, List<Object> values, boolean hasDocValues, boolean isSearchable);
+
+        public Query bitmapQuery(String field, BytesArray bitmap, boolean isSearchable, boolean hasDocValues) {
+            throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support bitmap queries");
+        }
 
         public abstract Query rangeQuery(
             String field,
@@ -1215,16 +1363,30 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return Numbers.toLong(stringValue, coerce);
         }
 
-        /**
-         * Converts and Object to a {@code long} by checking it against known
-         * types and checking its range.
-         */
         public static BigInteger objectToUnsignedLong(Object value, boolean coerce) {
+            return objectToUnsignedLong(value, coerce, false);
+        }
+
+        /**
+         * Converts an Object to a {@code BigInteger} by checking it against known
+         * types and checking its range.
+         *
+         * @param lenientBound if true, use MIN or MAX if the value is out of bound
+         */
+        public static BigInteger objectToUnsignedLong(Object value, boolean coerce, boolean lenientBound) {
             if (value instanceof Long) {
                 return Numbers.toUnsignedBigInteger(((Long) value).longValue());
             }
 
             double doubleValue = objectToDouble(value);
+            if (lenientBound) {
+                if (doubleValue < Numbers.MIN_UNSIGNED_LONG_VALUE.doubleValue()) {
+                    return Numbers.MIN_UNSIGNED_LONG_VALUE;
+                }
+                if (doubleValue > Numbers.MAX_UNSIGNED_LONG_VALUE.doubleValue()) {
+                    return Numbers.MAX_UNSIGNED_LONG_VALUE;
+                }
+            }
             if (doubleValue < Numbers.MIN_UNSIGNED_LONG_VALUE.doubleValue()
                 || doubleValue > Numbers.MAX_UNSIGNED_LONG_VALUE.doubleValue()) {
                 throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned long");
@@ -1340,7 +1502,44 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     u = u.subtract(BigInteger.ONE);
                 }
             }
+            if (l.compareTo(u) > 0) {
+                return new MatchNoDocsQuery();
+            }
             return builder.apply(l, u);
+        }
+
+        static PointInSetQuery bitmapIndexQuery(String field, RoaringBitmap bitmap) {
+            final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
+            return new PointInSetQuery(field, 1, Integer.BYTES, new PointInSetQuery.Stream() {
+
+                final Iterator<Integer> iterator = bitmap.iterator();
+
+                @Override
+                public BytesRef next() {
+                    int value;
+                    if (iterator.hasNext()) {
+                        value = iterator.next();
+                    } else {
+                        return null;
+                    }
+                    IntPoint.encodeDimension(value, encoded.bytes, 0);
+                    return encoded;
+                }
+            }) {
+                @Override
+                public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+                    if (bitmap.isEmpty()) {
+                        return new MatchNoDocsQuery();
+                    }
+                    return super.rewrite(indexSearcher);
+                }
+
+                @Override
+                protected String toString(byte[] value) {
+                    assert value.length == Integer.BYTES;
+                    return Integer.toString(IntPoint.decodeDimension(value, 0));
+                }
+            };
         }
     }
 
@@ -1349,7 +1548,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public static class NumberFieldType extends SimpleMappedFieldType {
+    public static class NumberFieldType extends SimpleMappedFieldType implements NumericPointEncoder, FieldValueConverter {
 
         private final NumberType type;
         private final boolean coerce;
@@ -1394,6 +1593,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return type.name;
         }
 
+        public NumberType numberType() {
+            return type;
+        }
+
         public NumericType numericType() {
             return type.numericType();
         }
@@ -1416,6 +1619,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 query = new BoostQuery(query, boost());
             }
             return query;
+        }
+
+        public Query bitmapQuery(BytesArray bitmap) {
+            failIfNotIndexedAndNoDocValues();
+            return type.bitmapQuery(name(), bitmap, isSearchable(), hasDocValues());
         }
 
         @Override
@@ -1500,6 +1708,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
+        }
+
+        @Override
+        public byte[] encodePoint(Number value) {
+            return type.encodePoint(value);
+        }
+
+        @Override
+        public double toDoubleValue(long value) {
+            return type.toDoubleValue(value);
         }
     }
 

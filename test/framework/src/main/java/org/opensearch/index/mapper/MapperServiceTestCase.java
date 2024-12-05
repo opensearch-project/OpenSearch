@@ -225,13 +225,32 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         return builder.endObject().endObject().endObject();
     }
 
+    protected final XContentBuilder derivedMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("derived");
+        buildFields.accept(builder);
+        return builder.endObject().endObject().endObject();
+    }
+
     protected final XContentBuilder dynamicMapping(Mapping dynamicMapping) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         dynamicMapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder.endObject();
     }
 
-    protected final XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+    protected XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+        return fieldMapping(buildField, false);
+    }
+
+    protected final XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField, Boolean isDerived)
+        throws IOException {
+        if (isDerived) {
+            return derivedMapping(b -> {
+                b.startObject("field");
+                buildField.accept(b);
+                b.endObject();
+            });
+        }
+
         return mapping(b -> {
             b.startObject("field");
             buildField.accept(b);
@@ -247,6 +266,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         when(queryShardContext.getSearchQuoteAnalyzer(any())).thenCallRealMethod();
         when(queryShardContext.getSearchAnalyzer(any())).thenCallRealMethod();
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
+        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(
+            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString())
+        );
         when(queryShardContext.simpleMatchToIndexNames(any())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );

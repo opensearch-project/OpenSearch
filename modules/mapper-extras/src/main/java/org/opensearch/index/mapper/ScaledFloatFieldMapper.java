@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -48,6 +49,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
+import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -70,10 +72,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
- *  by a scaling factor and rounded to the closest long. */
+ * by a scaling factor and rounded to the closest long.
+ */
 public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "scaled_float";
@@ -161,11 +165,21 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             );
             return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
+
+        @Override
+        public Optional<DimensionType> getSupportedDataCubeDimensionType() {
+            return Optional.of(DimensionType.NUMERIC);
+        }
+
+        @Override
+        public boolean isDataCubeMetricSupported() {
+            return true;
+        }
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings()));
 
-    public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
+    public static final class ScaledFloatFieldType extends SimpleMappedFieldType implements NumericPointEncoder, FieldValueConverter {
 
         private final double scalingFactor;
         private final Double nullValue;
@@ -186,6 +200,21 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
             this(name, true, false, true, Collections.emptyMap(), scalingFactor, null);
+        }
+
+        @Override
+        public byte[] encodePoint(Number value) {
+            assert value instanceof Double;
+            double doubleValue = (Double) value;
+            byte[] point = new byte[Long.BYTES];
+            if (doubleValue == Double.POSITIVE_INFINITY) {
+                LongPoint.encodeDimension(Long.MAX_VALUE, point, 0);
+            } else if (doubleValue == Double.NEGATIVE_INFINITY) {
+                LongPoint.encodeDimension(Long.MIN_VALUE, point, 0);
+            } else {
+                LongPoint.encodeDimension(Math.round(scale(value)), point, 0);
+            }
+            return point;
         }
 
         public double getScalingFactor() {
@@ -323,6 +352,12 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
          */
         private double scale(Object input) {
             return new BigDecimal(Double.toString(parse(input))).multiply(BigDecimal.valueOf(scalingFactor)).doubleValue();
+        }
+
+        @Override
+        public double toDoubleValue(long value) {
+            double inverseScalingFactor = 1d / scalingFactor;
+            return value * inverseScalingFactor;
         }
     }
 

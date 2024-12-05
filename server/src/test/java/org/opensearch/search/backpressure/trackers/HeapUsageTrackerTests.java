@@ -58,7 +58,7 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
                 SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             )
         );
-        Task task = createMockTaskWithResourceStats(SearchTask.class, 1, 50);
+        Task task = createMockTaskWithResourceStats(SearchTask.class, 1, 50, randomNonNegativeLong());
 
         // Record enough observations to make the moving average 'ready'.
         for (int i = 0; i < HEAP_MOVING_AVERAGE_WINDOW_SIZE; i++) {
@@ -66,7 +66,7 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         }
 
         // Task that has heap usage >= heapBytesThreshold and (movingAverage * heapVariance).
-        task = createMockTaskWithResourceStats(SearchTask.class, 1, 300);
+        task = createMockTaskWithResourceStats(SearchTask.class, 1, 300, randomNonNegativeLong());
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertTrue(reason.isPresent());
         assertEquals(6, reason.get().getCancellationScore());
@@ -88,7 +88,7 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
                 SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             )
         );
-        Task task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 50);
+        Task task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 50, randomNonNegativeLong());
 
         // Record enough observations to make the moving average 'ready'.
         for (int i = 0; i < HEAP_MOVING_AVERAGE_WINDOW_SIZE; i++) {
@@ -96,7 +96,7 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         }
 
         // Task that has heap usage >= heapBytesThreshold and (movingAverage * heapVariance).
-        task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 200);
+        task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 200, randomNonNegativeLong());
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertTrue(reason.isPresent());
         assertEquals(4, reason.get().getCancellationScore());
@@ -122,7 +122,7 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         );
 
         // Task with heap usage < heapBytesThreshold.
-        task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 99);
+        task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 99, randomNonNegativeLong());
 
         // Not enough observations.
         reason = tracker.checkAndMaybeGetCancellationReason(task);
@@ -139,7 +139,12 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
 
         // Task with heap usage between heapBytesThreshold and (movingAverage * heapVariance) should not be cancelled.
         double allowedHeapUsage = 99.0 * 2.0;
-        task = createMockTaskWithResourceStats(SearchShardTask.class, 1, randomLongBetween(99, (long) allowedHeapUsage - 1));
+        task = createMockTaskWithResourceStats(
+            SearchShardTask.class,
+            1,
+            randomLongBetween(99, (long) allowedHeapUsage - 1),
+            randomNonNegativeLong()
+        );
         reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertFalse(reason.isPresent());
     }
@@ -148,12 +153,12 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         assumeTrue("Skip the test if the hardware doesn't support heap usage tracking", HeapUsageTracker.isHeapTrackingSupported());
 
         // task with 1 byte of heap usage so that it does not breach the threshold
-        CancellableTask task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 1);
+        CancellableTask task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 1, randomNonNegativeLong());
         assertFalse(HeapUsageTracker.isHeapUsageDominatedBySearch(List.of(task), 0.5));
 
         long totalHeap = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
         // task with heap usage of [totalHeap - 1] so that it breaches the threshold
-        task = createMockTaskWithResourceStats(SearchShardTask.class, 1, totalHeap - 1);
+        task = createMockTaskWithResourceStats(SearchShardTask.class, 1, totalHeap - 1, randomNonNegativeLong());
         assertTrue(HeapUsageTracker.isHeapUsageDominatedBySearch(List.of(task), 0.5));
     }
 }

@@ -75,6 +75,7 @@ import org.apache.lucene.analysis.et.EstonianAnalyzer;
 import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
+import org.apache.lucene.analysis.fa.PersianStemFilter;
 import org.apache.lucene.analysis.fi.FinnishAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.ga.IrishAnalyzer;
@@ -145,6 +146,7 @@ import org.opensearch.index.analysis.PreConfiguredTokenFilter;
 import org.opensearch.index.analysis.PreConfiguredTokenizer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.opensearch.plugins.AnalysisPlugin;
@@ -246,7 +248,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
     }
 
     @Override
-    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters(AnalysisModule analysisModule) {
         Map<String, AnalysisProvider<TokenFilterFactory>> filters = new TreeMap<>();
         filters.put("apostrophe", ApostropheFilterFactory::new);
         filters.put("arabic_normalization", ArabicNormalizationFilterFactory::new);
@@ -315,6 +317,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         filters.put("pattern_capture", requiresAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
         filters.put("pattern_replace", requiresAnalysisSettings(PatternReplaceTokenFilterFactory::new));
         filters.put("persian_normalization", PersianNormalizationFilterFactory::new);
+        filters.put("persian_stem", PersianStemTokenFilterFactory::new);
         filters.put("porter_stem", PorterStemTokenFilterFactory::new);
         filters.put(
             "predicate_token_filter",
@@ -330,14 +333,36 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         filters.put("sorani_normalization", SoraniNormalizationFilterFactory::new);
         filters.put("stemmer_override", requiresAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
         filters.put("stemmer", StemmerTokenFilterFactory::new);
-        filters.put("synonym", requiresAnalysisSettings(SynonymTokenFilterFactory::new));
-        filters.put("synonym_graph", requiresAnalysisSettings(SynonymGraphTokenFilterFactory::new));
         filters.put("trim", TrimTokenFilterFactory::new);
         filters.put("truncate", requiresAnalysisSettings(TruncateTokenFilterFactory::new));
         filters.put("unique", UniqueTokenFilterFactory::new);
         filters.put("uppercase", UpperCaseTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
+        filters.put(
+            "synonym",
+            requiresAnalysisSettings(
+                (indexSettings, environment, name, settings) -> new SynonymTokenFilterFactory(
+                    indexSettings,
+                    environment,
+                    name,
+                    settings,
+                    analysisModule.getAnalysisRegistry()
+                )
+            )
+        );
+        filters.put(
+            "synonym_graph",
+            requiresAnalysisSettings(
+                (indexSettings, environment, name, settings) -> new SynonymGraphTokenFilterFactory(
+                    indexSettings,
+                    environment,
+                    name,
+                    settings,
+                    analysisModule.getAnalysisRegistry()
+                )
+            )
+        );
         return filters;
     }
 
@@ -558,6 +583,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
             );
         }));
         filters.add(PreConfiguredTokenFilter.singleton("persian_normalization", true, PersianNormalizationFilter::new));
+        filters.add(PreConfiguredTokenFilter.singleton("persian_stem", true, PersianStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("porter_stem", false, PorterStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("reverse", false, ReverseStringFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("russian_stem", false, input -> new SnowballFilter(input, "Russian")));

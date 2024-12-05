@@ -1399,7 +1399,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         // Verify that the resulting REST request looks as expected.
         Request request = RequestConverters.searchTemplate(searchTemplateRequest);
-        String endpoint = "_render/template";
+        String endpoint = "/_render/template";
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals(endpoint, request.getEndpoint());
@@ -1565,7 +1565,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         Request request = RequestConverters.mtermVectors(mtvRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("_mtermvectors", request.getEndpoint());
+        assertEquals("/_mtermvectors", request.getEndpoint());
         assertToXContentBody(mtvRequest, request.getEntity());
     }
 
@@ -1585,7 +1585,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         Request request = RequestConverters.mtermVectors(mtvRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("_mtermvectors", request.getEndpoint());
+        assertEquals("/_mtermvectors", request.getEndpoint());
         assertToXContentBody(mtvRequest, request.getEntity());
     }
 

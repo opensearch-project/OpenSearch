@@ -65,6 +65,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.breaker.ResponseLimitBreachedException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -99,6 +100,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndexTemplateMissingException;
+import org.opensearch.indices.InvalidIndexContextException;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.recovery.PeerRecoveryNotFound;
 import org.opensearch.indices.recovery.RecoverFilesRecoveryException;
@@ -896,6 +898,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(171, CryptoRegistryException.class);
         ids.put(172, ViewNotFoundException.class);
         ids.put(173, ViewAlreadyExistsException.class);
+        ids.put(174, InvalidIndexContextException.class);
+        ids.put(175, ResponseLimitBreachedException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();

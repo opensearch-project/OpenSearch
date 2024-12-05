@@ -86,6 +86,7 @@ import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.TestCustomMetadata;
@@ -572,7 +573,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 List<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
                 assertEquals(snapshotStatuses.size(), 1);
                 logger.trace("current snapshot status [{}]", snapshotStatuses.get(0));
-                assertTrue(snapshotStatuses.get(0).getState().completed());
+                assertThat(getSnapshot("test-repo", "test-snap-2").state(), equalTo(SnapshotState.PARTIAL));
             }, 1, TimeUnit.MINUTES);
             SnapshotsStatusResponse snapshotsStatusResponse = clusterAdmin().prepareSnapshotStatus("test-repo")
                 .setSnapshots("test-snap-2")
@@ -589,7 +590,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             // After it was marked as completed in the cluster state - we need to check if it's completed on the file system as well
             assertBusy(() -> {
                 SnapshotInfo snapshotInfo = getSnapshot("test-repo", "test-snap-2");
-                assertTrue(snapshotInfo.state().completed());
                 assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
             }, 1, TimeUnit.MINUTES);
         } else {
@@ -760,18 +760,26 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startNode(nonClusterManagerNode());
         // Register mock repositories
         for (int i = 0; i < 5; i++) {
-            clusterAdmin().preparePutRepository("test-repo" + i)
-                .setType("mock")
-                .setSettings(Settings.builder().put("location", randomRepoPath()))
-                .setVerify(false)
-                .get();
+            OpenSearchIntegTestCase.putRepositoryRequestBuilder(
+                clusterAdmin(),
+                "test-repo" + i,
+                "mock",
+                false,
+                Settings.builder().put("location", randomRepoPath()),
+                null,
+                false
+            ).get();
         }
         logger.info("--> make sure that properly setup repository can be registered on all nodes");
-        clusterAdmin().preparePutRepository("test-repo-0")
-            .setType("fs")
-            .setSettings(Settings.builder().put("location", randomRepoPath()))
-            .get();
-
+        OpenSearchIntegTestCase.putRepositoryRequestBuilder(
+            clusterAdmin(),
+            "test-repo-0",
+            "fs",
+            true,
+            Settings.builder().put("location", randomRepoPath()),
+            null,
+            false
+        ).get();
     }
 
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
@@ -980,11 +988,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final String snapshotName = "<snapshot-{now/d}>";
 
         logger.info("-->  creating repository");
-        assertAcked(
-            clusterAdmin().preparePutRepository(repo)
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
-        );
+        createRepository(repo, "fs", Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()));
 
         final String expression1 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
         logger.info("-->  creating date math snapshot");

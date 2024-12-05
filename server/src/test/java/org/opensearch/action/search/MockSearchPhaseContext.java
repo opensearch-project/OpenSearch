@@ -182,6 +182,14 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
         // Noop
     }
 
+    /**
+     * Set the resource usage info for this phase
+     */
+    @Override
+    public void setPhaseResourceUsages() {
+        // Noop
+    }
+
     @Override
     public void execute(Runnable command) {
         command.run();

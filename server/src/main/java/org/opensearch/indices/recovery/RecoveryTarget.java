@@ -213,10 +213,17 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         ActionListener.completeWith(listener, () -> {
             state().getIndex().setFileDetailsComplete(); // ops-based recoveries don't send the file details
             state().getTranslog().totalOperations(totalTranslogOps);
+            // Cleanup remote contents before opening new translog.
+            // This prevents reading from any old Translog UUIDs during re-seeding
+            // (situation in which primary fails over to docrep replica and is re-seeded to remote again)
+            // which might end up causing a TranslogCorruptedException
+            if (indexShard.shouldSeedRemoteStore()) {
+                assert indexShard.routingEntry().primary() : "Remote seeding should only true be for primary shard copy";
+                indexShard.deleteRemoteStoreContents();
+            }
             indexShard().openEngineAndSkipTranslogRecovery();
             // upload to remote store in migration for primary shard
-            if (indexShard.shouldSeedRemoteStore() && indexShard.routingEntry().primary()) {
-                indexShard.deleteRemoteStoreContents();
+            if (indexShard.shouldSeedRemoteStore()) {
                 // This cleans up remote translog's 0 generation, as we don't want to get that uploaded
                 indexShard.sync();
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> { indexShard.refresh("remote store migration"); });

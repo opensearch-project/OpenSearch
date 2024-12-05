@@ -304,7 +304,7 @@ public class FastVectorHighlighter implements Highlighter {
                 return DEFAULT_WORD_BOUNDARY_SCANNER;
             case CHARS:
                 if (fieldOptions.boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN
-                    || fieldOptions.boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
+                    || fieldOptions.boundaryChars() != HighlightBuilder.DEFAULT_BOUNDARY_CHARS) {
                     return new SimpleBoundaryScanner(fieldOptions.boundaryMaxScan(), fieldOptions.boundaryChars());
                 }
                 return DEFAULT_SIMPLE_BOUNDARY_SCANNER;

@@ -36,6 +36,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.search.function.ScoreFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.ParseField;
@@ -64,6 +65,7 @@ import org.opensearch.search.aggregations.pipeline.MovAvgModel;
 import org.opensearch.search.aggregations.pipeline.MovAvgPipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.query.QueryPhaseSearcher;
@@ -136,6 +138,15 @@ public interface SearchPlugin {
      */
     default Map<String, Highlighter> getHighlighters() {
         return emptyMap();
+    }
+
+    /**
+     * Allows plugins to register a factory to create custom decider for concurrent search
+     * @return A {@link ConcurrentSearchRequestDecider.Factory}
+     */
+    @ExperimentalApi
+    default Optional<ConcurrentSearchRequestDecider.Factory> getConcurrentSearchRequestDeciderFactory() {
+        return Optional.empty();
     }
 
     /**

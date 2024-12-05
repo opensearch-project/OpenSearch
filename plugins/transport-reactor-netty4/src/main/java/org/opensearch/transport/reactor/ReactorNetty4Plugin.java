@@ -17,9 +17,11 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.HttpServerTransport.Dispatcher;
 import org.opensearch.http.reactor.netty4.ReactorNetty4HttpServerTransport;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -37,6 +39,11 @@ public class ReactorNetty4Plugin extends Plugin implements NetworkPlugin {
      * The name of new experimental HTTP transport implementations based on Reactor Netty.
      */
     public static final String REACTOR_NETTY_HTTP_TRANSPORT_NAME = "reactor-netty4";
+
+    /**
+     * The name of new experimental secure HTTP transport implementations based on Reactor Netty.
+     */
+    public static final String REACTOR_NETTY_SECURE_HTTP_TRANSPORT_NAME = "reactor-netty4-secure";
 
     private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
 
@@ -91,6 +98,53 @@ public class ReactorNetty4Plugin extends Plugin implements NetworkPlugin {
                 dispatcher,
                 clusterSettings,
                 getSharedGroupFactory(settings),
+                null, /* no security settings provider */
+                tracer
+            )
+        );
+    }
+
+    /**
+     * Returns a map of {@link HttpServerTransport} suppliers.
+     * See {@link org.opensearch.common.network.NetworkModule#HTTP_TYPE_SETTING} to configure a specific implementation.
+     * @param settings settings
+     * @param networkService network service
+     * @param bigArrays big array allocator
+     * @param pageCacheRecycler page cache recycler instance
+     * @param circuitBreakerService circuit breaker service instance
+     * @param threadPool thread pool instance
+     * @param xContentRegistry XContent registry instance
+     * @param dispatcher dispatcher instance
+     * @param clusterSettings cluster settings
+     * @param secureHttpTransportSettingsProvider secure HTTP transport settings provider
+     * @param tracer tracer instance
+     */
+    @Override
+    public Map<String, Supplier<HttpServerTransport>> getSecureHttpTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
+        Tracer tracer
+    ) {
+        return Collections.singletonMap(
+            REACTOR_NETTY_SECURE_HTTP_TRANSPORT_NAME,
+            () -> new ReactorNetty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry,
+                dispatcher,
+                clusterSettings,
+                getSharedGroupFactory(settings),
+                secureHttpTransportSettingsProvider,
                 tracer
             )
         );

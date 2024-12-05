@@ -48,6 +48,8 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamInput;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
@@ -315,6 +317,10 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      */
     public static long parseIdFromFileName(Path translogFile) {
         final String fileName = translogFile.getFileName().toString();
+        return parseIdFromFileName(fileName);
+    }
+
+    public static long parseIdFromFileName(String fileName) {
         final Matcher matcher = PARSE_STRICT_ID_PATTERN.matcher(fileName);
         if (matcher.matches()) {
             try {
@@ -525,7 +531,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
                 tragedy,
                 persistedSequenceNumberConsumer,
                 bigArrays,
-                indexSettings.isRemoteNode()
+                indexSettings.isAssignedOnRemoteNode()
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -2012,16 +2018,46 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         @Nullable final String translogUUID,
         @Nullable final ChannelFactory factory
     ) throws IOException {
+        return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, translogUUID, factory, 1);
+    }
+
+    public static String createEmptyTranslog(final Path location, final ShardId shardId, Checkpoint checkpoint) throws IOException {
+        final Path highestGenTranslogFile = location.resolve(getFilename(checkpoint.generation));
+        final TranslogHeader translogHeader;
+        try (FileChannel channel = FileChannel.open(highestGenTranslogFile, StandardOpenOption.READ)) {
+            translogHeader = TranslogHeader.read(highestGenTranslogFile, channel);
+        }
+        final String translogUUID = translogHeader.getTranslogUUID();
+        final long primaryTerm = translogHeader.getPrimaryTerm();
+        final ChannelFactory channelFactory = FileChannel::open;
+        return Translog.createEmptyTranslog(
+            location,
+            shardId,
+            SequenceNumbers.NO_OPS_PERFORMED,
+            primaryTerm,
+            translogUUID,
+            channelFactory,
+            checkpoint.generation + 1
+        );
+    }
+
+    public static String createEmptyTranslog(
+        final Path location,
+        final ShardId shardId,
+        final long initialGlobalCheckpoint,
+        final long primaryTerm,
+        @Nullable final String translogUUID,
+        @Nullable final ChannelFactory factory,
+        final long generation
+    ) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
 
-        final long generation = 1L;
-        final long minTranslogGeneration = 1L;
         final ChannelFactory channelFactory = factory != null ? factory : FileChannel::open;
         final String uuid = Strings.hasLength(translogUUID) ? translogUUID : UUIDs.randomBase64UUID();
         final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
         final Path translogFile = location.resolve(getFilename(generation));
-        final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, minTranslogGeneration);
+        final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, generation);
 
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         final TranslogWriter writer = TranslogWriter.create(
@@ -2031,7 +2067,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             translogFile,
             channelFactory,
             EMPTY_TRANSLOG_BUFFER_SIZE,
-            minTranslogGeneration,
+            generation,
             initialGlobalCheckpoint,
             () -> {
                 throw new UnsupportedOperationException();
@@ -2051,5 +2087,14 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
     public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
         return minUnrefCheckpointInLastCommit;
+    }
+
+    /**
+     * Checks whether or not the shard should be flushed based on translog files.
+     * each translog type can have it's own decider
+     * @return {@code true} if the shard should be flushed
+     */
+    protected boolean shouldFlush() {
+        return false;
     }
 }

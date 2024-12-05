@@ -55,6 +55,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.apache.lucene.search.FuzzyQuery.defaultRewriteMethod;
 
 /** Base class for {@link MappedFieldType} implementations that use the same
  * representation for internal index terms as the external representation so
@@ -99,6 +100,35 @@ public abstract class StringFieldType extends TermBasedFieldType {
             prefixLength,
             maxExpansions,
             transpositions
+        );
+    }
+
+    @Override
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        MultiTermQuery.RewriteMethod method,
+        QueryShardContext context
+    ) {
+        if (!context.allowExpensiveQueries()) {
+            throw new OpenSearchException(
+                "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
+        }
+        failIfNotIndexed();
+        if (method == null) {
+            method = defaultRewriteMethod(maxExpansions);
+        }
+        return new FuzzyQuery(
+            new Term(name(), indexedValueForSearch(value)),
+            fuzziness.asDistance(BytesRefs.toString(value)),
+            prefixLength,
+            maxExpansions,
+            transpositions,
+            method
         );
     }
 

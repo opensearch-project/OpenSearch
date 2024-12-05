@@ -54,6 +54,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
@@ -67,6 +68,7 @@ import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader.DelegatingCacheHelper;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -105,6 +107,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
@@ -123,7 +126,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
-import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -136,6 +138,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -202,6 +205,7 @@ import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -216,10 +220,11 @@ public class IndicesService extends AbstractLifecycleComponent
         IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>,
         IndexService.ShardStoreDeleter {
     private static final Logger logger = LogManager.getLogger(IndicesService.class);
+    public static final String INDICES_CACHE_CLEANUP_INTERVAL_SETTING_KEY = "indices.cache.cleanup_interval";
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "indices.cache.cleanup_interval",
+        INDICES_CACHE_CLEANUP_INTERVAL_SETTING_KEY,
         TimeValue.timeValueMinutes(1),
         Property.NodeScope
     );
@@ -250,17 +255,6 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
-     * Used to specify the default translog buffer interval for remote store backed indexes.
-     */
-    public static final Setting<TimeValue> CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING = Setting.timeSetting(
-        "cluster.remote_store.translog.buffer_interval",
-        IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
-        IndexSettings.MINIMUM_REMOTE_TRANSLOG_BUFFER_INTERVAL,
-        Property.NodeScope,
-        Property.Dynamic
-    );
-
-    /**
      * This setting is used to set the refresh interval when the {@code index.refresh_interval} index setting is not
      * provided during index creation or when the existing {@code index.refresh_interval} index setting is set as null.
      * This comes handy when the user wants to set a default refresh interval across all indexes created in a cluster
@@ -284,8 +278,8 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public static final Setting<TimeValue> CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.minimum.index.refresh_interval",
-        IndexSettings.MINIMUM_REFRESH_INTERVAL,
-        IndexSettings.MINIMUM_REFRESH_INTERVAL,
+        TimeValue.ZERO,
+        TimeValue.ZERO,
         new ClusterMinimumRefreshIntervalValidator(),
         Property.NodeScope,
         Property.Dynamic
@@ -314,18 +308,6 @@ public class IndicesService extends AbstractLifecycleComponent
         false,
         Property.NodeScope,
         Property.Final
-    );
-
-    /**
-     * This setting is used to set the remote store blob store path prefix strategy. This setting is effective only for
-     * remote store enabled cluster.
-     */
-    public static final Setting<RemoteStorePathType> CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING = new Setting<>(
-        "cluster.remote_store.index.path.prefix.type",
-        RemoteStorePathType.FIXED.toString(),
-        RemoteStorePathType::parseString,
-        Property.NodeScope,
-        Property.Dynamic
     );
 
     /**
@@ -366,7 +348,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
     private final RecoverySettings recoverySettings;
-
+    private final RemoteStoreSettings remoteStoreSettings;
     @Nullable
     private final OpenSearchThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
@@ -375,9 +357,11 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private volatile TimeValue clusterDefaultRefreshInterval;
-    private volatile TimeValue clusterRemoteTranslogBufferInterval;
-
     private final SearchRequestStats searchRequestStats;
+    private final FileCache fileCache;
+    private final CompositeIndexSettings compositeIndexSettings;
+    private final Consumer<IndexShard> replicator;
+    private volatile int maxSizeInRequestCache;
 
     @Override
     protected void doStart() {
@@ -411,7 +395,11 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         RecoverySettings recoverySettings,
-        CacheService cacheService
+        CacheService cacheService,
+        RemoteStoreSettings remoteStoreSettings,
+        FileCache fileCache,
+        CompositeIndexSettings compositeIndexSettings,
+        Consumer<IndexShard> replicator
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -427,8 +415,8 @@ public class IndicesService extends AbstractLifecycleComponent
             if (indexService == null) {
                 return Optional.empty();
             }
-            return Optional.of(new IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), cacheService, threadPool);
+            return Optional.of(new IndexShardCacheEntity(indexService.getShardOrNull(shardId.id())));
+        }), cacheService, threadPool, clusterService, nodeEnv);
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -509,16 +497,84 @@ public class IndicesService extends AbstractLifecycleComponent
             repositoriesServiceSupplier,
             threadPool,
             remoteStoreStatsTrackerFactory,
-            settings
+            settings,
+            remoteStoreSettings
         );
         this.searchRequestStats = searchRequestStats;
         this.clusterDefaultRefreshInterval = CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING, this::onRefreshIntervalUpdate);
-        this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(clusterService.getSettings());
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING, this::setClusterRemoteTranslogBufferInterval);
         this.recoverySettings = recoverySettings;
+        this.remoteStoreSettings = remoteStoreSettings;
+        this.compositeIndexSettings = compositeIndexSettings;
+        this.fileCache = fileCache;
+        this.replicator = replicator;
+        this.maxSizeInRequestCache = INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING, this::setMaxSizeInRequestCache);
+    }
+
+    public IndicesService(
+        Settings settings,
+        PluginsService pluginsService,
+        NodeEnvironment nodeEnv,
+        NamedXContentRegistry xContentRegistry,
+        AnalysisRegistry analysisRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MapperRegistry mapperRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        ThreadPool threadPool,
+        IndexScopedSettings indexScopedSettings,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        MetaStateService metaStateService,
+        Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
+        Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        ValuesSourceRegistry valuesSourceRegistry,
+        Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        SearchRequestStats searchRequestStats,
+        @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        RecoverySettings recoverySettings,
+        CacheService cacheService,
+        RemoteStoreSettings remoteStoreSettings
+    ) {
+        this(
+            settings,
+            pluginsService,
+            nodeEnv,
+            xContentRegistry,
+            analysisRegistry,
+            indexNameExpressionResolver,
+            mapperRegistry,
+            namedWriteableRegistry,
+            threadPool,
+            indexScopedSettings,
+            circuitBreakerService,
+            bigArrays,
+            scriptService,
+            clusterService,
+            client,
+            metaStateService,
+            engineFactoryProviders,
+            directoryFactories,
+            valuesSourceRegistry,
+            recoveryStateFactories,
+            remoteDirectoryFactory,
+            repositoriesServiceSupplier,
+            searchRequestStats,
+            remoteStoreStatsTrackerFactory,
+            recoverySettings,
+            cacheService,
+            remoteStoreSettings,
+            null,
+            null,
+            null
+        );
     }
 
     /**
@@ -541,7 +597,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
         RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        Settings settings
+        Settings settings,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         return (indexSettings, shardRouting) -> {
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
@@ -549,14 +606,16 @@ public class IndicesService extends AbstractLifecycleComponent
                     repositoriesServiceSupplier,
                     threadPool,
                     indexSettings.getRemoteStoreTranslogRepository(),
-                    remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId())
+                    remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId()),
+                    remoteStoreSettings
                 );
             } else if (isRemoteDataAttributePresent(settings) && shardRouting.primary()) {
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,
                     RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(indexSettings.getNodeSettings()),
-                    remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId())
+                    remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId()),
+                    remoteStoreSettings
                 );
             }
             return new InternalTranslogFactory();
@@ -643,8 +702,12 @@ public class IndicesService extends AbstractLifecycleComponent
                     break;
             }
         }
-
-        return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats);
+        if (flags.getIncludeIndicesStatsByLevel()) {
+            NodeIndicesStats.StatsLevel statsLevel = NodeIndicesStats.getAcceptedLevel(flags.getLevels());
+            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats, statsLevel);
+        } else {
+            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats);
+        }
     }
 
     Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -894,7 +957,9 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            fileCache,
+            compositeIndexSettings
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -923,8 +988,9 @@ public class IndicesService extends AbstractLifecycleComponent
             remoteDirectoryFactory,
             translogFactorySupplier,
             this::getClusterDefaultRefreshInterval,
-            this::getClusterRemoteTranslogBufferInterval,
-            this.recoverySettings
+            this.recoverySettings,
+            this.remoteStoreSettings,
+            replicator
         );
     }
 
@@ -947,7 +1013,7 @@ public class IndicesService extends AbstractLifecycleComponent
             if (idxSettings.isRemoteSnapshot()) {
                 return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
-            if (idxSettings.isSegRepEnabledOrRemoteNode() || idxSettings.isRemoteNode()) {
+            if (idxSettings.isSegRepEnabledOrRemoteNode() || idxSettings.isAssignedOnRemoteNode()) {
                 return new NRTReplicationEngineFactory();
             }
             return new InternalEngineFactory();
@@ -984,7 +1050,9 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            fileCache,
+            compositeIndexSettings
         );
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
@@ -1035,7 +1103,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
         final DiscoveryNode sourceNode,
-        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final DiscoveryNodes discoveryNodes
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -1050,7 +1119,8 @@ public class IndicesService extends AbstractLifecycleComponent
             remoteStoreStatsTrackerFactory,
             repositoriesService,
             targetNode,
-            sourceNode
+            sourceNode,
+            discoveryNodes
         );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
@@ -1681,11 +1751,10 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false) {
-                return false;
-            } else if (context.size() != 0) {
+            if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false
+                || (context.size() > maxSizeInRequestCache)) {
                 // If no request cache query parameter and shard request cache
-                // is enabled in settings don't cache for requests with size > 0
+                // is enabled in settings, use cluster setting to check the maximum size allowed in the cache
                 return false;
             }
         } else if (request.requestCache() == false) {
@@ -1699,8 +1768,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (context.getQueryShardContext().isCacheable() == false) {
             return false;
         }
-        return true;
-
+        return context.searcher().getDirectoryReader().getReaderCacheHelper() instanceof DelegatingCacheHelper;
     }
 
     /**
@@ -2029,6 +2097,9 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param defaultRefreshInterval value of cluster default index refresh interval setting
      */
     private static void validateRefreshIntervalSettings(TimeValue minimumRefreshInterval, TimeValue defaultRefreshInterval) {
+        if (defaultRefreshInterval.millis() < 0) {
+            return;
+        }
         if (minimumRefreshInterval.compareTo(defaultRefreshInterval) > 0) {
             throw new IllegalArgumentException(
                 "cluster minimum index refresh interval ["
@@ -2044,12 +2115,16 @@ public class IndicesService extends AbstractLifecycleComponent
         return this.clusterDefaultRefreshInterval;
     }
 
-    // Exclusively for testing, please do not use it elsewhere.
-    public TimeValue getClusterRemoteTranslogBufferInterval() {
-        return clusterRemoteTranslogBufferInterval;
+    public RemoteStoreSettings getRemoteStoreSettings() {
+        return this.remoteStoreSettings;
     }
 
-    private void setClusterRemoteTranslogBufferInterval(TimeValue clusterRemoteTranslogBufferInterval) {
-        this.clusterRemoteTranslogBufferInterval = clusterRemoteTranslogBufferInterval;
+    public CompositeIndexSettings getCompositeIndexSettings() {
+        return this.compositeIndexSettings;
+    }
+
+    // Package-private for testing
+    void setMaxSizeInRequestCache(Integer maxSizeInRequestCache) {
+        this.maxSizeInRequestCache = maxSizeInRequestCache;
     }
 }

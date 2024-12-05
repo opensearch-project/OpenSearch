@@ -100,7 +100,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public abstract static class Builder<T extends Builder> {
+    public abstract static class Builder<T extends Builder> implements MapperBuilderProperties {
 
         public String name;
 
@@ -253,6 +253,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
+
+        default Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext, ObjectMapper.Builder objBuilder)
+            throws MapperParsingException {
+            throw new UnsupportedOperationException("should not be invoked");
+        }
     }
 
     private final String simpleName;

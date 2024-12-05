@@ -10,6 +10,7 @@ package org.opensearch.common.cache.store.builders;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.ICache;
+import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -28,13 +29,17 @@ public abstract class ICacheBuilder<K, V> {
 
     private long maxWeightInBytes;
 
-    private ToLongBiFunction<K, V> weigher;
+    private ToLongBiFunction<ICacheKey<K>, V> weigher;
 
     private TimeValue expireAfterAcess;
 
     private Settings settings;
 
-    private RemovalListener<K, V> removalListener;
+    private RemovalListener<ICacheKey<K>, V> removalListener;
+
+    private boolean statsTrackingEnabled = true;
+
+    private int numberOfSegments;
 
     public ICacheBuilder() {}
 
@@ -43,7 +48,7 @@ public abstract class ICacheBuilder<K, V> {
         return this;
     }
 
-    public ICacheBuilder<K, V> setWeigher(ToLongBiFunction<K, V> weigher) {
+    public ICacheBuilder<K, V> setWeigher(ToLongBiFunction<ICacheKey<K>, V> weigher) {
         this.weigher = weigher;
         return this;
     }
@@ -58,8 +63,18 @@ public abstract class ICacheBuilder<K, V> {
         return this;
     }
 
-    public ICacheBuilder<K, V> setRemovalListener(RemovalListener<K, V> removalListener) {
+    public ICacheBuilder<K, V> setRemovalListener(RemovalListener<ICacheKey<K>, V> removalListener) {
         this.removalListener = removalListener;
+        return this;
+    }
+
+    public ICacheBuilder<K, V> setStatsTrackingEnabled(boolean statsTrackingEnabled) {
+        this.statsTrackingEnabled = statsTrackingEnabled;
+        return this;
+    }
+
+    public ICacheBuilder<K, V> setNumberOfSegments(int numberOfSegments) {
+        this.numberOfSegments = numberOfSegments;
         return this;
     }
 
@@ -71,16 +86,24 @@ public abstract class ICacheBuilder<K, V> {
         return expireAfterAcess;
     }
 
-    public ToLongBiFunction<K, V> getWeigher() {
+    public int getNumberOfSegments() {
+        return numberOfSegments;
+    }
+
+    public ToLongBiFunction<ICacheKey<K>, V> getWeigher() {
         return weigher;
     }
 
-    public RemovalListener<K, V> getRemovalListener() {
+    public RemovalListener<ICacheKey<K>, V> getRemovalListener() {
         return this.removalListener;
     }
 
     public Settings getSettings() {
         return settings;
+    }
+
+    public boolean getStatsTrackingEnabled() {
+        return statsTrackingEnabled;
     }
 
     public abstract ICache<K, V> build();

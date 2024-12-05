@@ -54,6 +54,49 @@ public class FlatObjectFieldDataTests extends AbstractFieldDataTestCase {
         assertEquals(1, valueReaders.size());
     }
 
+    public void testLongFieldNameWithHashArray() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("test")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", FIELD_TYPE)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
+
+        XContentBuilder json = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("field")
+            .startObject("detail")
+            .startArray("fooooooooooo")
+            .startObject()
+            .field("name", "baz")
+            .endObject()
+            .startObject()
+            .field("name", "baz")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(json), MediaTypeRegistry.JSON));
+        writer.addDocument(d.rootDoc());
+        writer.commit();
+
+        IndexFieldData<?> fieldData = getForField("field");
+        List<LeafReaderContext> readers = refreshReader();
+        assertEquals(1, readers.size());
+
+        IndexFieldData<?> valueFieldData = getForField("field._value");
+        List<LeafReaderContext> valueReaders = refreshReader();
+        assertEquals(1, valueReaders.size());
+    }
+
     @Override
     protected String getFieldDataType() {
         return FIELD_TYPE;

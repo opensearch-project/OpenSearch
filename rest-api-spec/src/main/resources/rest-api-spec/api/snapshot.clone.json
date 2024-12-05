@@ -1,7 +1,7 @@
 {
   "snapshot.clone":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/snapshots/index/",
       "description":"Clones indices from one snapshot into another snapshot in the same repository."
     },
     "stability":"stable",
