@@ -786,7 +786,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createShardContext())
         );
-        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("Determinizing automaton"));
         assertThat(e.getMessage(), containsString("would require more than 10000 effort"));
     }
 
@@ -812,7 +812,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createShardContext())
         );
-        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("Determinizing automaton"));
         assertThat(e.getMessage(), containsString("would require more than 10 effort"));
     }
 
@@ -1185,9 +1185,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testExpandedTerms() throws Exception {
         // Prefix
         Query query = new QueryStringQueryBuilder("aBc*").field(TEXT_FIELD_NAME).analyzer("whitespace").toQuery(createShardContext());
-        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "aBc"), MultiTermQuery.CONSTANT_SCORE_REWRITE), query);
+        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "aBc"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE), query);
         query = new QueryStringQueryBuilder("aBc*").field(TEXT_FIELD_NAME).analyzer("standard").toQuery(createShardContext());
-        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "abc"), MultiTermQuery.CONSTANT_SCORE_REWRITE), query);
+        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "abc"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE), query);
 
         // Wildcard
         query = new QueryStringQueryBuilder("aBc*D").field(TEXT_FIELD_NAME).analyzer("whitespace").toQuery(createShardContext());
@@ -1195,7 +1195,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             new WildcardQuery(
                 new Term(TEXT_FIELD_NAME, "aBc*D"),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                MultiTermQuery.CONSTANT_SCORE_REWRITE
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
             ),
             query
         );
@@ -1204,7 +1204,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             new WildcardQuery(
                 new Term(TEXT_FIELD_NAME, "abc*d"),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                MultiTermQuery.CONSTANT_SCORE_REWRITE
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
             ),
             query
         );
@@ -1450,7 +1450,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testWithPrefixStopWords() throws Exception {
         Query query = new QueryStringQueryBuilder("the* quick fox").field(TEXT_FIELD_NAME).analyzer("stop").toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder().add(
-            new PrefixQuery(new Term(TEXT_FIELD_NAME, "the"), MultiTermQuery.CONSTANT_SCORE_REWRITE),
+            new PrefixQuery(new Term(TEXT_FIELD_NAME, "the"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE),
             Occur.SHOULD
         )
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), Occur.SHOULD)
@@ -1533,7 +1533,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .analyzer("standard")
             .analyzeWildcard(true)
             .toQuery(createShardContext());
-        Query expected = new PrefixQuery(new Term(TEXT_FIELD_NAME, "quick"), MultiTermQuery.CONSTANT_SCORE_REWRITE);
+        Query expected = new PrefixQuery(new Term(TEXT_FIELD_NAME, "quick"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
         assertEquals(expected, query);
     }
 
