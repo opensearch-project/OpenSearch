@@ -16,6 +16,6 @@ package org.opensearch.accesscontrol.resources;
  * @opensearch.experimental
  */
 public interface ResourceAccessScope {
-    String READ_ONLY = "read_only";
-    String READ_WRITE = "read_write";
+    String READ_ONLY = "READ_ONLY";
+    String READ_WRITE = "READ_WRITE";
 }
