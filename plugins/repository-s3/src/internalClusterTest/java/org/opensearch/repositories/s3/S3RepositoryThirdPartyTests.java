@@ -57,10 +57,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder()
-            .put(super.nodeSettings())
-            .put(BlobStoreRepository.SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(super.nodeSettings()).build();
     }
 
     @Override
