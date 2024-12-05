@@ -15,7 +15,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.opensearch.remotestore.RemoteSnapshotIT;
 import org.opensearch.snapshots.SnapshotRestoreException;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -26,7 +26,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
+public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
 
     private static final String INDEX_NAME = "test-idx-1";
     private static final String RESTORED_INDEX_NAME = INDEX_NAME + "-restored";
@@ -38,49 +38,6 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected Settings featureFlagSettings() {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, true).build();
-    }
-
-    public void testSearchReplicaRestore_WhenSnapshotOnDocRep_RestoreOnDocRepWithSearchReplica() throws Exception {
-        bootstrapIndexWithOutSearchReplicas(ReplicationType.DOCUMENT);
-        createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
-
-        SnapshotRestoreException exception = expectThrows(
-            SnapshotRestoreException.class,
-            () -> restoreSnapshot(
-                REPOSITORY_NAME,
-                SNAPSHOT_NAME,
-                INDEX_NAME,
-                RESTORED_INDEX_NAME,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-                    .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
-                    .build()
-            )
-        );
-        assertTrue(exception.getMessage().contains(getSnapshotExceptionMessage(ReplicationType.DOCUMENT, ReplicationType.DOCUMENT)));
-    }
-
-    public void testSearchReplicaRestore_WhenSnapshotOnDocRep_RestoreOnSegRepWithSearchReplica() throws Exception {
-        bootstrapIndexWithOutSearchReplicas(ReplicationType.DOCUMENT);
-        createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
-
-        restoreSnapshot(
-            REPOSITORY_NAME,
-            SNAPSHOT_NAME,
-            INDEX_NAME,
-            RESTORED_INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
-                .build()
-        );
-        ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
-        internalCluster().startDataOnlyNode();
-        ensureGreen(RESTORED_INDEX_NAME);
-        assertEquals(1, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
-
-        SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT);
     }
 
     public void testSearchReplicaRestore_WhenSnapshotOnSegRep_RestoreOnDocRepWithSearchReplica() throws Exception {
@@ -138,27 +95,6 @@ public class SearchReplicaRestoreIT extends AbstractSnapshotIntegTestCase {
             )
         );
         assertTrue(exception.getMessage().contains(getSnapshotExceptionMessage(ReplicationType.SEGMENT, ReplicationType.DOCUMENT)));
-    }
-
-    public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRepWithNoSearchReplica() throws Exception {
-        bootstrapIndexWithSearchReplicas();
-        createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
-
-        restoreSnapshot(
-            REPOSITORY_NAME,
-            SNAPSHOT_NAME,
-            INDEX_NAME,
-            RESTORED_INDEX_NAME,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-                .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
-                .build()
-        );
-        ensureGreen(RESTORED_INDEX_NAME);
-        assertEquals(0, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
-
-        SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT);
     }
 
     private void bootstrapIndexWithOutSearchReplicas(ReplicationType replicationType) throws InterruptedException {

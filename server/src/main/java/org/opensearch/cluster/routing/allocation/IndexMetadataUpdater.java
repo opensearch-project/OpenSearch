@@ -99,7 +99,11 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 + startedShard.allocationId().getId()
                 + "] have to have the same";
         Updates updates = changes(startedShard.shardId());
-        updates.addedAllocationIds.add(startedShard.allocationId().getId());
+        // if the started shard is an untracked replica, don't bother sending it as part of the
+        // in sync id set.
+        if (startedShard.isSearchOnly() == false) {
+            updates.addedAllocationIds.add(startedShard.allocationId().getId());
+        }
         if (startedShard.primary()
             // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
             && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE)) {
