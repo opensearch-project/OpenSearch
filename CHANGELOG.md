@@ -37,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.logging.log4j:log4j-core` from 2.24.1 to 2.24.2 ([#16718](https://github.com/opensearch-project/OpenSearch/pull/16718))
 - Bump `jackson` from 2.17.2 to 2.18.2 ([#16733](https://github.com/opensearch-project/OpenSearch/pull/16733))
 - Bump `ch.qos.logback:logback-classic` from 1.2.13 to 1.5.12 ([#16716](https://github.com/opensearch-project/OpenSearch/pull/16716))
+- Bump `com.azure:azure-identity` from 1.13.2 to 1.14.2 ([#16778](https://github.com/opensearch-project/OpenSearch/pull/16778))
 
 ### Changed
 - Indexed IP field supports `terms_query` with more than 1025 IP masks [#16391](https://github.com/opensearch-project/OpenSearch/pull/16391)
