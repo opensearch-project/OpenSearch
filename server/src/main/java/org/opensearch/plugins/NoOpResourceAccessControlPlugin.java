@@ -12,8 +12,8 @@ import org.opensearch.accesscontrol.resources.EntityType;
 import org.opensearch.accesscontrol.resources.ResourceSharing;
 import org.opensearch.accesscontrol.resources.ShareWith;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This plugin class defines a no-op implementation of Resource Plugin.
@@ -29,10 +29,10 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
      * @return empty list
      */
     @Override
-    public List<String> listAccessibleResourcesInPlugin(String systemIndexName) {
+    public Set<String> listAccessibleResourcesInPlugin(String systemIndexName) {
         // returns an empty list since security plugin is disabled
         // TODO: check whether this should return all entries in the given index
-        return List.of();
+        return Set.of();
     }
 
     /**
@@ -68,8 +68,8 @@ public class NoOpResourceAccessControlPlugin implements ResourceAccessControlPlu
     public ResourceSharing revokeAccess(
         String resourceId,
         String systemIndexName,
-        Map<EntityType, List<String>> revokeAccess,
-        List<String> scopes
+        Map<EntityType, Set<String>> revokeAccess,
+        Set<String> scopes
     ) {
         return null;
     }

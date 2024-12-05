@@ -16,8 +16,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * This class contains information about whom a resource is shared with and at what scope.
@@ -39,17 +39,17 @@ import java.util.List;
  */
 public class ShareWith implements ToXContentFragment, NamedWriteable {
 
-    private final List<SharedWithScope> sharedWithScopes;
+    private final Set<SharedWithScope> sharedWithScopes;
 
-    public ShareWith(List<SharedWithScope> sharedWithScopes) {
+    public ShareWith(Set<SharedWithScope> sharedWithScopes) {
         this.sharedWithScopes = sharedWithScopes;
     }
 
     public ShareWith(StreamInput in) throws IOException {
-        this.sharedWithScopes = in.readList(SharedWithScope::new);
+        this.sharedWithScopes = in.readSet(SharedWithScope::new);
     }
 
-    public List<SharedWithScope> getSharedWithScopes() {
+    public Set<SharedWithScope> getSharedWithScopes() {
         return sharedWithScopes;
     }
 
@@ -65,7 +65,7 @@ public class ShareWith implements ToXContentFragment, NamedWriteable {
     }
 
     public static ShareWith fromXContent(XContentParser parser) throws IOException {
-        List<SharedWithScope> sharedWithScopes = new ArrayList<>();
+        Set<SharedWithScope> sharedWithScopes = new HashSet<>();
 
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             parser.nextToken();
@@ -90,7 +90,7 @@ public class ShareWith implements ToXContentFragment, NamedWriteable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(sharedWithScopes);
+        out.writeCollection(sharedWithScopes);
     }
 
     @Override

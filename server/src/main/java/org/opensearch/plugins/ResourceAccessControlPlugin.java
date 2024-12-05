@@ -12,8 +12,8 @@ import org.opensearch.accesscontrol.resources.EntityType;
 import org.opensearch.accesscontrol.resources.ResourceSharing;
 import org.opensearch.accesscontrol.resources.ShareWith;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This interface determines presence of security plugin in the cluster.
@@ -31,9 +31,9 @@ public interface ResourceAccessControlPlugin {
     /**
      * Returns all accessible resources for current user for a given system .
      *
-     * @return list of {@link ResourceSharing} items accessible by current user.
+     * @return set of {@link ResourceSharing} items accessible by current user.
      */
-    List<String> listAccessibleResourcesInPlugin(String systemIndex);
+    Set<String> listAccessibleResourcesInPlugin(String systemIndex);
 
     /**
      * Checks whether current user has permission to given resource.
@@ -64,12 +64,7 @@ public interface ResourceAccessControlPlugin {
      * @param scopes Scopes to be checked for revoking access. If empty, all scopes will be checked.
      * @return the updated ResourceSharing record
      */
-    ResourceSharing revokeAccess(
-        String resourceId,
-        String systemIndexName,
-        Map<EntityType, List<String>> revokeAccess,
-        List<String> scopes
-    );
+    ResourceSharing revokeAccess(String resourceId, String systemIndexName, Map<EntityType, Set<String>> revokeAccess, Set<String> scopes);
 
     /**
      * Deletes an entry from .resource_sharing index
