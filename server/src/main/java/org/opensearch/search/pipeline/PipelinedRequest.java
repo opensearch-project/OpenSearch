@@ -61,4 +61,8 @@ public final class PipelinedRequest extends SearchRequest {
     Pipeline getPipeline() {
         return pipeline;
     }
+
+    public PipelineProcessingContext getPipelineProcessingContext() {
+        return requestContext;
+    }
 }
