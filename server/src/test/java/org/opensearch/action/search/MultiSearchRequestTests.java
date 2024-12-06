@@ -180,6 +180,37 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         assertEquals(new TimeValue(20, TimeUnit.SECONDS), request.requests().get(0).getCancelAfterTimeInterval());
     }
 
+    public void tesCoordinatorTimeoutAtParentAndFewChildRequest() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\", "
+            + "\"coordinator_timeout\" : \"10s\"}\r\n"
+            + "{\"query\" : {\"match_all\" :{}}}\r\n {\"search_type\" : \"dfs_query_then_fetch\"}\n"
+            + "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(requestContent),
+            XContentType.JSON
+        ).withParams(Collections.singletonMap("coordinator_timeout", "20s")).build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        assertThat(request.requests().size(), equalTo(2));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        // verifies that child search request parameter value is used for first search request
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS), request.requests().get(0).getCoordinatorTimeout());
+        // verifies that parent msearch parameter value is used for second search request
+        assertEquals(new TimeValue(20, TimeUnit.SECONDS), request.requests().get(1).getCoordinatorTimeout());
+    }
+
+    public void testOnlyParentMSearchRequestWithCoordinatorTimeoutParameter() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\"}}\r\n"
+            + "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(requestContent),
+            XContentType.JSON
+        ).withParams(Collections.singletonMap("coordinator_timeout", "20s")).build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertEquals(new TimeValue(20, TimeUnit.SECONDS), request.requests().get(0).getCoordinatorTimeout());
+    }
+
     public void testDefaultIndicesOptions() throws IOException {
         final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\"}}\r\n"
             + "{\"query\" : {\"match_all\" :{}}}\r\n";
