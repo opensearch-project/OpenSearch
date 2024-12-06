@@ -705,7 +705,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             builder.startObject(PHASE_TOOK.getPreferredName());
 
             for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-                if (!searchPhaseName.shouldTrack()) continue;
                 if (phaseTookMap.containsKey(searchPhaseName.getName())) {
                     builder.field(searchPhaseName.getName(), phaseTookMap.get(searchPhaseName.getName()));
                 } else {
