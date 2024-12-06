@@ -71,6 +71,11 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
     private Consumer<Logger> outputLogger;
     private FileSystemOperations fileSystemOperations;
 
+    interface InjectedExecOps {
+        @Inject
+        ExecOperations getExecOps();
+    }
+
     @Inject
     public LoggedExec(FileSystemOperations fileSystemOperations) {
         this.fileSystemOperations = fileSystemOperations;
@@ -133,7 +138,8 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
     }
 
     public static ExecResult exec(Project project, Action<ExecSpec> action) {
-        return genericExec(project::exec, action);
+        final InjectedExecOps execOps = project.getObjects().newInstance(InjectedExecOps.class);
+        return exec(execOps.getExecOps(), action);
     }
 
     public static ExecResult exec(ExecOperations execOperations, Action<ExecSpec> action) {
@@ -141,7 +147,8 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
     }
 
     public static ExecResult javaexec(Project project, Action<JavaExecSpec> action) {
-        return genericExec(project::javaexec, action);
+        final InjectedExecOps execOps = project.getObjects().newInstance(InjectedExecOps.class);
+        return genericExec(execOps.getExecOps()::javaexec, action);
     }
 
     /** Returns JVM arguments suitable for a short-lived forked task */
