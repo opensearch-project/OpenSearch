@@ -222,14 +222,13 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         }
     }
 
-    private long calculateBytesRemainingToReplicate(
-        SegmentReplicationState ongoingSegmentReplicationState
-    ) {
+    private long calculateBytesRemainingToReplicate(SegmentReplicationState ongoingSegmentReplicationState) {
         if (ongoingSegmentReplicationState == null) {
             return 0;
         }
         return ongoingSegmentReplicationState.getIndex()
-            .fileDetails().stream()
+            .fileDetails()
+            .stream()
             .mapToLong(index -> index.length() - index.recovered())
             .sum();
     }

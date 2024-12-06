@@ -80,10 +80,13 @@ public class SegmentReplicationShardStatsResponse implements Writeable {
 
     @Override
     public String toString() {
-        return "SegmentReplicationShardStatsResponse{" +
-            "primaryStats=" + primaryStats +
-            ", replicaStats=" + replicaStats +
-            ", searchReplicaReplicationStats=" + searchReplicaReplicationStats +
-            '}';
+        return "SegmentReplicationShardStatsResponse{"
+            + "primaryStats="
+            + primaryStats
+            + ", replicaStats="
+            + replicaStats
+            + ", searchReplicaReplicationStats="
+            + searchReplicaReplicationStats
+            + '}';
     }
 }

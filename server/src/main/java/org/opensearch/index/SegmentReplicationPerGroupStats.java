@@ -56,7 +56,7 @@ public class SegmentReplicationPerGroupStats implements Writeable, ToXContentFra
     }
 
     public void addReplicaStats(Set<SegmentReplicationShardStats> replicaStats) {
-       this.replicaStats.addAll(replicaStats);
+        this.replicaStats.addAll(replicaStats);
     }
 
     @Override
