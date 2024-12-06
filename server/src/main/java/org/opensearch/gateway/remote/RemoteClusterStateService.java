@@ -129,9 +129,17 @@ public class RemoteClusterStateService implements Closeable {
      * Gates the functionality of remote publication.
      */
     public static final String REMOTE_PUBLICATION_SETTING_KEY = "cluster.remote_store.publication.enabled";
+    public static final String REMOTE_DOWNLOAD_TERM_MISMATCH_SETTING_KEY = "cluster.remote_publication.download.term.mismatch.enabled";
 
     public static final Setting<Boolean> REMOTE_PUBLICATION_SETTING = Setting.boolSetting(
         REMOTE_PUBLICATION_SETTING_KEY,
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<Boolean> REMOTE_DOWNLOAD_TERM_MISMATCH_SETTING = Setting.boolSetting(
+        REMOTE_DOWNLOAD_TERM_MISMATCH_SETTING_KEY,
         false,
         Property.NodeScope,
         Property.Dynamic
@@ -235,6 +243,9 @@ public class RemoteClusterStateService implements Closeable {
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}], indices routing updated : [{}]";
     private volatile AtomicBoolean isPublicationEnabled;
+
+    private volatile AtomicBoolean downloadFromRemoteOnTermMismatch;
+
     private final String remotePathPrefix;
 
     private final RemoteClusterStateCache remoteClusterStateCache;
@@ -281,6 +292,8 @@ public class RemoteClusterStateService implements Closeable {
                 && RemoteStoreNodeAttribute.isRemoteRoutingTableConfigured(settings)
         );
         clusterSettings.addSettingsUpdateConsumer(REMOTE_PUBLICATION_SETTING, this::setRemotePublicationSetting);
+        this.downloadFromRemoteOnTermMismatch = new AtomicBoolean(clusterSettings.get(REMOTE_DOWNLOAD_TERM_MISMATCH_SETTING));
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_DOWNLOAD_TERM_MISMATCH_SETTING, this::setRemoteDownloadOnTermMismatchSetting);
         this.remotePathPrefix = CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.get(settings);
         this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
             repositoriesService,
@@ -1122,6 +1135,14 @@ public class RemoteClusterStateService implements Closeable {
         } else {
             this.isPublicationEnabled.set(isRemoteStoreClusterStateEnabled(settings) && isRemoteRoutingTableConfigured(settings));
         }
+    }
+
+    private void setRemoteDownloadOnTermMismatchSetting(boolean remotePublicationSetting) {
+        this.downloadFromRemoteOnTermMismatch.set(remotePublicationSetting);
+    }
+
+    public boolean canDownloadFromRemoteOnTermMismatch() {
+        return this.downloadFromRemoteOnTermMismatch.get();
     }
 
     // Package private for unit test
