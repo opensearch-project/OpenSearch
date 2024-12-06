@@ -581,7 +581,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         // Verify the document was indexed
         SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).setQuery(QueryBuilders.matchAllQuery()).get();
 
-        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        assertEquals(1, searchResponse.getHits().getTotalHits().value());
 
         // Verify the values in the indexed document
         SearchHit hit = searchResponse.getHits().getAt(0);

@@ -99,7 +99,7 @@ public class XMoreLikeThisTests extends OpenSearchTestCase {
             expectedTerms[idx++] = new Term("text", text);
         }
         for (BooleanClause clause : clauses) {
-            Term term = ((TermQuery) clause.getQuery()).getTerm();
+            Term term = ((TermQuery) clause.query()).getTerm();
             assertTrue(Arrays.asList(expectedTerms).contains(term));
         }
 

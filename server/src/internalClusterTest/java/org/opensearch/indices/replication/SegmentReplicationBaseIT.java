@@ -118,7 +118,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             for (String node : nodes) {
                 final SearchResponse response = client(node).prepareSearch(indexName).setSize(0).setPreference("_only_local").get();
-                final long hits = response.getHits().getTotalHits().value;
+                final long hits = response.getHits().getTotalHits().value();
                 if (hits < docCount) {
                     fail("Expected search hits on node: " + node + " to be at least " + docCount + " but was: " + hits);
                 }

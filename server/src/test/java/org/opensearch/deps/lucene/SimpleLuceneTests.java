@@ -99,12 +99,12 @@ public class SimpleLuceneTests extends OpenSearchTestCase {
         IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
-        Document doc = searcher.doc(topDocs.scoreDocs[0].doc);
+        Document doc = searcher.storedFields().document(topDocs.scoreDocs[0].doc);
         IndexableField f = doc.getField("test");
         assertThat(f.numericValue(), equalTo(2));
 
         topDocs = searcher.search(IntPoint.newExactQuery("test", 2), 1);
-        doc = searcher.doc(topDocs.scoreDocs[0].doc);
+        doc = searcher.storedFields().document(topDocs.scoreDocs[0].doc);
         f = doc.getField("test");
         assertThat(f.stringValue(), equalTo("2"));
 
@@ -129,7 +129,7 @@ public class SimpleLuceneTests extends OpenSearchTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
         final ArrayList<String> fieldsOrder = new ArrayList<>();
-        searcher.doc(topDocs.scoreDocs[0].doc, new StoredFieldVisitor() {
+        searcher.storedFields().document(topDocs.scoreDocs[0].doc, new StoredFieldVisitor() {
             @Override
             public Status needsField(FieldInfo fieldInfo) throws IOException {
                 fieldsOrder.add(fieldInfo.name);

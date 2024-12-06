@@ -110,7 +110,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private ZoneId timeZone;
     private Fuzziness fuzziness = Fuzziness.AUTO;
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
-    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
 
     /**
@@ -514,6 +514,7 @@ public class QueryStringQueryParser extends XQueryParser {
                 getFuzzyPrefixLength(),
                 fuzzyMaxExpansions,
                 fuzzyTranspositions,
+                fuzzyRewriteMethod,
                 context
             );
         } catch (RuntimeException e) {
@@ -527,11 +528,7 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.build(minimumSimilarity).asDistance(term.text());
-        if (fuzzyRewriteMethod != null) {
-            return new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
-        } else {
-            return new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
-        }
+        return new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
     }
 
     @Override

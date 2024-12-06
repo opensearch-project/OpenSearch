@@ -1000,7 +1000,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             index(testIndex, "_doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client().prepareSearch(testIndex).setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertThat(client().prepareSearch(testIndex).setSize(0).get().getHits().getTotalHits().value(), equalTo(100L));
 
         logger.info("--> start relocations");
         allowNodes(testIndex, 1);

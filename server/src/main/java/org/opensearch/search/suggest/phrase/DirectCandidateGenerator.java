@@ -131,7 +131,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
      */
     @Override
     public boolean isKnownWord(BytesRef term) throws IOException {
-        return termStats(term).docFreq > 0;
+        return termStats(term).docFreq() > 0;
     }
 
     /* (non-Javadoc)
@@ -173,7 +173,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                   because that's what {@link DirectSpellChecker#suggestSimilar} expects
                   when filtering terms.
                  */
-                int threshold = thresholdTermFrequency(original.termStats.docFreq);
+                int threshold = thresholdTermFrequency(original.termStats.docFreq());
                 if (threshold == Integer.MAX_VALUE) {
                     // the threshold is the max possible frequency so we can skip the search
                     return set;
@@ -267,7 +267,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     private double score(TermStats termStats, double errorScore, long dictionarySize) {
-        return errorScore * (((double) termStats.totalTermFreq + 1) / ((double) dictionarySize + 1));
+        return errorScore * (((double) termStats.totalTermFreq() + 1) / ((double) dictionarySize + 1));
     }
 
     // package protected for test

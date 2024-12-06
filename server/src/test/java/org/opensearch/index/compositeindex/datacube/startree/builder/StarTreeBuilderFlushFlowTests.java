@@ -101,6 +101,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
          */
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
+            4096, /* Lucene90DocValuesFormat#DEFAULT_SKIP_INDEX_INTERVAL_SIZE */
             Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
             Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
             Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
@@ -190,6 +191,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         writeState = getWriteState(6, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
+            4096, /* Lucene90DocValuesFormat#DEFAULT_SKIP_INDEX_INTERVAL_SIZE */
             Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
             Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
             Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
@@ -295,6 +297,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         SegmentWriteState consumerWriteState = getWriteState(DocIdSetIterator.NO_MORE_DOCS, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             consumerWriteState,
+            4096, /* Lucene90DocValuesFormat#DEFAULT_SKIP_INDEX_INTERVAL_SIZE */
             Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
             Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
             Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
@@ -375,6 +378,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         );
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             writeState,
+            4096, /* Lucene90DocValuesFormat#DEFAULT_SKIP_INDEX_INTERVAL_SIZE */
             Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
             Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
             Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
@@ -456,6 +460,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         SegmentWriteState w = getWriteState(DocIdSetIterator.NO_MORE_DOCS, writeState.segmentInfo.getId());
         this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
             w,
+            4096, /* Lucene90DocValuesFormat#DEFAULT_SKIP_INDEX_INTERVAL_SIZE */
             Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
             Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
             Composite912DocValuesFormat.META_DOC_VALUES_CODEC,

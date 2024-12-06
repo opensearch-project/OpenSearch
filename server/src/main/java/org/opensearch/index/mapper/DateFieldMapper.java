@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -142,7 +143,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
-                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
+                return LongField.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
         },
         NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
@@ -168,7 +169,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
-                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
+                return LongField.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
             }
         };
 
