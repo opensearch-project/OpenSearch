@@ -377,6 +377,24 @@ public class RestClientDocumentation {
             //end::rest-client-config-threads
         }
         {
+            //tag::rest-client-config-tcpKeepIdle/tcpKeepInterval/tcpKeepCount
+            RestClientBuilder builder = RestClient.builder(
+                    new HttpHost("localhost", 9200))
+                    .setHttpClientConfigCallback(new HttpClientConfigCallback() {
+                        @Override
+                        public HttpAsyncClientBuilder customizeHttpClient(
+                                HttpAsyncClientBuilder httpClientBuilder) {
+                            return httpClientBuilder.setIOReactorConfig(
+                                    IOReactorConfig.custom()
+                                            .setTcpKeepIdle(200)
+                                            .setTcpKeepInterval(10)
+                                            .setTcpKeepCount(10)
+                                            .build());
+                        }
+                    });
+            //end::rest-client-config-tcpKeepIdle/tcpKeepInterval/tcpKeepCount
+        }
+        {
             //tag::rest-client-config-basic-auth
             final BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
             credentialsProvider.setCredentials(new AuthScope(new HttpHost("localhost", 9200)),
