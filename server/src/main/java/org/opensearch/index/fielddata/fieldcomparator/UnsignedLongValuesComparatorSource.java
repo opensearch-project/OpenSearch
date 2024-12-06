@@ -41,6 +41,7 @@ import java.math.BigInteger;
 public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexNumericFieldData indexFieldData;
+    private final UnsignedLongMultiValueMode unsignedSortMode;
 
     public UnsignedLongValuesComparatorSource(
         IndexNumericFieldData indexFieldData,
@@ -50,6 +51,7 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
     ) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
+        this.unsignedSortMode = UnsignedLongMultiValueMode.toUnsignedSortMode(sortMode);
     }
 
     @Override
@@ -66,12 +68,12 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
     private NumericDocValues getNumericDocValues(LeafReaderContext context, BigInteger missingValue) throws IOException {
         final SortedNumericDocValues values = loadDocValues(context);
         if (nested == null) {
-            return FieldData.replaceMissing(sortMode.select(values), missingValue);
+            return FieldData.replaceMissing(unsignedSortMode.select(values), missingValue);
         }
         final BitSet rootDocs = nested.rootDocs(context);
         final DocIdSetIterator innerDocs = nested.innerDocs(context);
         final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
-        return sortMode.select(values, missingValue.longValue(), rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
+        return unsignedSortMode.select(values, missingValue.longValue(), rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
     }
 
     @Override

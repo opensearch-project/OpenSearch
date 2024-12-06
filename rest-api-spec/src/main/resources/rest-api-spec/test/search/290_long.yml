@@ -1,0 +1,74 @@
+setup:
+  - do:
+      indices.create:
+          index: long_sort
+          body:
+            settings:
+              number_of_shards: 3
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: long
+
+---
+"test sorting against long only fields":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "long_sort", "_id" : "1" } }'
+          - '{"field" : [ 55282163712, 1 ] }'
+          - '{ "index" : { "_index" : "long_sort", "_id" : "2" } }'
+          - '{"field" : [ 55282163713, 2 ] }'
+          - '{ "index" : { "_index" : "long_sort", "_id" : "3" } }'
+          - '{"field" : [ 55282163714, 3 ] }'
+
+  - do:
+      search:
+        index: long_sort
+        body:
+          size: 5
+          sort: [{ field: { mode: max, order: desc } } ]
+  - match: {hits.total.value: 3 }
+  - length: {hits.hits: 3 }
+  - match: { hits.hits.0._index: long_sort }
+  - match: { hits.hits.0._source.field: [ 55282163714, 3 ] }
+  - match: { hits.hits.0.sort: [ 55282163714 ] }
+  - match: { hits.hits.1._source.field: [ 55282163713, 2 ] }
+  - match: { hits.hits.1.sort: [ 55282163713 ] }
+  - match: { hits.hits.2._source.field: [ 55282163712, 1 ] }
+  - match: { hits.hits.2.sort: [ 55282163712 ] }
+
+  - do:
+      search:
+        index: long_sort
+        body:
+          size: 5
+          sort: [{ field: { mode: min, order: desc } } ]
+  - match: {hits.total.value: 3 }
+  - length: {hits.hits: 3 }
+  - match: { hits.hits.0._index: long_sort }
+  - match: { hits.hits.0._source.field: [ 55282163714, 3 ] }
+  - match: { hits.hits.0.sort: [ 3 ] }
+  - match: { hits.hits.1._source.field: [ 55282163713, 2 ] }
+  - match: { hits.hits.1.sort: [ 2 ] }
+  - match: { hits.hits.2._source.field: [ 55282163712, 1 ] }
+  - match: { hits.hits.2.sort: [ 1 ] }
+
+  - do:
+      search:
+        index: long_sort
+        body:
+          size: 5
+          sort: [{ field: { mode: max, order: asc } } ]
+  - match: {hits.total.value: 3 }
+  - length: {hits.hits: 3 }
+  - match: { hits.hits.0._index: long_sort }
+  - match: { hits.hits.0._source.field: [ 55282163712, 1 ] }
+  - match: { hits.hits.0.sort: [ 55282163712 ] }
+  - match: { hits.hits.1._source.field: [ 55282163713, 2 ] }
+  - match: { hits.hits.1.sort: [ 55282163713 ] }
+  - match: { hits.hits.2._source.field: [ 55282163714, 3 ] }
+  - match: { hits.hits.2.sort: [ 55282163714 ] }
