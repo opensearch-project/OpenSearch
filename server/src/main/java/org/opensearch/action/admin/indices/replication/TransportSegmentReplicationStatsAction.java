@@ -146,9 +146,7 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         // combine the search replica stats with the stats of other replicas
         for (Map.Entry<String, List<SegmentReplicationPerGroupStats>> entry : primaryStats.entrySet()) {
             for (SegmentReplicationPerGroupStats group : entry.getValue()) {
-                Set<SegmentReplicationShardStats> updatedSet = new HashSet<>(group.getReplicaStats());
-                updatedSet.addAll(searchReplicaSegRepShardStats);
-                group.setReplicaStats(updatedSet);
+                group.addReplicaStats(searchReplicaSegRepShardStats);
             }
         }
 

@@ -28,7 +28,7 @@ import java.util.Set;
 public class SegmentReplicationPerGroupStats implements Writeable, ToXContentFragment {
 
     private final ShardId shardId;
-    private Set<SegmentReplicationShardStats> replicaStats;
+    private final Set<SegmentReplicationShardStats> replicaStats;
     private final long rejectedRequestCount;
 
     public SegmentReplicationPerGroupStats(ShardId shardId, Set<SegmentReplicationShardStats> replicaStats, long rejectedRequestCount) {
@@ -55,8 +55,8 @@ public class SegmentReplicationPerGroupStats implements Writeable, ToXContentFra
         return shardId;
     }
 
-    public void setReplicaStats(Set<SegmentReplicationShardStats> replicaStats) {
-        this.replicaStats = replicaStats;
+    public void addReplicaStats(Set<SegmentReplicationShardStats> replicaStats) {
+       this.replicaStats.addAll(replicaStats);
     }
 
     @Override
