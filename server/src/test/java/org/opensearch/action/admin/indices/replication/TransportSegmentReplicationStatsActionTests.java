@@ -8,6 +8,9 @@
 
 package org.opensearch.action.admin.indices.replication;
 
+import org.junit.Before;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterState;
@@ -33,26 +36,20 @@ import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -76,7 +73,6 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
     private SegmentReplicationPressureService pressureService;
     @Mock
     private IndexShard indexShard;
-
     @Mock
     private IndexService indexService;
 
@@ -145,7 +141,7 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         assertNotNull(response);
         assertNull(response.getPrimaryStats());
         assertNotNull(response.getReplicaStats());
-        assertNull(response.getSegmentReplicationShardStats());
+        assertNull(response.getSearchReplicaReplicationStats());
         verify(targetService).getSegmentReplicationState(shardId);
     }
 
@@ -168,7 +164,7 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         assertNotNull(response);
         assertNull(response.getPrimaryStats());
         assertNotNull(response.getReplicaStats());
-        assertNull(response.getSegmentReplicationShardStats());
+        assertNull(response.getSearchReplicaReplicationStats());
         verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
 
@@ -181,14 +177,11 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
         ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
         ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
-        ReplicationCheckpoint completedCheckpoint = mock(ReplicationCheckpoint.class);
-        ReplicationCheckpoint onGoingCheckpoint = mock(ReplicationCheckpoint.class);
         long time1 = 10;
         long time2 = 15;
-        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
-        final StoreFileMetadata segment_2 = new StoreFileMetadata("segment_2", 50L, "abcd", org.apache.lucene.util.Version.LATEST);
-        long segmentInfoCompleted = 5;
-        long segmentInfoOngoing = 9;
+        ReplicationLuceneIndex replicationLuceneIndex = new ReplicationLuceneIndex();
+        replicationLuceneIndex.addFileDetail("name1", 10, false);
+        replicationLuceneIndex.addFileDetail("name2", 5, false);
 
         when(shardRouting.shardId()).thenReturn(shardId);
         when(shardRouting.primary()).thenReturn(false);
@@ -201,15 +194,10 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
         when(targetService.getSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
         when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
-        when(completedSegmentReplicationState.getReplicationCheckpoint()).thenReturn(completedCheckpoint);
         when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
-        when(onGoingSegmentReplicationState.getReplicationCheckpoint()).thenReturn(onGoingCheckpoint);
         when(replicationTimerOngoing.time()).thenReturn(time1);
         when(replicationTimerCompleted.time()).thenReturn(time2);
-        when(completedCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1));
-        when(onGoingCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1, "segment_2", segment_2));
-        when(onGoingCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoOngoing);
-        when(completedCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoCompleted);
+        when(onGoingSegmentReplicationState.getIndex()).thenReturn(replicationLuceneIndex);
 
         SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
 
@@ -225,11 +213,10 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         AllocationId allocationId = AllocationId.newInitializing();
         SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
         ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
-        ReplicationCheckpoint onGoingCheckpoint = mock(ReplicationCheckpoint.class);
         long time1 = 10;
-        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
-        final StoreFileMetadata segment_2 = new StoreFileMetadata("segment_2", 50L, "abcd", org.apache.lucene.util.Version.LATEST);
-        long segmentInfoOngoing = 9;
+        ReplicationLuceneIndex replicationLuceneIndex = new ReplicationLuceneIndex();
+        replicationLuceneIndex.addFileDetail("name1", 10, false);
+        replicationLuceneIndex.addFileDetail("name2", 5, false);
 
         when(shardRouting.shardId()).thenReturn(shardId);
         when(shardRouting.primary()).thenReturn(false);
@@ -241,61 +228,15 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
         when(targetService.getSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
         when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
-        when(onGoingSegmentReplicationState.getReplicationCheckpoint()).thenReturn(onGoingCheckpoint);
         when(replicationTimerOngoing.time()).thenReturn(time1);
-        when(onGoingCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1, "segment_2", segment_2));
-        when(onGoingCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoOngoing);
+        when(onGoingSegmentReplicationState.getIndex()).thenReturn(replicationLuceneIndex);
 
         SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
 
         assertNotNull(response);
         assertNull(response.getPrimaryStats());
         assertNull(response.getReplicaStats());
-        assertNotNull(response.getSegmentReplicationShardStats());
-        verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
-        verify(targetService).getOngoingEventSegmentReplicationState(shardId);
-    }
-
-    public void testShardOperationWithSearchOnlyReplicaWhenNoCompletedCheckpoint() {
-        ShardRouting shardRouting = mock(ShardRouting.class);
-        SegmentReplicationState completedSegmentReplicationState = mock(SegmentReplicationState.class);
-        SegmentReplicationState onGoingSegmentReplicationState = mock(SegmentReplicationState.class);
-        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
-        AllocationId allocationId = AllocationId.newInitializing();
-        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
-        ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
-        ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
-        ReplicationCheckpoint onGoingCheckpoint = mock(ReplicationCheckpoint.class);
-        long time1 = 10;
-        long time2 = 15;
-        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
-        final StoreFileMetadata segment_2 = new StoreFileMetadata("segment_2", 50L, "abcd", org.apache.lucene.util.Version.LATEST);
-        long segmentInfoOngoing = 9;
-
-        when(shardRouting.shardId()).thenReturn(shardId);
-        when(shardRouting.primary()).thenReturn(false);
-        when(shardRouting.isSearchOnly()).thenReturn(true);
-        when(shardRouting.allocationId()).thenReturn(allocationId);
-        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
-        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
-        when(targetService.getlatestCompletedEventSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
-        when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
-        when(targetService.getSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
-        when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
-        when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
-        when(onGoingSegmentReplicationState.getReplicationCheckpoint()).thenReturn(onGoingCheckpoint);
-        when(replicationTimerOngoing.time()).thenReturn(time1);
-        when(replicationTimerCompleted.time()).thenReturn(time2);
-        when(onGoingCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1, "segment_2", segment_2));
-        when(onGoingCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoOngoing);
-
-        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
-
-        assertNotNull(response);
-        assertNull(response.getPrimaryStats());
-        assertNull(response.getReplicaStats());
-        assertNotNull(response.getSegmentReplicationShardStats());
+        assertNotNull(response.getSearchReplicaReplicationStats());
         verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
         verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
@@ -307,10 +248,7 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         AllocationId allocationId = AllocationId.newInitializing();
         SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
         ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
-        ReplicationCheckpoint completedCheckpoint = mock(ReplicationCheckpoint.class);
         long time2 = 15;
-        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
-        long segmentInfoCompleted = 5;
 
         when(shardRouting.shardId()).thenReturn(shardId);
         when(shardRouting.primary()).thenReturn(false);
@@ -321,59 +259,14 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
         when(targetService.getlatestCompletedEventSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
         when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
-        when(completedSegmentReplicationState.getReplicationCheckpoint()).thenReturn(completedCheckpoint);
         when(replicationTimerCompleted.time()).thenReturn(time2);
-        when(completedCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1));
-        when(completedCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoCompleted);
 
         SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
 
         assertNotNull(response);
         assertNull(response.getPrimaryStats());
         assertNull(response.getReplicaStats());
-        assertNotNull(response.getSegmentReplicationShardStats());
-        verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
-        verify(targetService).getOngoingEventSegmentReplicationState(shardId);
-    }
-
-    public void testShardOperationWithSearchOnlyReplicaWhenNoOngoingCheckpoint() {
-        ShardRouting shardRouting = mock(ShardRouting.class);
-        SegmentReplicationState completedSegmentReplicationState = mock(SegmentReplicationState.class);
-        SegmentReplicationState onGoingSegmentReplicationState = mock(SegmentReplicationState.class);
-        ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
-        AllocationId allocationId = AllocationId.newInitializing();
-        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
-        ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
-        ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
-        ReplicationCheckpoint completedCheckpoint = mock(ReplicationCheckpoint.class);
-        long time1 = 10;
-        long time2 = 15;
-        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 1L, "abcd", org.apache.lucene.util.Version.LATEST);
-        long segmentInfoCompleted = 5;
-
-        when(shardRouting.shardId()).thenReturn(shardId);
-        when(shardRouting.primary()).thenReturn(false);
-        when(shardRouting.isSearchOnly()).thenReturn(true);
-        when(shardRouting.allocationId()).thenReturn(allocationId);
-        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
-        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
-        when(targetService.getlatestCompletedEventSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
-        when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
-        when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
-        when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
-        when(completedSegmentReplicationState.getReplicationCheckpoint()).thenReturn(completedCheckpoint);
-        when(replicationTimerCompleted.time()).thenReturn(time2);
-        when(replicationTimerOngoing.time()).thenReturn(time1);
-        when(completedCheckpoint.getMetadataMap()).thenReturn(Map.of("segment_1", segment_1));
-        when(completedCheckpoint.getSegmentInfosVersion()).thenReturn(segmentInfoCompleted);
-
-        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
-
-        assertNotNull(response);
-        assertNull(response.getPrimaryStats());
-        assertNull(response.getReplicaStats());
-        assertNotNull(response.getSegmentReplicationShardStats());
+        assertNotNull(response.getSearchReplicaReplicationStats());
         verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
         verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
@@ -397,7 +290,7 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         assertNotNull(response);
         assertNull(response.getPrimaryStats());
         assertNull(response.getReplicaStats());
-        assertNotNull(response.getSegmentReplicationShardStats());
+        assertNotNull(response.getSearchReplicaReplicationStats());
         verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
         verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }

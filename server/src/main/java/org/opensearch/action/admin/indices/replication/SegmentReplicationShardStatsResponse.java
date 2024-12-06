@@ -33,30 +33,30 @@ public class SegmentReplicationShardStatsResponse implements Writeable {
     private final SegmentReplicationState replicaStats;
 
     @Nullable
-    private final SegmentReplicationShardStats segmentReplicationShardStats;
+    private final SegmentReplicationShardStats searchReplicaReplicationStats;
 
     public SegmentReplicationShardStatsResponse(StreamInput in) throws IOException {
         this.primaryStats = in.readOptionalWriteable(SegmentReplicationPerGroupStats::new);
         this.replicaStats = in.readOptionalWriteable(SegmentReplicationState::new);
-        this.segmentReplicationShardStats = in.readOptionalWriteable(SegmentReplicationShardStats::new);
+        this.searchReplicaReplicationStats = in.readOptionalWriteable(SegmentReplicationShardStats::new);
     }
 
     public SegmentReplicationShardStatsResponse(SegmentReplicationPerGroupStats primaryStats) {
         this.primaryStats = primaryStats;
         this.replicaStats = null;
-        this.segmentReplicationShardStats = null;
+        this.searchReplicaReplicationStats = null;
     }
 
     public SegmentReplicationShardStatsResponse(SegmentReplicationState replicaStats) {
         this.replicaStats = replicaStats;
         this.primaryStats = null;
-        this.segmentReplicationShardStats = null;
+        this.searchReplicaReplicationStats = null;
     }
 
     public SegmentReplicationShardStatsResponse(SegmentReplicationShardStats segmentReplicationShardStats) {
         this.primaryStats = null;
         this.replicaStats = null;
-        this.segmentReplicationShardStats = segmentReplicationShardStats;
+        this.searchReplicaReplicationStats = segmentReplicationShardStats;
     }
 
     public SegmentReplicationPerGroupStats getPrimaryStats() {
@@ -67,19 +67,23 @@ public class SegmentReplicationShardStatsResponse implements Writeable {
         return replicaStats;
     }
 
-    public SegmentReplicationShardStats getSegmentReplicationShardStats() {
-        return segmentReplicationShardStats;
+    public SegmentReplicationShardStats getSearchReplicaReplicationStats() {
+        return searchReplicaReplicationStats;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(primaryStats);
         out.writeOptionalWriteable(replicaStats);
-        out.writeOptionalWriteable(segmentReplicationShardStats);
+        out.writeOptionalWriteable(searchReplicaReplicationStats);
     }
 
     @Override
     public String toString() {
-        return "SegmentReplicationShardStatsResponse{" + "primaryStats=" + primaryStats + ", replicaStats=" + replicaStats + '}';
+        return "SegmentReplicationShardStatsResponse{" +
+            "primaryStats=" + primaryStats +
+            ", replicaStats=" + replicaStats +
+            ", searchReplicaReplicationStats=" + searchReplicaReplicationStats +
+            '}';
     }
 }

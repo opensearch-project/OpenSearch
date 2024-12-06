@@ -25,8 +25,6 @@ import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.store.Store;
-import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
@@ -36,7 +34,6 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -117,8 +114,8 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
                     }
                 }
 
-                if (response.getSegmentReplicationShardStats() != null) {
-                    searchReplicaSegRepShardStats.add(response.getSegmentReplicationShardStats());
+                if (response.getSearchReplicaReplicationStats() != null) {
+                    searchReplicaSegRepShardStats.add(response.getSearchReplicaReplicationStats());
                 }
 
                 if (response.getPrimaryStats() != null) {
@@ -175,7 +172,7 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         if (shardRouting.primary()) {
             return new SegmentReplicationShardStatsResponse(pressureService.getStatsForShard(indexShard));
         } else if (shardRouting.isSearchOnly()) {
-            SegmentReplicationShardStats segmentReplicationShardStats = calcualteSegmentReplicationShardStats(shardRouting);
+            SegmentReplicationShardStats segmentReplicationShardStats = calculateSegmentReplicationShardStats(shardRouting);
             return new SegmentReplicationShardStatsResponse(segmentReplicationShardStats);
         } else {
             return new SegmentReplicationShardStatsResponse(getSegmentReplicationState(shardId, request.activeOnly()));
@@ -201,15 +198,15 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
-    private SegmentReplicationShardStats calcualteSegmentReplicationShardStats(ShardRouting shardRouting) {
+    private SegmentReplicationShardStats calculateSegmentReplicationShardStats(ShardRouting shardRouting) {
         ShardId shardId = shardRouting.shardId();
         SegmentReplicationState completedSegmentReplicationState = targetService.getlatestCompletedEventSegmentReplicationState(shardId);
         SegmentReplicationState ongoingSegmentReplicationState = targetService.getOngoingEventSegmentReplicationState(shardId);
 
         SegmentReplicationShardStats segmentReplicationShardStats = new SegmentReplicationShardStats(
             shardRouting.allocationId().getId(),
-            calculateCheckpointsBehind(completedSegmentReplicationState, ongoingSegmentReplicationState),
-            calculateBytesBehind(completedSegmentReplicationState, ongoingSegmentReplicationState),
+            0,
+            calculateBytesRemainingToReplicate(ongoingSegmentReplicationState),
             0,
             getCurrentReplicationLag(ongoingSegmentReplicationState),
             getLastCompletedReplicationLag(completedSegmentReplicationState)
@@ -227,44 +224,16 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         }
     }
 
-    private long calculateCheckpointsBehind(
-        SegmentReplicationState completedSegmentReplicationState,
+    private long calculateBytesRemainingToReplicate(
         SegmentReplicationState ongoingSegmentReplicationState
     ) {
-        if (ongoingSegmentReplicationState == null || ongoingSegmentReplicationState.getReplicationCheckpoint() == null) {
+        if (ongoingSegmentReplicationState == null) {
             return 0;
         }
-
-        if (completedSegmentReplicationState == null || completedSegmentReplicationState.getReplicationCheckpoint() == null) {
-            return ongoingSegmentReplicationState.getReplicationCheckpoint().getSegmentInfosVersion();
-        }
-
-        return ongoingSegmentReplicationState.getReplicationCheckpoint().getSegmentInfosVersion() - completedSegmentReplicationState
-            .getReplicationCheckpoint()
-            .getSegmentInfosVersion();
-    }
-
-    private long calculateBytesBehind(
-        SegmentReplicationState completedSegmentReplicationState,
-        SegmentReplicationState ongoingSegmentReplicationState
-    ) {
-        if (ongoingSegmentReplicationState == null || ongoingSegmentReplicationState.getReplicationCheckpoint() == null) {
-            return 0;
-        }
-
-        if (completedSegmentReplicationState == null || completedSegmentReplicationState.getReplicationCheckpoint() == null) {
-            Store.RecoveryDiff diff = Store.segmentReplicationDiff(
-                ongoingSegmentReplicationState.getReplicationCheckpoint().getMetadataMap(),
-                Collections.emptyMap()
-            );
-            return diff.missing.stream().mapToLong(StoreFileMetadata::length).sum();
-        }
-
-        Store.RecoveryDiff diff = Store.segmentReplicationDiff(
-            ongoingSegmentReplicationState.getReplicationCheckpoint().getMetadataMap(),
-            completedSegmentReplicationState.getReplicationCheckpoint().getMetadataMap()
-        );
-        return diff.missing.stream().mapToLong(StoreFileMetadata::length).sum();
+        return ongoingSegmentReplicationState.getIndex()
+            .fileDetails().stream()
+            .mapToLong(index -> index.length() - index.recovered())
+            .sum();
     }
 
     private long getCurrentReplicationLag(SegmentReplicationState ongoingSegmentReplicationState) {

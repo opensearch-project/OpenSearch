@@ -119,7 +119,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         builder.field("current_replication_lag", new TimeValue(currentReplicationLagMillis));
         builder.field("last_completed_replication_time", new TimeValue(lastCompletedReplicationTimeMillis));
         if (currentReplicationState != null) {
-            builder.startObject("current_replication_state");
+            builder.startObject();
             currentReplicationState.toXContent(builder, params);
             builder.endObject();
         }

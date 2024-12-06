@@ -441,9 +441,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
 
     public void testSegmentReplicationStatsResponseWithSearchReplica() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(3);
 
         int numShards = 2;
         assertAcked(
@@ -472,25 +470,22 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
                 .setDetailed(true)
                 .execute()
                 .actionGet();
+            assertEquals(1, segmentReplicationStatsResponse.getReplicationStats().size());
+            assertEquals(numShards * 3, segmentReplicationStatsResponse.getTotalShards());
+            assertEquals(numShards * 3, segmentReplicationStatsResponse.getSuccessfulShards());
+
             SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0);
-            final SegmentReplicationState currentReplicationState = perGroupStats.getReplicaStats()
-                .stream()
-                .findFirst()
-                .get()
-                .getCurrentReplicationState();
-            assertEquals(segmentReplicationStatsResponse.getReplicationStats().size(), 1);
-            assertEquals(segmentReplicationStatsResponse.getTotalShards(), numShards * 3);
-            assertEquals(segmentReplicationStatsResponse.getSuccessfulShards(), numShards * 3);
-            assertNotNull(currentReplicationState);
-            assertEquals(currentReplicationState.getStage(), SegmentReplicationState.Stage.DONE);
-            assertTrue(currentReplicationState.getIndex().recoveredFileCount() > 0);
+            Set<SegmentReplicationShardStats> replicaStats = perGroupStats.getReplicaStats();
+            for (SegmentReplicationShardStats replica : replicaStats) {
+                assertNotNull(replica.getCurrentReplicationState());
+            }
+            assertEquals(3, replicaStats.size());
         }, 1, TimeUnit.MINUTES);
     }
 
     public void testSegmentReplicationStatsResponseWithOnlySearchReplica() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
 
         int numShards = 1;
         assertAcked(
@@ -519,18 +514,16 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
                 .setDetailed(true)
                 .execute()
                 .actionGet();
-            SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0);
-            final SegmentReplicationState currentReplicationState = perGroupStats.getReplicaStats()
-                .stream()
-                .findFirst()
-                .get()
-                .getCurrentReplicationState();
             assertEquals(segmentReplicationStatsResponse.getReplicationStats().size(), 1);
             assertEquals(segmentReplicationStatsResponse.getTotalShards(), 2);
             assertEquals(segmentReplicationStatsResponse.getSuccessfulShards(), 2);
-            assertNotNull(currentReplicationState);
-            assertEquals(currentReplicationState.getStage(), SegmentReplicationState.Stage.DONE);
-            assertTrue(currentReplicationState.getIndex().recoveredFileCount() > 0);
+
+            SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0);
+            Set<SegmentReplicationShardStats> replicaStats = perGroupStats.getReplicaStats();
+            for (SegmentReplicationShardStats replica : replicaStats) {
+                assertNotNull(replica.getCurrentReplicationState());
+            }
+            assertEquals(1, replicaStats.size());
         }, 1, TimeUnit.MINUTES);
     }
 }
