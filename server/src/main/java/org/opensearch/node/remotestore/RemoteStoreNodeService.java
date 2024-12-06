@@ -21,6 +21,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryException;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -183,13 +184,17 @@ public class RemoteStoreNodeService {
                 boolean repositoryAlreadyPresent = false;
                 for (RepositoryMetadata existingRepositoryMetadata : existingRepositories.repositories()) {
                     if (newRepositoryMetadata.name().equals(existingRepositoryMetadata.name())) {
-                        // This is to handle cases where-in the during a previous node-join attempt if the publish operation succeeded but
-                        // the commit operation failed, the cluster-state may have the repository metadata which is not applied into the
-                        // repository service. This may lead to assertion failures down the line.
-                        if (!repositoriesService.get().isRepositoryPresent(newRepositoryMetadata.name())) {
+                        try {
+                            // This is to handle cases where-in the during a previous node-join attempt if the publish operation succeeded
+                            // but
+                            // the commit operation failed, the cluster-state may have the repository metadata which is not applied into the
+                            // repository service. This may lead to assertion failures down the line.
+                            String repositoryName = newRepositoryMetadata.name();
+                            repositoriesService.get().repository(repositoryName);
+                        } catch (RepositoryMissingException e) {
                             logger.warn(
-                                "remote repository [{}] in cluster-state but repository-service but not present "
-                                    + "in repository-service, skipping checks",
+                                "Skipping repositories metadata checks: Remote repository [{}] is in the cluster state but not present "
+                                    + "in the repository service.",
                                 newRepositoryMetadata.name()
                             );
                             break;

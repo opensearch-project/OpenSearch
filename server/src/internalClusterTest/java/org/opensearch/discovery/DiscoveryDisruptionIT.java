@@ -44,6 +44,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
@@ -57,6 +59,7 @@ import org.junit.Assert;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
@@ -261,7 +264,9 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     /**
-     * Test Repositories Configured Node Join Commit failures.
+     * Tests the scenario where-in a cluster-state containing new repository meta-data as part of a node-join from a
+     * repository-configured node fails on a commit stag and has a master switch. This would lead to master nodes
+     * doing another round of node-joins with the new cluster-state as the previous attempt had a successful publish.
      */
     public void testElectClusterManagerRemotePublicationConfigurationNodeJoinCommitFails() throws Exception {
         final String remoteStateRepoName = "remote-state-repo";
@@ -288,20 +293,32 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
             clusterManagerNode
         );
         logger.info("Blocking Cluster Manager Commit Request on all nodes");
+        // This is to allow the new node to have commit failures on the nodes in the send path itself. This will lead to the
+        // nodes have a successful publish operation but failed commit operation. This will come into play once the new node joins
         nonClusterManagerNodes.forEach(node -> {
             TransportService targetTransportService = internalCluster().getInstance(TransportService.class, node);
-            clusterManagerTransportService.addOpenSearchFailureException(
-                targetTransportService,
-                new FailedToCommitClusterStateException("Blocking Commit"),
-                PublicationTransportHandler.COMMIT_STATE_ACTION_NAME
-            );
+            clusterManagerTransportService.addSendBehavior(targetTransportService, (connection, requestId, action, request, options) -> {
+                if (action.equals(PublicationTransportHandler.COMMIT_STATE_ACTION_NAME)) {
+                    logger.info("--> preventing {} request", PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
+                    throw new FailedToCommitClusterStateException("Blocking Commit");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
         });
 
         logger.info("Starting Node with remote publication settings");
+        // Start a node with remote-publication repositories configured. This will lead to the active cluster-manager create
+        // a new cluster-state event with the new node-join along with new repositories setup in the cluster meta-data.
         internalCluster().startDataOnlyNodes(1, remotePublicationSettings, Boolean.TRUE);
 
         logger.info("Stopping current Cluster Manager");
+        // We stop the current cluster-manager whose outbound paths were blocked. This is to force a new election onto nodes
+        // we had the new cluster-state published but not commited.
         internalCluster().stopCurrentClusterManagerNode();
+
+        // We expect that the repositories validations are skipped in this case and node-joins succeeds as expected. The
+        // repositories validations are skipped because even though the cluster-state is updated in the persisted registry,
+        // the repository service will not be updated as the commit attempt failed.
         ensureStableCluster(6);
 
         String randomNode = nonClusterManagerNodes.get(Randomness.get().nextInt(nonClusterManagerNodes.size()));
@@ -330,11 +347,22 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, randomNode);
 
-        if (repositoriesService.isRepositoryPresent(remoteStateRepoName)) {
-            isRemoteStateRepoConfigured = Boolean.TRUE;
+        try {
+            Repository remoteStateRepo = repositoriesService.repository(remoteStateRepoName);
+            if (Objects.nonNull(remoteStateRepo)) {
+                isRemoteStateRepoConfigured = Boolean.TRUE;
+            }
+        } catch (RepositoryMissingException e) {
+            isRemoteStateRepoConfigured = Boolean.FALSE;
         }
-        if (repositoriesService.isRepositoryPresent(remoteRoutingTableRepoName)) {
-            isRemoteRoutingTableRepoConfigured = Boolean.TRUE;
+
+        try {
+            Repository routingTableRepo = repositoriesService.repository(remoteRoutingTableRepoName);
+            if (Objects.nonNull(routingTableRepo)) {
+                isRemoteRoutingTableRepoConfigured = Boolean.TRUE;
+            }
+        } catch (RepositoryMissingException e) {
+            isRemoteRoutingTableRepoConfigured = Boolean.FALSE;
         }
 
         Assert.assertTrue("RemoteState Repo is not set in RepositoryService", isRemoteStateRepoConfigured);

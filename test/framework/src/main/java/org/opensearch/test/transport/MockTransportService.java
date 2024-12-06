@@ -34,7 +34,6 @@ package org.opensearch.test.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -372,47 +371,6 @@ public final class MockTransportService extends TransportService {
             if (blockedActions.contains(action)) {
                 logger.info("--> preventing {} request", action);
                 connection.close();
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-    }
-
-    /**
-     * Adds a rule that will cause matching operations to throw provided OpenSearch Exceptions
-     */
-    public void addOpenSearchFailureException(
-        TransportService transportService,
-        final OpenSearchException exception,
-        final String... blockedActions
-    ) {
-        addOpenSearchFailureException(transportService, exception, new HashSet<>(Arrays.asList(blockedActions)));
-    }
-
-    /**
-     * Adds a rule that will cause matching operations to throw provided OpenSearch Exceptions
-     */
-    public void addOpenSearchFailureException(
-        TransportService transportService,
-        OpenSearchException exception,
-        final Set<String> blockedActions
-    ) {
-        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
-            addOpenSearchFailureException(transportAddress, exception, blockedActions);
-        }
-    }
-
-    /**
-     * Adds a rule that will cause matching operations to throw provided OpenSearch Exceptions
-     */
-    public void addOpenSearchFailureException(
-        TransportAddress transportAddress,
-        OpenSearchException exception,
-        final Set<String> blockedActions
-    ) {
-        transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
-            if (blockedActions.contains(action)) {
-                logger.info("--> preventing {} request", action);
-                throw exception;
             }
             connection.sendRequest(requestId, action, request, options);
         });

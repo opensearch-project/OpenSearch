@@ -579,10 +579,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         throw new RepositoryMissingException(repositoryName);
     }
 
-    public Boolean isRepositoryPresent(final String repositoryName) {
-        return Objects.nonNull(repositories.get(repositoryName));
-    }
-
     public List<RepositoryStatsSnapshot> repositoriesStats() {
         List<RepositoryStatsSnapshot> activeRepoStats = getRepositoryStatsForActiveRepositories();
         return activeRepoStats;
