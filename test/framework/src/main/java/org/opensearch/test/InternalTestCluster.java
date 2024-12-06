@@ -2325,8 +2325,8 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Starts multiple nodes with the given settings and returns their names
      */
-    public List<String> startNodes(int numOfNodes, Settings settings, Boolean ignoreNodeJoin) {
-        return startNodes(ignoreNodeJoin, Collections.nCopies(numOfNodes, settings).toArray(new Settings[0]));
+    public List<String> startNodes(int numOfNodes, Settings settings, Boolean waitForNodeJoin) {
+        return startNodes(waitForNodeJoin, Collections.nCopies(numOfNodes, settings).toArray(new Settings[0]));
     }
 
     /**
@@ -2339,7 +2339,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Starts multiple nodes with the given settings and returns their names
      */
-    public synchronized List<String> startNodes(Boolean ignoreNodeJoin, Settings... extraSettings) {
+    public synchronized List<String> startNodes(Boolean waitForNodeJoin, Settings... extraSettings) {
         final int newClusterManagerCount = Math.toIntExact(Stream.of(extraSettings).filter(DiscoveryNode::isClusterManagerNode).count());
         final int defaultMinClusterManagerNodes;
         if (autoManageClusterManagerNodes) {
@@ -2391,7 +2391,7 @@ public final class InternalTestCluster extends TestCluster {
             nodes.add(nodeAndClient);
         }
         startAndPublishNodesAndClients(nodes);
-        if (autoManageClusterManagerNodes && !ignoreNodeJoin) {
+        if (autoManageClusterManagerNodes && !waitForNodeJoin) {
             validateClusterFormed();
         }
         return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());

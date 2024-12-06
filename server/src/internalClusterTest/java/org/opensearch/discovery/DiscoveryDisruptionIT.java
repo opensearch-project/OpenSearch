@@ -35,6 +35,7 @@ package org.opensearch.discovery;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.coordination.JoinHelper;
+import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.coordination.PublicationTransportHandler;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -311,6 +312,30 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         // a new cluster-state event with the new node-join along with new repositories setup in the cluster meta-data.
         internalCluster().startDataOnlyNodes(1, remotePublicationSettings, Boolean.TRUE);
 
+        // Checking if publish succeeded in the nodes before shutting down the blocked cluster-manager
+        assertBusy(() -> {
+            String randomNode = nonClusterManagerNodes.get(Randomness.get().nextInt(nonClusterManagerNodes.size()));
+            PersistedStateRegistry registry = internalCluster().getInstance(PersistedStateRegistry.class, randomNode);
+
+            ClusterState state = registry.getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL).getLastAcceptedState();
+            RepositoriesMetadata repositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
+            Boolean isRemoteStateRepoConfigured = Boolean.FALSE;
+            Boolean isRemoteRoutingTableRepoConfigured = Boolean.FALSE;
+
+            assertNotNull(repositoriesMetadata);
+            assertNotNull(repositoriesMetadata.repositories());
+
+            for (RepositoryMetadata repo : repositoriesMetadata.repositories()) {
+                if (repo.name().equals(remoteStateRepoName)) {
+                    isRemoteStateRepoConfigured = Boolean.TRUE;
+                } else if (repo.name().equals(remoteRoutingTableRepoName)) {
+                    isRemoteRoutingTableRepoConfigured = Boolean.TRUE;
+                }
+            }
+            assertTrue(isRemoteStateRepoConfigured);
+            assertTrue(isRemoteRoutingTableRepoConfigured);
+        });
+
         logger.info("Stopping current Cluster Manager");
         // We stop the current cluster-manager whose outbound paths were blocked. This is to force a new election onto nodes
         // we had the new cluster-state published but not commited.
@@ -323,6 +348,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         String randomNode = nonClusterManagerNodes.get(Randomness.get().nextInt(nonClusterManagerNodes.size()));
 
+        // Checking if the final cluster-state is updated.
         RepositoriesMetadata repositoriesMetadata = internalCluster().getInstance(ClusterService.class, randomNode)
             .state()
             .metadata()
@@ -342,33 +368,28 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         Assert.assertTrue("RemoteState Repo is not set in RepositoriesMetadata", isRemoteStateRepoConfigured);
         Assert.assertTrue("RemoteRoutingTable Repo is not set in RepositoriesMetadata", isRemoteRoutingTableRepoConfigured);
 
-        isRemoteStateRepoConfigured = Boolean.FALSE;
-        isRemoteRoutingTableRepoConfigured = Boolean.FALSE;
-
         RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, randomNode);
 
-        try {
-            Repository remoteStateRepo = repositoriesService.repository(remoteStateRepoName);
-            if (Objects.nonNull(remoteStateRepo)) {
-                isRemoteStateRepoConfigured = Boolean.TRUE;
-            }
-        } catch (RepositoryMissingException e) {
-            isRemoteStateRepoConfigured = Boolean.FALSE;
-        }
-
-        try {
-            Repository routingTableRepo = repositoriesService.repository(remoteRoutingTableRepoName);
-            if (Objects.nonNull(routingTableRepo)) {
-                isRemoteRoutingTableRepoConfigured = Boolean.TRUE;
-            }
-        } catch (RepositoryMissingException e) {
-            isRemoteRoutingTableRepoConfigured = Boolean.FALSE;
-        }
+        isRemoteStateRepoConfigured = isRepoPresentInRepositoryService(repositoriesService, remoteStateRepoName);
+        isRemoteRoutingTableRepoConfigured = isRepoPresentInRepositoryService(repositoriesService, remoteRoutingTableRepoName);
 
         Assert.assertTrue("RemoteState Repo is not set in RepositoryService", isRemoteStateRepoConfigured);
         Assert.assertTrue("RemoteRoutingTable Repo is not set in RepositoryService", isRemoteRoutingTableRepoConfigured);
 
         logger.info("Stopping current Cluster Manager");
+    }
+
+    private Boolean isRepoPresentInRepositoryService(RepositoriesService repositoriesService, String repoName) {
+        try {
+            Repository remoteStateRepo = repositoriesService.repository(repoName);
+            if (Objects.nonNull(remoteStateRepo)) {
+                return Boolean.TRUE;
+            }
+        } catch (RepositoryMissingException e) {
+            return Boolean.FALSE;
+        }
+
+        return Boolean.FALSE;
     }
 
 }
