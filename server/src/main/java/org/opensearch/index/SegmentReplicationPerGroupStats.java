@@ -28,7 +28,7 @@ import java.util.Set;
 public class SegmentReplicationPerGroupStats implements Writeable, ToXContentFragment {
 
     private final ShardId shardId;
-    private final Set<SegmentReplicationShardStats> replicaStats;
+    private Set<SegmentReplicationShardStats> replicaStats;
     private final long rejectedRequestCount;
 
     public SegmentReplicationPerGroupStats(ShardId shardId, Set<SegmentReplicationShardStats> replicaStats, long rejectedRequestCount) {
@@ -56,7 +56,12 @@ public class SegmentReplicationPerGroupStats implements Writeable, ToXContentFra
     }
 
     public void addReplicaStats(Set<SegmentReplicationShardStats> replicaStats) {
-        this.replicaStats.addAll(replicaStats);
+        if (this.replicaStats.isEmpty()) {
+            // When there is only search replica, replicaStats is empty. EmptySet is immutable and doesn't support adding item
+            this.replicaStats = replicaStats;
+        } else {
+            this.replicaStats.addAll(replicaStats);
+        }
     }
 
     @Override
