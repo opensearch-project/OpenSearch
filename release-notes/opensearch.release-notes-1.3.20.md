@@ -2,11 +2,9 @@
 
 ### Dependencies
 - Bump `icu4j` from 62.1 to 62.2 ([#15469](https://github.com/opensearch-project/OpenSearch/pull/15469))
-- Bump `netty` from 4.1.112.Final to 4.1.114.Final ([#16182](https://github.com/opensearch-project/OpenSearch/pull/16182))
 - Bump `org.bouncycastle:bc-fips` from 1.0.2.4 to 1.0.2.5 ([#13446](https://github.com/opensearch-project/OpenSearch/pull/13446))
-- Bump `Netty` from 4.1.114.Final to 4.1.115.Final ([#16661](https://github.com/opensearch-project/OpenSearch/pull/16661))
+- Bump `Netty` from 4.1.112.Final to 4.1.115.Final ([#16661](https://github.com/opensearch-project/OpenSearch/pull/16661))
 - Bump `avro` from 1.11.3 to 1.11.4 ([#16773](https://github.com/opensearch-project/OpenSearch/pull/16773))
-- Bump `protobuf-java` to 3.22.5 ([#16779](https://github.com/opensearch-project/OpenSearch/pull/16779))
 - Bump `commonsio` to 2.16.0 ([#16780](https://github.com/opensearch-project/OpenSearch/pull/16780))
 - Bump `protobuf-java` to 3.25.5 ([#16792](https://github.com/opensearch-project/OpenSearch/pull/16792))
 - Bump `snappy-java` to 1.1.10.7 ([#16792](https://github.com/opensearch-project/OpenSearch/pull/16792))
