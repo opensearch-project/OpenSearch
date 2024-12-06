@@ -10,6 +10,7 @@ package org.opensearch.cache.common.tier;
 
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.search.SearchResponse;
@@ -40,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
+import static org.opensearch.indices.IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
@@ -415,6 +417,55 @@ public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
         assertTrue(diskCacheStat.getMisses() > 0);
         assertTrue(diskCacheStat.getHits() == 0);
         assertTrue(diskCacheStat.getEvictions() == 0);
+    }
+
+    public void testClosingShard() throws Exception {
+        // Closing the shard should totally remove the stats associated with that shard.
+        internalCluster().startNodes(
+            1,
+            Settings.builder()
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, getNumberOfSegments()))
+                .put(
+                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    new TimeValue(0, TimeUnit.SECONDS)
+                )
+                .put(INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), new TimeValue(1))
+                .build()
+        );
+        String index = "index";
+        Client client = client();
+        startIndex(client, index);
+
+        // First search one time to see how big a single value will be
+        searchIndex(client, index, 0);
+        // get total stats
+        long singleSearchSize = getTotalStats(client).getSizeInBytes();
+        // Select numbers so we get some values on both heap and disk
+        int itemsOnHeap = HEAP_CACHE_SIZE / (int) singleSearchSize;
+        int itemsOnDisk = 1 + randomInt(30); // The first one we search (to get the size) always goes to disk
+        int expectedEntries = itemsOnHeap + itemsOnDisk;
+
+        for (int i = 1; i < expectedEntries; i++) {
+            // Cause misses
+            searchIndex(client, index, i);
+        }
+        int expectedMisses = itemsOnHeap + itemsOnDisk;
+
+        // Cause some hits
+        int expectedHits = randomIntBetween(itemsOnHeap, expectedEntries); // Select it so some hits come from both tiers
+        for (int i = 0; i < expectedHits; i++) {
+            searchIndex(client, index, i);
+        }
+
+        // Check the new stats API values are as expected
+        assertEquals(
+            new ImmutableCacheStats(expectedHits, expectedMisses, 0, expectedEntries * singleSearchSize, expectedEntries),
+            getTotalStats(client)
+        );
+
+        // Closing the index should close the shard
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest("index")).get());
+        assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), getTotalStats(client));
     }
 
     private void startIndex(Client client, String indexName) throws InterruptedException {
