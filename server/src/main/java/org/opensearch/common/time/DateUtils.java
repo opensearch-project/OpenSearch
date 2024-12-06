@@ -272,6 +272,16 @@ public class DateUtils {
         return instant;
     }
 
+    public static Instant clampToMillisRange(Instant instant) {
+        if (instant.isBefore(Instant.ofEpochMilli(Long.MIN_VALUE))) {
+            return Instant.ofEpochMilli(Long.MIN_VALUE);
+        }
+        if (instant.isAfter(Instant.ofEpochMilli(Long.MAX_VALUE))) {
+            return Instant.ofEpochMilli(Long.MAX_VALUE);
+        }
+        return instant;
+    }
+
     /**
      * convert a long value to a java time instant
      * the long value resembles the nanoseconds since the epoch
