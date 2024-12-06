@@ -20,6 +20,9 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
+/**
+ * BaseQueryRewriteContext
+ */
 public class BaseQueryRewriteContext implements QueryRewriteContext {
     private final NamedXContentRegistry xContentRegistry;
     private final NamedWriteableRegistry writeableRegistry;
