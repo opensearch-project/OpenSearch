@@ -103,6 +103,27 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+        if (supportedStarTree != null) {
+            AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));
+            StarTreeQueryHelper.precomputeAggregationFromStarTree(
+                context,
+                valuesSource,
+                ctx,
+                supportedStarTree,
+                MetricStat.MAX.getTypeName(),
+                value -> {
+                    max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
+                },
+                () -> maxes.set(0, max.get())
+            );
+            return true;
+        }
+        return false;
+    }
+
+    @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             if (parent != null) {
@@ -128,15 +149,6 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             }
         }
 
-        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
-        if (supportedStarTree != null) {
-            return getStarTreeCollector(ctx, sub, supportedStarTree);
-        }
-        return getDefaultLeafCollector(ctx, sub);
-    }
-
-    private LeafBucketCollector getDefaultLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
@@ -158,23 +170,6 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             }
 
         };
-    }
-
-    public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
-        throws IOException {
-        AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));
-        return StarTreeQueryHelper.getStarTreeLeafCollector(
-            context,
-            valuesSource,
-            ctx,
-            sub,
-            starTree,
-            MetricStat.MAX.getTypeName(),
-            value -> {
-                max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
-            },
-            () -> maxes.set(0, max.get())
-        );
     }
 
     @Override

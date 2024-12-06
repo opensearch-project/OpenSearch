@@ -11,7 +11,6 @@ package org.opensearch.index.compositeindex.datacube.startree.utils;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.lucene.Lucene;
@@ -27,8 +26,6 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
-import org.opensearch.search.aggregations.LeafBucketCollector;
-import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -177,11 +174,10 @@ public class StarTreeQueryHelper {
      * Get the star-tree leaf collector
      * This collector computes the aggregation prematurely and invokes an early termination collector
      */
-    public static LeafBucketCollector getStarTreeLeafCollector(
+    public static void precomputeAggregationFromStarTree(
         SearchContext context,
         ValuesSource.Numeric valuesSource,
         LeafReaderContext ctx,
-        LeafBucketCollector sub,
         CompositeIndexFieldInfo starTree,
         String metric,
         Consumer<Long> valueConsumer,
@@ -221,14 +217,6 @@ public class StarTreeQueryHelper {
 
         // Call the final consumer after processing all entries
         finalConsumer.run();
-
-        // Return a LeafBucketCollector that terminates collection
-        return new LeafBucketCollectorBase(sub, valuesSource.doubleValues(ctx)) {
-            @Override
-            public void collect(int doc, long bucket) {
-                throw new CollectionTerminatedException();
-            }
-        };
     }
 
     /**
