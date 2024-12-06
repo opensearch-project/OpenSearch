@@ -214,6 +214,15 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         return Objects.hash(this.field, this.id, this.max);
     }
 
+    public boolean shardMatches(int shardId, int numShards) {
+        if (max >= numShards) {
+            // Slices are distributed over shards
+            return id % numShards == shardId;
+        }
+        // Shards are distributed over slices
+        return shardId % max == id;
+    }
+
     /**
      * Converts this QueryBuilder to a lucene {@link Query}.
      *
@@ -255,7 +264,12 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             }
         }
 
-        String field = this.field;
+        if (shardMatches(shardId, numShards) == false) {
+            // We should have already excluded this shard before routing to it.
+            // If we somehow land here, then we match nothing.
+            return new MatchNoDocsQuery("this shard is not part of the slice");
+        }
+
         boolean useTermQuery = false;
         if ("_uid".equals(field)) {
             throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
@@ -277,12 +291,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             // the number of slices is greater than the number of shards
             // in such case we can reduce the number of requested shards by slice
 
-            // first we check if the slice is responsible of this shard
             int targetShard = id % numShards;
-            if (targetShard != shardId) {
-                // the shard is not part of this slice, we can skip it.
-                return new MatchNoDocsQuery("this shard is not part of the slice");
-            }
             // compute the number of slices where this shard appears
             int numSlicesInShard = max / numShards;
             int rest = max % numShards;
@@ -301,14 +310,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
                 ? new TermsSliceQuery(field, shardSlice, numSlicesInShard)
                 : new DocValuesSliceQuery(field, shardSlice, numSlicesInShard);
         }
-        // the number of shards is greater than the number of slices
+        // the number of shards is greater than the number of slices. If we target this shard, we target all of it.
 
-        // check if the shard is assigned to the slice
-        int targetSlice = shardId % max;
-        if (id != targetSlice) {
-            // the shard is not part of this slice, we can skip it.
-            return new MatchNoDocsQuery("this shard is not part of the slice");
-        }
         return new MatchAllDocsQuery();
     }
 
@@ -321,6 +324,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         Map<String, Set<String>> routingMap = request.indexRoutings().length > 0
             ? Collections.singletonMap(indices[0], Sets.newHashSet(request.indexRoutings()))
             : null;
+        // Note that we do *not* want to filter this set of shard IDs based on the slice, since we want the
+        // full set of shards matched by the routing parameters.
         return clusterService.operationRouting().searchShards(state, indices, routingMap, request.preference());
     }
 
