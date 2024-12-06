@@ -125,7 +125,4 @@ public abstract class RestClientTestCase extends RandomizedTest {
         values.add(value);
     }
 
-    public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
-    }
 }

@@ -32,6 +32,8 @@
 
 package org.opensearch.common.ssl;
 
+import org.opensearch.common.crypto.KeyStoreType;
+
 import javax.crypto.Cipher;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -40,14 +42,14 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.ssl.KeyStoreUtil.inferKeyStoreType;
-import static org.opensearch.common.ssl.SslConfiguration.ORDERED_PROTOCOL_ALGORITHM_MAP;
+import static org.opensearch.common.crypto.KeyStoreType.inferStoreType;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CERTIFICATE;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CERTIFICATE_AUTHORITIES;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CIPHERS;
@@ -84,11 +86,7 @@ import static org.opensearch.common.ssl.SslConfigurationKeys.VERIFICATION_MODE;
  */
 public abstract class SslConfigurationLoader {
 
-    static final List<String> DEFAULT_PROTOCOLS = Collections.unmodifiableList(
-        ORDERED_PROTOCOL_ALGORITHM_MAP.containsKey("TLSv1.3")
-            ? Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1")
-            : Arrays.asList("TLSv1.2", "TLSv1.1")
-    );
+    static final List<String> FIPS_APPROVED_PROTOCOLS = List.of("TLSv1.3", "TLSv1.2");
     static final List<String> DEFAULT_CIPHERS = loadDefaultCiphers();
     private static final char[] EMPTY_PASSWORD = new char[0];
 
@@ -119,7 +117,7 @@ public abstract class SslConfigurationLoader {
         this.defaultKeyConfig = EmptyKeyConfig.INSTANCE;
         this.defaultVerificationMode = SslVerificationMode.FULL;
         this.defaultClientAuth = SslClientAuthenticationMode.OPTIONAL;
-        this.defaultProtocols = DEFAULT_PROTOCOLS;
+        this.defaultProtocols = FIPS_APPROVED_PROTOCOLS;
         this.defaultCiphers = DEFAULT_CIPHERS;
     }
 
@@ -167,7 +165,7 @@ public abstract class SslConfigurationLoader {
 
     /**
      * Change the default SSL/TLS protocol list.
-     * The initial protocol list is defined by {@link #DEFAULT_PROTOCOLS}
+     * The initial protocol list is defined by {@link #FIPS_APPROVED_PROTOCOLS}
      */
     public void setDefaultProtocols(List<String> defaultProtocols) {
         this.defaultProtocols = defaultProtocols;
@@ -248,7 +246,10 @@ public abstract class SslConfigurationLoader {
         }
         if (trustStorePath != null) {
             final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD, TRUSTSTORE_LEGACY_PASSWORD);
-            final String storeType = resolveSetting(TRUSTSTORE_TYPE, Function.identity(), inferKeyStoreType(trustStorePath));
+            final Optional<String> maybeStoreType = Optional.ofNullable(resolveSetting(TRUSTSTORE_TYPE, Function.identity(), null));
+            final KeyStoreType storeType = maybeStoreType.map(KeyStoreType::getByJcaName)
+                .orElse(inferStoreType(trustStorePath.toString().toLowerCase(Locale.ROOT)));
+
             final String algorithm = resolveSetting(TRUSTSTORE_ALGORITHM, Function.identity(), TrustManagerFactory.getDefaultAlgorithm());
             return new StoreTrustConfig(trustStorePath, password, storeType, algorithm);
         }
@@ -287,7 +288,11 @@ public abstract class SslConfigurationLoader {
             if (keyPassword.length == 0) {
                 keyPassword = storePassword;
             }
-            final String storeType = resolveSetting(KEYSTORE_TYPE, Function.identity(), inferKeyStoreType(keyStorePath));
+
+            final Optional<String> maybeStoreType = Optional.ofNullable(resolveSetting(KEYSTORE_TYPE, Function.identity(), null));
+            final KeyStoreType storeType = maybeStoreType.map(KeyStoreType::getByJcaName)
+                .orElse(inferStoreType(keyStorePath.toString().toLowerCase(Locale.ROOT)));
+
             final String algorithm = resolveSetting(KEYSTORE_ALGORITHM, Function.identity(), KeyManagerFactory.getDefaultAlgorithm());
             return new StoreKeyConfig(keyStorePath, storePassword, storeType, keyPassword, algorithm);
         }
@@ -360,14 +365,11 @@ public abstract class SslConfigurationLoader {
 
     private static List<String> loadDefaultCiphers() {
         final boolean has256BitAES = has256BitAES();
-        final boolean tlsV13Supported = DEFAULT_PROTOCOLS.contains("TLSv1.3");
         List<String> ciphers = new ArrayList<>();
-        if (tlsV13Supported) { // TLSv1.3 cipher has PFS, AEAD, hardware support
-            if (has256BitAES) {
-                ciphers.add("TLS_AES_256_GCM_SHA384");
-            }
-            ciphers.add("TLS_AES_128_GCM_SHA256");
+        if (has256BitAES) {
+            ciphers.add("TLS_AES_256_GCM_SHA384");
         }
+        ciphers.add("TLS_AES_128_GCM_SHA256");
         // use GCM: PFS, AEAD, hardware support
         if (has256BitAES) {
             ciphers.addAll(

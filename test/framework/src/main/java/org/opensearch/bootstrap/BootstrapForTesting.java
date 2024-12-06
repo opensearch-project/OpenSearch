@@ -37,6 +37,7 @@ import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
@@ -123,6 +124,12 @@ public class BootstrapForTesting {
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
+
+        SecureRandomHolder.init();
+
+        if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
+            SecurityProviderManager.excludeSunJCE();
+        }
 
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
