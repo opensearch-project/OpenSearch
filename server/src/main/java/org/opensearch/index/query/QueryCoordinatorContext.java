@@ -9,17 +9,23 @@
 package org.opensearch.index.query;
 
 import org.opensearch.client.Client;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.search.pipeline.PipelinedRequest;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
+/**
+ * QueryCoordinatorContext
+ */
+@PublicApi(since = "2.19.0")
 public class QueryCoordinatorContext implements QueryRewriteContext {
     private final QueryRewriteContext rewriteContext;
     private final PipelinedRequest searchRequest;
-
 
     public QueryCoordinatorContext(QueryRewriteContext rewriteContext, PipelinedRequest searchRequest) {
         this.rewriteContext = rewriteContext;
@@ -71,13 +77,13 @@ public class QueryCoordinatorContext implements QueryRewriteContext {
         return this;
     }
 
-    public Object getContextVariable(String variableName) {
-        // Read from request search exts
+    public Map<String, Object> getContextVariables() {
+
+        Map<String, Object> contextVariables = new HashMap<>();
 
         // Read from pipeline context
-        Object val = searchRequest.getPipelineProcessingContext().getAttribute(variableName);
-        if (val != null) {
-            return val;
-        }
+        contextVariables.putAll(searchRequest.getPipelineProcessingContext().getAttributes());
+
+        return contextVariables;
     }
 }
