@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -47,9 +48,13 @@ public class StarTreeFilter {
      *   First go over the star tree and try to match as many dimensions as possible
      *   For the remaining columns, use star-tree doc values to match them
      */
-    public static FixedBitSet getStarTreeResult(StarTreeValues starTreeValues, Map<String, Long> predicateEvaluators) throws IOException {
+    public static FixedBitSet getStarTreeResult(
+        StarTreeValues starTreeValues,
+        Map<String, Long> predicateEvaluators,
+        Set<String> groupbyField
+    ) throws IOException {
         Map<String, Long> queryMap = predicateEvaluators != null ? predicateEvaluators : Collections.emptyMap();
-        StarTreeResult starTreeResult = traverseStarTree(starTreeValues, queryMap);
+        StarTreeResult starTreeResult = traverseStarTree(starTreeValues, queryMap, groupbyField);
 
         // Initialize FixedBitSet with size maxMatchedDoc + 1
         FixedBitSet bitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
@@ -113,7 +118,8 @@ public class StarTreeFilter {
      * Helper method to traverse the star tree, get matching documents and keep track of all the
      * predicate dimensions that are not matched.
      */
-    private static StarTreeResult traverseStarTree(StarTreeValues starTreeValues, Map<String, Long> queryMap) throws IOException {
+    private static StarTreeResult traverseStarTree(StarTreeValues starTreeValues, Map<String, Long> queryMap, Set<String> groupbyField)
+        throws IOException {
         DocIdSetBuilder docsWithField = new DocIdSetBuilder(starTreeValues.getStarTreeDocumentCount());
         DocIdSetBuilder.BulkAdder adder;
         Set<String> globalRemainingPredicateColumns = null;
@@ -129,6 +135,7 @@ public class StarTreeFilter {
         queue.add(starTree);
         int currentDimensionId = -1;
         Set<String> remainingPredicateColumns = new HashSet<>(queryMap.keySet());
+        Set<String> remainingGroupByColumns = new HashSet<>(groupbyField);
         int matchedDocsCountInStarTree = 0;
         int maxDocNum = -1;
         StarTreeNode starTreeNode;
@@ -139,13 +146,14 @@ public class StarTreeFilter {
             if (dimensionId > currentDimensionId) {
                 String dimension = dimensionNames.get(dimensionId);
                 remainingPredicateColumns.remove(dimension);
+                remainingGroupByColumns.remove(dimension);
                 if (foundLeafNode && globalRemainingPredicateColumns == null) {
                     globalRemainingPredicateColumns = new HashSet<>(remainingPredicateColumns);
                 }
                 currentDimensionId = dimensionId;
             }
 
-            if (remainingPredicateColumns.isEmpty()) {
+            if (remainingPredicateColumns.isEmpty() && remainingGroupByColumns.isEmpty()) {
                 int docId = starTreeNode.getAggregatedDocId();
                 docIds.add(docId);
                 matchedDocsCountInStarTree++;
@@ -164,7 +172,8 @@ public class StarTreeFilter {
 
             String childDimension = dimensionNames.get(dimensionId + 1);
             StarTreeNode starNode = null;
-            if (globalRemainingPredicateColumns == null || !globalRemainingPredicateColumns.contains(childDimension)) {
+            if (globalRemainingPredicateColumns == null
+                || !globalRemainingPredicateColumns.contains(childDimension) && !remainingGroupByColumns.contains(childDimension)) {
                 starNode = starTreeNode.getChildStarNode();
             }
 
@@ -225,4 +234,12 @@ public class StarTreeFilter {
             this.maxMatchedDoc = maxMatchedDoc;
         }
     }
+
+    public static FixedBitSet getPredicateValueToFixedBitSetMap(StarTreeValues starTreeValues, String predicateField) throws IOException {
+        Set<String> groupByField = new java.util.HashSet<>();
+        groupByField.add(predicateField);
+        FixedBitSet bitSet = getStarTreeResult(starTreeValues, new HashMap<>(), groupByField);
+        return bitSet;
+    }
+
 }
