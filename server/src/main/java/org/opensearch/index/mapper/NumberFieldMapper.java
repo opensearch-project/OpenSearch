@@ -93,7 +93,7 @@ import java.util.function.Supplier;
 import org.roaringbitmap.RoaringBitmap;
 
 /**
- * A {@link FieldMapper} for numeric types: byte, short, int, long, float and double.
+ * A {@link FieldMapper} for numeric types: byte, short, int, long, float, double and unsigned long.
  *
  * @opensearch.internal
  */
@@ -177,13 +177,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Optional<DimensionType> getSupportedDataCubeDimensionType() {
+            return isUnsignedLong() ? Optional.of(DimensionType.UNSIGNED_LONG) : Optional.of(DimensionType.NUMERIC);
+        }
 
-            // unsigned long is not supported as dimension for star tree
-            if (type.numericType.equals(NumericType.UNSIGNED_LONG)) {
-                return Optional.empty();
-            }
-
-            return Optional.of(DimensionType.NUMERIC);
+        private Boolean isUnsignedLong() {
+            return type.numericType.equals(NumericType.UNSIGNED_LONG);
         }
 
         @Override

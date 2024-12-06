@@ -161,7 +161,8 @@ public class StarTreeTestUtils {
         IndexInput dataIn,
         IndexInput metaIn,
         InMemoryTreeNode rootNode,
-        StarTreeMetadata expectedStarTreeMetadata
+        StarTreeMetadata expectedStarTreeMetadata,
+        StarTreeField starTreeField
     ) throws IOException {
         long magicMarker = metaIn.readLong();
         assertEquals(COMPOSITE_FIELD_MARKER, magicMarker);
@@ -201,11 +202,13 @@ public class StarTreeTestUtils {
             if (rootNode.getChildren() != null) {
                 sortedChildren = new ArrayList<>(rootNode.getChildren().values());
             }
-
-            if (starTreeNode.getChildDimensionId() != -1) {
+            int dimensionId = starTreeNode.getChildDimensionId();
+            List<Dimension> dimensionsOrder = starTreeField.getDimensionsOrder();
+            if (dimensionId != -1) {
                 assertFalse(sortedChildren.isEmpty());
                 int childCount = 0;
                 boolean childStarNodeAsserted = false;
+                boolean nodeWithMinusOneValueFound = false;
                 while (expectedChildrenIterator.hasNext()) {
                     StarTreeNode child = expectedChildrenIterator.next();
                     InMemoryTreeNode resultChildNode = null;
@@ -220,10 +223,15 @@ public class StarTreeTestUtils {
                         resultChildNode = sortedChildren.get(childCount);
                         assertNotNull(child);
                         assertNotNull(resultChildNode);
-                        if (child.getStarTreeNodeType() != StarTreeNodeType.NULL.getValue()) {
-                            assertNotNull(starTreeNode.getChildForDimensionValue(child.getDimensionValue()));
+                        if (child.getStarTreeNodeType() == StarTreeNodeType.NULL.getValue() && !nodeWithMinusOneValueFound) {
+                            assertNull(starTreeNode.getChildForDimensionValue(child.getDimensionValue(), dimensionsOrder.get(dimensionId)));
                         } else {
-                            assertNull(starTreeNode.getChildForDimensionValue(child.getDimensionValue()));
+                            if (child.getDimensionValue() == -1L) {
+                                nodeWithMinusOneValueFound = true;
+                            }
+                            assertNotNull(
+                                starTreeNode.getChildForDimensionValue(child.getDimensionValue(), dimensionsOrder.get(dimensionId))
+                            );
                         }
                         assertStarTreeNode(child, resultChildNode);
                         assertNotEquals(child.getStarTreeNodeType(), StarTreeNodeType.STAR.getValue());

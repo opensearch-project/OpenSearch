@@ -118,11 +118,8 @@ public class StarTreeFilter {
         DocIdSetBuilder.BulkAdder adder;
         Set<String> globalRemainingPredicateColumns = null;
         StarTreeNode starTree = starTreeValues.getRoot();
-        List<String> dimensionNames = starTreeValues.getStarTreeField()
-            .getDimensionsOrder()
-            .stream()
-            .map(Dimension::getField)
-            .collect(Collectors.toList());
+        List<Dimension> dimensionsOrder = starTreeValues.getStarTreeField().getDimensionsOrder();
+        List<String> dimensionNames = dimensionsOrder.stream().map(Dimension::getField).collect(Collectors.toList());
         boolean foundLeafNode = starTree.isLeaf();
         assert foundLeafNode == false; // root node is never leaf
         Queue<StarTreeNode> queue = new ArrayDeque<>();
@@ -170,7 +167,7 @@ public class StarTreeFilter {
 
             if (remainingPredicateColumns.contains(childDimension)) {
                 long queryValue = queryMap.get(childDimension); // Get the query value directly from the map
-                StarTreeNode matchingChild = starTreeNode.getChildForDimensionValue(queryValue);
+                StarTreeNode matchingChild = starTreeNode.getChildForDimensionValue(queryValue, dimensionsOrder.get(dimensionId + 1));
                 if (matchingChild != null) {
                     queue.add(matchingChild);
                     foundLeafNode |= matchingChild.isLeaf();

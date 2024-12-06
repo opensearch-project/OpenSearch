@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.LongValues;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -228,6 +229,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 logger.debug("Sorted doc ids array is null");
                 return Collections.emptyIterator();
             }
+            List<Dimension> dimensionsOrder = starTreeDocumentFileManager.starTreeField.getDimensionsOrder();
             try {
                 StarTreeDocumentsSorter.sort(sortedDocIds, -1, numDocs, index -> {
                     try {
@@ -235,7 +237,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
-                });
+                }, dimensionsOrder);
             } catch (UncheckedIOException ex) {
                 // Unwrap UncheckedIOException and throw as IOException
                 if (ex.getCause() != null) {
@@ -308,6 +310,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     @Override
     public Long getDimensionValue(int docId, int dimensionId) throws IOException {
         return starTreeDocumentFileManager.getDimensionValue(docId, dimensionId);
+
     }
 
     /**
@@ -328,13 +331,15 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         for (int i = 0; i < numDocs; i++) {
             sortedDocIds[i] = startDocId + i;
         }
+        List<Dimension> dimensionsOrder = starTreeDocumentFileManager.starTreeField.getDimensionsOrder();
         StarTreeDocumentsSorter.sort(sortedDocIds, dimensionId, numDocs, index -> {
             try {
                 return starTreeDocumentFileManager.readDimensions(sortedDocIds[index]);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, dimensionsOrder);
+
         // Create an iterator for aggregated documents
         return new Iterator<StarTreeDocument>() {
             boolean hasNext = true;

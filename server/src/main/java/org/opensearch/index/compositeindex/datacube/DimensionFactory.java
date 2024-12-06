@@ -24,7 +24,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.compositeindex.datacube.DateDimension.CALENDAR_INTERVALS;
-import static org.opensearch.index.compositeindex.datacube.KeywordDimension.KEYWORD;
 
 /**
  * Dimension factory class mainly used to parse and create dimension from the mappings
@@ -44,7 +43,9 @@ public class DimensionFactory {
                 return parseAndCreateDateDimension(name, dimensionMap, c);
             case NumericDimension.NUMERIC:
                 return new NumericDimension(name);
-            case KEYWORD:
+            case UnsignedLongDimension.UNSIGNED_LONG:
+                return new UnsignedLongDimension(name);
+            case KeywordDimension.KEYWORD:
                 return new KeywordDimension(name);
             default:
                 throw new IllegalArgumentException(
@@ -69,6 +70,8 @@ public class DimensionFactory {
                 return parseAndCreateDateDimension(name, dimensionMap, c);
             case NUMERIC:
                 return new NumericDimension(name);
+            case UNSIGNED_LONG:
+                return new UnsignedLongDimension(name);
             case KEYWORD:
                 return new KeywordDimension(name);
             default:
