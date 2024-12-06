@@ -62,6 +62,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'http.content_type.required', 'true'
+      setting 'node.attr.remote_store.routing_table.repository', 'my-fs-repository'
+      setting 'node.attr.remote_store.state.repository', 'my-fs-repository'
+      setting 'node.attr.remote_store.repository.my-fs-repository.type', 'fs'
+      setting 'node.attr.remote_store.repository.my-fs-repository.settings.location', "${buildDir}/cluster/shared/repo/${baseName}/remote_state"
+      setting 'cluster.remote_store.state.enabled', 'true'
+      setting 'cluster.remote_store.publication.enabled', 'true'
     }
   }
 
