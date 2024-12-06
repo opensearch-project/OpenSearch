@@ -205,4 +205,25 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
         }
     }
+
+    public void testOtherPhaseNamesAreIgnored() {
+        // Unrecognized phase names shouldn't be tracked, but should not throw any error.
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
+        SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+        SearchPhase mockSearchPhase = new SearchPhase("unrecognized_phase") {
+            @Override
+            public void run() {}
+        };
+        when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+        testRequestStats.onPhaseStart(ctx);
+        testRequestStats.onPhaseEnd(
+            ctx,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest(),
+                () -> null
+            )
+        );
+    }
 }

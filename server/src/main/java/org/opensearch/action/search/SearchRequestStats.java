@@ -73,20 +73,32 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
 
     @Override
     protected void onPhaseStart(SearchPhaseContext context) {
-        phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.inc();
+        try {
+            phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.inc();
+        } catch (IllegalArgumentException ignored) {
+            // Do nothing if the phase isn't found in SearchPhaseName.
+        }
     }
 
     @Override
     protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-        StatsHolder phaseStats = phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName());
-        phaseStats.current.dec();
-        phaseStats.total.inc();
-        phaseStats.timing.inc(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - context.getCurrentPhase().getStartTimeInNanos()));
+        try {
+            StatsHolder phaseStats = phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName());
+            phaseStats.current.dec();
+            phaseStats.total.inc();
+            phaseStats.timing.inc(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - context.getCurrentPhase().getStartTimeInNanos()));
+        } catch (IllegalArgumentException ignored) {
+            // Do nothing if the phase isn't found in SearchPhaseName.
+        }
     }
 
     @Override
     protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
-        phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
+        try {
+            phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
+        } catch (IllegalArgumentException ignored) {
+            // Do nothing if the phase isn't found in SearchPhaseName.
+        }
     }
 
     @Override
