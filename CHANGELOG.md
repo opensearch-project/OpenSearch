@@ -13,6 +13,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump `avro` from 1.11.3 to 1.11.4 ([#16773](https://github.com/opensearch-project/OpenSearch/pull/16773))
 - Bump `protobuf-java` to 3.22.5 ([#16779](https://github.com/opensearch-project/OpenSearch/pull/16779))
 - Bump `commonsio` to 2.16.0 ([#16780](https://github.com/opensearch-project/OpenSearch/pull/16780))
+- Bump `protobuf-java` to 3.25.5 ([#16792](https://github.com/opensearch-project/OpenSearch/pull/16792))
+- Bump `snappy-java` to 1.1.10.7 ([#16792](https://github.com/opensearch-project/OpenSearch/pull/16792))
 
 ### Changed
 ### Deprecated
