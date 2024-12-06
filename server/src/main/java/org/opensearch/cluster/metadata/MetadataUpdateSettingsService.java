@@ -36,8 +36,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
+import org.opensearch.action.admin.indices.scaleToZero.PreScaleSyncAction;
+import org.opensearch.action.admin.indices.scaleToZero.PreScaleSyncRequest;
+import org.opensearch.action.admin.indices.scaleToZero.PreScaleSyncResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -75,6 +79,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
@@ -107,6 +112,8 @@ public class MetadataUpdateSettingsService {
 
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
+    private final Client client;
+
     @Inject
     public MetadataUpdateSettingsService(
         ClusterService clusterService,
@@ -115,7 +122,8 @@ public class MetadataUpdateSettingsService {
         IndicesService indicesService,
         ShardLimitValidator shardLimitValidator,
         ThreadPool threadPool,
-        AwarenessReplicaBalance awarenessReplicaBalance
+        AwarenessReplicaBalance awarenessReplicaBalance,
+        Client client
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -124,6 +132,7 @@ public class MetadataUpdateSettingsService {
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
         this.awarenessReplicaBalance = awarenessReplicaBalance;
+        this.client = client;  // Store client reference
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         updateSettingsTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SETTINGS_KEY, true);
@@ -231,7 +240,18 @@ public class MetadataUpdateSettingsService {
 
                     }
 
-                    if (validationErrors.size() > 0) {
+                    /*
+                     * Handles the scale-up operation when the remove_indexing_shards setting is being modified.
+                     * This section is responsible for validating prerequisites and processing the transition
+                     * from search-only mode back to full indexing capability.
+                     */
+                    if (IndexMetadata.INDEX_REMOVE_INDEXING_SHARDS_SETTING.exists(openSettings)) {
+                        // removeIndexingShardsSettingValidation(request.indices(), currentState);
+                        boolean removeIndexingShards = IndexMetadata.INDEX_REMOVE_INDEXING_SHARDS_SETTING.get(openSettings);
+                        removeIndexingShardsSettingValidation(request.indices(), currentState, removeIndexingShards);
+                    }
+
+                    if (!validationErrors.isEmpty()) {
                         ValidationException exception = new ValidationException();
                         exception.addValidationErrors(validationErrors);
                         throw exception;
@@ -341,6 +361,7 @@ public class MetadataUpdateSettingsService {
                                 if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
                                     indexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, defaultReplicaCount);
                                 }
+
                                 Settings finalSettings = indexSettings.build();
                                 indexScopedSettings.validate(
                                     finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
@@ -550,4 +571,59 @@ public class MetadataUpdateSettingsService {
             }
         }
     }
+
+    /**
+     * Validates prerequisites for removing indexing shards (scaling to zero).
+     * This validation is performed before allowing an index to be scaled down to zero indexing shards,
+     * ensuring that the index meets all necessary requirements for safe operation in a search-only mode.
+     *
+     * The method checks three critical requirements:
+     * 1. Search replicas exist - Required to maintain search capabilities after removing indexing shards
+     * 2. Remote store is enabled - Required for data persistence and recovery
+     * 3. Segment replication is enabled - Required for search replica consistency
+     *
+     * @param indices Array of indices to be validated
+     * @param currentState Current cluster state containing index metadata
+     * @throws IllegalArgumentException if any of the following conditions are not met:
+     *         - If any index lacks search replicas
+     *         - If any index doesn't have remote store enabled
+     *         - If any index isn't using segment replication
+     */
+    private void removeIndexingShardsSettingValidation(Index[] indices, ClusterState currentState, boolean removeIndexingShards) {
+        Arrays.stream(indices).forEach(index -> {
+            IndexMetadata indexMetadata = currentState.metadata().index(index);
+            if (indexMetadata.getNumberOfSearchOnlyReplicas() == 0) {
+                throw new IllegalArgumentException("Cannot scale to zero without search replicas for index: " + index.getName());
+            }
+            if (!indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)) {
+                throw new IllegalArgumentException(
+                    "To scale to zero, " + IndexMetadata.SETTING_REMOTE_STORE_ENABLED + " must be enabled for index: " + index.getName()
+                );
+            }
+            if (!ReplicationType.SEGMENT.toString().equals(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE))) {
+                throw new IllegalArgumentException(
+                    "To scale to zero, "
+                        + IndexMetadata.SETTING_REPLICATION_TYPE
+                        + " must be set to "
+                        + ReplicationType.SEGMENT
+                        + " for index: "
+                        + index.getName()
+                );
+            }
+            if (!indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_BLOCKS_WRITE, false)) {
+                throw new IllegalArgumentException(
+                    "To scale to zero, " + IndexMetadata.SETTING_BLOCKS_WRITE + " must be enabled for index: " + index.getName()
+                );
+            }
+            if(!removeIndexingShards) {
+                if (!indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOVE_INDEXING_SHARDS, false)) {
+                    throw new IllegalArgumentException(
+                        "Cannot restore indexing shards for index that is not scaled down: " + index.getName()
+                    );
+                }
+            }
+        });
+
+    }
+
 }
