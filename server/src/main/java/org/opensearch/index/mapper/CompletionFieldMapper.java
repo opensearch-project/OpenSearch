@@ -44,6 +44,7 @@ import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.util.set.Sets;
@@ -183,6 +184,12 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).maxInputLength,
             Defaults.DEFAULT_MAX_INPUT_LENGTH
         ).addDeprecatedName("max_input_len").setValidator(Builder::validateInputLength).alwaysSerialize();
+        private final Parameter<Explicit<Boolean>> multivalued = Parameter.explicitBoolParam(
+            "multivalued",
+            true,
+            m -> toType(m).multivalued,
+            false
+        );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NamedAnalyzer defaultAnalyzer;
@@ -209,7 +216,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, meta);
+            return Arrays.asList(analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, multivalued, meta);
         }
 
         @Override
@@ -410,6 +417,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     private final NamedAnalyzer searchAnalyzer;
     private final ContextMappings contexts;
     private final Version indexVersionCreated;
+    private final Explicit<Boolean> multivalued;
 
     public CompletionFieldMapper(
         String simpleName,
@@ -429,6 +437,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         this.searchAnalyzer = builder.searchAnalyzer.getValue();
         this.contexts = builder.contexts.getValue();
         this.indexVersionCreated = indexVersionCreated;
+        this.multivalued = builder.multivalued.getValue();
     }
 
     @Override
@@ -664,5 +673,14 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
                 contextMapping.validateReferences(indexVersionCreated, s -> mappers.fieldTypes().get(s));
             }
         }
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
     }
 }

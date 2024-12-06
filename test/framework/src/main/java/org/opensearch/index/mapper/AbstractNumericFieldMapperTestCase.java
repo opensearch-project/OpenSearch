@@ -102,4 +102,12 @@ public abstract class AbstractNumericFieldMapperTestCase extends MapperTestCase 
     }
 
     protected abstract void doTestNullValue(String type) throws IOException;
+
+    public final void testMultivalued() throws IOException {
+        for (String type : types()) {
+            doTestMultivalued(type);
+        }
+    }
+
+    protected abstract void doTestMultivalued(String type) throws IOException;
 }

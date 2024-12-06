@@ -239,10 +239,11 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         Explicit<Boolean> coerce,
         Explicit<Boolean> ignoreZValue,
         Explicit<Orientation> orientation,
+        Explicit<Boolean> multivalued,
         MultiFields multiFields,
         CopyTo copyTo
     ) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multivalued, multiFields, copyTo);
         this.coerce = coerce;
         this.orientation = orientation;
     }

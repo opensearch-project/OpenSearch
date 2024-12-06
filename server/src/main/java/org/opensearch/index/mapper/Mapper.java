@@ -292,6 +292,13 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public abstract void validate(MappingLookup mappers);
 
     /**
+     * Does the field mapping require a multi-value (array).
+     */
+    public boolean isMultivalue() {
+        return false;
+    }
+
+    /**
      * Check if settings have IndexMetadata.SETTING_INDEX_VERSION_CREATED setting.
      * @param settings settings
      * @return "true" if settings have IndexMetadata.SETTING_INDEX_VERSION_CREATED setting, "false" otherwise

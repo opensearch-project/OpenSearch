@@ -444,7 +444,7 @@ final class DocumentParser {
                         parser.skipChildren();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    parseObject(context, mapper, currentFieldName, paths);
+                    parseObject(context, mapper, currentFieldName, paths, true);
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     parseArray(context, mapper, currentFieldName, paths);
                 } else if (token == XContentParser.Token.VALUE_NULL) {
@@ -458,7 +458,7 @@ final class DocumentParser {
                             + "] as object, but got EOF, has a concrete value been provided to it?"
                     );
                 } else if (token.isValue()) {
-                    parseValue(context, mapper, currentFieldName, token, paths);
+                    parseValue(context, mapper, currentFieldName, token, paths, true);
                 }
                 token = parser.nextToken();
             }
@@ -535,12 +535,23 @@ final class DocumentParser {
         }
     }
 
-    private static void parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName, String[] paths)
-        throws IOException {
+    private static void parseObject(
+        final ParseContext context,
+        ObjectMapper mapper,
+        String currentFieldName,
+        String[] paths,
+        boolean isValueRoot
+    ) throws IOException {
         assert currentFieldName != null;
 
         Mapper objectMapper = getMapper(context, mapper, currentFieldName, paths);
         if (objectMapper != null) {
+            if (isValueRoot && objectMapper.isMultivalue()) {
+                throw new MapperParsingException(
+                    "object mapping [" + currentFieldName + "] trying to serialize an object value for a multi-valued field"
+                );
+            }
+
             context.path().add(currentFieldName);
             parseObjectOrField(context, objectMapper);
             context.path().remove();
@@ -675,7 +686,7 @@ final class DocumentParser {
         final String[] paths = splitAndValidatePath(lastFieldName);
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                parseObject(context, mapper, lastFieldName, paths);
+                parseObject(context, mapper, lastFieldName, paths, false);
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context, mapper, lastFieldName, paths);
             } else if (token == XContentParser.Token.VALUE_NULL) {
@@ -690,7 +701,7 @@ final class DocumentParser {
                 );
             } else {
                 assert token.isValue();
-                parseValue(context, mapper, lastFieldName, token, paths);
+                parseValue(context, mapper, lastFieldName, token, paths, false);
             }
         }
     }
@@ -700,7 +711,8 @@ final class DocumentParser {
         ObjectMapper parentMapper,
         String currentFieldName,
         XContentParser.Token token,
-        String[] paths
+        String[] paths,
+        boolean isValueRoot
     ) throws IOException {
         if (currentFieldName == null) {
             throw new MapperParsingException(
@@ -714,6 +726,15 @@ final class DocumentParser {
         }
         Mapper mapper = getMapper(context, parentMapper, currentFieldName, paths);
         if (mapper != null) {
+            if (isValueRoot && mapper.isMultivalue()) {
+                throw new MapperParsingException(
+                    "object mapping ["
+                        + currentFieldName
+                        + "] trying to serialize a scalar value ["
+                        + context.parser().textOrNull()
+                        + "] for a multi-valued field"
+                );
+            }
             parseObjectOrField(context, mapper);
         } else {
             currentFieldName = paths[paths.length - 1];

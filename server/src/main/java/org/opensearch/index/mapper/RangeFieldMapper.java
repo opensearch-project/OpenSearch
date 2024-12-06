@@ -136,6 +136,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         private final Version indexCreatedVersion;
         private final boolean ignoreMalformedByDefault;
         private final Parameter<Boolean> ignoreMalformed;
+        private final Parameter<Explicit<Boolean>> multivalued;
 
         public Builder(String name, RangeType type, Settings settings) {
             this(
@@ -168,6 +169,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
                 format.neverSerialize();
                 locale.neverSerialize();
             }
+            this.multivalued = Parameter.explicitBoolParam("multivalued", true, m -> toType(m).multivalued, false);
         }
 
         public void docValues(boolean hasDocValues) {
@@ -181,7 +183,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, hasDocValues, store, coerce, format, locale, boost, meta, ignoreMalformed);
+            return Arrays.asList(index, hasDocValues, store, coerce, format, locale, boost, meta, ignoreMalformed, multivalued);
         }
 
         protected RangeFieldType setupFieldType(BuilderContext context) {
@@ -416,6 +418,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
     private final Version indexCreatedVersion;
     private final boolean ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
+    private final Explicit<Boolean> multivalued;
 
     private RangeFieldMapper(
         String simpleName,
@@ -437,6 +440,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
+        this.multivalued = builder.multivalued.getValue();
     }
 
     boolean coerce() {
@@ -461,6 +465,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected RangeFieldMapper clone() {
         return (RangeFieldMapper) super.clone();
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
     }
 
     @Override
