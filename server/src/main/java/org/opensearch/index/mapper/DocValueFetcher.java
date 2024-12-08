@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.NO_VALUE;
 
 /**
  * Value fetcher that loads from doc values.
@@ -70,7 +71,10 @@ public final class DocValueFetcher implements ValueFetcher {
         }
         List<Object> result = new ArrayList<Object>(leaf.docValueCount());
         for (int i = 0, count = leaf.docValueCount(); i < count; ++i) {
-            result.add(leaf.nextValue());
+            Object value = leaf.nextValue();
+            if (value != NO_VALUE) {
+                result.add(value);
+            }
         }
         return result;
     }
