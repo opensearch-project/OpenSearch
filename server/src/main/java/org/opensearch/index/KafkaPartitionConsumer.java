@@ -13,10 +13,10 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.utils.Bytes;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
@@ -24,7 +24,7 @@ import java.util.concurrent.TimeoutException;
 
 public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffset, KafkaMessage>  {
 
-    protected final Consumer<String, Bytes> consumer;
+    protected final Consumer<String, String> consumer;
 
     private long lastFetchedOffset = -1;
     final String clientId;
@@ -33,6 +33,11 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     public KafkaPartitionConsumer(String clientId, KafkaSourceConfig config, int partitionId) {
         // TODO: construct props from config
         Properties consumerProp = new Properties();
+        consumerProp.put("bootstrap.servers", config.getBootstrapServers());
+        consumerProp.put("key.deserializer",
+            "org.apache.kafka.common.serialization.StringDeserializer");
+        consumerProp.put("value.deserializer",
+            "org.apache.kafka.common.serialization.StringDeserializer");
         this.clientId = clientId;
         consumer = new KafkaConsumer<>(consumerProp);
         String topic = config.getTopic();
@@ -57,13 +62,13 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             consumer.seek(topicPartition, startOffset);
         }
 
-        ConsumerRecords<String, Bytes> consumerRecords = consumer.poll(Duration.ofMillis(timeoutMillis));
-        List<ConsumerRecord<String, Bytes>> messageAndOffsets = consumerRecords.records(topicPartition);
+        ConsumerRecords<String, String> consumerRecords = consumer.poll(Duration.ofMillis(timeoutMillis));
+        List<ConsumerRecord<String, String>> messageAndOffsets = consumerRecords.records(topicPartition);
 
         long endOffset = startOffset + maxMessages;
-        List<ReadResult<KafkaOffset, KafkaMessage>> results = List.of();
+        List<ReadResult<KafkaOffset, KafkaMessage>> results = new ArrayList<>();
 
-        for (ConsumerRecord<String, Bytes> messageAndOffset : messageAndOffsets) {
+        for (ConsumerRecord<String, String> messageAndOffset : messageAndOffsets) {
             long currentOffset = messageAndOffset.offset();
             if(currentOffset >= endOffset) {
                 // fetched more message than max
@@ -71,7 +76,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             }
             lastFetchedOffset = currentOffset;
 
-            KafkaMessage message = new KafkaMessage(messageAndOffset.key().getBytes(), messageAndOffset.value().get());
+            KafkaMessage message = new KafkaMessage(messageAndOffset.key(), messageAndOffset.value());
             KafkaOffset kafkaOffset = new KafkaOffset(currentOffset);
             results.add(new ReadResult<>(kafkaOffset, message));
         }

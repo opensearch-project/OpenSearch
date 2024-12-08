@@ -18,6 +18,6 @@ import org.opensearch.index.engine.EngineFactory;
 public class IngestionEngineFactory implements EngineFactory {
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {
-        return new IngestionEngine(config);
+        return new IngestionEngineV1(config);
     }
 }

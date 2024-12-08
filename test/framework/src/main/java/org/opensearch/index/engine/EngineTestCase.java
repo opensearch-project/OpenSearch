@@ -118,6 +118,7 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.indices.ingest.IngestionEngineV1;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -719,7 +720,9 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
         final EngineConfig config
     ) {
-        if (localCheckpointTrackerSupplier == null) {
+        if (config.getIndexSettings().getIndexMetadata().getIngestionSourceConfig()!=null) {
+            return new IngestionEngineV1(config);
+        } else if (localCheckpointTrackerSupplier == null) {
             return new InternalTestEngine(config) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {

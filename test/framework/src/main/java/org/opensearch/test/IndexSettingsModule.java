@@ -81,7 +81,8 @@ public class IndexSettingsModule extends AbstractModule {
             .put(indexSetting)
             .build();
         // FIXME: pass in ingestion config
-        KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig("test", "test", "test", "localhost:9092", 1);
+        String bootstrapServers = indexSetting.get("bootstrap.servers");
+        KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig("test", "test", "test", bootstrapServers, 1);
         IndexMetadata metadata = IndexMetadata.builder(index.getName()).settings(build).setIngestionSourceConfig(kafkaSourceConfig).build();
         Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         if (setting.length > 0) {

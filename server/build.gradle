@@ -116,8 +116,17 @@ dependencies {
   // test
 //  api "org.testcontainers:testcontainers:1.20.3"
   // api "org.testcontainers:kafka-1.20.3"
-  testImplementation "org.testcontainers:testcontainers:1.20.3"
-  testImplementation 'org.testcontainers:kafka:1.20.3'
+  api "com.github.docker-java:docker-java-api:3.3.6"
+  implementation "com.github.docker-java:docker-java-transport-httpclient5:3.3.6"
+  implementation "com.github.docker-java:docker-java-transport:3.3.6"
+  implementation "com.github.docker-java:docker-java-transport-zerodep:3.3.6"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:2.17.2"
+  testImplementation "org.testcontainers:testcontainers:1.19.7"
+  testImplementation 'org.testcontainers:kafka:1.19.7'
+  implementation 'org.rnorth.duct-tape:duct-tape:1.0.8'
+  implementation "org.apache.commons:commons-compress:1.26.1"
+  implementation "commons-io:commons-io:2.16.0"
+
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
