@@ -73,6 +73,26 @@ teardown:
   - do:
       indices.delete:
         index: test
+
+---
+"Exist query in root field":
+  - skip:
+      version: "- 2.99.99"
+      reason: "the query would throw exception prior to 2.99.99"
+
+  - do:
+      search:
+        body: {
+          _source: true,
+          size: 10,
+          query: {
+            exists: {
+              field: "catalog"
+            }
+          }
+        }
+  - length:   { hits.hits: 2  }
+
 ---
 "Invalid docs":
   - skip:

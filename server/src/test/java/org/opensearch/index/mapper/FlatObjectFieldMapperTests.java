@@ -16,6 +16,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
@@ -23,6 +24,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.opensearch.common.xcontent.JsonToStringXContentParser.VALUE_AND_PATH_SUFFIX;
 import static org.opensearch.common.xcontent.JsonToStringXContentParser.VALUE_SUFFIX;
@@ -395,6 +397,14 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         assertEquals(new BytesRef("field.abc.abc.labels=n"), fieldValueAndPaths[0].binaryValue());
         assertEquals(new BytesRef("field.age=3"), fieldValueAndPaths[2].binaryValue());
         assertEquals(new BytesRef("field.labels=3"), fieldValueAndPaths[4].binaryValue());
+    }
+
+    public void testPatternMatch() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        Set<String> fields = queryShardContext.simpleMatchToIndexNames("field.*");
+        assertEquals(2, fields.size());
+        assertEquals(Sets.newHashSet("field._value", "field._valueAndPath"), fields);
     }
 
     @Override
