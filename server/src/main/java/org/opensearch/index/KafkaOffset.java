@@ -8,6 +8,8 @@
 
 package org.opensearch.index;
 
+import java.nio.ByteBuffer;
+
 public class KafkaOffset implements IngestionShardPointer {
 
     private final long offset;
@@ -18,12 +20,17 @@ public class KafkaOffset implements IngestionShardPointer {
 
     @Override
     public byte[] serialize() {
-        return new byte[0];
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        buffer.putLong(offset);
+        return buffer.array();
     }
 
     @Override
-    public IngestionShardPointer deserialize(byte[] serialized) {
-        return null;
+    public KafkaOffset deserialize(byte[] serialized) {
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        buffer.put(serialized);
+        buffer.flip();
+        return new KafkaOffset(buffer.getLong());
     }
 
 

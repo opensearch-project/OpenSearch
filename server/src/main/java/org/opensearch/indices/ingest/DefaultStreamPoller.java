@@ -47,7 +47,7 @@ public class DefaultStreamPoller implements StreamPoller {
     // todo: find the default value
     private IngestionShardPointer currentPointer;
 
-    DefaultStreamPoller(IngestionShardPointer startPointer, IngestionShardConsumer consumer, DocumentProcessor processor) {
+    public DefaultStreamPoller(IngestionShardPointer startPointer, IngestionShardConsumer consumer, DocumentProcessor processor) {
         this.consumer = consumer;
         this.processor = processor;
         nextPointer = startPointer;
@@ -93,11 +93,15 @@ public class DefaultStreamPoller implements StreamPoller {
                     continue;
                 }
 
-                state = state.POLLING;
+                state = State.POLLING;
 
                 List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results
                     = consumer.readNext(nextPointer, MAX_POLL_SIZE, POLL_TIMEOUT);
-                state = state.PROCESSING;
+                if(results.isEmpty()) {
+                    // no new records
+                    continue;
+                }
+                state = State.PROCESSING;
                 // process the records
                 // TODO: consider a separate thread to decoupling the polling and processing
                 for (IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> result : results) {

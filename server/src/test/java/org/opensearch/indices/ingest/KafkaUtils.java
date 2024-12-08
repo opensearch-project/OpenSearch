@@ -11,9 +11,9 @@ package org.opensearch.indices.ingest;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.errors.TopicExistsException;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
-import org.opensearch.common.logging.Loggers;
 import org.testcontainers.shaded.com.google.common.collect.ImmutableMap;
 
 import java.util.List;
@@ -25,7 +25,7 @@ import java.util.function.Function;
 import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 public class KafkaUtils {
-    private static final Logger LOGGER = Loggers.getLogger(KafkaUtils.class);
+    private static final Logger LOGGER = LogManager.getLogger(KafkaUtils.class);
     /**
      * Creates kafka topic
      *
@@ -53,7 +53,7 @@ public class KafkaUtils {
 
         // validates topic is created
         await()
-            .atMost(30, TimeUnit.SECONDS)
+            .atMost(3, TimeUnit.SECONDS)
             .untilAsserted(
                 () -> {
                     Assert.assertTrue(checkTopicExistence(topicName, bootstrapServers));

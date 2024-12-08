@@ -15,11 +15,11 @@ import org.opensearch.index.engine.InternalEngine;
 
 import java.io.IOException;
 
-public class IngestionEngine extends InternalEngine {
+public class IngestionEngineV1 extends InternalEngine {
 
-    private StreamPoller streamPoller;
+    protected StreamPoller streamPoller;
 
-    public IngestionEngine(EngineConfig engineConfig) {
+    public IngestionEngineV1(EngineConfig engineConfig) {
         super(engineConfig);
 
         IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
