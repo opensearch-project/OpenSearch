@@ -102,6 +102,7 @@ configure([
   project(":libs:opensearch-geo"),
   project(":libs:opensearch-grok"),
   project(":libs:opensearch-nio"),
+  project(":libs:opensearch-pattern"),
   project(":libs:opensearch-plugin-classloader"),
   project(":libs:opensearch-secure-sm"),
   project(":libs:opensearch-ssl-config"),
