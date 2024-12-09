@@ -782,6 +782,15 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final String SETTING_REMOVE_INDEXING_SHARDS = "index.remove_indexing_shards.enabled";
+    public static final Setting<Boolean> INDEX_REMOVE_INDEXING_SHARDS_SETTING = Setting.boolSetting(
+        SETTING_REMOVE_INDEXING_SHARDS,
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    private volatile boolean isRemoveIndexingShards;
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -1136,6 +1145,7 @@ public final class IndexSettings {
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
             mergeSchedulerConfig::setMaxThreadAndMergeCount
         );
+        scopedSettings.addSettingsUpdateConsumer(INDEX_REMOVE_INDEXING_SHARDS_SETTING, this::setRemoveIndexingShards);
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_SYNC_INTERVAL_SETTING, this::setTranslogSyncInterval);
@@ -1200,6 +1210,10 @@ public final class IndexSettings {
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
             this::setRemoteStoreTranslogRepository
         );
+    }
+
+    private void setRemoveIndexingShards(boolean enabled) {
+        this.isRemoveIndexingShards = enabled;
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
