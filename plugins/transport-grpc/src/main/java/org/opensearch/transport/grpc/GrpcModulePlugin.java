@@ -30,7 +30,6 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.grpc.actions.MainActionService;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
@@ -39,8 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import io.grpc.BindableService;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.settings.Setting.intSetting;
@@ -99,8 +96,7 @@ public final class GrpcModulePlugin extends Plugin implements NetworkPlugin {
         if (FeatureFlags.isEnabled(FeatureFlags.GRPC_ENABLE_SETTING) == false) {
             throw new IllegalArgumentException("transport-grpc is experimental and feature flag must be enabled before use");
         }
-        final List<BindableService> services = List.of(new MainActionService(client));
-        this.transport = new Netty4GrpcServerTransport(clusterService.getSettings(), services);
+        this.transport = new Netty4GrpcServerTransport(clusterService.getSettings(), Collections.emptyList());
 
         // The server will manage the lifecycle of any instance of LifecycleComponent that is returned here
         return List.of(transport);
