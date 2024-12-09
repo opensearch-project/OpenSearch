@@ -720,9 +720,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
         final EngineConfig config
     ) {
-        if (config.getIndexSettings().getIndexMetadata().getIngestionSourceConfig()!=null) {
-            return new IngestionEngineV1(config);
-        } else if (localCheckpointTrackerSupplier == null) {
+        if (localCheckpointTrackerSupplier == null) {
             return new InternalTestEngine(config) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
