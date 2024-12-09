@@ -21,6 +21,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
 
@@ -395,6 +396,27 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         assertEquals(new BytesRef("field.abc.abc.labels=n"), fieldValueAndPaths[0].binaryValue());
         assertEquals(new BytesRef("field.age=3"), fieldValueAndPaths[2].binaryValue());
         assertEquals(new BytesRef("field.labels=3"), fieldValueAndPaths[4].binaryValue());
+    }
+
+    public void testFetchDocValues() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flat_object")));
+        {
+            // test valueWithPathField
+            MappedFieldType ft = mapperService.fieldType("field.name");
+            DocValueFormat format = ft.docValueFormat(null, null);
+            String storedValue = "field.field.name=1234";
+
+            Object object = format.format(new BytesRef(storedValue));
+            assertEquals("1234", object);
+        }
+
+        {
+            // test valueField
+            MappedFieldType ft = mapperService.fieldType("field");
+            Throwable throwable = assertThrows(IllegalArgumentException.class, () -> ft.docValueFormat(null, null));
+            assertEquals("Field [field] of type [flat_object] does not support doc_value in root field", throwable.getMessage());
+        }
+
     }
 
     @Override
