@@ -332,8 +332,18 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
                     isRemoteRoutingTableRepoConfigured = Boolean.TRUE;
                 }
             }
+            // Asserting that the metadata is present in the persisted cluster-state
             assertTrue(isRemoteStateRepoConfigured);
             assertTrue(isRemoteRoutingTableRepoConfigured);
+
+            RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, randomNode);
+
+            isRemoteStateRepoConfigured = isRepoPresentInRepositoryService(repositoriesService, remoteStateRepoName);
+            isRemoteRoutingTableRepoConfigured = isRepoPresentInRepositoryService(repositoriesService, remoteRoutingTableRepoName);
+
+            // Asserting that the metadata is not present in the repository service.
+            Assert.assertFalse(isRemoteStateRepoConfigured);
+            Assert.assertFalse(isRemoteRoutingTableRepoConfigured);
         });
 
         logger.info("Stopping current Cluster Manager");
