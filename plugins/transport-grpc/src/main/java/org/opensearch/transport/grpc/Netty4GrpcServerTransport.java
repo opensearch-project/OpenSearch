@@ -156,7 +156,7 @@ public class Netty4GrpcServerTransport extends AbstractLifecycleComponent {
         final int publishPort = resolvePublishPort(SETTING_GRPC_PUBLISH_PORT.get(settings), boundAddresses, publishInetAddress);
         if (publishPort < 0) {
             throw new BindTransportException(
-                "Failed to auto-resolve http publish port, multiple bound addresses "
+                "Failed to auto-resolve grpc publish port, multiple bound addresses "
                     + boundAddresses
                     + " with distinct ports and none of them matched the publish address ("
                     + publishInetAddress
