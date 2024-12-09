@@ -1,0 +1,25 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description 'Encrypts and decrypts index data at rest.'
+  classname 'org.opensearch.index.store.CryptoDirectoryPlugin'
+}
+
+dependencies {
+        testImplementation project(path: ':modules:reindex')
+        testImplementation "commons-io:commons-io:2.13.0"
+}
