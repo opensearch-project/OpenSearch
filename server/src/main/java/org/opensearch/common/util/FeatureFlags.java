@@ -132,6 +132,7 @@ public class FeatureFlags {
      * Gates the functionality of the Netty4 gRPC server.
      */
     public static final String GRPC_EXPERIMENTAL = "opensearch.experimental.feature.grpc.enabled";
+    // TODO: Defaulting to true. Must resolve issue providing port permissions in Security.java from feature flag.
     public static final Setting<Boolean> GRPC_ENABLE_SETTING = Setting.boolSetting(GRPC_EXPERIMENTAL, true, Property.NodeScope);
 
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
