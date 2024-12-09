@@ -128,6 +128,13 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    /**
+     * Gates the functionality of the Netty4 gRPC server.
+     */
+    public static final String GRPC_EXPERIMENTAL = "opensearch.experimental.feature.grpc.enabled";
+    // TODO: Defaulting to true. Must resolve issue providing port permissions in Security.java from feature flag.
+    public static final Setting<Boolean> GRPC_ENABLE_SETTING = Setting.boolSetting(GRPC_EXPERIMENTAL, true, Property.NodeScope);
+
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,
@@ -138,7 +145,8 @@ public class FeatureFlags {
         STAR_TREE_INDEX_SETTING,
         APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
         READER_WRITER_SPLIT_EXPERIMENTAL_SETTING,
-        TERM_VERSION_PRECOMMIT_ENABLE_SETTING
+        TERM_VERSION_PRECOMMIT_ENABLE_SETTING,
+        GRPC_ENABLE_SETTING
     );
 
     /**
