@@ -662,11 +662,13 @@ final class DocumentParser {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         // block array values for composite index fields
-        if (context.indexSettings().isCompositeIndex() && context.mapperService().isFieldPartOfCompositeIndex(arrayFieldName)) {
+        if (context.indexSettings().isCompositeIndex()
+            && (context.mapperService().isFieldPartOfCompositeIndex(arrayFieldName)
+                || context.mapperService().isCompositeIndexFieldNestedField(context.path().pathAsText(arrayFieldName)))) {
             throw new MapperParsingException(
                 String.format(
                     Locale.ROOT,
-                    "object mapping for [%s] with array for [%s] cannot be accepted as field is also part of composite index mapping which does not accept arrays",
+                    "object mapping for [%s] with array for [%s] cannot be accepted, as the field is also part of composite index mapping which does not accept arrays",
                     mapper.name(),
                     arrayFieldName
                 )

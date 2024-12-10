@@ -111,7 +111,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             () -> mapper.parse(source(b -> b.startArray("status").value(0).value(1).endArray()))
         );
         assertEquals(
-            "object mapping for [_doc] with array for [status] cannot be accepted as field is also part of composite index mapping which does not accept arrays",
+            "object mapping for [_doc] with array for [status] cannot be accepted, as the field is also part of composite index mapping which does not accept arrays",
             ex.getMessage()
         );
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("size").value(0).value(1).endArray()));
@@ -276,6 +276,33 @@ public class StarTreeMapperTests extends MapperTestCase {
             }
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("status", starTreeFieldType.getMetrics().get(0).getField());
+            List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.VALUE_COUNT, MetricStat.SUM, MetricStat.AVG);
+            assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
+            assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
+            assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
+            assertEquals(Collections.emptySet(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
+        }
+    }
+
+    public void testValidStarTreeNestedFields() throws IOException {
+        MapperService mapperService = createMapperService(getMinMappingWithNestedField());
+        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
+        for (CompositeMappedFieldType type : compositeFieldTypes) {
+            StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
+            assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
+            assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
+            DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
+            List<String> expectedDimensionFields = Arrays.asList("@timestamp_minute", "@timestamp_half-hour");
+            assertEquals(expectedDimensionFields, dateDim.getSubDimensionNames());
+            List<DateTimeUnitRounding> expectedTimeUnits = Arrays.asList(
+                new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+                DataCubeDateTimeUnit.HALF_HOUR_OF_DAY
+            );
+            for (int i = 0; i < expectedTimeUnits.size(); i++) {
+                assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getSortedCalendarIntervals().get(i).shortName());
+            }
+            assertEquals("nested.status", starTreeFieldType.getDimensions().get(1).getField());
+            assertEquals("nested.status", starTreeFieldType.getMetrics().get(0).getField());
             List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.VALUE_COUNT, MetricStat.SUM, MetricStat.AVG);
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
             assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
@@ -1036,6 +1063,56 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.startObject("status");
             b.field("type", "integer");
+            b.endObject();
+            b.startObject("metric_field");
+            b.field("type", "integer");
+            b.endObject();
+            b.startObject("keyword1");
+            b.field("type", "keyword");
+            b.endObject();
+            b.endObject();
+        });
+    }
+
+    private XContentBuilder getMinMappingWithNestedField() throws IOException {
+        return topMapping(b -> {
+            b.startObject("composite");
+            b.startObject("startree");
+            b.field("type", "star_tree");
+            b.startObject("config");
+
+            b.startArray("ordered_dimensions");
+            b.startObject();
+            b.field("name", "@timestamp");
+            b.endObject();
+            b.startObject();
+            b.field("name", "nested.status");
+            b.endObject();
+            b.endArray();
+
+            b.startArray("metrics");
+            b.startObject();
+            b.field("name", "nested.status");
+            b.endObject();
+            b.startObject();
+            b.field("name", "metric_field");
+            b.endObject();
+            b.endArray();
+
+            b.endObject();
+            b.endObject();
+
+            b.endObject();
+            b.startObject("properties");
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.endObject();
+            b.startObject("nested");
+            b.startObject("properties");
+            b.startObject("status");
+            b.field("type", "integer");
+            b.endObject();
+            b.endObject();
             b.endObject();
             b.startObject("metric_field");
             b.field("type", "integer");
