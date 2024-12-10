@@ -50,9 +50,12 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -112,6 +115,43 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     private final int unassignedShards;
     private int delayedUnassignedShards;
     private final boolean primaryActive;
+
+    /**
+     * Constructor for ClusterShardHealth that takes detailed shard health metrics.
+     *
+     * @param shardId The unique identifier for this shard
+     * @param status Current health status (GREEN/YELLOW/RED) of the shard:
+     *               - GREEN: Primary and all replicas are active
+     *               - YELLOW: Primary is active but some replicas are inactive
+     *               - RED: Primary is inactive (except for scaled-down indices with active search replicas)
+     * @param activeShards Number of shards currently active and able to handle requests
+     * @param relocatingShards Number of shards currently being moved between nodes
+     * @param initializingShards Number of shards currently initializing (e.g., recovering data)
+     * @param unassignedShards Number of shards not currently assigned to any node
+     * @param delayedUnassignedShards Number of unassigned shards whose allocation is delayed
+     * @param isPrimaryActive Whether the primary shard is active. For scaled-down indices,
+     *                       this will be false as primaries are removed while search replicas remain active
+     */
+
+    public ClusterShardHealth(
+        int shardId,
+        ClusterHealthStatus status,
+        int activeShards,
+        int relocatingShards,
+        int initializingShards,
+        int unassignedShards,
+        int delayedUnassignedShards,
+        boolean isPrimaryActive
+    ) {
+        this.shardId = shardId;
+        this.status = status;
+        this.activeShards = activeShards;
+        this.relocatingShards = relocatingShards;
+        this.initializingShards = initializingShards;
+        this.unassignedShards = unassignedShards;
+        this.delayedUnassignedShards = delayedUnassignedShards;
+        this.primaryActive = isPrimaryActive;
+    }
 
     public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable) {
         this.shardId = shardId;
@@ -230,8 +270,17 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
      *     Shard health is RED when the primary is not active.
      * </p>
      */
+
     public static ClusterHealthStatus getShardHealth(final ShardRouting primaryRouting, final int activeShards, final int totalShards) {
-        assert primaryRouting != null : "Primary shard routing can't be null";
+        // If primaryRouting is null or unassigned, check if it's due to remove_indexing_shards setting
+        if (primaryRouting == null || primaryRouting.unassigned()) {
+            // If we have any active shards (search replicas) due to remove_indexing_shards setting
+            if (activeShards > 0) {
+                return ClusterHealthStatus.GREEN;
+            }
+            return ClusterHealthStatus.RED;
+        }
+
         if (primaryRouting.active()) {
             if (activeShards == totalShards) {
                 return ClusterHealthStatus.GREEN;
@@ -270,6 +319,132 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         } else {
             return ClusterHealthStatus.RED;
         }
+    }
+
+    /**
+     * Analyzes shards to compute health statistics specifically for search-only shards.
+     * This method examines each shard's state and aggregates metrics to determine
+     * overall health status for search operations.
+     *
+     * @param shards List of shard routings to analyze
+     * @return SearchShardStats containing aggregated metrics and health status:
+     *         - hasSearchOnlyShards: true if any search-only shards exist
+     *         - Counts of shards in different states (active/relocating/etc)
+     *         - Overall status determined by:
+     *           RED: No active shards available for search
+     *           YELLOW: Has unassigned or initializing shards
+     *           GREEN: All search shards healthy and active
+     */
+    static SearchShardStats computeSearchShardStatus(List<ShardRouting> shards) {
+        int activeShards = 0;
+        int relocatingShards = 0;
+        int initializingShards = 0;
+        int unassignedShards = 0;
+        int delayedUnassignedShards = 0;
+        boolean hasSearchOnlyShards = false;
+
+        for (ShardRouting shard : shards) {
+            if (shard != null && shard.isSearchOnly()) {
+                hasSearchOnlyShards = true;
+                if (shard.active()) {
+                    activeShards++;
+                    if (shard.relocating()) {
+                        relocatingShards++;
+                    }
+                } else if (shard.initializing()) {
+                    initializingShards++;
+                } else if (shard.unassigned()) {
+                    unassignedShards++;
+                    if (Objects.requireNonNull(shard.unassignedInfo()).isDelayed()) {
+                        delayedUnassignedShards++;
+                    }
+                }
+            }
+        }
+
+        ClusterHealthStatus status;
+        if (activeShards == 0) {
+            status = ClusterHealthStatus.RED;
+        } else if (unassignedShards > 0 || initializingShards > 0) {
+            status = ClusterHealthStatus.YELLOW;
+        } else {
+            status = ClusterHealthStatus.GREEN;
+        }
+
+        return new SearchShardStats(
+            hasSearchOnlyShards,
+            activeShards,
+            relocatingShards,
+            initializingShards,
+            unassignedShards,
+            delayedUnassignedShards,
+            status
+        );
+    }
+
+    /**
+     * Creates a shard health entry specifically for search-only shards in scaled-down indices.
+     * This method creates and stores a ClusterShardHealth object that represents the health
+     * status of a search-only shard (non-primary shard that only handles search operations).
+     *
+     * @param shardId The unique identifier for this shard
+     * @param searchShardStats Contains aggregated health metrics for search-only shards including:
+     *                        - Overall status (RED/YELLOW/GREEN)
+     *                        - Counts of active/relocating/initializing/unassigned shards
+     *                        - Information about delayed unassigned shards
+     * @param computeShards Map to store the created shard health entry, keyed by shard ID
+     */
+    static void createSearchOnlyShardHealth(
+        int shardId,
+        SearchShardStats searchShardStats,
+        Map<Integer, ClusterShardHealth> computeShards
+    ) {
+        computeShards.put(
+            shardId,
+            new ClusterShardHealth(
+                shardId,
+                searchShardStats.status,
+                searchShardStats.activeShards,
+                searchShardStats.relocatingShards,
+                searchShardStats.initializingShards,
+                searchShardStats.unassignedShards,
+                searchShardStats.delayedUnassignedShards,
+                false
+            )
+        );
+    }
+
+    /**
+     * Computes health statistics for an individual shard and updates the cluster health stats.
+     *
+     * @param indexShardRoutingTable Routing table containing information about the shard replicas
+     * @param shards Map to store the computed shard health status, keyed by shard ID
+     * @param resultConsumer Consumer that gets called with the computed cluster health stats
+     *                      to update aggregate metrics. Called with status (RED/YELLOW/GREEN),
+     *                      counts of active/relocating/initializing/unassigned shards, and
+     *                      whether primary is active.
+     */
+    static void computeShardLevelHealth(
+        IndexShardRoutingTable indexShardRoutingTable,
+        Map<Integer, ClusterShardHealth> shards,
+        Consumer<ClusterIndexHealthStats> resultConsumer
+    ) {
+        int shardId = indexShardRoutingTable.shardId().id();
+        ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, indexShardRoutingTable);
+        shards.put(shardId, shardHealth);
+
+        resultConsumer.accept(
+            new ClusterIndexHealthStats(
+                shardHealth.getStatus(),
+                shardHealth.isPrimaryActive() ? 1 : 0,
+                shardHealth.getActiveShards(),
+                shardHealth.getRelocatingShards(),
+                shardHealth.getInitializingShards(),
+                shardHealth.getUnassignedShards(),
+                shardHealth.getDelayedUnassignedShards(),
+                Collections.emptyMap()
+            )
+        );
     }
 
     @Override
