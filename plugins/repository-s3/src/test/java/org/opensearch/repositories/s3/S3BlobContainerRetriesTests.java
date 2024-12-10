@@ -222,7 +222,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "access");
-        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "secret");
+        secureSettings.setString(
+            S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            "secret_password"
+        );
         clientSettings.setSecureSettings(secureSettings);
         service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build(), configPath()));
         asyncService.refreshAndClearCache(S3ClientSettings.load(clientSettings.build(), configPath()));
