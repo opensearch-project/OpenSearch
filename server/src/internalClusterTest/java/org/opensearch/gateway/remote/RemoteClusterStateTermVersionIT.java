@@ -40,6 +40,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_DOWNLOAD_TERM_MISMATCH_SETTING_KEY;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.is;
@@ -72,6 +73,7 @@ public class RemoteClusterStateTermVersionIT extends RemoteStoreBaseIntegTestCas
             )
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, REMOTE_ROUTING_TABLE_REPO)
             .put(REMOTE_PUBLICATION_SETTING_KEY, true)
+            .put(REMOTE_DOWNLOAD_TERM_MISMATCH_SETTING_KEY, true)
             .build();
     }
 
