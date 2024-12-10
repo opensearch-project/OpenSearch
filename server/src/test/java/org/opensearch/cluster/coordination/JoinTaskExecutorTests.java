@@ -1481,6 +1481,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
+            null,
             remoteStoreNodeService
         );
 
