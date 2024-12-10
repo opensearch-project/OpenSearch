@@ -210,14 +210,14 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         return statsToDecrement;
     }
 
-    public Node getStatsRoot() {
+    Node getStatsRoot() {
         return statsRoot;
     }
 
     /**
      * Nodes that make up the tree in the stats holder.
      */
-    public static class Node {
+    protected static class Node {
         private final String dimensionValue;
         // Map from dimensionValue to the DimensionNode for that dimension value.
         final Map<String, Node> children;

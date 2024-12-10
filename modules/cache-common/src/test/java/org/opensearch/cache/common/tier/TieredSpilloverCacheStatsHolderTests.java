@@ -12,6 +12,7 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 import org.opensearch.common.cache.stats.ImmutableCacheStats;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -41,9 +42,7 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
             // test the value in the map is as expected for each distinct combination of values (all leaf nodes)
             for (List<String> dimensionValues : expected.keySet()) {
                 CacheStats expectedCounter = expected.get(dimensionValues);
-                ImmutableCacheStats actualStatsHolder = getNode(dimensionValues, cacheStatsHolder.getStatsRoot()).getImmutableStats();
-                ImmutableCacheStats actualCacheStats = getNode(dimensionValues, cacheStatsHolder.getStatsRoot()).getImmutableStats();
-                assertEquals(expectedCounter.immutableSnapshot(), actualStatsHolder);
+                ImmutableCacheStats actualCacheStats = getNodeStats(dimensionValues, cacheStatsHolder);
                 assertEquals(expectedCounter.immutableSnapshot(), actualCacheStats);
             }
 
@@ -55,7 +54,7 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
                     || !diskTierEnabled;
                 add(expectedTotal, other, countMissesAndEvictionsTowardsTotal);
             }
-            assertEquals(expectedTotal.immutableSnapshot(), cacheStatsHolder.getStatsRoot().getImmutableStats());
+            assertEquals(expectedTotal.immutableSnapshot(), cacheStatsHolder.getImmutableCacheStatsHolder(null).getTotalStats());
         }
     }
 
@@ -88,8 +87,7 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
                 0
             );
 
-            DefaultCacheStatsHolder.Node node = getNode(dimensionValues, cacheStatsHolder.getStatsRoot());
-            ImmutableCacheStats actual = node.getImmutableStats();
+            ImmutableCacheStats actual = getNodeStats(dimensionValues, cacheStatsHolder);
             assertEquals(expectedTotal, actual);
         }
     }
@@ -109,7 +107,7 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
             // disk tier is absent, count the heap ones)
             long originalHits = diskTierEnabled ? 2 * numNodes : numNodes;
             ImmutableCacheStats expectedTotal = new ImmutableCacheStats(originalHits, numNodes, numNodes, 0, 0);
-            assertEquals(expectedTotal, cacheStatsHolder.getStatsRoot().getImmutableStats());
+            assertEquals(expectedTotal, cacheStatsHolder.getImmutableCacheStatsHolder(null).getTotalStats());
 
             // When we invalidate A2, B2, we should lose the node for B2, but not B3 or A2.
             cacheStatsHolder.removeDimensions(List.of("A2", "B2"));
@@ -118,25 +116,25 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
             // either case.
             long removedHitsPerRemovedNode = diskTierEnabled ? 2 : 1;
             expectedTotal = new ImmutableCacheStats(originalHits - removedHitsPerRemovedNode, numNodes - 1, numNodes - 1, 0, 0);
-            assertEquals(expectedTotal, cacheStatsHolder.getStatsRoot().getImmutableStats());
-            assertNull(getNode(List.of("A2", "B2", TIER_DIMENSION_VALUE_ON_HEAP), cacheStatsHolder.getStatsRoot()));
-            assertNull(getNode(List.of("A2", "B2", TIER_DIMENSION_VALUE_DISK), cacheStatsHolder.getStatsRoot()));
-            assertNull(getNode(List.of("A2", "B2"), cacheStatsHolder.getStatsRoot()));
-            assertNotNull(getNode(List.of("A2"), cacheStatsHolder.getStatsRoot()));
-            assertNotNull(getNode(List.of("A2", "B3", TIER_DIMENSION_VALUE_ON_HEAP), cacheStatsHolder.getStatsRoot()));
+            assertEquals(expectedTotal, cacheStatsHolder.getImmutableCacheStatsHolder(null).getTotalStats());
+            assertNull(getNodeStats(List.of("A2", "B2", TIER_DIMENSION_VALUE_ON_HEAP), cacheStatsHolder));
+            assertNull(getNodeStats(List.of("A2", "B2", TIER_DIMENSION_VALUE_DISK), cacheStatsHolder));
+            assertNull(getNodeStats(List.of("A2", "B2"), cacheStatsHolder));
+            assertNotNull(getNodeStats(List.of("A2"), cacheStatsHolder));
+            assertNotNull(getNodeStats(List.of("A2", "B3", TIER_DIMENSION_VALUE_ON_HEAP), cacheStatsHolder));
 
             // When we invalidate A1, B1, we should lose the nodes for B1 and also A1, as it has no more children.
             cacheStatsHolder.removeDimensions(List.of("A1", "B1"));
             expectedTotal = new ImmutableCacheStats(originalHits - 2 * removedHitsPerRemovedNode, numNodes - 2, numNodes - 2, 0, 0);
-            assertEquals(expectedTotal, cacheStatsHolder.getStatsRoot().getImmutableStats());
-            assertNull(getNode(List.of("A1", "B1", TIER_DIMENSION_VALUE_ON_HEAP), cacheStatsHolder.getStatsRoot()));
-            assertNull(getNode(List.of("A1", "B1", TIER_DIMENSION_VALUE_DISK), cacheStatsHolder.getStatsRoot()));
-            assertNull(getNode(List.of("A1", "B1"), cacheStatsHolder.getStatsRoot()));
-            assertNull(getNode(List.of("A1"), cacheStatsHolder.getStatsRoot()));
+            assertEquals(expectedTotal, cacheStatsHolder.getImmutableCacheStatsHolder(null).getTotalStats());
+            assertNull(getNodeStats(List.of("A1", "B1", TIER_DIMENSION_VALUE_ON_HEAP), cacheStatsHolder));
+            assertNull(getNodeStats(List.of("A1", "B1", TIER_DIMENSION_VALUE_DISK), cacheStatsHolder));
+            assertNull(getNodeStats(List.of("A1", "B1"), cacheStatsHolder));
+            assertNull(getNodeStats(List.of("A1"), cacheStatsHolder));
 
             // When we invalidate the last node, all nodes should be deleted except the root node
             cacheStatsHolder.removeDimensions(List.of("A2", "B3"));
-            assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), cacheStatsHolder.getStatsRoot().getImmutableStats());
+            assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), cacheStatsHolder.getImmutableCacheStatsHolder(null).getTotalStats());
             // assertEquals(0, cacheStatsHolder.getStatsRoot().getChildren().size());
         }
     }
@@ -188,22 +186,20 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
         }
 
         // intermediate node for A0 should be null
-        assertNull(getNode(List.of("A0"), cacheStatsHolder.getStatsRoot()));
+        assertNull(getNodeStats(List.of("A0"), cacheStatsHolder));
 
         // leaf nodes for all B0 values should be null since they were removed
         for (int indexA = 0; indexA < numAValues; indexA++) {
-            assertNull(getNode(List.of("A" + indexA, "B0"), cacheStatsHolder.getStatsRoot()));
+            assertNull(getNodeStats(List.of("A" + indexA, "B0"), cacheStatsHolder));
         }
 
         // leaf nodes for all B1 values, except (A0, B1), should not be null as they weren't removed,
         // and the intermediate nodes A1 through A9 shouldn't be null as they have remaining children
         for (int indexA = 1; indexA < numAValues; indexA++) {
-            DefaultCacheStatsHolder.Node b1LeafNode = getNode(List.of("A" + indexA, "B1"), cacheStatsHolder.getStatsRoot());
-            assertNotNull(b1LeafNode);
-            assertEquals(new ImmutableCacheStats(2, 1, 1, 0, 0), b1LeafNode.getImmutableStats());
-            DefaultCacheStatsHolder.Node intermediateLevelNode = getNode(List.of("A" + indexA), cacheStatsHolder.getStatsRoot());
-            assertNotNull(intermediateLevelNode);
-            assertEquals(b1LeafNode.getImmutableStats(), intermediateLevelNode.getImmutableStats());
+            ImmutableCacheStats b1LeafNodeStats = getNodeStats(List.of("A" + indexA, "B1"), cacheStatsHolder);
+            assertEquals(new ImmutableCacheStats(2, 1, 1, 0, 0), b1LeafNodeStats);
+            ImmutableCacheStats intermediateLevelNodeStats = getNodeStats(List.of("A" + indexA), cacheStatsHolder);
+            assertEquals(b1LeafNodeStats, intermediateLevelNodeStats);
         }
     }
 
@@ -226,18 +222,13 @@ public class TieredSpilloverCacheStatsHolderTests extends OpenSearchTestCase {
     }
 
     /**
-     * Returns the node found by following these dimension values down from the root node.
+     * Returns the stats from node found by following these dimension values down from the root node.
      * Returns null if no such node exists.
      */
-    static DefaultCacheStatsHolder.Node getNode(List<String> dimensionValues, DefaultCacheStatsHolder.Node root) {
-        DefaultCacheStatsHolder.Node current = root;
-        for (String dimensionValue : dimensionValues) {
-            current = current.getChildren().get(dimensionValue);
-            if (current == null) {
-                return null;
-            }
-        }
-        return current;
+    static ImmutableCacheStats getNodeStats(List<String> dimensionValues, DefaultCacheStatsHolder holder) {
+        String[] levels = holder.getDimensionNames().toArray(new String[0]);
+        ImmutableCacheStatsHolder immutableHolder = holder.getImmutableCacheStatsHolder(levels);
+        return immutableHolder.getStatsForDimensionValues(dimensionValues);
     }
 
     static Map<List<String>, CacheStats> populateStats(
