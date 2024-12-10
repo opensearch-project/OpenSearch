@@ -72,7 +72,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
@@ -204,10 +203,10 @@ public class LuceneTests extends OpenSearchTestCase {
         assertEquals(3, open.maxDoc());
 
         IndexSearcher s = new IndexSearcher(open);
-        assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits.value, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits.value, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits.value, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits.value, 0);
+        assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits.value(), 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits.value(), 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits.value(), 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits.value(), 0);
 
         for (String file : dir.listAll()) {
             assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2"));
@@ -467,11 +466,6 @@ public class LuceneTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     return new ScorerSupplier() {
 
@@ -524,18 +518,6 @@ public class LuceneTests extends OpenSearchTestCase {
                 }
             }
         }
-    }
-
-    /**
-     * Test that the "unmap hack" is detected as supported by lucene.
-     * This works around the following bug: https://bugs.openjdk.java.net/browse/JDK-4724038
-     * <p>
-     * While not guaranteed, current status is "Critical Internal API": http://openjdk.java.net/jeps/260
-     * Additionally this checks we did not screw up the security logic around the hack.
-     */
-    public void testMMapHackSupported() throws Exception {
-        // add assume's here if needed for certain platforms, but we should know if it does not work.
-        assertTrue("MMapDirectory does not support unmapping: " + MMapDirectory.UNMAP_NOT_SUPPORTED_REASON, MMapDirectory.UNMAP_SUPPORTED);
     }
 
     public void testWrapAllDocsLive() throws Exception {

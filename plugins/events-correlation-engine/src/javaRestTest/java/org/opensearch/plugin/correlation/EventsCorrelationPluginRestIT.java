@@ -68,7 +68,7 @@ public class EventsCorrelationPluginRestIT extends OpenSearchRestTestCase {
         SearchResponse searchResponse = SearchResponse.fromXContent(
             createParser(JsonXContent.jsonXContent, response.getEntity().getContent())
         );
-        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value);
+        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value());
     }
 
     /**
@@ -94,7 +94,7 @@ public class EventsCorrelationPluginRestIT extends OpenSearchRestTestCase {
         SearchResponse searchResponse = SearchResponse.fromXContent(
             createParser(JsonXContent.jsonXContent, response.getEntity().getContent())
         );
-        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value);
+        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value());
         Assert.assertEquals(
             "_timestamp",
             ((List<Map<String, Object>>) (searchResponse.getHits().getHits()[0].getSourceAsMap().get("correlate"))).get(0)

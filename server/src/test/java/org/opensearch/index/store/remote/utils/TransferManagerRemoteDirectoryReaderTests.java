@@ -28,10 +28,11 @@ public class TransferManagerRemoteDirectoryReaderTests extends TransferManagerTe
     @Override
     protected void initializeTransferManager() throws IOException {
         remoteDirectory = mock(RemoteDirectory.class);
-        doAnswer(i -> new ByteArrayIndexInput("blob", createData())).when(remoteDirectory).openInput(eq("blob"), any());
+        final byte[] data = createData();
+        doAnswer(i -> new ByteArrayIndexInput("blob", data)).when(remoteDirectory).openInput(eq("blob"), any());
         transferManager = new TransferManager(
             (name, position, length) -> new InputStreamIndexInput(
-                remoteDirectory.openInput(name, new BlockIOContext(IOContext.DEFAULT, position, length)),
+                remoteDirectory.openBlockInput(name, position, length, data.length, IOContext.DEFAULT),
                 length
             ),
             fileCache

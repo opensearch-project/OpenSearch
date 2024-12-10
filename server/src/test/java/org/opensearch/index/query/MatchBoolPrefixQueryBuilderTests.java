@@ -126,7 +126,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             // all queries except the last should be TermQuery or SynonymQuery
             final Set<Query> allQueriesExceptLast = IntStream.range(0, booleanQuery.clauses().size() - 1)
                 .mapToObj(booleanQuery.clauses()::get)
-                .map(BooleanClause::getQuery)
+                .map(BooleanClause::query)
                 .collect(Collectors.toSet());
             assertThat(
                 allQueriesExceptLast,
@@ -147,13 +147,13 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             });
 
             // the last query should be PrefixQuery
-            final Query shouldBePrefixQuery = booleanQuery.clauses().get(booleanQuery.clauses().size() - 1).getQuery();
+            final Query shouldBePrefixQuery = booleanQuery.clauses().get(booleanQuery.clauses().size() - 1).query();
             assertThat(shouldBePrefixQuery, instanceOf(PrefixQuery.class));
 
             if (queryBuilder.minimumShouldMatch() != null) {
                 final int optionalClauses = (int) booleanQuery.clauses()
                     .stream()
-                    .filter(clause -> clause.getOccur() == BooleanClause.Occur.SHOULD)
+                    .filter(clause -> clause.occur() == BooleanClause.Occur.SHOULD)
                     .count();
                 final int expected = Queries.calculateMinShouldMatch(optionalClauses, queryBuilder.minimumShouldMatch());
                 assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(expected));
@@ -304,7 +304,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         assertThat(actualBooleanQuery.clauses(), everyItem(hasProperty("occur", equalTo(BooleanClause.Occur.SHOULD))));
 
         for (int i = 0; i < actualBooleanQuery.clauses().size(); i++) {
-            final Query clauseQuery = actualBooleanQuery.clauses().get(i).getQuery();
+            final Query clauseQuery = actualBooleanQuery.clauses().get(i).query();
             assertThat(clauseQuery, equalTo(expectedClauseQueries.get(i)));
         }
     }
