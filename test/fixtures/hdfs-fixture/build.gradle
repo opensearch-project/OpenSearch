@@ -31,6 +31,7 @@
 apply plugin: 'opensearch.java'
 
 dependencies {
+  api("commons-io:commons-io:2.16.0")
   api("org.apache.hadoop:hadoop-minicluster:3.3.5") {
     exclude module: 'websocket-client'
     exclude module: 'jettison'
@@ -41,6 +42,7 @@ dependencies {
     exclude group: "org.bouncycastle"
     exclude group: "com.squareup.okhttp3"
     exclude group: "org.xerial.snappy"
+    exclude group: "commons-io"
     exclude module: "json-io"
     exclude module: "logback-core"
     exclude module: "logback-classic"
@@ -66,7 +68,9 @@ dependencies {
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
   api "ch.qos.logback:logback-core:1.2.13"
   api "ch.qos.logback:logback-classic:1.2.13"
-  api 'org.apache.kerby:kerb-admin:2.0.3'
+  api("org.apache.kerby:kerb-admin:2.0.3") {
+    exclude group: "commons-io"
+  }
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   runtimeOnly("com.squareup.okhttp3:okhttp:4.11.0") {
     exclude group: "com.squareup.okio"
