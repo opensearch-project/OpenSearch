@@ -1400,7 +1400,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         protected boolean mustReschedule() {
-            return indexSettings.isRemoteStoreEnabled() && super.mustReschedule();
+            return indexSettings.isSegRepEnabledOrRemoteNode() && super.mustReschedule();
         }
     }
 
