@@ -82,9 +82,9 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         clusterSearchShardsRequest.routing(request.param("routing"));
         clusterSearchShardsRequest.preference(request.param("preference"));
         clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterSearchShardsRequest.indicesOptions()));
-        if (request.hasContent()) {
+        if (request.hasContentOrSourceParam()) {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            request.withContentOrSourceParamParserOrNull(sourceBuilder::parseXContent);
+            sourceBuilder.parseXContent(request.contentOrSourceParamParser());
             if (sourceBuilder.slice() != null) {
                 clusterSearchShardsRequest.slice(sourceBuilder.slice());
             }
