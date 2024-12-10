@@ -147,6 +147,8 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
                 if (shard.assignedToNode()) {
                     assignedShards.add(shard);
                 }
+                assert shard.allocationId() == null || allAllocationIds.contains(shard.allocationId().getId()) == false
+                    : "Search replicas should not be part of the allAllocationId set";
                 continue;
             }
             if (shard.relocating()) {
