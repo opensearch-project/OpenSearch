@@ -13,6 +13,7 @@ import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.StreamingRequest;
 import org.opensearch.client.StreamingResponse;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.junit.After;
@@ -349,5 +350,14 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
 
         assertThat(streamingResponse.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(streamingResponse.getWarnings(), empty());
+    }
+
+    @Override
+    protected final Settings restClientSettings() {
+        return Settings.builder()
+            .put(super.restClientSettings())
+            // See please https://github.com/reactor/reactor-netty/issues/3538
+            .put(OpenSearchRestTestCase.CLIENT_PROTOCOL_UPGRADE_ENABLED, false)
+            .build();
     }
 }

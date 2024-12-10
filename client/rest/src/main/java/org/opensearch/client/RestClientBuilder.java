@@ -308,14 +308,9 @@ public final class RestClientBuilder {
         // default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
             .setConnectTimeout(Timeout.ofMilliseconds(DEFAULT_CONNECT_TIMEOUT_MILLIS))
-            .setResponseTimeout(Timeout.ofMilliseconds(DEFAULT_RESPONSE_TIMEOUT_MILLIS))
-            .setProtocolUpgradeEnabled(false);
+            .setResponseTimeout(Timeout.ofMilliseconds(DEFAULT_RESPONSE_TIMEOUT_MILLIS));
         if (requestConfigCallback != null) {
             requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
-        }
-        RequestConfig requestConfig = requestConfigBuilder.build();
-        if (requestConfig.isProtocolUpgradeEnabled()) {
-            throw new IllegalArgumentException("protocol upgrade is not supported");
         }
 
         try {
@@ -337,7 +332,7 @@ public final class RestClientBuilder {
                 .build();
 
             HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
-                .setDefaultRequestConfig(requestConfig)
+                .setDefaultRequestConfig(requestConfigBuilder.build())
                 .setConnectionManager(connectionManager)
                 .setTargetAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
                 .disableAutomaticRetries();
