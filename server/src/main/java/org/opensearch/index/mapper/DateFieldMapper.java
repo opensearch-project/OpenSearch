@@ -123,7 +123,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
             @Override
             public long convert(Instant instant) {
-                return instant.toEpochMilli();
+                return clampToValidRange(instant).toEpochMilli();
             }
 
             @Override
@@ -133,7 +133,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             public Instant clampToValidRange(Instant instant) {
-                return instant;
+                return DateUtils.clampToMillisRange(instant);
             }
 
             @Override
