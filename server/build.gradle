@@ -74,60 +74,46 @@ dependencies {
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
-  // lucene
-  api "org.apache.lucene:lucene-core:${versions.lucene}"
-  api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
-  api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
-  api "org.apache.lucene:lucene-grouping:${versions.lucene}"
-  api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
-  api "org.apache.lucene:lucene-join:${versions.lucene}"
-  api "org.apache.lucene:lucene-memory:${versions.lucene}"
-  api "org.apache.lucene:lucene-misc:${versions.lucene}"
-  api "org.apache.lucene:lucene-queries:${versions.lucene}"
-  api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
-  api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
-  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
-  api "org.apache.lucene:lucene-suggest:${versions.lucene}"
+  api libs.bundles.lucene
 
   // utilities
   api project(":libs:opensearch-cli")
 
   // time handling, remove with java 8 time
-  api "joda-time:joda-time:${versions.joda}"
+  api libs.jodatime
 
   // percentiles aggregation
-  api "com.tdunning:t-digest:${versions.tdigest}"
+  api libs.tdigest
   // percentile ranks aggregation
-  api "org.hdrhistogram:HdrHistogram:${versions.hdrhistogram}"
+  api libs.hdrhistogram
 
   // lucene spatial
-  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  api "org.locationtech.jts:jts-core:${versions.jts}", optional
+  api libs.spatial4j, optional
+  api libs.jtscore, optional
 
   // logging
-  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
-  annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  api libs.log4japi
+  api libs.log4jjul
+  api libs.log4jcore, optional
+  annotationProcessor libs.log4jcore
   annotationProcessor project(':libs:opensearch-common')
 
   // jna
-  api "net.java.dev.jna:jna:${versions.jna}"
+  api libs.jna
 
   // jcraft
-  api "com.jcraft:jzlib:${versions.jzlib}"
+  api libs.jzlib
 
   // reactor
-  api "io.projectreactor:reactor-core:${versions.reactor}"
-  api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
+  api libs.reactorcore
+  api libs.reactivestreams
 
   // protobuf
-  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
+  api libs.protobuf
+  api libs.jakartaannotation
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
-  implementation 'org.roaringbitmap:RoaringBitmap:1.3.0'
+  api libs.roaringbitmap
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server

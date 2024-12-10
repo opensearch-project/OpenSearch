@@ -32,10 +32,13 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
+import org.opensearch.cluster.Diff;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -48,6 +51,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -86,6 +90,26 @@ public class IndexMetadataTests extends OpenSearchTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(IndicesModule.getNamedXContents());
+    }
+
+    // Create the index metadata for a given index, with the specified version.
+    private static IndexMetadata createIndexMetadata(final Index index, final long version) {
+        return createIndexMetadata(index, version, false);
+    }
+
+    private static IndexMetadata createIndexMetadata(final Index index, final long version, final boolean isSystem) {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        return IndexMetadata.builder(index.getName())
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .creationDate(System.currentTimeMillis())
+            .version(version)
+            .system(isSystem)
+            .build();
     }
 
     public void testIndexMetadataSerialization() throws IOException {
@@ -566,6 +590,20 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("unable to parse the index name [testIndexName-000a2] to extract the counter"));
         }
+    }
+
+    /**
+     * Test that changes to indices metadata are applied
+     */
+    public void testIndicesMetadataDiffSystemFlagFlipped() {
+        String indexUuid = UUIDs.randomBase64UUID();
+        Index index = new Index("test-index", indexUuid);
+        IndexMetadata previousIndexMetadata = createIndexMetadata(index, 1);
+        IndexMetadata nextIndexMetadata = createIndexMetadata(index, 2, true);
+        Diff<IndexMetadata> diff = new IndexMetadata.IndexMetadataDiff(previousIndexMetadata, nextIndexMetadata);
+        IndexMetadata indexMetadataAfterDiffApplied = diff.apply(previousIndexMetadata);
+        assertTrue(indexMetadataAfterDiffApplied.isSystem());
+        assertThat(indexMetadataAfterDiffApplied.getVersion(), equalTo(nextIndexMetadata.getVersion()));
     }
 
 }

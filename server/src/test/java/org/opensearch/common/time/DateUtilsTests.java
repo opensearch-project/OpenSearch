@@ -260,4 +260,21 @@ public class DateUtilsTests extends OpenSearchTestCase {
         long startOf1996 = Year.of(1996).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1996), is(startOf1996));
     }
+
+    public void testClampToMillisRange() {
+        Instant normalInstant = Instant.now();
+        assertEquals(normalInstant, DateUtils.clampToMillisRange(normalInstant));
+
+        Instant beforeMinInstant = DateUtils.INSTANT_LONG_MIN_VALUE.minusMillis(1);
+        assertEquals(DateUtils.INSTANT_LONG_MIN_VALUE, DateUtils.clampToMillisRange(beforeMinInstant));
+
+        Instant afterMaxInstant = DateUtils.INSTANT_LONG_MAX_VALUE.plusMillis(1);
+        assertEquals(DateUtils.INSTANT_LONG_MAX_VALUE, DateUtils.clampToMillisRange(afterMaxInstant));
+
+        assertEquals(DateUtils.INSTANT_LONG_MIN_VALUE, DateUtils.clampToMillisRange(DateUtils.INSTANT_LONG_MIN_VALUE));
+
+        assertEquals(DateUtils.INSTANT_LONG_MAX_VALUE, DateUtils.clampToMillisRange(DateUtils.INSTANT_LONG_MAX_VALUE));
+
+        assertThrows(NullPointerException.class, () -> DateUtils.clampToMillisRange(null));
+    }
 }

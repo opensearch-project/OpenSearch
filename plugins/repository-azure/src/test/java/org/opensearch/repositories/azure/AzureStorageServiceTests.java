@@ -58,6 +58,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import reactor.core.scheduler.Schedulers;
+import reactor.netty.http.HttpResources;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
@@ -69,6 +70,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class AzureStorageServiceTests extends OpenSearchTestCase {
     @AfterClass
     public static void shutdownSchedulers() {
+        HttpResources.disposeLoopsAndConnections();
         Schedulers.shutdownNow();
     }
 
