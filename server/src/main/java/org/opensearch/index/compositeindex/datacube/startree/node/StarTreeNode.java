@@ -9,6 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.node;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.compositeindex.datacube.Dimension;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -103,11 +104,11 @@ public interface StarTreeNode {
     /**
      * Returns the child node for the given dimension value in the star-tree.
      *
-     * @param dimensionValue the dimension value
+     * @param dimensionValue  the dimension value
      * @return the child node for the given dimension value or null if child is not present
      * @throws IOException if an I/O error occurs while retrieving the child node
      */
-    StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException;
+    StarTreeNode getChildForDimensionValue(Long dimensionValue, Dimension dimension) throws IOException;
 
     /**
      * Returns the child star node for a node in the star-tree.

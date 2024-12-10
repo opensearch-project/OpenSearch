@@ -29,6 +29,7 @@ import org.apache.lucene.util.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
+import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
@@ -439,6 +440,130 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
         );
     }
 
+    public void test_build_unsigned_longMetrics() throws IOException {
+
+        mapperService = mock(MapperService.class);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
+        Settings settings = Settings.builder().put(settings(org.opensearch.Version.CURRENT).build()).build();
+        NumberFieldMapper numberFieldMapper1 = new NumberFieldMapper.Builder(
+            "field2",
+            NumberFieldMapper.NumberType.UNSIGNED_LONG,
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        NumberFieldMapper numberFieldMapper2 = new NumberFieldMapper.Builder(
+            "field4",
+            NumberFieldMapper.NumberType.UNSIGNED_LONG,
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        NumberFieldMapper numberFieldMapper3 = new NumberFieldMapper.Builder(
+            "field6",
+            NumberFieldMapper.NumberType.UNSIGNED_LONG,
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        NumberFieldMapper numberFieldMapper4 = new NumberFieldMapper.Builder(
+            "field9",
+            NumberFieldMapper.NumberType.UNSIGNED_LONG,
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        NumberFieldMapper numberFieldMapper5 = new NumberFieldMapper.Builder(
+            "field10",
+            NumberFieldMapper.NumberType.UNSIGNED_LONG,
+            false,
+            true
+        ).build(new Mapper.BuilderContext(settings, new ContentPath()));
+        MappingLookup fieldMappers = new MappingLookup(
+            Set.of(numberFieldMapper1, numberFieldMapper2, numberFieldMapper3, numberFieldMapper4, numberFieldMapper5),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            0,
+            null
+        );
+        when(documentMapper.mappers()).thenReturn(fieldMappers);
+
+        int noOfStarTreeDocuments = 5;
+        StarTreeDocument[] starTreeDocuments = new StarTreeDocument[noOfStarTreeDocuments];
+
+        starTreeDocuments[0] = new StarTreeDocument(new Long[] { 2L, 4L, 3L, 4L }, new Long[] { 12L, 10L, randomLong(), 8L, -1L });
+        starTreeDocuments[1] = new StarTreeDocument(
+            new Long[] { 3L, 4L, 2L, 1L },
+            new Long[] { -2L, -9223372036854775808L, randomLong(), 12L, 10L }
+        );
+        starTreeDocuments[2] = new StarTreeDocument(new Long[] { 3L, 4L, 2L, 1L }, new Long[] { 14L, 12L, randomLong(), 6L, 24L });
+        starTreeDocuments[3] = new StarTreeDocument(
+            new Long[] { 2L, 4L, 3L, 4L },
+            new Long[] { 9L, 4L, randomLong(), -9223372036854775806L, 12L }
+        );
+        starTreeDocuments[4] = new StarTreeDocument(new Long[] { 3L, 4L, 2L, 1L }, new Long[] { 11L, 16L, randomLong(), 8L, 13L });
+
+        StarTreeDocument[] segmentStarTreeDocuments = new StarTreeDocument[noOfStarTreeDocuments];
+        for (int i = 0; i < noOfStarTreeDocuments; i++) {
+            long metric1 = (Long) starTreeDocuments[i].metrics[0];
+            long metric2 = (Long) starTreeDocuments[i].metrics[1];
+            long metric3 = (Long) starTreeDocuments[i].metrics[2];
+            long metric4 = (Long) starTreeDocuments[i].metrics[3];
+            long metric5 = (Long) starTreeDocuments[i].metrics[4];
+            segmentStarTreeDocuments[i] = new StarTreeDocument(
+                starTreeDocuments[i].dimensions,
+                new Long[] { metric1, metric2, metric3, metric4, metric5, null }
+            );
+        }
+
+        SequentialDocValuesIterator[] dimsIterators = getDimensionIterators(segmentStarTreeDocuments);
+        List<SequentialDocValuesIterator> metricsIterators = getMetricIterators(segmentStarTreeDocuments);
+        this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
+            writeState,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
+        );
+        builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
+        Iterator<StarTreeDocument> segmentStarTreeDocumentIterator = builder.sortAndAggregateSegmentDocuments(
+            dimsIterators,
+            metricsIterators
+        );
+        builder.build(segmentStarTreeDocumentIterator, new AtomicInteger(), docValuesConsumer);
+
+        List<StarTreeDocument> resultStarTreeDocuments = builder.getStarTreeDocuments();
+        assertEquals(7, resultStarTreeDocuments.size());
+
+        Iterator<StarTreeDocument> expectedStarTreeDocumentIterator = getExpectedStarTreeDocumentIteratorForUnsignedLong().iterator();
+        assertStarTreeDocuments(resultStarTreeDocuments, expectedStarTreeDocumentIterator);
+
+        metaOut.close();
+        dataOut.close();
+        docValuesConsumer.close();
+
+        StarTreeMetadata starTreeMetadata = new StarTreeMetadata(
+            "test",
+            STAR_TREE,
+            mock(IndexInput.class),
+            VERSION_CURRENT,
+            builder.numStarTreeNodes,
+            getStarTreeDimensionNames(compositeField.getDimensionsOrder()),
+            compositeField.getMetrics(),
+            2,
+            getExpectedStarTreeDocumentIterator().size(),
+            1,
+            Set.of("field8"),
+            getBuildMode(),
+            0,
+            330
+        );
+
+        validateStarTreeFileFormats(
+            builder.getRootNode(),
+            getExpectedStarTreeDocumentIteratorForUnsignedLong().size(),
+            starTreeMetadata,
+            getExpectedStarTreeDocumentIteratorForUnsignedLong()
+        );
+    }
+
     public void test_build_multipleStarTrees() throws IOException {
 
         int noOfStarTreeDocuments = 5;
@@ -654,9 +779,32 @@ public class StarTreeBuildMetricTests extends StarTreeBuilderTestCase {
 
         IndexInput dataIn = readState.directory.openInput(dataFileName, IOContext.DEFAULT);
         IndexInput metaIn = readState.directory.openInput(metaFileName, IOContext.DEFAULT);
+        List<Dimension> dimensionsOrder1 = List.of(
+            new NumericDimension("field1"),
+            new NumericDimension("field3"),
+            new NumericDimension("field5"),
+            new NumericDimension("field8")
+        );
+        List<Dimension> dimensionsOrder2 = List.of(
+            new NumericDimension("fieldC"),
+            new NumericDimension("fieldB"),
+            new NumericDimension("fieldL")
+        );
+        StarTreeField compositeField1 = new StarTreeField(
+            "test",
+            dimensionsOrder1,
+            metrics,
+            new StarTreeFieldConfiguration(1, Set.of(), getBuildMode())
+        );
+        StarTreeField compositeField2 = new StarTreeField(
+            "test",
+            dimensionsOrder2,
+            metrics,
+            new StarTreeFieldConfiguration(1, Set.of(), getBuildMode())
+        );
 
-        validateFileFormats(dataIn, metaIn, rootNode1, starTreeMetadata);
-        validateFileFormats(dataIn, metaIn, rootNode2, starTreeMetadata2);
+        validateFileFormats(dataIn, metaIn, rootNode1, starTreeMetadata, compositeField1);
+        validateFileFormats(dataIn, metaIn, rootNode2, starTreeMetadata2, compositeField2);
 
         dataIn.close();
         metaIn.close();

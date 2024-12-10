@@ -13,6 +13,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.LongValues;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -22,6 +23,7 @@ import org.opensearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -271,18 +273,12 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      */
     private void sortStarTreeDocumentsFromDimensionId(StarTreeDocument[] starTreeDocuments, int dimensionId) {
         Arrays.sort(starTreeDocuments, (o1, o2) -> {
+            List<Dimension> dimensionsOrder = starTreeField.getDimensionsOrder();
             for (int i = dimensionId; i < numDimensions; i++) {
                 if (!Objects.equals(o1.dimensions[i], o2.dimensions[i])) {
-                    if (o1.dimensions[i] == null && o2.dimensions[i] == null) {
-                        return 0;
-                    }
-                    if (o1.dimensions[i] == null) {
-                        return 1;
-                    }
-                    if (o2.dimensions[i] == null) {
-                        return -1;
-                    }
-                    return Long.compare(o1.dimensions[i], o2.dimensions[i]);
+                    Dimension dimension = dimensionsOrder.get(i);
+                    Comparator<Long> comparator = dimension.comparator();
+                    return comparator.compare(o1.dimensions[i], o2.dimensions[i]);
                 }
             }
             return 0;

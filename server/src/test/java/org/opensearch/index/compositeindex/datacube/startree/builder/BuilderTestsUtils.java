@@ -438,7 +438,7 @@ public class BuilderTestsUtils {
         StarTreeDocument[] expectedStarTreeDocumentsArray = expectedStarTreeDocuments.toArray(new StarTreeDocument[0]);
         StarTreeTestUtils.assertStarTreeDocuments(starTreeDocuments, expectedStarTreeDocumentsArray);
 
-        validateFileFormats(dataIn, metaIn, rootNode, expectedStarTreeMetadata);
+        validateFileFormats(dataIn, metaIn, rootNode, expectedStarTreeMetadata, starTreeField);
 
         dataIn.close();
         metaIn.close();
