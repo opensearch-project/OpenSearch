@@ -142,7 +142,6 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         assertNotNull(response);
         assertNull(response.getPrimaryStats());
         assertNotNull(response.getReplicaStats());
-        assertNull(response.getSearchReplicaReplicationStats());
         verify(targetService).getSegmentReplicationState(shardId);
     }
 
@@ -165,133 +164,112 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         assertNotNull(response);
         assertNull(response.getPrimaryStats());
         assertNotNull(response.getReplicaStats());
-        assertNull(response.getSearchReplicaReplicationStats());
         verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
 
-    public void testShardOperationWithSearchOnlyReplicaWhenCompletedAndOngoingStateNotNull() {
+    public void testComputeBytesRemainingToReplicateWhenCompletedAndOngoingStateNotNull() {
         ShardRouting shardRouting = mock(ShardRouting.class);
         SegmentReplicationState completedSegmentReplicationState = mock(SegmentReplicationState.class);
         SegmentReplicationState onGoingSegmentReplicationState = mock(SegmentReplicationState.class);
         ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
         AllocationId allocationId = AllocationId.newInitializing();
-        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
         ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
         ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
         long time1 = 10;
         long time2 = 15;
         ReplicationLuceneIndex replicationLuceneIndex = new ReplicationLuceneIndex();
         replicationLuceneIndex.addFileDetail("name1", 10, false);
-        replicationLuceneIndex.addFileDetail("name2", 5, false);
+        replicationLuceneIndex.addFileDetail("name2", 15, false);
 
         when(shardRouting.shardId()).thenReturn(shardId);
-        when(shardRouting.primary()).thenReturn(false);
-        when(shardRouting.isSearchOnly()).thenReturn(true);
         when(shardRouting.allocationId()).thenReturn(allocationId);
-        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
-        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
         when(targetService.getlatestCompletedEventSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
         when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
-        when(targetService.getSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
         when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
         when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
         when(replicationTimerOngoing.time()).thenReturn(time1);
         when(replicationTimerCompleted.time()).thenReturn(time2);
         when(onGoingSegmentReplicationState.getIndex()).thenReturn(replicationLuceneIndex);
 
-        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
+        SegmentReplicationShardStats segmentReplicationShardStats = action.computeSegmentReplicationShardStats(shardRouting);
 
-        assertNotNull(response);
+        assertNotNull(segmentReplicationShardStats);
+        assertEquals(25, segmentReplicationShardStats.getBytesBehindCount());
+        assertEquals(10, segmentReplicationShardStats.getCurrentReplicationLagMillis());
+        assertEquals(15, segmentReplicationShardStats.getLastCompletedReplicationTimeMillis());
+
         verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
         verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
 
-    public void testShardOperationWithSearchOnlyReplicaWhenNoCompletedState() {
+    public void testCalculateBytesRemainingToReplicateWhenNoCompletedState() {
         ShardRouting shardRouting = mock(ShardRouting.class);
         SegmentReplicationState onGoingSegmentReplicationState = mock(SegmentReplicationState.class);
         ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
         AllocationId allocationId = AllocationId.newInitializing();
-        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
         ReplicationTimer replicationTimerOngoing = mock(ReplicationTimer.class);
         long time1 = 10;
         ReplicationLuceneIndex replicationLuceneIndex = new ReplicationLuceneIndex();
         replicationLuceneIndex.addFileDetail("name1", 10, false);
-        replicationLuceneIndex.addFileDetail("name2", 5, false);
+        replicationLuceneIndex.addFileDetail("name2", 15, false);
 
         when(shardRouting.shardId()).thenReturn(shardId);
-        when(shardRouting.primary()).thenReturn(false);
-        when(shardRouting.isSearchOnly()).thenReturn(true);
         when(shardRouting.allocationId()).thenReturn(allocationId);
-        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
-        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
         when(targetService.getOngoingEventSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
-        when(targetService.getSegmentReplicationState(shardId)).thenReturn(onGoingSegmentReplicationState);
         when(onGoingSegmentReplicationState.getTimer()).thenReturn(replicationTimerOngoing);
         when(replicationTimerOngoing.time()).thenReturn(time1);
         when(onGoingSegmentReplicationState.getIndex()).thenReturn(replicationLuceneIndex);
 
-        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
+        SegmentReplicationShardStats segmentReplicationShardStats = action.computeSegmentReplicationShardStats(shardRouting);
 
-        assertNotNull(response);
-        assertNull(response.getPrimaryStats());
-        assertNull(response.getReplicaStats());
-        assertNotNull(response.getSearchReplicaReplicationStats());
+        assertNotNull(segmentReplicationShardStats);
+        assertEquals(25, segmentReplicationShardStats.getBytesBehindCount());
+        assertEquals(10, segmentReplicationShardStats.getCurrentReplicationLagMillis());
+        assertEquals(0, segmentReplicationShardStats.getLastCompletedReplicationTimeMillis());
+
         verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
         verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
 
-    public void testShardOperationWithSearchOnlyReplicaWhenNoOngoingState() {
+    public void testCalculateBytesRemainingToReplicateWhenNoOnGoingState() {
         ShardRouting shardRouting = mock(ShardRouting.class);
         SegmentReplicationState completedSegmentReplicationState = mock(SegmentReplicationState.class);
         ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
         AllocationId allocationId = AllocationId.newInitializing();
-        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
         ReplicationTimer replicationTimerCompleted = mock(ReplicationTimer.class);
         long time2 = 15;
 
         when(shardRouting.shardId()).thenReturn(shardId);
-        when(shardRouting.primary()).thenReturn(false);
-        when(shardRouting.isSearchOnly()).thenReturn(true);
         when(shardRouting.allocationId()).thenReturn(allocationId);
-        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
-        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
         when(targetService.getlatestCompletedEventSegmentReplicationState(shardId)).thenReturn(completedSegmentReplicationState);
         when(completedSegmentReplicationState.getTimer()).thenReturn(replicationTimerCompleted);
         when(replicationTimerCompleted.time()).thenReturn(time2);
 
-        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
+        SegmentReplicationShardStats segmentReplicationShardStats = action.computeSegmentReplicationShardStats(shardRouting);
 
-        assertNotNull(response);
-        assertNull(response.getPrimaryStats());
-        assertNull(response.getReplicaStats());
-        assertNotNull(response.getSearchReplicaReplicationStats());
+        assertNotNull(segmentReplicationShardStats);
+        assertEquals(0, segmentReplicationShardStats.getBytesBehindCount());
+        assertEquals(0, segmentReplicationShardStats.getCurrentReplicationLagMillis());
+        assertEquals(15, segmentReplicationShardStats.getLastCompletedReplicationTimeMillis());
+
         verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
         verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
 
-    public void testShardOperationWithSearchOnlyReplicaWhenNoCompletedAndOngoingState() {
+    public void testCalculateBytesRemainingToReplicateWhenNoCompletedAndOngoingState() {
         ShardRouting shardRouting = mock(ShardRouting.class);
         ShardId shardId = new ShardId(new Index("test-index", "test-uuid"), 0);
         AllocationId allocationId = AllocationId.newInitializing();
-        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
-
         when(shardRouting.shardId()).thenReturn(shardId);
-        when(shardRouting.primary()).thenReturn(false);
-        when(shardRouting.isSearchOnly()).thenReturn(true);
         when(shardRouting.allocationId()).thenReturn(allocationId);
-        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
-        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettingsWithSegRepEnabled());
 
-        SegmentReplicationShardStatsResponse response = action.shardOperation(request, shardRouting);
+        SegmentReplicationShardStats segmentReplicationShardStats = action.computeSegmentReplicationShardStats(shardRouting);
 
-        assertNotNull(response);
-        assertNull(response.getPrimaryStats());
-        assertNull(response.getReplicaStats());
-        assertNotNull(response.getSearchReplicaReplicationStats());
+        assertNotNull(segmentReplicationShardStats);
+        assertEquals(0, segmentReplicationShardStats.getBytesBehindCount());
+        assertEquals(0, segmentReplicationShardStats.getCurrentReplicationLagMillis());
+        assertEquals(0, segmentReplicationShardStats.getLastCompletedReplicationTimeMillis());
+
         verify(targetService).getlatestCompletedEventSegmentReplicationState(shardId);
         verify(targetService).getOngoingEventSegmentReplicationState(shardId);
     }
@@ -299,49 +277,105 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
     public void testNewResponseWhenAllReplicasReturnResponseCombinesTheResults() {
         SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
         List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
-        String[] shards = { "1", "2", "3" };
+        String[] shards = { "0", "1" };
         request.shards(shards);
 
-        int totalShards = 3;
-        int successfulShards = 3;
+        int totalShards = 6;
+        int successfulShards = 6;
         int failedShard = 0;
         String allocIdOne = "allocIdOne";
         String allocIdTwo = "allocIdTwo";
-        ShardId shardIdOne = mock(ShardId.class);
-        ShardId shardIdTwo = mock(ShardId.class);
-        ShardId shardIdThree = mock(ShardId.class);
-        ShardRouting shardRoutingOne = mock(ShardRouting.class);
-        ShardRouting shardRoutingTwo = mock(ShardRouting.class);
-        ShardRouting shardRoutingThree = mock(ShardRouting.class);
-        when(shardIdOne.getId()).thenReturn(1);
-        when(shardIdTwo.getId()).thenReturn(2);
-        when(shardIdThree.getId()).thenReturn(3);
-        when(shardRoutingOne.shardId()).thenReturn(shardIdOne);
-        when(shardRoutingTwo.shardId()).thenReturn(shardIdTwo);
-        when(shardRoutingThree.shardId()).thenReturn(shardIdThree);
-        AllocationId allocationId = mock(AllocationId.class);
-        when(allocationId.getId()).thenReturn(allocIdOne);
-        when(shardRoutingTwo.allocationId()).thenReturn(allocationId);
-        when(shardIdOne.getIndexName()).thenReturn("test-index");
+        String allocIdThree = "allocIdThree";
+        String allocIdFour = "allocIdFour";
+        String allocIdFive = "allocIdFive";
+        String allocIdSix = "allocIdSix";
 
-        Set<SegmentReplicationShardStats> segmentReplicationShardStats = new HashSet<>();
-        SegmentReplicationShardStats segmentReplicationShardStatsOfReplica = new SegmentReplicationShardStats(allocIdOne, 0, 0, 0, 0, 0);
-        segmentReplicationShardStats.add(segmentReplicationShardStatsOfReplica);
-        SegmentReplicationPerGroupStats segmentReplicationPerGroupStats = new SegmentReplicationPerGroupStats(
-            shardIdOne,
-            segmentReplicationShardStats,
+        ShardId shardId0 = mock(ShardId.class);
+        ShardRouting primary0 = mock(ShardRouting.class);
+        ShardRouting replica0 = mock(ShardRouting.class);
+        ShardRouting searchReplica0 = mock(ShardRouting.class);
+
+        ShardId shardId1 = mock(ShardId.class);
+        ShardRouting primary1 = mock(ShardRouting.class);
+        ShardRouting replica1 = mock(ShardRouting.class);
+        ShardRouting searchReplica1 = mock(ShardRouting.class);
+
+        when(shardId0.getId()).thenReturn(0);
+        when(shardId0.getIndexName()).thenReturn("test-index-1");
+        when(primary0.shardId()).thenReturn(shardId0);
+        when(replica0.shardId()).thenReturn(shardId0);
+        when(searchReplica0.shardId()).thenReturn(shardId0);
+
+        when(shardId1.getId()).thenReturn(1);
+        when(shardId1.getIndexName()).thenReturn("test-index-1");
+        when(primary1.shardId()).thenReturn(shardId1);
+        when(replica1.shardId()).thenReturn(shardId1);
+        when(searchReplica1.shardId()).thenReturn(shardId1);
+
+        AllocationId allocationIdOne = mock(AllocationId.class);
+        AllocationId allocationIdTwo = mock(AllocationId.class);
+        AllocationId allocationIdThree = mock(AllocationId.class);
+        AllocationId allocationIdFour = mock(AllocationId.class);
+        AllocationId allocationIdFive = mock(AllocationId.class);
+        AllocationId allocationIdSix = mock(AllocationId.class);
+
+        when(allocationIdOne.getId()).thenReturn(allocIdOne);
+        when(allocationIdTwo.getId()).thenReturn(allocIdTwo);
+        when(allocationIdThree.getId()).thenReturn(allocIdThree);
+        when(allocationIdFour.getId()).thenReturn(allocIdFour);
+        when(allocationIdFive.getId()).thenReturn(allocIdFive);
+        when(allocationIdSix.getId()).thenReturn(allocIdSix);
+        when(primary0.allocationId()).thenReturn(allocationIdOne);
+        when(replica0.allocationId()).thenReturn(allocationIdTwo);
+        when(searchReplica0.allocationId()).thenReturn(allocationIdThree);
+        when(primary1.allocationId()).thenReturn(allocationIdFour);
+        when(replica1.allocationId()).thenReturn(allocationIdFive);
+        when(searchReplica1.allocationId()).thenReturn(allocationIdSix);
+
+        when(primary0.isSearchOnly()).thenReturn(false);
+        when(replica0.isSearchOnly()).thenReturn(false);
+        when(searchReplica0.isSearchOnly()).thenReturn(true);
+        when(primary1.isSearchOnly()).thenReturn(false);
+        when(replica1.isSearchOnly()).thenReturn(false);
+        when(searchReplica1.isSearchOnly()).thenReturn(true);
+
+        Set<SegmentReplicationShardStats> segmentReplicationShardStats0 = new HashSet<>();
+        SegmentReplicationShardStats segmentReplicationShardStatsOfReplica0 = new SegmentReplicationShardStats(allocIdTwo, 0, 0, 0, 0, 0);
+        segmentReplicationShardStats0.add(segmentReplicationShardStatsOfReplica0);
+
+        Set<SegmentReplicationShardStats> segmentReplicationShardStats1 = new HashSet<>();
+        SegmentReplicationShardStats segmentReplicationShardStatsOfReplica1 = new SegmentReplicationShardStats(allocIdFive, 0, 0, 0, 0, 0);
+        segmentReplicationShardStats1.add(segmentReplicationShardStatsOfReplica1);
+
+        SegmentReplicationPerGroupStats segmentReplicationPerGroupStats0 = new SegmentReplicationPerGroupStats(
+            shardId0,
+            segmentReplicationShardStats0,
             0
         );
 
-        SegmentReplicationState segmentReplicationState = mock(SegmentReplicationState.class);
-        SegmentReplicationShardStats segmentReplicationShardStatsFromSearchReplica = mock(SegmentReplicationShardStats.class);
-        when(segmentReplicationShardStatsFromSearchReplica.getAllocationId()).thenReturn("alloc2");
-        when(segmentReplicationState.getShardRouting()).thenReturn(shardRoutingTwo);
+        SegmentReplicationPerGroupStats segmentReplicationPerGroupStats1 = new SegmentReplicationPerGroupStats(
+            shardId1,
+            segmentReplicationShardStats1,
+            0
+        );
+
+        SegmentReplicationState segmentReplicationState0 = mock(SegmentReplicationState.class);
+        SegmentReplicationState searchReplicaSegmentReplicationState0 = mock(SegmentReplicationState.class);
+        SegmentReplicationState segmentReplicationState1 = mock(SegmentReplicationState.class);
+        SegmentReplicationState searchReplicaSegmentReplicationState1 = mock(SegmentReplicationState.class);
+
+        when(segmentReplicationState0.getShardRouting()).thenReturn(replica0);
+        when(searchReplicaSegmentReplicationState0.getShardRouting()).thenReturn(searchReplica0);
+        when(segmentReplicationState1.getShardRouting()).thenReturn(replica1);
+        when(searchReplicaSegmentReplicationState1.getShardRouting()).thenReturn(searchReplica1);
 
         List<SegmentReplicationShardStatsResponse> responses = List.of(
-            new SegmentReplicationShardStatsResponse(segmentReplicationPerGroupStats),
-            new SegmentReplicationShardStatsResponse(segmentReplicationState),
-            new SegmentReplicationShardStatsResponse(segmentReplicationShardStatsFromSearchReplica)
+            new SegmentReplicationShardStatsResponse(segmentReplicationPerGroupStats0),
+            new SegmentReplicationShardStatsResponse(segmentReplicationState0),
+            new SegmentReplicationShardStatsResponse(searchReplicaSegmentReplicationState0),
+            new SegmentReplicationShardStatsResponse(segmentReplicationPerGroupStats1),
+            new SegmentReplicationShardStatsResponse(segmentReplicationState1),
+            new SegmentReplicationShardStatsResponse(searchReplicaSegmentReplicationState1)
         );
 
         SegmentReplicationStatsResponse response = action.newResponse(
@@ -354,66 +388,30 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
             ClusterState.EMPTY_STATE
         );
 
-        List<SegmentReplicationPerGroupStats> responseStats = response.getReplicationStats().get("test-index");
-        SegmentReplicationPerGroupStats primStats = responseStats.get(0);
-        Set<SegmentReplicationShardStats> segRpShardStatsSet = primStats.getReplicaStats();
-
-        for (SegmentReplicationShardStats segRpShardStats : segRpShardStatsSet) {
-            if (segRpShardStats.getAllocationId().equals(allocIdOne)) {
-                assertEquals(segmentReplicationState, segRpShardStats.getCurrentReplicationState());
+        List<SegmentReplicationPerGroupStats> responseStats = response.getReplicationStats().get("test-index-1");
+        SegmentReplicationPerGroupStats primStats0 = responseStats.get(0);
+        Set<SegmentReplicationShardStats> replicaStats0 = primStats0.getReplicaStats();
+        assertEquals(2, replicaStats0.size());
+        for (SegmentReplicationShardStats replicaStat : replicaStats0) {
+            if (replicaStat.getAllocationId().equals(allocIdTwo)) {
+                assertEquals(segmentReplicationState0, replicaStat.getCurrentReplicationState());
             }
 
-            if (segRpShardStats.getAllocationId().equals(allocIdTwo)) {
-                assertEquals(segmentReplicationShardStatsFromSearchReplica, segRpShardStats);
+            if (replicaStat.getAllocationId().equals(allocIdThree)) {
+                assertEquals(searchReplicaSegmentReplicationState0, replicaStat.getCurrentReplicationState());
             }
         }
-    }
 
-    public void testNewResponseWhenTwoPrimaryShardsForSameIndex() {
-        SegmentReplicationStatsRequest request = new SegmentReplicationStatsRequest();
-        List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
-        String[] shards = { "1", "2" };
-        request.shards(shards);
-        int totalShards = 3;
-        int successfulShards = 3;
-        int failedShard = 0;
-
-        SegmentReplicationPerGroupStats segmentReplicationPerGroupStatsOne = mock(SegmentReplicationPerGroupStats.class);
-        SegmentReplicationPerGroupStats segmentReplicationPerGroupStatsTwo = mock(SegmentReplicationPerGroupStats.class);
-
-        ShardId shardIdOne = mock(ShardId.class);
-        ShardId shardIdTwo = mock(ShardId.class);
-        when(segmentReplicationPerGroupStatsOne.getShardId()).thenReturn(shardIdOne);
-        when(segmentReplicationPerGroupStatsTwo.getShardId()).thenReturn(shardIdTwo);
-        when(shardIdOne.getIndexName()).thenReturn("test-index");
-        when(shardIdTwo.getIndexName()).thenReturn("test-index");
-        when(shardIdOne.getId()).thenReturn(1);
-        when(shardIdTwo.getId()).thenReturn(2);
-
-        List<SegmentReplicationShardStatsResponse> responses = List.of(
-            new SegmentReplicationShardStatsResponse(segmentReplicationPerGroupStatsOne),
-            new SegmentReplicationShardStatsResponse(segmentReplicationPerGroupStatsTwo)
-        );
-
-        SegmentReplicationStatsResponse response = action.newResponse(
-            request,
-            totalShards,
-            successfulShards,
-            failedShard,
-            responses,
-            shardFailures,
-            ClusterState.EMPTY_STATE
-        );
-
-        List<SegmentReplicationPerGroupStats> responseStats = response.getReplicationStats().get("test-index");
-
-        for (SegmentReplicationPerGroupStats primStat : responseStats) {
-            if (primStat.getShardId().equals(shardIdOne)) {
-                assertEquals(segmentReplicationPerGroupStatsOne, primStat);
+        SegmentReplicationPerGroupStats primStats1 = responseStats.get(1);
+        Set<SegmentReplicationShardStats> replicaStats1 = primStats1.getReplicaStats();
+        assertEquals(2, replicaStats1.size());
+        for (SegmentReplicationShardStats replicaStat : replicaStats1) {
+            if (replicaStat.getAllocationId().equals(allocIdFive)) {
+                assertEquals(segmentReplicationState1, replicaStat.getCurrentReplicationState());
             }
 
-            if (primStat.getShardId().equals(shardIdTwo)) {
-                assertEquals(segmentReplicationPerGroupStatsTwo, primStat);
+            if (replicaStat.getAllocationId().equals(allocIdSix)) {
+                assertEquals(searchReplicaSegmentReplicationState1, replicaStat.getCurrentReplicationState());
             }
         }
     }
@@ -464,7 +462,6 @@ public class TransportSegmentReplicationStatsActionTests extends OpenSearchTestC
         responses.add(null);
         responses.add(new SegmentReplicationShardStatsResponse(segmentReplicationPerGroupStats));
         responses.add(new SegmentReplicationShardStatsResponse(segmentReplicationState));
-        responses.add(new SegmentReplicationShardStatsResponse(segmentReplicationShardStatsFromSearchReplica));
 
         SegmentReplicationStatsResponse response = action.newResponse(
             request,

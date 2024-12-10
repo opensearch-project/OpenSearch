@@ -1345,7 +1345,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                                 && isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(entry.getKey()).currentNodeId())))
                 )
                 .map(entry -> buildShardStats(entry.getKey(), entry.getValue()))
-                .collect(Collectors.toSet());
+                .collect(Collectors.toUnmodifiableSet());
         }
         return Collections.emptySet();
     }
