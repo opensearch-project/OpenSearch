@@ -38,6 +38,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
@@ -82,6 +83,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     private final String normalizerName;
     private final boolean hasDocValues;
     private final IndexAnalyzers indexAnalyzers;
+    private final Explicit<Boolean> multivalued;
 
     /**
      * The builder for the field mapper.
@@ -103,6 +105,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false);
         private final IndexAnalyzers indexAnalyzers;
+        protected final Parameter<Explicit<Boolean>> multivalued = Parameter.explicitBoolParam(
+            "multivalued",
+            true,
+            m -> toType(m).multivalued,
+            false
+        );
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
@@ -135,7 +143,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(nullValue, ignoreAbove, normalizer, hasDocValues, meta);
+            return Arrays.asList(nullValue, ignoreAbove, normalizer, hasDocValues, meta, multivalued);
         }
 
         @Override
@@ -174,6 +182,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         this.normalizerName = builder.normalizer.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.indexAnalyzers = builder.indexAnalyzers;
+        this.multivalued = builder.multivalued.getValue();
     }
 
     public int ignoreAbove() {
@@ -886,6 +895,15 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers).init(this);
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
     }
 
     private static WildcardFieldMapper toType(FieldMapper in) {

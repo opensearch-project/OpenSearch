@@ -31,6 +31,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.core.common.Strings;
@@ -87,6 +88,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
             GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
             assertTrue(gpfm.coerce.value());
         });
+        checker.registerUpdateCheck(b -> b.field("multivalued", true), m -> assertTrue(((GeoShapeFieldMapper) m).multivalued()));
     }
 
     @Before
@@ -249,6 +251,29 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         }));
         assertThat(document.docs(), hasSize(1));
         assertThat(document.docs().get(0).getFields("field").length, equalTo(4));
+    }
+
+    public void testMultivalued() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("multivalued", true)));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(b -> b.startObject("field").field("type", "Point").array("coordinates", new double[] { 1.1, 1.2 }).endObject())
+            )
+        );
+        assertThat(e.getMessage(), containsString("object mapping [field] trying to serialize an object value for a multi-valued field"));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("type", "Point").startArray("coordinates").value(176.0).value(15.0).endArray().endObject();
+                b.startObject().field("type", "Point").startArray("coordinates").value(76.0).value(-15.0).endArray().endObject();
+            }
+            b.endArray();
+        }));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(4, fields.length);
     }
 
     @Override
