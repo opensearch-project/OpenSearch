@@ -2544,6 +2544,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        assert routingEntry().isSearchOnly() == false || translogStats().estimatedNumberOfOperations() == 0
+            : "Translog is expected to be empty but holds " + translogStats().estimatedNumberOfOperations() + "Operations.";
         getEngine().translogManager().skipTranslogRecovery();
     }
 
