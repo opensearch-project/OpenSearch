@@ -34,6 +34,7 @@ package org.opensearch.rest;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.hamcrest.Matcher;
@@ -201,4 +202,12 @@ public class ReactorNetty4HeadBodyIsEmptyIT extends OpenSearchRestTestCase {
         assertNull("HEAD requests shouldn't have a response body but " + url + " did", response.getEntity());
     }
 
+    @Override
+    protected final Settings restClientSettings() {
+        return Settings.builder()
+            .put(super.restClientSettings())
+            // See please https://github.com/reactor/reactor-netty/issues/3538
+            .put(OpenSearchRestTestCase.CLIENT_PROTOCOL_UPGRADE_ENABLED, false)
+            .build();
+    }
 }

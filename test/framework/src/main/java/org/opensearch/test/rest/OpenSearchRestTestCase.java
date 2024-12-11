@@ -135,6 +135,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
+    public static final String CLIENT_PROTOCOL_UPGRADE_ENABLED = "client.protocol.upgrade.enabled";
 
     // This set will contain the warnings already asserted since we are eliminating logging duplicate warnings.
     // This ensures that no matter in what order the tests run, the warning is asserted once.
@@ -881,8 +882,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             socketTimeoutString == null ? "60s" : socketTimeoutString,
             CLIENT_SOCKET_TIMEOUT
         );
+        final boolean protocolUpgradeEnabled = settings.getAsBoolean(CLIENT_PROTOCOL_UPGRADE_ENABLED, true);
         builder.setRequestConfigCallback(
             conf -> conf.setResponseTimeout(Timeout.ofMilliseconds(Math.toIntExact(socketTimeout.getMillis())))
+                .setProtocolUpgradeEnabled(protocolUpgradeEnabled)
         );
         if (settings.hasValue(CLIENT_PATH_PREFIX)) {
             builder.setPathPrefix(settings.get(CLIENT_PATH_PREFIX));

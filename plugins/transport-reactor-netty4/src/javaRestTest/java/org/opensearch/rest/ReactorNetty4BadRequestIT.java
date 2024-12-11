@@ -124,4 +124,13 @@ public class ReactorNetty4BadRequestIT extends OpenSearchRestTestCase {
         final String error = objectPath.evaluate("error");
         assertThat(error, equalTo("Content-Type header [] is not supported"));
     }
+
+    @Override
+    protected final Settings restClientSettings() {
+        return Settings.builder()
+            .put(super.restClientSettings())
+            // See please https://github.com/reactor/reactor-netty/issues/3538
+            .put(OpenSearchRestTestCase.CLIENT_PROTOCOL_UPGRADE_ENABLED, false)
+            .build();
+    }
 }
