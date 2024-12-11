@@ -34,8 +34,8 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
 java {
-  targetCompatibility = JavaVersion.VERSION_1_8
-  sourceCompatibility = JavaVersion.VERSION_1_8
+  targetCompatibility = JavaVersion.VERSION_11
+  sourceCompatibility = JavaVersion.VERSION_11
 }
 
 base {
@@ -51,12 +51,16 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  api "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  api "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   // reactor
   api "io.projectreactor:reactor-core:${versions.reactor}"
   api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
 
   testImplementation project(":client:test")
+  testImplementation project(':libs:opensearch-common')
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -68,15 +72,16 @@ dependencies {
   testImplementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   testImplementation "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  testImplementation "commons-io:commons-io:${versions.commonsio}"
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 tasks.withType(CheckForbiddenApis).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
-}
-
-forbiddenPatterns {
-  exclude '**/*.der'
 }
 
 tasks.named('forbiddenApisTest').configure {
