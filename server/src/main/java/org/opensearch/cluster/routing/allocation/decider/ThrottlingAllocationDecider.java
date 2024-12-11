@@ -190,6 +190,10 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 return allocation.decision(YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
             }
         } else {
+            if (shardRouting.isSearchOnly()) {
+                // skip any shard type throttling for search replicas and rely only on concurrent incoming node recovery limits.
+                return allocation.decision(YES, NAME, "Do not throttle search replica recovery");
+            }
             // Peer recovery
             assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER;
 

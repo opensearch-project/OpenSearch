@@ -575,13 +575,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                 }
                 for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
                     indexShardRoutingBuilder.addShard(
-                        ShardRouting.newUnassigned(
-                            shardId,
-                            false,
-                            true,
-                            PeerRecoverySource.INSTANCE, // TODO: Update to remote store if enabled
-                            unassignedInfo
-                        )
+                        ShardRouting.newUnassigned(shardId, false, true, EmptyStoreRecoverySource.INSTANCE, unassignedInfo)
                     );
                 }
                 shards.put(shardNumber, indexShardRoutingBuilder.build());
@@ -624,13 +618,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                 }
                 for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
                     indexShardRoutingBuilder.addShard(
-                        ShardRouting.newUnassigned(
-                            shardId,
-                            false,
-                            true,
-                            PeerRecoverySource.INSTANCE, // TODO: Update to remote store if enabled
-                            unassignedInfo
-                        )
+                        ShardRouting.newUnassigned(shardId, false, true, EmptyStoreRecoverySource.INSTANCE, unassignedInfo)
                     );
                 }
                 shards.put(shardNumber, indexShardRoutingBuilder.build());
@@ -665,7 +653,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                     shardId,
                     false,
                     true,
-                    PeerRecoverySource.INSTANCE, // TODO: Change to remote store if enabled
+                    EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
                 );
                 shards.put(shardNumber, new IndexShardRoutingTable.Builder(shards.get(shard.id())).addShard(shard).build());

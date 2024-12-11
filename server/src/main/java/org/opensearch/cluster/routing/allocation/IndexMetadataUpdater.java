@@ -99,7 +99,11 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 + startedShard.allocationId().getId()
                 + "] have to have the same";
         Updates updates = changes(startedShard.shardId());
-        updates.addedAllocationIds.add(startedShard.allocationId().getId());
+        // if the started shard is an untracked replica, don't bother sending it as part of the
+        // in sync id set.
+        if (startedShard.isSearchOnly() == false) {
+            updates.addedAllocationIds.add(startedShard.allocationId().getId());
+        }
         if (startedShard.primary()
             // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
             && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE)) {
@@ -259,9 +263,9 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
             // We use number_of_replicas + 1 (= possible active shard copies) to bound the inSyncAllocationIds set
             // Only trim the set of allocation ids when it grows, otherwise we might trim too eagerly when the number
             // of replicas was decreased while shards were unassigned.
-            int maxActiveShards = oldIndexMetadata.getNumberOfReplicas() + oldIndexMetadata.getNumberOfSearchOnlyReplicas() + 1; // +1 for
-                                                                                                                                 // the
-                                                                                                                                 // primary
+            int maxActiveShards = oldIndexMetadata.getNumberOfReplicas() + 1; // +1 for
+                                                                              // the
+                                                                              // primary
             IndexShardRoutingTable newShardRoutingTable = newRoutingTable.shardRoutingTable(shardId);
             assert newShardRoutingTable.assignedShards()
                 .stream()
@@ -273,6 +277,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 List<ShardRouting> assignedShards = newShardRoutingTable.assignedShards()
                     .stream()
                     .filter(s -> s.isRelocationTarget() == false)
+                    .filter(s -> s.isSearchOnly() == false) // do not consider search only shards for in sync validation
                     .collect(Collectors.toList());
                 assert assignedShards.size() <= maxActiveShards : "cannot have more assigned shards "
                     + assignedShards
