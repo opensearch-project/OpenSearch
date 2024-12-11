@@ -71,7 +71,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -79,6 +78,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.common.network.NetworkService.resolvePublishPort;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
@@ -192,7 +192,21 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             throw new BindTransportException("Failed to resolve publish address", e);
         }
 
-        final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
+        final int publishPort = resolvePublishPort(SETTING_HTTP_PUBLISH_PORT.get(settings), boundAddresses, publishInetAddress);
+        if (publishPort < 0) {
+            throw new BindHttpException(
+                "Failed to auto-resolve http publish port, multiple bound addresses "
+                    + boundAddresses
+                    + " with distinct ports and none of them matched the publish address ("
+                    + publishInetAddress
+                    + "). "
+                    + "Please specify a unique port by setting "
+                    + SETTING_HTTP_PORT.getKey()
+                    + " or "
+                    + SETTING_HTTP_PUBLISH_PORT.getKey()
+            );
+        }
+
         TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
         this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishAddress);
         logger.info("{}", boundAddress);
@@ -257,47 +271,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * Called to tear down internal resources
      */
     protected abstract void stopInternal();
-
-    // package private for tests
-    static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
-        int publishPort = SETTING_HTTP_PUBLISH_PORT.get(settings);
-
-        if (publishPort < 0) {
-            for (TransportAddress boundAddress : boundAddresses) {
-                InetAddress boundInetAddress = boundAddress.address().getAddress();
-                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
-                    publishPort = boundAddress.getPort();
-                    break;
-                }
-            }
-        }
-
-        // if no matching boundAddress found, check if there is a unique port for all bound addresses
-        if (publishPort < 0) {
-            final Set<Integer> ports = new HashSet<>();
-            for (TransportAddress boundAddress : boundAddresses) {
-                ports.add(boundAddress.getPort());
-            }
-            if (ports.size() == 1) {
-                publishPort = ports.iterator().next();
-            }
-        }
-
-        if (publishPort < 0) {
-            throw new BindHttpException(
-                "Failed to auto-resolve http publish port, multiple bound addresses "
-                    + boundAddresses
-                    + " with distinct ports and none of them matched the publish address ("
-                    + publishInetAddress
-                    + "). "
-                    + "Please specify a unique port by setting "
-                    + SETTING_HTTP_PORT.getKey()
-                    + " or "
-                    + SETTING_HTTP_PUBLISH_PORT.getKey()
-            );
-        }
-        return publishPort;
-    }
 
     public void onException(HttpChannel channel, Exception e) {
         channel.handleException(e);

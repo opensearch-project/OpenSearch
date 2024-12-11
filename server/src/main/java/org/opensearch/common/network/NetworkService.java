@@ -35,6 +35,7 @@ package org.opensearch.common.network;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.io.IOException;
@@ -45,6 +46,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -235,6 +237,43 @@ public final class NetworkService {
             addresses = new InetAddress[] { sorted.get(0) };
         }
         return addresses[0];
+    }
+
+    /**
+     * Resolve the publishPort for a server provided a list of boundAddresses and a publishInetAddress.
+     * Resolution strategy is as follows:
+     * If a configured port exists resolve to that port.
+     * If a bound address matches the publishInetAddress resolve to that port.
+     * If a bound address is a wildcard address resolve to that port.
+     * If all bound addresses share the same port resolve to that port.
+     *
+     * @param publishPort -1 if no configured publish port exists
+     * @param boundAddresses addresses bound by the server
+     * @param publishInetAddress address published for the server
+     * @return Resolved port. If publishPort is negative and no port can be resolved return publishPort.
+     */
+    public static int resolvePublishPort(int publishPort, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
+        if (publishPort < 0) {
+            for (TransportAddress boundAddress : boundAddresses) {
+                InetAddress boundInetAddress = boundAddress.address().getAddress();
+                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
+                    publishPort = boundAddress.getPort();
+                    break;
+                }
+            }
+        }
+
+        if (publishPort < 0) {
+            final Set<Integer> ports = new HashSet<>();
+            for (TransportAddress boundAddress : boundAddresses) {
+                ports.add(boundAddress.getPort());
+            }
+            if (ports.size() == 1) {
+                publishPort = ports.iterator().next();
+            }
+        }
+
+        return publishPort;
     }
 
     /** resolves (and deduplicates) host specification */
