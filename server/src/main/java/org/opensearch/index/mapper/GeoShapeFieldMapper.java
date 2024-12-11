@@ -122,6 +122,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 coerce(context),
                 ignoreZValue(),
                 orientation(),
+                multivalued(),
                 multiFieldsBuilder.build(this, context),
                 copyTo
             );
@@ -190,10 +191,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         Explicit<Boolean> coerce,
         Explicit<Boolean> ignoreZValue,
         Explicit<ShapeBuilder.Orientation> orientation,
+        Explicit<Boolean> multivalued,
         MultiFields multiFields,
         CopyTo copyTo
     ) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, multivalued, multiFields, copyTo);
     }
 
     @Override
@@ -262,5 +264,9 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
     }
 }

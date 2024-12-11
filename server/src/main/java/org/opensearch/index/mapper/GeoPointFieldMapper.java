@@ -99,6 +99,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             MultiFields multiFields,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> ignoreZValue,
+            Explicit<Boolean> multivalued,
             ParsedPoint nullValue,
             CopyTo copyTo
         ) {
@@ -108,7 +109,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
                 return point;
             }, (ParsedGeoPoint) nullValue, ignoreZValue.value(), ignoreMalformed.value()));
             ft.setGeometryIndexer(new GeoPointIndexer(ft));
-            return new GeoPointFieldMapper(name, fieldType, ft, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
+            return new GeoPointFieldMapper(name, fieldType, ft, multiFields, ignoreMalformed, ignoreZValue, multivalued, nullValue, copyTo);
         }
     }
 
@@ -147,10 +148,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         MultiFields multiFields,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
+        Explicit<Boolean> multivalued,
         ParsedPoint nullValue,
         CopyTo copyTo
     ) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, ignoreMalformed, ignoreZValue, multivalued, nullValue, copyTo);
     }
 
     @Override
@@ -197,6 +199,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
     @Override
     public GeoPointFieldType fieldType() {
         return (GeoPointFieldType) mappedFieldType;
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
     }
 
     /**

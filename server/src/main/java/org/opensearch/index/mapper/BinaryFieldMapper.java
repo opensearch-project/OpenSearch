@@ -38,6 +38,7 @@ import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.Explicit;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -84,6 +85,12 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final Parameter<Explicit<Boolean>> multivalued = Parameter.explicitBoolParam(
+            "multivalued",
+            true,
+            m -> toType(m).multivalued,
+            false
+        );
 
         public Builder(String name) {
             this(name, false);
@@ -96,7 +103,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public List<Parameter<?>> getParameters() {
-            return Arrays.asList(meta, stored, hasDocValues);
+            return Arrays.asList(meta, stored, hasDocValues, multivalued);
         }
 
         @Override
@@ -176,6 +183,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     private final boolean stored;
     private final boolean hasDocValues;
+    private final Explicit<Boolean> multivalued;
 
     protected BinaryFieldMapper(
         String simpleName,
@@ -187,6 +195,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
+        this.multivalued = builder.multivalued.getValue();
     }
 
     @Override
@@ -225,6 +234,10 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    boolean multivalued() {
+        return multivalued.value();
+    }
+
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new BinaryFieldMapper.Builder(simpleName()).init(this);
@@ -233,6 +246,11 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public boolean isMultivalue() {
+        return multivalued.explicit() && multivalued.value() != null && multivalued.value();
     }
 
     /**

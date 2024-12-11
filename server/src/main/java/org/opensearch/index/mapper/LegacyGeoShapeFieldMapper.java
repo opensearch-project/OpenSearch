@@ -344,6 +344,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 coerce(context),
                 orientation(),
                 ignoreZValue(),
+                multivalued(),
                 context.indexSettings(),
                 multiFieldsBuilder.build(this, context),
                 copyTo
@@ -516,11 +517,12 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         Explicit<Boolean> coerce,
         Explicit<Orientation> orientation,
         Explicit<Boolean> ignoreZValue,
+        Explicit<Boolean> multivalued,
         Settings indexSettings,
         MultiFields multiFields,
         CopyTo copyTo
     ) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, multivalued, multiFields, copyTo);
         this.indexCreatedVersion = IndexMetadata.indexCreated(indexSettings);
     }
 
@@ -547,6 +549,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     @Override
     protected boolean docValuesByDefault() {
         return false;
+    }
+
+    boolean multivalued() {
+        return multivalued.value();
     }
 
     @Override

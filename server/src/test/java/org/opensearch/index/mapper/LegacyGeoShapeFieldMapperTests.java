@@ -122,6 +122,8 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         });
         // TODO - distance_error_pct ends up being subsumed into a calculated value, how to test
         checker.registerUpdateCheck(b -> b.field("distance_error_pct", 0.8), m -> {});
+
+        checker.registerUpdateCheck(b -> b.field("multivalued", true), m -> assertTrue(((LegacyGeoShapeFieldMapper) m).multivalued()));
     }
 
     @Override
@@ -667,5 +669,26 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
         IndexableField[] fields = document.docs().get(0).getFields("field");
         assertThat(fields.length, equalTo(2));
         assertFieldWarnings("tree", "strategy");
+    }
+
+    public void testMultivalued() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("multivalued", true)));
+        ThrowingRunnable runnable = () -> mapper.parse(source(b -> {
+            b.startObject("field").field("type", "Point").startArray("coordinates").value(176.0).value(15.0).endArray().endObject();
+        }));
+        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        assertThat(e.getMessage(), containsString("object mapping [field] trying to serialize an object value for a multi-valued field"));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("type", "Point").startArray("coordinates").value(176.0).value(15.0).endArray().endObject();
+                b.startObject().field("type", "Point").startArray("coordinates").value(76.0).value(-15.0).endArray().endObject();
+            }
+            b.endArray();
+        }));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(4, fields.length);
     }
 }
