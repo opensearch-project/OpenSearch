@@ -8,6 +8,7 @@
 - Bump `commonsio` to 2.16.0 ([#16780](https://github.com/opensearch-project/OpenSearch/pull/16780))
 - Bump `protobuf-java` to 3.25.5 ([#16792](https://github.com/opensearch-project/OpenSearch/pull/16792))
 - Bump `snappy-java` to 1.1.10.7 ([#16792](https://github.com/opensearch-project/OpenSearch/pull/16792))
+- Bump `mime4j-core` to 0.8.11 ([#16810](https://github.com/opensearch-project/OpenSearch/pull/16810))
 
 ### Fixed
 - Update help output for _cat ([#14722](https://github.com/opensearch-project/OpenSearch/pull/14722))
