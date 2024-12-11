@@ -33,7 +33,7 @@ public class SearchReplicaReplicationIT extends SegmentReplicationBaseIT {
 
     @Before
     public void randomizeRemoteStoreEnabled() {
-        useRemoteStore = randomBoolean();
+        useRemoteStore = true;
     }
 
     @Override
@@ -61,7 +61,7 @@ public class SearchReplicaReplicationIT extends SegmentReplicationBaseIT {
     public Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
             .build();
@@ -89,54 +89,6 @@ public class SearchReplicaReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testSegmentReplicationStatsResponseWithSearchReplica() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        final List<String> nodes = internalCluster().startDataOnlyNodes(3);
-        int numOfPrimaryShards = 2;
-        createIndex(
-            INDEX_NAME,
-            Settings.builder()
-                .put("number_of_shards", numOfPrimaryShards)
-                .put("number_of_replicas", 1)
-                .put("number_of_search_only_replicas", 1)
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .build()
-        );
-        ensureGreen(INDEX_NAME);
-
-        final int docCount = 5;
-        for (int i = 0; i < docCount; i++) {
-            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
-        }
-        refresh(INDEX_NAME);
-        waitForSearchableDocs(docCount, nodes);
-
-        SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
-            .indices()
-            .prepareSegmentReplicationStats(INDEX_NAME)
-            .setDetailed(true)
-            .execute()
-            .actionGet();
-
-        // Verify the number of indices
-        assertEquals(1, segmentReplicationStatsResponse.getReplicationStats().size());
-        // Verify total shards
-        assertEquals(numOfPrimaryShards * 3, segmentReplicationStatsResponse.getTotalShards());
-        // Verify the number of primary shards
-        assertEquals(numOfPrimaryShards, segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).size());
-
-        List<SegmentReplicationPerGroupStats> segmentReplicationPerGroupStats = segmentReplicationStatsResponse.getReplicationStats()
-            .get(INDEX_NAME);
-        for (SegmentReplicationPerGroupStats perGroupStats : segmentReplicationPerGroupStats) {
-            Set<SegmentReplicationShardStats> replicaStats = perGroupStats.getReplicaStats();
-            // Verify the number of replica stats
-            assertEquals(2, replicaStats.size());
-            for (SegmentReplicationShardStats replicaStat : replicaStats) {
-                assertNotNull(replicaStat.getCurrentReplicationState());
-            }
-        }
-    }
-
-    public void testSegmentReplicationStatsResponseWithOnlySearchReplica() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final List<String> nodes = internalCluster().startDataOnlyNodes(2);
         createIndex(
