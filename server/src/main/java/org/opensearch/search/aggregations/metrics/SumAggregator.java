@@ -91,19 +91,30 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+        if (supportedStarTree != null) {
+            final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
+            StarTreeQueryHelper.precomputeAggregationFromStarTree(
+                context,
+                valuesSource,
+                ctx,
+                supportedStarTree,
+                MetricStat.SUM.getTypeName(),
+                value -> kahanSummation.add(NumericUtils.sortableLongToDouble(value)),
+                () -> sums.set(0, kahanSummation.value())
+            );
+            return true;
+        }
+        return false;
+    }
+
+    @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-
-        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
-        if (supportedStarTree != null) {
-            return getStarTreeCollector(ctx, sub, supportedStarTree);
-        }
-        return getDefaultLeafCollector(ctx, sub);
-    }
-
-    private LeafBucketCollector getDefaultLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
@@ -131,21 +142,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
                 }
             }
         };
-    }
-
-    public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
-        throws IOException {
-        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
-        return StarTreeQueryHelper.getStarTreeLeafCollector(
-            context,
-            valuesSource,
-            ctx,
-            sub,
-            starTree,
-            MetricStat.SUM.getTypeName(),
-            value -> kahanSummation.add(NumericUtils.sortableLongToDouble(value)),
-            () -> sums.set(0, kahanSummation.value())
-        );
     }
 
     @Override
