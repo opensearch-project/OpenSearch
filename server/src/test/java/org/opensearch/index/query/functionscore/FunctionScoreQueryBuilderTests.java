@@ -75,6 +75,7 @@ import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -937,5 +938,16 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         );
         e = expectThrows(IllegalStateException.class, () -> functionQueryBuilder2.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testVisit() {
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
+        FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(termQueryBuilder);
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        builder.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(2, visitedQueries.size());
+        assertTrue(visitedQueries.contains(termQueryBuilder));
     }
 }
