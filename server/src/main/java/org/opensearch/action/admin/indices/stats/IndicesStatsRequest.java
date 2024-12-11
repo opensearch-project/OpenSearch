@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.stats;
 
-import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -58,7 +57,6 @@ import java.util.Map;
 public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     private CommonStatsFlags flags = new CommonStatsFlags();
-    private boolean skipIndexNameResolver = false;
 
     public IndicesStatsRequest() {
         super((String[]) null);
@@ -67,9 +65,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     public IndicesStatsRequest(StreamInput in) throws IOException {
         super(in);
         flags = new CommonStatsFlags(in);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            skipIndexNameResolver = in.readBoolean();
-        }
     }
 
     /**
@@ -306,22 +301,10 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         flags.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeBoolean(skipIndexNameResolver);
-        }
     }
 
     @Override
     public boolean includeDataStreams() {
         return true;
-    }
-
-    public boolean skipIndexNameResolver() {
-        return skipIndexNameResolver;
-    }
-
-    public IndicesStatsRequest skipIndexNameResolver(boolean skipIndexNameResolver) {
-        this.skipIndexNameResolver = skipIndexNameResolver;
-        return this;
     }
 }

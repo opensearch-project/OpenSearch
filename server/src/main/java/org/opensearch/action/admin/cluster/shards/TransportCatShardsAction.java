@@ -122,11 +122,6 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                         indicesStatsRequest.setShouldCancelOnTimeout(true);
                         indicesStatsRequest.all();
                         indicesStatsRequest.indices(indices);
-                        // Since the indices for paginated query are already concrete and have been filtered to
-                        // only consider OPEN indices, invoking IndexNameExpressionResolver should be avoided.
-                        if (paginationStrategy != null) {
-                            indicesStatsRequest.skipIndexNameResolver(true);
-                        }
                         indicesStatsRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
                         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                             @Override
