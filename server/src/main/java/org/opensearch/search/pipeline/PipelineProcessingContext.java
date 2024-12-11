@@ -35,4 +35,8 @@ public class PipelineProcessingContext {
     public Object getAttribute(String name) {
         return attributes.get(name);
     }
+
+    public Map<String, Object> getAttributes() {
+        return attributes;
+    }
 }
