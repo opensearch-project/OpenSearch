@@ -201,7 +201,7 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         Set<SegmentReplicationShardStats> combinedStats = Stream.concat(updatedReplicaStats.stream(), searchReplicaStats.stream())
             .collect(Collectors.toSet());
 
-        return new SegmentReplicationPerGroupStats(groupStats.getShardId(), combinedStats, 0);
+        return new SegmentReplicationPerGroupStats(groupStats.getShardId(), combinedStats, groupStats.getRejectedRequestCount());
     }
 
     private Set<SegmentReplicationShardStats> computeSearchReplicaStats(
