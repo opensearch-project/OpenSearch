@@ -283,7 +283,9 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
         );
 
-        testCase(indexSearcher, query, queryBuilder, sumAggregationBuilder, starTree, supportedDimensions, verifyAggregation(InternalSum::getValue), new SumAggregationBuilder("sumaggs").field("hello").build(queryShardContext, null));
+        // Test that feature parity is maintained for unmapped field names.
+        sumAggregationBuilder = new SumAggregationBuilder("sumaggs").field("hello");
+        testCase(indexSearcher, query, queryBuilder, sumAggregationBuilder, starTree, supportedDimensions, verifyAggregation(InternalSum::getValue), sumAggregationBuilder.build(queryShardContext, null));
 
         ir.close();
         directory.close();

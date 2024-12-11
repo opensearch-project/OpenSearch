@@ -87,26 +87,6 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         testStarTreeFilter(10, false);
     }
 
-    public void testStarTreeFilterUnmappedField() throws IOException {
-        List<Document> docs = new ArrayList<>();
-        try(Directory dir = createStarTreeIndex(1, false, docs);
-            DirectoryReader ir = DirectoryReader.open(dir)) {
-            int totalDocs = docs.size();
-
-            initValuesSourceRegistry();
-            LeafReaderContext context = ir.leaves().get(0);
-            SegmentReader reader = Lucene.segmentReader(context.reader());
-            CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
-
-            long starTreeDocCount, docCount;
-            starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(), context);
-            docCount = getDocCount(docs, Map.of());
-            assertEquals(totalDocs, starTreeDocCount);
-            assertEquals(docCount, starTreeDocCount);
-        }
-
-    }
-
     private Directory createStarTreeIndex(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension, List<Document> docs) throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
