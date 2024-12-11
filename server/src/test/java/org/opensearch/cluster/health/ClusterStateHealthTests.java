@@ -217,10 +217,8 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
             .routingTable(routingTable.build())
             .nodes(clusterService.state().nodes())
             .build();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
-            clusterState,
-            IndicesOptions.strictExpand(),
-            (String[]) null
+        Set<String> concreteIndices = Set.of(
+            indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null)
         );
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         logger.info("cluster status: {}, expected {}", clusterStateHealth.getStatus(), counter.status());
@@ -240,7 +238,7 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
 
     public void testClusterHealthOnIndexCreation() {
         final String indexName = "test-idx";
-        final String[] indices = new String[] { indexName };
+        final Set<String> indices = Set.of(indexName);
         final List<ClusterState> clusterStates = simulateIndexCreationStates(indexName, false);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is always YELLOW, up until the last state where it should be GREEN
@@ -256,7 +254,7 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
 
     public void testClusterHealthOnIndexCreationWithFailedAllocations() {
         final String indexName = "test-idx";
-        final String[] indices = new String[] { indexName };
+        final Set<String> indices = Set.of(indexName);
         final List<ClusterState> clusterStates = simulateIndexCreationStates(indexName, true);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, which contains primary shard
@@ -273,7 +271,7 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
 
     public void testClusterHealthOnClusterRecovery() {
         final String indexName = "test-idx";
-        final String[] indices = new String[] { indexName };
+        final Set<String> indices = Set.of(indexName);
         final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, false, false);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, when it turns GREEN
@@ -289,7 +287,7 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
 
     public void testClusterHealthOnClusterRecoveryWithFailures() {
         final String indexName = "test-idx";
-        final String[] indices = new String[] { indexName };
+        final Set<String> indices = Set.of(indexName);
         final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, false, true);
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, which contains primary shard
@@ -306,7 +304,7 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
 
     public void testClusterHealthOnClusterRecoveryWithPreviousAllocationIds() {
         final String indexName = "test-idx";
-        final String[] indices = new String[] { indexName };
+        final Set<String> indices = Set.of(indexName);
         final List<ClusterState> clusterStates = simulateClusterRecoveryStates(indexName, true, false);
         for (int i = 0; i < clusterStates.size(); i++) {
             // because there were previous allocation ids, we should be RED until the primaries are started,
@@ -329,7 +327,7 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
 
     public void testClusterHealthOnClusterRecoveryWithPreviousAllocationIdsAndAllocationFailures() {
         final String indexName = "test-idx";
-        final String[] indices = new String[] { indexName };
+        final Set<String> indices = Set.of(indexName);
         for (final ClusterState clusterState : simulateClusterRecoveryStates(indexName, true, true)) {
             final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
             // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated)

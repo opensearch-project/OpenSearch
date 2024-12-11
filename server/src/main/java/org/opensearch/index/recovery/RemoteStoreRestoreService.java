@@ -166,7 +166,7 @@ public class RemoteStoreRestoreService {
             }
         } else {
             List<String> filteredIndices = filterIndices(
-                List.of(currentState.metadata().getConcreteAllIndices()),
+                List.copyOf(currentState.metadata().getConcreteAllIndices()),
                 indexNames,
                 IndicesOptions.fromOptions(true, true, true, true)
             );
