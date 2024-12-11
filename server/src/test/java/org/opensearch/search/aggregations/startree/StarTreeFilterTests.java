@@ -87,7 +87,8 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         testStarTreeFilter(10, false);
     }
 
-    private Directory createStarTreeIndex(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension, List<Document> docs) throws IOException {
+    private Directory createStarTreeIndex(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension, List<Document> docs)
+        throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
         conf.setCodec(getCodec(maxLeafDoc, skipStarNodeCreationForSDVDimension));

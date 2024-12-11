@@ -9,6 +9,7 @@
 package org.opensearch.search.aggregations.startree;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
@@ -24,8 +25,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -59,6 +58,8 @@ import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,12 +69,11 @@ import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-
-import static org.opensearch.search.aggregations.AggregationBuilders.sum;
-import static org.opensearch.search.aggregations.AggregationBuilders.min;
-import static org.opensearch.search.aggregations.AggregationBuilders.max;
-import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
+import static org.opensearch.search.aggregations.AggregationBuilders.count;
+import static org.opensearch.search.aggregations.AggregationBuilders.max;
+import static org.opensearch.search.aggregations.AggregationBuilders.min;
+import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 public class MetricAggregatorTests extends AggregatorTestCase {
@@ -285,7 +285,16 @@ public class MetricAggregatorTests extends AggregatorTestCase {
 
         // Test that feature parity is maintained for unmapped field names.
         sumAggregationBuilder = new SumAggregationBuilder("sumaggs").field("hello");
-        testCase(indexSearcher, query, queryBuilder, sumAggregationBuilder, starTree, supportedDimensions, verifyAggregation(InternalSum::getValue), sumAggregationBuilder.build(queryShardContext, null));
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            verifyAggregation(InternalSum::getValue),
+            sumAggregationBuilder.build(queryShardContext, null)
+        );
 
         ir.close();
         directory.close();
