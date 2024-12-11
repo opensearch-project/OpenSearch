@@ -8,8 +8,8 @@ bundled_jdk = "23.0.1+11"
 # optional dependencies
 spatial4j         = "0.7"
 jts               = "1.15.0"
-jackson           = "2.17.2"
-jackson_databind  = "2.17.2"
+jackson           = "2.18.2"
+jackson_databind  = "2.18.2"
 snakeyaml         = "2.1"
 icu4j             = "75.1"
 supercsv          = "2.4.0"
@@ -20,10 +20,11 @@ jettison          = "1.5.4"
 woodstox          = "6.4.0"
 kotlin            = "1.7.10"
 antlr4            = "4.13.1"
-guava             = "32.1.1-jre"
+guava             = "33.2.1-jre"
 protobuf          = "3.25.5"
 jakarta_annotation = "1.3.5"
 google_http_client = "1.44.1"
+google_auth       = "1.29.0"
 tdigest           = "3.3"
 hdrhistogram      = "2.2.2"
 grpc              = "1.68.0"
@@ -31,8 +32,9 @@ grpc              = "1.68.0"
 # when updating the JNA version, also update the version in buildSrc/build.gradle
 jna               = "5.13.0"
 
-netty             = "4.1.114.Final"
+netty             = "4.1.115.Final"
 joda              = "2.12.7"
+roaringbitmap     = "1.3.0"
 
 # project reactor
 reactor_netty     = "1.1.23"
@@ -61,9 +63,9 @@ bouncycastle="1.78"
 randomizedrunner  = "2.7.1"
 junit             = "4.13.2"
 hamcrest          = "2.1"
-mockito           = "5.14.1"
-objenesis         = "3.2"
-bytebuddy         = "1.15.4"
+mockito           = "5.14.2"
+objenesis         = "3.3"
+bytebuddy         = "1.15.10"
 
 # benchmark dependencies
 jmh               = "1.35"
@@ -78,3 +80,56 @@ resteasy          = "6.2.4.Final"
 # opentelemetry dependencies
 opentelemetry         = "1.41.0"
 opentelemetrysemconv  = "1.27.0-alpha"
+
+# arrow dependencies
+arrow                 = "17.0.0"
+flatbuffers           = "2.0.0"
+
+[libraries]
+hdrhistogram = { group = "org.hdrhistogram", name = "HdrHistogram", version.ref = "hdrhistogram" }
+jakartaannotation = { group = "jakarta.annotation", name = "jakarta.annotation-api", version.ref = "jakarta_annotation" }
+jodatime = { group = "joda-time", name = "joda-time", version.ref = "joda" }
+jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
+jtscore = { group = "org.locationtech.jts", name = "jts-core", version.ref = "jts" }
+jzlib = { group = "com.jcraft", name = "jzlib", version.ref = "jzlib" }
+log4japi = { group = "org.apache.logging.log4j", name = "log4j-api", version.ref = "log4j" }
+log4jjul = { group = "org.apache.logging.log4j", name = "log4j-jul", version.ref = "log4j" }
+log4jcore = { group = "org.apache.logging.log4j", name = "log4j-core", version.ref = "log4j" }
+lucene-core = { group = "org.apache.lucene", name = "lucene-core", version.ref = "lucene" }
+lucene-analysis-common = { group = "org.apache.lucene", name = "lucene-analysis-common", version.ref = "lucene" }
+lucene-backward-codecs = { group = "org.apache.lucene", name = "lucene-backward-codecs", version.ref = "lucene" }
+lucene-grouping = { group = "org.apache.lucene", name = "lucene-grouping", version.ref = "lucene" }
+lucene-highlighter = { group = "org.apache.lucene", name = "lucene-highlighter", version.ref = "lucene" }
+lucene-join = { group = "org.apache.lucene", name = "lucene-join", version.ref = "lucene" }
+lucene-memory = { group = "org.apache.lucene", name = "lucene-memory", version.ref = "lucene" }
+lucene-misc = { group = "org.apache.lucene", name = "lucene-misc", version.ref = "lucene" }
+lucene-queries = { group = "org.apache.lucene", name = "lucene-queries", version.ref = "lucene" }
+lucene-queryparser = { group = "org.apache.lucene", name = "lucene-queryparser", version.ref = "lucene" }
+lucene-sandbox = { group = "org.apache.lucene", name = "lucene-sandbox", version.ref = "lucene" }
+lucene-spatial-extras = { group = "org.apache.lucene", name = "lucene-spatial-extras", version.ref = "lucene" }
+lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", version.ref = "lucene" }
+lucene-suggest = { group = "org.apache.lucene", name = "lucene-suggest", version.ref = "lucene" }
+protobuf = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
+reactivestreams = { group = "io.projectreactor", name = "reactor-core", version.ref = "reactor" }
+reactorcore = { group = "org.reactivestreams", name = "reactive-streams", version.ref = "reactivestreams" }
+roaringbitmap = { group = "org.roaringbitmap", name = "RoaringBitmap", version.ref = "roaringbitmap" }
+spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }
+tdigest = { group = "com.tdunning", name = "t-digest", version.ref = "tdigest" }
+
+[bundles]
+lucene = [
+    "lucene-core",
+    "lucene-analysis-common",
+    "lucene-backward-codecs",
+    "lucene-grouping",
+    "lucene-highlighter",
+    "lucene-join",
+    "lucene-memory",
+    "lucene-misc",
+    "lucene-queries",
+    "lucene-queryparser",
+    "lucene-sandbox",
+    "lucene-spatial-extras",
+    "lucene-spatial3d",
+    "lucene-suggest"
+]
