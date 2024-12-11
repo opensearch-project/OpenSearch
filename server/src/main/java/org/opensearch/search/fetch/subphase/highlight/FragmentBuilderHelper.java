@@ -75,13 +75,13 @@ public final class FragmentBuilderHelper {
             CollectionUtil.introSort(subInfos, new Comparator<SubInfo>() {
                 @Override
                 public int compare(SubInfo o1, SubInfo o2) {
-                    int startOffset = o1.getTermsOffsets().get(0).getStartOffset();
-                    int startOffset2 = o2.getTermsOffsets().get(0).getStartOffset();
+                    int startOffset = o1.termsOffsets().get(0).getStartOffset();
+                    int startOffset2 = o2.termsOffsets().get(0).getStartOffset();
                     return FragmentBuilderHelper.compare(startOffset, startOffset2);
                 }
             });
             return new WeightedFragInfo(
-                Math.min(fragInfo.getSubInfos().get(0).getTermsOffsets().get(0).getStartOffset(), fragInfo.getStartOffset()),
+                Math.min(fragInfo.getSubInfos().get(0).termsOffsets().get(0).getStartOffset(), fragInfo.getStartOffset()),
                 fragInfo.getEndOffset(),
                 subInfos,
                 fragInfo.getTotalBoost()

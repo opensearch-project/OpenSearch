@@ -34,7 +34,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -85,7 +85,7 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("true"));
         terms.add(new BytesRef("false"));
-        assertEquals(new DocValuesFieldExistsQuery("field"), ft.termsQuery(terms, null));
+        assertEquals(new FieldExistsQuery("field"), ft.termsQuery(terms, null));
 
         List<BytesRef> newTerms = new ArrayList<>();
         newTerms.add(new BytesRef("true"));
@@ -108,7 +108,7 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
     public void testRangeQuery() {
         BooleanFieldMapper.BooleanFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");
-        assertEquals(new DocValuesFieldExistsQuery("field"), ft.rangeQuery(false, true, true, true, null));
+        assertEquals(new FieldExistsQuery("field"), ft.rangeQuery(false, true, true, true, null));
 
         assertEquals(new TermQuery(new Term("field", "T")), ft.rangeQuery(false, true, false, true, null));
 
@@ -122,7 +122,7 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(new TermQuery(new Term("field", "F")), ft.rangeQuery(null, false, true, true, null));
 
-        assertEquals(new DocValuesFieldExistsQuery("field"), ft.rangeQuery(false, null, true, true, null));
+        assertEquals(new FieldExistsQuery("field"), ft.rangeQuery(false, null, true, true, null));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.rangeQuery("random", null, true, true, null));
 

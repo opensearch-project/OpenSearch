@@ -35,13 +35,11 @@ package org.opensearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.opensearch.common.annotation.PublicApi;
@@ -171,21 +169,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            shardKeyMap.add(context.reader());
-            return in.scorer(context);
-        }
-
-        @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             shardKeyMap.add(context.reader());
             return in.scorerSupplier(context);
-        }
-
-        @Override
-        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-            shardKeyMap.add(context.reader());
-            return in.bulkScorer(context);
         }
 
         @Override

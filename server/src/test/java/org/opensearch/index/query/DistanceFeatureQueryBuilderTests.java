@@ -33,7 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
@@ -106,7 +106,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             } else { // NANOSECONDS
                 pivotLong = pivotVal.getNanos();
             }
-            expectedQuery = LongPoint.newDistanceFeatureQuery(fieldName, 1.0f, originLong, pivotLong);
+            expectedQuery = LongField.newDistanceFeatureQuery(fieldName, 1.0f, originLong, pivotLong);
         }
         assertEquals(expectedQuery, query);
     }

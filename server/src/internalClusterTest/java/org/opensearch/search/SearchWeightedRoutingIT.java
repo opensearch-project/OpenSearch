@@ -823,7 +823,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             try {
                 SearchResponse searchResponse = responses[i].get();
                 assertEquals(searchResponse.getFailedShards(), 0);
-                assertNotEquals(searchResponse.getHits().getTotalHits().value, 0);
+                assertNotEquals(searchResponse.getHits().getTotalHits().value(), 0);
             } catch (Exception t) {
                 fail("search should not fail");
             }

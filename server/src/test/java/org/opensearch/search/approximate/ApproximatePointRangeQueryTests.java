@@ -191,11 +191,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         IndexSearcher searcher = new IndexSearcher(reader);
                         TopDocs topDocs = searcher.search(approximateQuery, 11000);
 
-                        if (topDocs.totalHits.relation == Relation.EQUAL_TO) {
-                            assertEquals(topDocs.totalHits.value, 11000);
+                        if (topDocs.totalHits.relation() == Relation.EQUAL_TO) {
+                            assertEquals(topDocs.totalHits.value(), 11000);
                         } else {
-                            assertTrue(11000 <= topDocs.totalHits.value);
-                            assertTrue(maxHits >= topDocs.totalHits.value);
+                            assertTrue(11000 <= topDocs.totalHits.value());
+                            assertTrue(maxHits >= topDocs.totalHits.value());
                         }
                     } catch (IOException e) {
                         throw new RuntimeException(e);
