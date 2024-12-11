@@ -29,50 +29,51 @@ import java.util.Set;
 public interface ResourceAccessControlPlugin {
 
     /**
-     * Returns all accessible resources for current user for a given system .
+     * Returns all accessible resources for current user for a given plugin index.
+     * @param resourceIndex index where the resource exists
      *
      * @return set of {@link ResourceSharing} items accessible by current user.
      */
-    Set<String> listAccessibleResourcesInPlugin(String systemIndex);
+    Set<String> getAccessibleResourcesForCurrentUser(String resourceIndex);
 
     /**
      * Checks whether current user has permission to given resource.
      *
      * @param resourceId the resource on which access is to be checked
-     * @param systemIndexName where the resource exists
+     * @param resourceIndex where the resource exists
      * @param scope the scope being requested
      * @return true if current user has access, false otherwise
      */
-    boolean hasPermission(String resourceId, String systemIndexName, String scope);
+    boolean hasPermission(String resourceId, String resourceIndex, String scope);
 
     /**
      * Adds an entity to the share-with. Resource needs to be in restricted mode.
      * Creates a resource sharing record if one doesn't exist.
      * @param resourceId id of the resource to be updated
-     * @param systemIndexName index where this resource is defined
+     * @param resourceIndex index where this resource is stored
      * @param shareWith an object that contains entries of entities with whom the resource should be shared with
      * @return updated resource sharing record
      */
-    ResourceSharing shareWith(String resourceId, String systemIndexName, ShareWith shareWith);
+    ResourceSharing shareWith(String resourceId, String resourceIndex, ShareWith shareWith);
 
     /**
      * Revokes given permission to a resource
      *
      * @param resourceId if of the resource to be updated
-     * @param systemIndexName index where this resource is defined
+     * @param resourceIndex index where this resource is stored
      * @param revokeAccess a map that contains entries of entities whose access should be revoked
      * @param scopes Scopes to be checked for revoking access. If empty, all scopes will be checked.
      * @return the updated ResourceSharing record
      */
-    ResourceSharing revokeAccess(String resourceId, String systemIndexName, Map<EntityType, Set<String>> revokeAccess, Set<String> scopes);
+    ResourceSharing revokeAccess(String resourceId, String resourceIndex, Map<EntityType, Set<String>> revokeAccess, Set<String> scopes);
 
     /**
      * Deletes an entry from .resource_sharing index
      * @param resourceId if of the resource to be updated
-     * @param systemIndexName index where this resource is defined
+     * @param resourceIndex index where this resource is stored
      * @return true if resource record was deleted, false otherwise
      */
-    boolean deleteResourceSharingRecord(String resourceId, String systemIndexName);
+    boolean deleteResourceSharingRecord(String resourceId, String resourceIndex);
 
     /**
      * TODO check if this method is needed
