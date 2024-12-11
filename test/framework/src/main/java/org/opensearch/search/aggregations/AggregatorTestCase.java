@@ -61,6 +61,8 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
@@ -151,8 +153,6 @@ import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -171,16 +171,16 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 /**
  * Base class for testing {@link Aggregator} implementations.
@@ -349,6 +349,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         CompositeIndexFieldInfo starTree,
         List<Dimension> supportedDimensions,
         MultiBucketConsumer bucketConsumer,
+        AggregatorFactory aggregatorFactory,
         MappedFieldType... fieldTypes
     ) throws IOException {
         SearchContext searchContext;
@@ -361,6 +362,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                 starTree,
                 supportedDimensions,
                 bucketConsumer,
+                aggregatorFactory,
                 fieldTypes
             );
         } else {
@@ -390,6 +392,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         CompositeIndexFieldInfo starTree,
         List<Dimension> supportedDimensions,
         MultiBucketConsumer bucketConsumer,
+        AggregatorFactory aggregatorFactory,
         MappedFieldType... fieldTypes
     ) throws IOException {
         SearchContext searchContext = createSearchContext(
@@ -406,7 +409,12 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
         when(searchContext.aggregations()).thenReturn(searchContextAggregations);
         when(searchContextAggregations.factories()).thenReturn(aggregatorFactories);
-        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] {});
+
+        if (aggregatorFactory != null) {
+            when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] {aggregatorFactory});
+        } else {
+            when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] {});
+        }
 
         CompositeDataCubeFieldType compositeMappedFieldType = mock(CompositeDataCubeFieldType.class);
         when(compositeMappedFieldType.name()).thenReturn(starTree.getField());
@@ -742,6 +750,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         List<Dimension> supportedDimensions,
         int maxBucket,
         boolean hasNested,
+        AggregatorFactory aggregatorFactory,
         MappedFieldType... fieldTypes
     ) throws IOException {
         query = query.rewrite(searcher);
@@ -765,6 +774,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             compositeIndexFieldInfo,
             supportedDimensions,
             bucketConsumer,
+            aggregatorFactory,
             fieldTypes
         );
 
