@@ -12,6 +12,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
@@ -141,7 +142,10 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
 
     public void testGetChildForDimensionValue() throws IOException {
         long dimensionValue = randomIntBetween(-1, node.getChildren().size() - 3);
-        FixedLengthStarTreeNode childNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue(dimensionValue);
+        FixedLengthStarTreeNode childNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue(
+            dimensionValue,
+            new NumericDimension("field")
+        );
         assertNotNull(childNode);
         assertEquals(dimensionValue, childNode.getDimensionValue());
     }
@@ -185,13 +189,13 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
     }
 
     public void testGetChildForNullNode() throws IOException {
-        FixedLengthStarTreeNode nullNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue(null);
+        FixedLengthStarTreeNode nullNode = (FixedLengthStarTreeNode) starTreeNode.getChildForDimensionValue(null, null);
         assertNull(nullNode);
     }
 
     public void testGetChildForInvalidDimensionValue() throws IOException {
         long invalidDimensionValue = Long.MAX_VALUE;
-        assertNull(starTreeNode.getChildForDimensionValue(invalidDimensionValue));
+        assertNull(starTreeNode.getChildForDimensionValue(invalidDimensionValue, new NumericDimension("field")));
     }
 
     public void testOnlyRootNodePresent() throws IOException {
@@ -219,7 +223,7 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
         FixedLengthStarTreeNode starTreeNode = (FixedLengthStarTreeNode) StarTreeFactory.createStarTree(dataIn, starTreeMetadata);
 
         assertEquals(starTreeNode.getNumChildren(), 0);
-        assertNull(starTreeNode.getChildForDimensionValue(randomLong()));
+        assertNull(starTreeNode.getChildForDimensionValue(randomLong(), new NumericDimension("field")));
         assertThrows(IllegalArgumentException.class, () -> starTreeNode.getChildrenIterator().next());
         assertThrows(UnsupportedOperationException.class, () -> starTreeNode.getChildrenIterator().remove());
 
