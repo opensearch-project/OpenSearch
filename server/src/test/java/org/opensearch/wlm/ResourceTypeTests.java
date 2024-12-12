@@ -8,13 +8,7 @@
 
 package org.opensearch.wlm;
 
-import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.core.tasks.resourcetracker.ResourceStats;
-import org.opensearch.tasks.CancellableTask;
 import org.opensearch.test.OpenSearchTestCase;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ResourceTypeTests extends OpenSearchTestCase {
 
@@ -34,18 +28,5 @@ public class ResourceTypeTests extends OpenSearchTestCase {
     public void testGetName() {
         assertEquals("cpu", ResourceType.CPU.getName());
         assertEquals("memory", ResourceType.MEMORY.getName());
-    }
-
-    public void testGetResourceUsage() {
-        SearchShardTask mockTask = createMockTask(SearchShardTask.class, 100, 200);
-        assertEquals(100, ResourceType.CPU.getResourceUsage(mockTask));
-        assertEquals(200, ResourceType.MEMORY.getResourceUsage(mockTask));
-    }
-
-    private <T extends CancellableTask> T createMockTask(Class<T> type, long cpuUsage, long heapUsage) {
-        T task = mock(type);
-        when(task.getTotalResourceUtilization(ResourceStats.CPU)).thenReturn(cpuUsage);
-        when(task.getTotalResourceUtilization(ResourceStats.MEMORY)).thenReturn(heapUsage);
-        return task;
     }
 }

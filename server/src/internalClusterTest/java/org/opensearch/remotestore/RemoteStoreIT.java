@@ -18,6 +18,7 @@ import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.client.Requests;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
@@ -47,6 +48,7 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -201,10 +203,19 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
         String dataNode = internalCluster().startNode();
-        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000L, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        String shardPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            SEGMENTS,
+            METADATA,
+            segmentsPathFixedPrefix
+        ).buildAsString();
         Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         ;
         IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
@@ -235,7 +246,16 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, false, INDEX_NAME);
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        String shardPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            SEGMENTS,
+            METADATA,
+            segmentsPathFixedPrefix
+        ).buildAsString();
         Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
@@ -246,11 +266,19 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         Settings.Builder settings = Settings.builder()
             .put(RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "3");
         internalCluster().startNode(settings);
-
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        String shardPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            SEGMENTS,
+            METADATA,
+            segmentsPathFixedPrefix
+        ).buildAsString();
         Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
@@ -270,7 +298,16 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(12, 18);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        String shardPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            SEGMENTS,
+            METADATA,
+            segmentsPathFixedPrefix
+        ).buildAsString();
         Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         ;
         int actualFileCount = getFileCount(indexPath);
@@ -510,9 +547,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
 
         Path absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository("test-repo").setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
+        createRepository("test-repo", "fs", Settings.builder().put("location", absolutePath));
 
         logger.info("--> Create index and ingest 50 docs");
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
@@ -605,8 +640,10 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         indexBulk(INDEX_NAME, 50);
         flushAndRefresh(INDEX_NAME);
 
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         // 3. Delete data from remote segment store
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, DATA).buildAsString();
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, DATA, segmentsPathFixedPrefix)
+            .buildAsString();
         Path segmentDataPath = Path.of(segmentRepoPath + "/" + shardPath);
 
         try (Stream<Path> files = Files.list(segmentDataPath)) {
@@ -845,7 +882,16 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
 
-        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", TRANSLOG, METADATA).buildAsString();
+        String translogPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.get(getNodeSettings());
+        String shardPath = getShardLevelBlobPath(
+            client(),
+            INDEX_NAME,
+            BlobPath.cleanPath(),
+            "0",
+            TRANSLOG,
+            METADATA,
+            translogPathFixedPrefix
+        ).buildAsString();
         Path translogMetaDataPath = Path.of(translogRepoPath + "/" + shardPath);
 
         try (Stream<Path> files = Files.list(translogMetaDataPath)) {
@@ -931,5 +977,105 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
             assertEquals(totalFiles, 501L);
         }
+    }
+
+    public void testAsyncTranslogDurabilityRestrictionsThroughIdxTemplates() throws Exception {
+        logger.info("Starting up cluster manager with cluster.remote_store.index.restrict.async-durability set to true");
+        String cm1 = internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), true).build()
+        );
+        internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> internalCluster().client()
+                .admin()
+                .indices()
+                .preparePutTemplate("test")
+                .setPatterns(Arrays.asList("test*"))
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async"))
+                .get()
+        );
+        logger.info("Starting up another cluster manager with cluster.remote_store.index.restrict.async-durability set to false");
+        internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), false).build()
+        );
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(cm1));
+        ensureStableCluster(2);
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .preparePutTemplate("test")
+                .setPatterns(Arrays.asList("test*"))
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async"))
+                .get()
+        );
+    }
+
+    public void testCloseIndexWithNoOpSyncAndFlushForSyncTranslog() throws InterruptedException {
+        internalCluster().startNodes(3);
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "5s"))
+            .get();
+        Settings.Builder settings = Settings.builder()
+            .put(remoteStoreIndexSettings(0, 10000L, -1))
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s");
+        createIndex(INDEX_NAME, settings.build());
+        CountDownLatch latch = new CountDownLatch(1);
+        new Thread(() -> {
+            if (randomBoolean()) {
+                for (int i = 0; i < randomIntBetween(1, 5); i++) {
+                    indexSingleDoc(INDEX_NAME);
+                }
+                flushAndRefresh(INDEX_NAME);
+            }
+            // Index single doc to start the asyn io processor to run which will lead to 10s wait time before the next sync.
+            indexSingleDoc(INDEX_NAME);
+            // Reduce the latch for the main thread to flush after some sleep.
+            latch.countDown();
+            // Index another doc and in this case the flush would have happened before the sync.
+            indexSingleDoc(INDEX_NAME);
+        }).start();
+        // Wait for atleast one doc to be ingested.
+        latch.await();
+        // Sleep for some time for the next doc to be present in lucene buffer. If flush happens first before the doc #2
+        // gets indexed, then it goes into the happy case where the close index happens succefully.
+        Thread.sleep(1000);
+        // Flush so that the subsequent sync or flushes are no-op.
+        flush(INDEX_NAME);
+        // Closing the index involves translog.sync and shard.flush which are now no-op.
+        client().admin().indices().close(Requests.closeIndexRequest(INDEX_NAME)).actionGet();
+        Thread.sleep(10000);
+        ensureGreen(INDEX_NAME);
+    }
+
+    public void testCloseIndexWithNoOpSyncAndFlushForAsyncTranslog() throws InterruptedException {
+        internalCluster().startNodes(3);
+        Settings.Builder settings = Settings.builder()
+            .put(remoteStoreIndexSettings(0, 10000L, -1))
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s")
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Durability.ASYNC)
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "10s");
+        createIndex(INDEX_NAME, settings.build());
+        CountDownLatch latch = new CountDownLatch(1);
+        new Thread(() -> {
+            // Index some docs to start the asyn io processor to run which will lead to 10s wait time before the next sync.
+            indexSingleDoc(INDEX_NAME);
+            indexSingleDoc(INDEX_NAME);
+            indexSingleDoc(INDEX_NAME);
+            // Reduce the latch for the main thread to flush after some sleep.
+            latch.countDown();
+        }).start();
+        // Wait for atleast one doc to be ingested.
+        latch.await();
+        // Flush so that the subsequent sync or flushes are no-op.
+        flush(INDEX_NAME);
+        // Closing the index involves translog.sync and shard.flush which are now no-op.
+        client().admin().indices().close(Requests.closeIndexRequest(INDEX_NAME)).actionGet();
+        Thread.sleep(10000);
+        ensureGreen(INDEX_NAME);
     }
 }

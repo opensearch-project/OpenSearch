@@ -815,4 +815,17 @@ public class Strings {
         }
         return out.toString();
     }
+
+    /**
+     * Check whether every single character in the string is a digit.
+     *
+     * <p>An empty string returns {@code false}.</p>
+     *
+     * @param s the string, must not be null.
+     * @return {@code true} if the string only contains digits, {@code false} otherwise.
+     */
+    public static boolean isDigits(final String s) {
+        return !s.isEmpty() && s.chars().allMatch(Character::isDigit);
+    }
+
 }

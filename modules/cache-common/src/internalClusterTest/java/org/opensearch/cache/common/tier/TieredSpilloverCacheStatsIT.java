@@ -10,6 +10,7 @@ package org.opensearch.cache.common.tier;
 
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.search.SearchResponse;
@@ -40,21 +41,22 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
+import static org.opensearch.indices.IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 // Use a single data node to simplify accessing cache stats across different shards.
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
+public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(TieredSpilloverCachePlugin.class, TieredSpilloverCacheIT.MockDiskCachePlugin.class);
     }
 
-    private final String HEAP_CACHE_SIZE_STRING = "10000B";
-    private final int HEAP_CACHE_SIZE = 10_000;
-    private final String index1Name = "index1";
-    private final String index2Name = "index2";
+    private static final String HEAP_CACHE_SIZE_STRING = "10000B";
+    private static final int HEAP_CACHE_SIZE = 10_000;
+    private static final String index1Name = "index1";
+    private static final String index2Name = "index2";
 
     /**
      * Test aggregating by indices
@@ -63,7 +65,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(HEAP_CACHE_SIZE_STRING))
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
@@ -116,7 +118,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(HEAP_CACHE_SIZE_STRING))
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
@@ -196,7 +198,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(HEAP_CACHE_SIZE_STRING))
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
@@ -205,7 +207,6 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         );
         Client client = client();
         Map<String, Integer> values = setupCacheForAggregationTests(client);
-
         // Get values for tiers alone and check they add correctly across indices
         ImmutableCacheStatsHolder tiersOnlyStatsHolder = getNodeCacheStatsResult(client, List.of(TIER_DIMENSION_NAME));
         ImmutableCacheStats totalHeapExpectedStats = returnNullIfAllZero(
@@ -238,7 +239,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(HEAP_CACHE_SIZE_STRING))
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, getNumberOfSegments()))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
@@ -289,7 +290,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(
             1,
             Settings.builder()
-                .put(TieredSpilloverCacheIT.defaultSettings(HEAP_CACHE_SIZE_STRING))
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, getNumberOfSegments()))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
@@ -342,6 +343,131 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         assertEquals(oldAPIStats.getMemorySizeInBytes(), totalStats.getSizeInBytes());
     }
 
+    public void testStatsWithMultipleSegments() throws Exception {
+        int numberOfSegments = randomFrom(2, 4, 8, 16, 64);
+        int singleSearchSizeApproxUpperBound = 700; // We know this from other tests and manually verifying
+        int heap_cache_size_per_segment = singleSearchSizeApproxUpperBound * numberOfSegments; // Worst case if all
+        // keys land up in same segment, it would still be able to accommodate.
+        internalCluster().startNodes(
+            1,
+            Settings.builder()
+                .put(defaultSettings(heap_cache_size_per_segment * numberOfSegments + "B", numberOfSegments))
+                .put(
+                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    new TimeValue(0, TimeUnit.SECONDS)
+                )
+                .build()
+        );
+        Client client = client();
+        startIndex(client, index1Name);
+        // First search one time to calculate item size
+        searchIndex(client, index1Name, 0);
+        // get total stats
+        long singleSearchSize = getTotalStats(client).getSizeInBytes();
+        // Now try to hit queries same as number of segments. All these should be able to reside inside onHeap cache.
+        for (int i = 1; i < numberOfSegments; i++) {
+            searchIndex(client, index1Name, i);
+        }
+        ImmutableCacheStatsHolder allLevelsStatsHolder = getNodeCacheStatsResult(
+            client,
+            List.of(IndicesRequestCache.INDEX_DIMENSION_NAME, TIER_DIMENSION_NAME)
+        );
+        ImmutableCacheStats index1OnHeapExpectedStats = returnNullIfAllZero(
+            new ImmutableCacheStats(0, numberOfSegments, 0, singleSearchSize * numberOfSegments, numberOfSegments)
+        );
+        assertEquals(
+            index1OnHeapExpectedStats,
+            allLevelsStatsHolder.getStatsForDimensionValues(List.of(index1Name, TIER_DIMENSION_VALUE_ON_HEAP))
+        );
+        ImmutableCacheStats index1DiskCacheExpectedStats = returnNullIfAllZero(new ImmutableCacheStats(0, numberOfSegments, 0, 0, 0));
+        assertEquals(
+            index1DiskCacheExpectedStats,
+            allLevelsStatsHolder.getStatsForDimensionValues(List.of(index1Name, TIER_DIMENSION_VALUE_DISK))
+        );
+
+        // Now fire same queries to get some hits
+        for (int i = 0; i < numberOfSegments; i++) {
+            searchIndex(client, index1Name, i);
+        }
+        allLevelsStatsHolder = getNodeCacheStatsResult(client, List.of(IndicesRequestCache.INDEX_DIMENSION_NAME, TIER_DIMENSION_NAME));
+        index1OnHeapExpectedStats = returnNullIfAllZero(
+            new ImmutableCacheStats(numberOfSegments, numberOfSegments, 0, singleSearchSize * numberOfSegments, numberOfSegments)
+        );
+        assertEquals(
+            index1OnHeapExpectedStats,
+            allLevelsStatsHolder.getStatsForDimensionValues(List.of(index1Name, TIER_DIMENSION_VALUE_ON_HEAP))
+        );
+
+        // Now try to evict from onheap cache by adding numberOfSegments ^ 2 which will guarantee this.
+        for (int i = numberOfSegments; i < numberOfSegments + numberOfSegments * numberOfSegments; i++) {
+            searchIndex(client, index1Name, i);
+        }
+        allLevelsStatsHolder = getNodeCacheStatsResult(client, List.of(IndicesRequestCache.INDEX_DIMENSION_NAME, TIER_DIMENSION_NAME));
+        ImmutableCacheStats onHeapCacheStat = allLevelsStatsHolder.getStatsForDimensionValues(
+            List.of(index1Name, TIER_DIMENSION_VALUE_ON_HEAP)
+        );
+        // Jut verifying evictions happened as can't fetch the exact number considering we don't have a way to get
+        // segment number for queries.
+        assertTrue(onHeapCacheStat.getEvictions() > 0);
+        ImmutableCacheStats diskCacheStat = allLevelsStatsHolder.getStatsForDimensionValues(List.of(index1Name, TIER_DIMENSION_VALUE_DISK));
+
+        // Similarly verify items are present on disk cache now
+        assertEquals(onHeapCacheStat.getEvictions(), diskCacheStat.getItems());
+        assertTrue(diskCacheStat.getSizeInBytes() > 0);
+        assertTrue(diskCacheStat.getMisses() > 0);
+        assertTrue(diskCacheStat.getHits() == 0);
+        assertTrue(diskCacheStat.getEvictions() == 0);
+    }
+
+    public void testClosingShard() throws Exception {
+        // Closing the shard should totally remove the stats associated with that shard.
+        internalCluster().startNodes(
+            1,
+            Settings.builder()
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, getNumberOfSegments()))
+                .put(
+                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    new TimeValue(0, TimeUnit.SECONDS)
+                )
+                .put(INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), new TimeValue(1))
+                .build()
+        );
+        String index = "index";
+        Client client = client();
+        startIndex(client, index);
+
+        // First search one time to see how big a single value will be
+        searchIndex(client, index, 0);
+        // get total stats
+        long singleSearchSize = getTotalStats(client).getSizeInBytes();
+        // Select numbers so we get some values on both heap and disk
+        int itemsOnHeap = HEAP_CACHE_SIZE / (int) singleSearchSize;
+        int itemsOnDisk = 1 + randomInt(30); // The first one we search (to get the size) always goes to disk
+        int expectedEntries = itemsOnHeap + itemsOnDisk;
+
+        for (int i = 1; i < expectedEntries; i++) {
+            // Cause misses
+            searchIndex(client, index, i);
+        }
+        int expectedMisses = itemsOnHeap + itemsOnDisk;
+
+        // Cause some hits
+        int expectedHits = randomIntBetween(itemsOnHeap, expectedEntries); // Select it so some hits come from both tiers
+        for (int i = 0; i < expectedHits; i++) {
+            searchIndex(client, index, i);
+        }
+
+        // Check the new stats API values are as expected
+        assertEquals(
+            new ImmutableCacheStats(expectedHits, expectedMisses, 0, expectedEntries * singleSearchSize, expectedEntries),
+            getTotalStats(client)
+        );
+
+        // Closing the index should close the shard
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest("index")).get());
+        assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), getTotalStats(client));
+    }
+
     private void startIndex(Client client, String indexName) throws InterruptedException {
         assertAcked(
             client.admin()
@@ -373,6 +499,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         searchIndex(client, index1Name, 0);
         // get total stats
         long singleSearchSize = getTotalStats(client).getSizeInBytes();
+
         int itemsOnHeapAfterTest = HEAP_CACHE_SIZE / (int) singleSearchSize; // As the heap tier evicts, the items on it after the test will
         // be the same as its max capacity
         int itemsOnDiskAfterTest = 1 + randomInt(30); // The first one we search (to get the size) always goes to disk
@@ -416,7 +543,6 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         for (int i = itemsOnDiskAfterTest + itemsOnHeapIndex1AfterTest; i < itemsOnDiskAfterTest + itemsOnHeapAfterTest; i++) {
             searchIndex(client, index2Name, i);
         }
-
         // Get some hits on all combinations of indices and tiers
         for (int i = itemsOnDiskAfterTest; i < itemsOnDiskAfterTest + hitsOnHeapIndex1; i++) {
             // heap hits for index 1
@@ -499,6 +625,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
             .addMetric(NodesStatsRequest.Metric.CACHE_STATS.metricName())
             .setIndices(statsFlags)
             .get();
+
         // Can always get the first data node as there's only one in this test suite
         assertEquals(1, nodeStatsResponse.getNodes().size());
         NodeCacheStats ncs = nodeStatsResponse.getNodes().get(0).getNodeCacheStats();

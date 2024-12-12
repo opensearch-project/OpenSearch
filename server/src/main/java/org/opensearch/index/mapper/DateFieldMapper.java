@@ -54,6 +54,7 @@ import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
+import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -61,6 +62,8 @@ import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -74,12 +77,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.opensearch.common.time.DateUtils.toLong;
+import static org.apache.lucene.document.LongPoint.pack;
 
 /**
  * A {@link FieldMapper} for dates.
@@ -117,7 +122,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
             @Override
             public long convert(Instant instant) {
-                return instant.toEpochMilli();
+                return clampToValidRange(instant).toEpochMilli();
             }
 
             @Override
@@ -127,7 +132,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             public Instant clampToValidRange(Instant instant) {
-                return instant;
+                return DateUtils.clampToMillisRange(instant);
             }
 
             @Override
@@ -331,6 +336,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), nullTimestamp, resolution, this);
         }
+
+        @Override
+        public Optional<DimensionType> getSupportedDataCubeDimensionType() {
+            return Optional.of(DimensionType.DATE);
+        }
     }
 
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
@@ -463,24 +473,42 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                if (isSearchable() && hasDocValues()) {
-                    Query query = LongPoint.newRangeQuery(name(), l, u);
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
+                if (isSearchable()) {
+                    Query pointRangeQuery = LongPoint.newRangeQuery(name(), l, u);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
+                        if (context.indexSortedOnField(name())) {
+                            query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                        }
+                    } else {
+                        query = pointRangeQuery;
+                    }
+                    if (FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY_SETTING)) {
+                        return new ApproximateScoreQuery(
+                            query,
+                            new ApproximatePointRangeQuery(
+                                name(),
+                                pack(new long[] { l }).bytes,
+                                pack(new long[] { u }).bytes,
+                                new long[] { l }.length
+                            ) {
+                                @Override
+                                protected String toString(int dimension, byte[] value) {
+                                    return Long.toString(LongPoint.decodeDimension(value, 0));
+                                }
+                            }
+                        );
+                    }
+                    return query;
+                }
 
-                    if (context.indexSortedOnField(name())) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
-                    }
-                    return query;
+                // Not searchable. Must have doc values.
+                if (context.indexSortedOnField(name())) {
+                    dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
                 }
-                if (hasDocValues()) {
-                    Query query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                    if (context.indexSortedOnField(name())) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
-                    }
-                    return query;
-                }
-                return LongPoint.newRangeQuery(name(), l, u);
+                return dvQuery;
             });
         }
 

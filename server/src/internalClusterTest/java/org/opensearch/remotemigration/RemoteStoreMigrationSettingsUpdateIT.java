@@ -11,6 +11,8 @@ package org.opensearch.remotemigration;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -21,7 +23,6 @@ import java.util.Optional;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.REMOTE_STORE;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationShardAllocationBaseTestCase {
@@ -75,7 +76,10 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         logger.info("Add remote and non-remote nodes");
         setClusterMode(MIXED.mode);
         addRemote = false;
-        String nonRemoteNodeName = internalCluster().startNode();
+        Settings settings = Settings.builder()
+            .put(BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING.getKey(), snapshotShardPathFixedPrefix ? "c" : "")
+            .build();
+        String nonRemoteNodeName = internalCluster().startNode(settings);
         addRemote = true;
         String remoteNodeName = internalCluster().startNode();
         internalCluster().validateClusterFormed();
@@ -92,11 +96,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         String snapshotName = "test-snapshot";
         String snapshotRepoName = "test-restore-snapshot-repo";
         Path snapshotRepoNameAbsolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(snapshotRepoName)
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", snapshotRepoNameAbsolutePath))
-        );
+        createRepository(snapshotRepoName, "fs", Settings.builder().put("location", snapshotRepoNameAbsolutePath));
 
         logger.info("Create snapshot of non remote stored backed index");
 
@@ -114,7 +114,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         setDirection(REMOTE_STORE.direction);
         String restoredIndexName2 = TEST_INDEX + "-restored2";
         restoreSnapshot(snapshotRepoName, snapshotName, restoredIndexName2);
-        ensureGreen(restoredIndexName2);
+        ensureGreen(TimeValue.timeValueSeconds(90), restoredIndexName2);
 
         logger.info("Verify that restored index is non remote-backed");
         assertRemoteStoreBackedIndex(restoredIndexName2);

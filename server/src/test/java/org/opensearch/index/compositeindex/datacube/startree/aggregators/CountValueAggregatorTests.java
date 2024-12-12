@@ -8,14 +8,14 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
 
 public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
 
     private CountValueAggregator aggregator;
 
-    public CountValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
-        super(starTreeNumericType);
+    public CountValueAggregatorTests(FieldValueConverter fieldValueConverter) {
+        super(fieldValueConverter);
     }
 
     public void testMergeAggregatedValueAndSegmentValue() {
@@ -52,7 +52,7 @@ public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
     }
 
     @Override
-    public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
+    public ValueAggregator getValueAggregator(FieldValueConverter fieldValueConverter) {
         aggregator = new CountValueAggregator();
         return aggregator;
     }

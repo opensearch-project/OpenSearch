@@ -14,6 +14,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
@@ -21,7 +22,6 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricA
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +46,9 @@ import java.util.Map;
  * <p>The set of 'star-tree.documents' files is maintained, and a tracker array is used to keep track of the start document ID for each file.
  * Once the number of files reaches a set threshold, the files are merged.
  *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(StarTreeDocsFileManager.class);
     private static final String STAR_TREE_DOC_FILE_NAME = "star-tree.documents";
@@ -55,26 +57,29 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
     private RandomAccessInput starTreeDocsFileRandomInput;
     private IndexOutput starTreeDocsFileOutput;
     private final Map<String, Integer> fileToEndDocIdMap;
-    private final List<Integer> starTreeDocumentOffsets = new ArrayList<>();
     private int currentFileStartDocId;
     private int numReadableStarTreeDocuments;
     private int starTreeFileCount = -1;
-    private int currBytes = 0;
     private final int fileCountMergeThreshold;
     private int numStarTreeDocs = 0;
 
-    public StarTreeDocsFileManager(SegmentWriteState state, StarTreeField starTreeField, List<MetricAggregatorInfo> metricAggregatorInfos)
-        throws IOException {
-        this(state, starTreeField, metricAggregatorInfos, DEFAULT_FILE_COUNT_MERGE_THRESHOLD);
+    public StarTreeDocsFileManager(
+        SegmentWriteState state,
+        StarTreeField starTreeField,
+        List<MetricAggregatorInfo> metricAggregatorInfos,
+        int numDimensions
+    ) throws IOException {
+        this(state, starTreeField, metricAggregatorInfos, DEFAULT_FILE_COUNT_MERGE_THRESHOLD, numDimensions);
     }
 
     public StarTreeDocsFileManager(
         SegmentWriteState state,
         StarTreeField starTreeField,
         List<MetricAggregatorInfo> metricAggregatorInfos,
-        int fileCountThreshold
+        int fileCountThreshold,
+        int numDimensions
     ) throws IOException {
-        super(state, starTreeField, metricAggregatorInfos);
+        super(state, starTreeField, metricAggregatorInfos, numDimensions);
         fileToEndDocIdMap = new LinkedHashMap<>();
         try {
             starTreeDocsFileOutput = createStarTreeDocumentsFileOutput();
@@ -98,7 +103,11 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
     public void writeStarTreeDocument(StarTreeDocument starTreeDocument, boolean isAggregatedDoc) throws IOException {
         assert isAggregatedDoc == true;
         int numBytes = writeStarTreeDocument(starTreeDocument, starTreeDocsFileOutput, true);
-        addStarTreeDocumentOffset(numBytes);
+        if (docSizeInBytes == -1) {
+            docSizeInBytes = numBytes;
+        } else {
+            assert docSizeInBytes == numBytes;
+        }
         numStarTreeDocs++;
     }
 
@@ -106,7 +115,14 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
     public StarTreeDocument readStarTreeDocument(int docId, boolean isAggregatedDoc) throws IOException {
         assert isAggregatedDoc == true;
         ensureDocumentReadable(docId);
-        return readStarTreeDocument(starTreeDocsFileRandomInput, starTreeDocumentOffsets.get(docId), true);
+        return readStarTreeDocument(starTreeDocsFileRandomInput, getOffset(docId), true);
+    }
+
+    /**
+     * Returns offset for the docId based on the current file start id
+     */
+    private long getOffset(int docId) {
+        return (long) (docId - currentFileStartDocId) * docSizeInBytes;
     }
 
     @Override
@@ -118,18 +134,9 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
     @Override
     public Long[] readDimensions(int docId) throws IOException {
         ensureDocumentReadable(docId);
-        Long[] dims = new Long[starTreeField.getDimensionsOrder().size()];
-        readDimensions(dims, starTreeDocsFileRandomInput, starTreeDocumentOffsets.get(docId));
+        Long[] dims = new Long[numDimensions];
+        readDimensions(dims, starTreeDocsFileRandomInput, getOffset(docId));
         return dims;
-    }
-
-    private void addStarTreeDocumentOffset(int bytes) {
-        starTreeDocumentOffsets.add(currBytes);
-        currBytes += bytes;
-        if (docSizeInBytes == -1) {
-            docSizeInBytes = bytes;
-        }
-        assert docSizeInBytes == bytes;
     }
 
     /**
@@ -199,7 +206,6 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
      *    If the operation is only for reading existing documents, a new file is not created.
      */
     private void closeAndMaybeCreateNewFile(boolean shouldCreateFileForAppend, int numStarTreeDocs) throws IOException {
-        currBytes = 0;
         if (starTreeDocsFileOutput != null) {
             fileToEndDocIdMap.put(starTreeDocsFileOutput.getName(), numStarTreeDocs);
             IOUtils.close(starTreeDocsFileOutput);
@@ -232,7 +238,6 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
             deleteOldFiles();
             fileToEndDocIdMap.clear();
             fileToEndDocIdMap.put(mergedOutput.getName(), numStarTreeDocs);
-            resetStarTreeDocumentOffsets();
         }
     }
 
@@ -259,17 +264,6 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
         }
     }
 
-    /**
-     * Reset the star tree document offsets based on the merged file
-     */
-    private void resetStarTreeDocumentOffsets() {
-        int curr = 0;
-        for (int i = 0; i < starTreeDocumentOffsets.size(); i++) {
-            starTreeDocumentOffsets.set(i, curr);
-            curr += docSizeInBytes;
-        }
-    }
-
     @Override
     public void close() {
         try {
@@ -288,7 +282,6 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
                 tmpDirectory.deleteFile(file);
             } catch (IOException ignored) {} // similar to IOUtils.deleteFilesIgnoringExceptions
         }
-        starTreeDocumentOffsets.clear();
         fileToEndDocIdMap.clear();
     }
 }

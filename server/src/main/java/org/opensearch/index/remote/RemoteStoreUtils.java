@@ -477,6 +477,7 @@ public class RemoteStoreUtils {
         for (Long pinnedTimestamp : pinnedTimestampSet) {
             String cachedFile = metadataFilePinnedTimestampMap.get(pinnedTimestamp);
             if (cachedFile != null) {
+                assert metadataFiles.contains(cachedFile) : "Metadata files should contain [" + cachedFile + "]";
                 implicitLockedFiles.add(cachedFile);
             } else {
                 newPinnedTimestamps.add(pinnedTimestamp);
@@ -542,8 +543,11 @@ public class RemoteStoreUtils {
         if (RemoteStoreSettings.isPinnedTimestampsEnabled() == false) {
             return new ArrayList<>(metadataFiles);
         }
-        long maximumAllowedTimestamp = lastSuccessfulFetchOfPinnedTimestamps - RemoteStoreSettings.getPinnedTimestampsLookbackInterval()
-            .getMillis();
+        // We allow now() - loopback interval to be pinned. Also, the actual pinning can take at most loopback interval
+        // This means the pinned timestamp can be available for read after at most (2 * loopback interval)
+        long maximumAllowedTimestamp = lastSuccessfulFetchOfPinnedTimestamps - (2 * RemoteStoreSettings
+            .getPinnedTimestampsLookbackInterval()
+            .getMillis());
         List<String> metadataFilesWithMinAge = new ArrayList<>();
         for (String metadataFileName : metadataFiles) {
             long metadataTimestamp = getTimestampFunction.apply(metadataFileName);

@@ -365,6 +365,38 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         List<SnapshotShardFailure> shardFailures,
         Boolean includeGlobalState,
         Map<String, Object> userMetadata,
+        Boolean remoteStoreIndexShallowCopy
+    ) {
+        this(
+            snapshotId,
+            indices,
+            dataStreams,
+            snapshotState(reason, shardFailures),
+            reason,
+            Version.CURRENT,
+            startTime,
+            endTime,
+            totalShards,
+            totalShards - shardFailures.size(),
+            shardFailures,
+            includeGlobalState,
+            userMetadata,
+            remoteStoreIndexShallowCopy,
+            0
+        );
+    }
+
+    public SnapshotInfo(
+        SnapshotId snapshotId,
+        List<String> indices,
+        List<String> dataStreams,
+        long startTime,
+        String reason,
+        long endTime,
+        int totalShards,
+        List<SnapshotShardFailure> shardFailures,
+        Boolean includeGlobalState,
+        Map<String, Object> userMetadata,
         Boolean remoteStoreIndexShallowCopy,
         long pinnedTimestamp
     ) {
@@ -441,7 +473,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             remoteStoreIndexShallowCopy = in.readOptionalBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             pinnedTimestamp = in.readVLong();
         }
     }
@@ -908,7 +940,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalBoolean(remoteStoreIndexShallowCopy);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeVLong(pinnedTimestamp);
         }
     }

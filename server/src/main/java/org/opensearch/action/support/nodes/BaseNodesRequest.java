@@ -73,6 +73,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      * Setting default behavior as `true` but can be explicitly changed in requests that do not require.
      */
     private boolean includeDiscoveryNodes = true;
+
     private final TimeValue DEFAULT_TIMEOUT_SECS = TimeValue.timeValueSeconds(30);
 
     private TimeValue timeout;
@@ -88,9 +89,20 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
         this.nodesIds = nodesIds;
     }
 
+    protected BaseNodesRequest(boolean includeDiscoveryNodes, String... nodesIds) {
+        this.nodesIds = nodesIds;
+        this.includeDiscoveryNodes = includeDiscoveryNodes;
+    }
+
     protected BaseNodesRequest(DiscoveryNode... concreteNodes) {
         this.nodesIds = null;
         this.concreteNodes = concreteNodes;
+    }
+
+    protected BaseNodesRequest(boolean includeDiscoveryNodes, DiscoveryNode... concreteNodes) {
+        this.nodesIds = null;
+        this.concreteNodes = concreteNodes;
+        this.includeDiscoveryNodes = includeDiscoveryNodes;
     }
 
     public final String[] nodesIds() {
@@ -125,10 +137,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
 
     public void setConcreteNodes(DiscoveryNode[] concreteNodes) {
         this.concreteNodes = concreteNodes;
-    }
-
-    public void setIncludeDiscoveryNodes(boolean value) {
-        includeDiscoveryNodes = value;
     }
 
     public boolean getIncludeDiscoveryNodes() {

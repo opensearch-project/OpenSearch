@@ -86,11 +86,13 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.IndexId;
@@ -110,6 +112,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
@@ -118,10 +121,12 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DAT
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
@@ -399,6 +404,13 @@ public class RestoreService implements ClusterStateApplier {
                                     overrideSettingsInternal,
                                     ignoreSettingsInternal
                                 );
+
+                                validateReplicationTypeRestoreSettings(
+                                    snapshot,
+                                    metadata.index(index).getSettings().get(SETTING_REPLICATION_TYPE),
+                                    snapshotIndexMetadata
+                                );
+
                                 if (isRemoteSnapshot) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(snapshotIndexMetadata, snapshot, snapshotIndexId);
                                 }
@@ -427,7 +439,9 @@ public class RestoreService implements ClusterStateApplier {
                                     snapshotIndexId,
                                     isSearchableSnapshot,
                                     isRemoteStoreShallowCopy,
-                                    request.getSourceRemoteStoreRepository()
+                                    request.getSourceRemoteStoreRepository(),
+                                    request.getSourceRemoteTranslogRepository(),
+                                    snapshotInfo.getPinnedTimestamp()
                                 );
                                 final Version minIndexCompatibilityVersion;
                                 if (isSearchableSnapshot && isSearchableSnapshotsExtendedCompatibilityEnabled()) {
@@ -483,9 +497,7 @@ public class RestoreService implements ClusterStateApplier {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();
                                     } else {
-                                        for (final String alias : snapshotIndexMetadata.getAliases().keySet()) {
-                                            aliases.add(alias);
-                                        }
+                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
                                     }
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.build();
                                     if (partial) {
@@ -530,9 +542,7 @@ public class RestoreService implements ClusterStateApplier {
                                             indexMdBuilder.putAlias(alias);
                                         }
                                     } else {
-                                        for (final String alias : snapshotIndexMetadata.getAliases().keySet()) {
-                                            aliases.add(alias);
-                                        }
+                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
                                     }
                                     final Settings.Builder indexSettingsBuilder = Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
@@ -550,7 +560,7 @@ public class RestoreService implements ClusterStateApplier {
                                 for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
                                     if (isRemoteSnapshot) {
                                         IndexShardSnapshotStatus.Copy shardStatus = repository.getShardSnapshotStatus(
-                                            snapshotInfo.snapshotId(),
+                                            snapshotInfo,
                                             snapshotIndexId,
                                             new ShardId(metadata.index(index).getIndex(), shard)
                                         ).asCopy();
@@ -658,6 +668,27 @@ public class RestoreService implements ClusterStateApplier {
                                         + renamedIndex.getKey()
                                         + "] because of conflict with an alias with the same name"
                                 );
+                            }
+                        }
+                    }
+
+                    private void applyAliasesWithRename(
+                        IndexMetadata snapshotIndexMetadata,
+                        IndexMetadata.Builder indexMdBuilder,
+                        Set<String> aliases
+                    ) {
+                        if (request.renameAliasPattern() == null || request.renameAliasReplacement() == null) {
+                            aliases.addAll(snapshotIndexMetadata.getAliases().keySet());
+                        } else {
+                            Pattern renameAliasPattern = Pattern.compile(request.renameAliasPattern());
+                            for (final Map.Entry<String, AliasMetadata> alias : snapshotIndexMetadata.getAliases().entrySet()) {
+                                String currentAliasName = alias.getKey();
+                                indexMdBuilder.removeAlias(currentAliasName);
+                                String newAliasName = renameAliasPattern.matcher(currentAliasName)
+                                    .replaceAll(request.renameAliasReplacement());
+                                AliasMetadata newAlias = AliasMetadata.newAliasMetadata(alias.getValue(), newAliasName);
+                                indexMdBuilder.putAlias(newAlias);
+                                aliases.add(newAliasName);
                             }
                         }
                     }
@@ -1282,6 +1313,32 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
+    // Visible for testing
+    static void validateReplicationTypeRestoreSettings(Snapshot snapshot, String snapshotReplicationType, IndexMetadata updatedMetadata) {
+        int restoreNumberOfSearchReplicas = updatedMetadata.getSettings().getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
+
+        if (restoreNumberOfSearchReplicas > 0
+            && ReplicationType.DOCUMENT.toString().equals(updatedMetadata.getSettings().get(SETTING_REPLICATION_TYPE))) {
+            throw new SnapshotRestoreException(
+                snapshot,
+                "snapshot was created with ["
+                    + SETTING_REPLICATION_TYPE
+                    + "]"
+                    + " as ["
+                    + snapshotReplicationType
+                    + "]."
+                    + " To restore with ["
+                    + SETTING_REPLICATION_TYPE
+                    + "]"
+                    + " as ["
+                    + ReplicationType.DOCUMENT
+                    + "], ["
+                    + SETTING_NUMBER_OF_SEARCH_REPLICAS
+                    + "] must be set to [0]"
+            );
+        }
+    }
+
     public static boolean failed(SnapshotInfo snapshot, String index) {
         for (SnapshotShardFailure failure : snapshot.shardFailures()) {
             if (index.equals(failure.index())) {
@@ -1328,6 +1385,7 @@ public class RestoreService implements ClusterStateApplier {
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey(), snapshot.getSnapshotId().getUUID())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME.getKey(), snapshot.getSnapshotId().getName())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.getKey(), indexId.getId())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_SHARD_PATH_TYPE.getKey(), PathType.fromCode(indexId.getShardPathType()))
             .build();
         return IndexMetadata.builder(metadata).settings(newSettings).build();
     }

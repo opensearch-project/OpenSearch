@@ -60,6 +60,15 @@ public class FakeRestRequest extends RestRequest {
         );
     }
 
+    public FakeRestRequest(Map<String, String> params) {
+        this(
+            NamedXContentRegistry.EMPTY,
+            new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
+            params,
+            new FakeHttpChannel(null)
+        );
+    }
+
     private FakeRestRequest(
         NamedXContentRegistry xContentRegistry,
         HttpRequest httpRequest,

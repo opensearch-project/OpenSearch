@@ -412,7 +412,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         public static long getTimestamp(String filename) {
             String[] filenameTokens = filename.split(SEPARATOR);
-            return RemoteStoreUtils.invertLong(filenameTokens[6]);
+            return RemoteStoreUtils.invertLong(filenameTokens[filenameTokens.length - 2]);
         }
 
         public static Tuple<String, String> getNodeIdByPrimaryTermAndGen(String filename) {
@@ -759,7 +759,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     private String getChecksumOfLocalFile(Directory directory, String file) throws IOException {
-        try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
+        try (IndexInput indexInput = directory.openInput(file, IOContext.READONCE)) {
             return Long.toString(CodecUtil.retrieveChecksum(indexInput));
         }
     }
@@ -854,16 +854,18 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
 
         // Check last fetch status of pinned timestamps. If stale, return.
-        if (RemoteStoreUtils.isPinnedTimestampStateStale()) {
+        if (lastNMetadataFilesToKeep != 0 && RemoteStoreUtils.isPinnedTimestampStateStale()) {
             logger.warn("Skipping remote segment store garbage collection as last fetch of pinned timestamp is stale");
             return;
         }
 
         Tuple<Long, Set<Long>> pinnedTimestampsState = RemoteStorePinnedTimestampService.getPinnedTimestamps();
 
+        Set<Long> pinnedTimestamps = new HashSet<>(pinnedTimestampsState.v2());
+        pinnedTimestamps.add(pinnedTimestampsState.v1());
         Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
             sortedMetadataFileList,
-            pinnedTimestampsState.v2(),
+            pinnedTimestamps,
             metadataFilePinnedTimestampMap,
             MetadataFilenameUtils::getTimestamp,
             MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
@@ -891,6 +893,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             lastSuccessfulFetchOfPinnedTimestamps
         );
 
+        if (metadataFilesEligibleToDelete.isEmpty()) {
+            logger.debug("No metadata files are eligible to be deleted based on lastNMetadataFilesToKeep and age");
+            return;
+        }
+
         List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream()
             .filter(metadataFile -> allLockFiles.contains(metadataFile) == false)
             .collect(Collectors.toList());
@@ -905,7 +912,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         Set<String> activeSegmentRemoteFilenames = new HashSet<>();
 
         final Set<String> metadataFilesToFilterActiveSegments = getMetadataFilesToFilterActiveSegments(
-            lastNMetadataFilesToKeep,
+            sortedMetadataFileList.indexOf(metadataFilesEligibleToDelete.get(0)),
             sortedMetadataFileList,
             allLockFiles
         );
@@ -994,7 +1001,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String remoteStoreRepoForIndex,
         String indexUUID,
         ShardId shardId,
-        RemoteStorePathStrategy pathStrategy
+        RemoteStorePathStrategy pathStrategy,
+        boolean forceClean
     ) {
         try {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
@@ -1003,8 +1011,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 shardId,
                 pathStrategy
             );
-            remoteSegmentStoreDirectory.deleteStaleSegments(0);
-            remoteSegmentStoreDirectory.deleteIfEmpty();
+            if (forceClean) {
+                remoteSegmentStoreDirectory.delete();
+            } else {
+                remoteSegmentStoreDirectory.deleteStaleSegments(0);
+                remoteSegmentStoreDirectory.deleteIfEmpty();
+            }
         } catch (Exception e) {
             staticLogger.error("Exception occurred while deleting directory", e);
         }
@@ -1023,7 +1035,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             logger.info("Remote directory still has files, not deleting the path");
             return false;
         }
+        return delete();
+    }
 
+    private boolean delete() {
         try {
             remoteDataDirectory.delete();
             remoteMetadataDirectory.delete();

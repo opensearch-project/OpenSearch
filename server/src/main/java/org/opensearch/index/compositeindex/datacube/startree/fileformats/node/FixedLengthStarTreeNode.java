@@ -201,7 +201,6 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
         StarTreeNode resultStarTreeNode = null;
         if (null != dimensionValue) {
             resultStarTreeNode = binarySearchChild(dimensionValue);
-            assert null != resultStarTreeNode;
         }
         return resultStarTreeNode;
     }
@@ -250,12 +249,11 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
             low++;
         }
 
-        // if the current node is null node, increment the low to reduce the search space
-        if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, low), StarTreeNodeType.NULL) != null) {
-            low++;
-        }
-
         int high = getInt(LAST_CHILD_ID_OFFSET);
+        // if the current node is null node, decrement the high to reduce the search space
+        if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, high), StarTreeNodeType.NULL) != null) {
+            high--;
+        }
 
         while (low <= high) {
             int mid = low + (high - low) / 2;

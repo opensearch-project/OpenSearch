@@ -25,6 +25,7 @@ import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
@@ -79,11 +80,16 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
     private final AtomicLong successCount = new AtomicLong();
     private final AtomicLong failureCount = new AtomicLong();
 
+    static final String TRANSLOG_REPO_NAME_KEY = Node.NODE_ATTRIBUTES.getKey()
+        + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+    static final String SEGMENT_REPO_NAME_KEY = Node.NODE_ATTRIBUTES.getKey()
+        + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+
     @Before
     public void setup() {
         settings = Settings.builder()
-            .put(RemoteIndexPathUploader.TRANSLOG_REPO_NAME_KEY, TRANSLOG_REPO_NAME)
-            .put(RemoteIndexPathUploader.SEGMENT_REPO_NAME_KEY, TRANSLOG_REPO_NAME)
+            .put(TRANSLOG_REPO_NAME_KEY, TRANSLOG_REPO_NAME)
+            .put(SEGMENT_REPO_NAME_KEY, TRANSLOG_REPO_NAME)
             .put(CLUSTER_STATE_REPO_KEY, TRANSLOG_REPO_NAME)
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .build();
@@ -131,7 +137,8 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             threadPool,
             settings,
             () -> repositoriesService,
-            clusterSettings
+            clusterSettings,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         List<IndexMetadata> indexMetadataList = Mockito.<List>mock(List.class);
         ActionListener<Void> actionListener = ActionListener.wrap(
@@ -149,7 +156,8 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             threadPool,
             settings,
             () -> repositoriesService,
-            clusterSettings
+            clusterSettings,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         remoteIndexPathUploader.start();
         ActionListener<Void> actionListener = ActionListener.wrap(
@@ -166,7 +174,8 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             threadPool,
             settings,
             () -> repositoriesService,
-            clusterSettings
+            clusterSettings,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         remoteIndexPathUploader.start();
         ActionListener<Void> actionListener = ActionListener.wrap(
@@ -228,7 +237,8 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             threadPool,
             settings,
             () -> repositoriesService,
-            clusterSettings
+            clusterSettings,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         remoteIndexPathUploader.start();
         ActionListener<Void> actionListener = ActionListener.wrap(
@@ -242,16 +252,14 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
     }
 
     public void testInterceptWithDifferentRepo() throws IOException {
-        Settings settings = Settings.builder()
-            .put(this.settings)
-            .put(RemoteIndexPathUploader.SEGMENT_REPO_NAME_KEY, SEGMENT_REPO_NAME)
-            .build();
+        Settings settings = Settings.builder().put(this.settings).put(SEGMENT_REPO_NAME_KEY, SEGMENT_REPO_NAME).build();
         when(repositoriesService.repository(SEGMENT_REPO_NAME)).thenReturn(repository);
         RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(
             threadPool,
             settings,
             () -> repositoriesService,
-            clusterSettings
+            clusterSettings,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         remoteIndexPathUploader.start();
         ActionListener<Void> actionListener = ActionListener.wrap(
@@ -271,7 +279,8 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             threadPool,
             settings,
             () -> repositoriesService,
-            clusterSettings
+            clusterSettings,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         remoteIndexPathUploader.start();
 
@@ -302,7 +311,8 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             threadPool,
             settings,
             () -> repositoriesService,
-            clusterSettings
+            clusterSettings,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         remoteIndexPathUploader.start();
         Settings settings = Settings.builder()

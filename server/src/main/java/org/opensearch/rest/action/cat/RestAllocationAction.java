@@ -101,6 +101,7 @@ public class RestAllocationAction extends AbstractCatAction {
                 statsRequest.clear()
                     .addMetric(NodesStatsRequest.Metric.FS.metricName())
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
+                statsRequest.indices().setIncludeIndicesStatsByLevel(true);
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                     @Override

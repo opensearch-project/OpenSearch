@@ -8,8 +8,8 @@
 
 package org.opensearch.plugin.wlm.action;
 
-import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -33,14 +33,14 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-public class CreateQueryGroupRequest extends ActionRequest {
+public class CreateQueryGroupRequest extends ClusterManagerNodeRequest<CreateQueryGroupRequest> {
     private final QueryGroup queryGroup;
 
     /**
      * Constructor for CreateQueryGroupRequest
      * @param queryGroup - A {@link QueryGroup} object
      */
-    public CreateQueryGroupRequest(QueryGroup queryGroup) {
+    CreateQueryGroupRequest(QueryGroup queryGroup) {
         this.queryGroup = queryGroup;
     }
 
@@ -48,7 +48,7 @@ public class CreateQueryGroupRequest extends ActionRequest {
      * Constructor for CreateQueryGroupRequest
      * @param in - A {@link StreamInput} object
      */
-    public CreateQueryGroupRequest(StreamInput in) throws IOException {
+    CreateQueryGroupRequest(StreamInput in) throws IOException {
         super(in);
         queryGroup = new QueryGroup(in);
     }

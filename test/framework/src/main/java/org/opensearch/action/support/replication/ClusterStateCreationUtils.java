@@ -35,6 +35,7 @@ package org.opensearch.action.support.replication;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -62,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
@@ -324,7 +326,18 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
+        return stateWithAssignedPrimariesAndReplicas(indices, numberOfShards, numberOfReplicas, 0);
+    }
 
+    /**
+     * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndReplicas(
+        String[] indices,
+        int numberOfShards,
+        int numberOfReplicas,
+        int numberOfSearchReplicas
+    ) {
         int numberOfDataNodes = numberOfReplicas + 1;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfDataNodes + 1; i++) {
@@ -346,6 +359,7 @@ public class ClusterStateCreationUtils {
                         .put(SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
                         .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                        .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, numberOfSearchReplicas)
                         .put(SETTING_CREATION_DATE, System.currentTimeMillis())
                 )
                 .build();
@@ -362,12 +376,63 @@ public class ClusterStateCreationUtils {
                         TestShardRouting.newShardRouting(index, i, newNode(replica + 1).getId(), null, false, ShardRoutingState.STARTED)
                     );
                 }
+                for (int replica = numberOfReplicas; replica < numberOfSearchReplicas + numberOfReplicas; replica++) {
+                    indexShardRoutingBuilder.addShard(
+                        TestShardRouting.newShardRouting(
+                            new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, i),
+                            newNode(replica + 1).getId(),
+                            null,
+                            false,
+                            true,
+                            ShardRoutingState.STARTED,
+                            null
+                        )
+                    );
+                }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
             }
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
         state.metadata(metadataBuilder);
         state.routingTable(routingTableBuilder.build());
+        return state.build();
+    }
+
+    public static ClusterState stateWithContext(String index, final int numberOfNodes, final int numberOfPrimaries, Context context) {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        Set<String> nodes = new HashSet<>();
+        for (int i = 0; i < numberOfNodes; i++) {
+            final DiscoveryNode node = newNode(i);
+            discoBuilder = discoBuilder.add(node);
+            nodes.add(node.getId());
+        }
+        discoBuilder.localNodeId(newNode(0).getId());
+        discoBuilder.clusterManagerNodeId(randomFrom(nodes));
+        IndexMetadata indexMetadata = IndexMetadata.builder(index)
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaries)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+            )
+            .context(context)
+            .build();
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
+        for (int i = 0; i < numberOfPrimaries; i++) {
+            ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+            indexShardRoutingBuilder.addShard(
+                TestShardRouting.newShardRouting(shardId, randomFrom(nodes), true, ShardRoutingState.STARTED)
+            );
+            indexRoutingTable.addIndexShard(indexShardRoutingBuilder.build());
+        }
+
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
+        state.metadata(Metadata.builder().put(indexMetadata, false).generateClusterUuidIfNeeded());
+        state.routingTable(RoutingTable.builder().add(indexRoutingTable).build());
         return state.build();
     }
 

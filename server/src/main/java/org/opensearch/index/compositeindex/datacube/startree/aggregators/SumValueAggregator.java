@@ -7,7 +7,8 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.mapper.FieldValueConverter;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.metrics.CompensatedSum;
 
 /**
@@ -22,17 +23,17 @@ import org.opensearch.search.aggregations.metrics.CompensatedSum;
  */
 class SumValueAggregator implements ValueAggregator<Double> {
 
-    private final StarTreeNumericType starTreeNumericType;
-    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
+    private final FieldValueConverter fieldValueConverter;
+    private static final FieldValueConverter VALUE_AGGREGATOR_TYPE = NumberFieldMapper.NumberType.DOUBLE;
 
     private CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
-    public SumValueAggregator(StarTreeNumericType starTreeNumericType) {
-        this.starTreeNumericType = starTreeNumericType;
+    public SumValueAggregator(FieldValueConverter fieldValueConverter) {
+        this.fieldValueConverter = fieldValueConverter;
     }
 
     @Override
-    public StarTreeNumericType getAggregatedValueType() {
+    public FieldValueConverter getAggregatedValueType() {
         return VALUE_AGGREGATOR_TYPE;
     }
 
@@ -41,7 +42,7 @@ class SumValueAggregator implements ValueAggregator<Double> {
         kahanSummation.reset(0, 0);
         // add takes care of the sum and compensation internally
         if (segmentDocValue != null) {
-            kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
+            kahanSummation.add(fieldValueConverter.toDoubleValue(segmentDocValue));
         } else {
             kahanSummation.add(getIdentityMetricValue());
         }
@@ -55,7 +56,7 @@ class SumValueAggregator implements ValueAggregator<Double> {
         assert value == null || kahanSummation.value() == value;
         // add takes care of the sum and compensation internally
         if (segmentDocValue != null) {
-            kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
+            kahanSummation.add(fieldValueConverter.toDoubleValue(segmentDocValue));
         } else {
             kahanSummation.add(getIdentityMetricValue());
         }
@@ -92,7 +93,7 @@ class SumValueAggregator implements ValueAggregator<Double> {
             if (value == null) {
                 return getIdentityMetricValue();
             }
-            return VALUE_AGGREGATOR_TYPE.getDoubleValue(value);
+            return VALUE_AGGREGATOR_TYPE.toDoubleValue(value);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }

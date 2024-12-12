@@ -33,6 +33,7 @@ package org.opensearch.snapshots;
 
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
@@ -61,11 +62,13 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.compress.CompressorRegistry;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.plugins.Plugin;
@@ -104,7 +107,6 @@ import java.util.function.Predicate;
 
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -382,16 +384,6 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
-    protected void createRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
-    }
-
-    protected void updateRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> updating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
-    }
-
     protected void createRepository(String repoName, String type, Path location) {
         createRepository(repoName, type, Settings.builder().put("location", location));
     }
@@ -516,6 +508,26 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         return snapshotInfo;
     }
 
+    protected void restoreSnapshot(
+        String repositoryName,
+        String snapshotName,
+        String indexName,
+        String restoredIndexName,
+        Settings indexSettings
+    ) {
+        logger.info("--> restoring snapshot [{}] of {} in [{}] to [{}]", snapshotName, indexName, repositoryName, restoredIndexName);
+        RestoreSnapshotRequestBuilder builder = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repositoryName, snapshotName)
+            .setWaitForCompletion(false)
+            .setRenamePattern(indexName)
+            .setRenameReplacement(restoredIndexName);
+        if (indexSettings != null) {
+            builder.setIndexSettings(indexSettings);
+        }
+        assertEquals(builder.get().status(), RestStatus.ACCEPTED);
+    }
+
     protected void createIndexWithRandomDocs(String indexName, int docCount) throws InterruptedException {
         createIndex(indexName);
         ensureGreen();
@@ -564,13 +576,15 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName) throws IOException {
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepositoryName);
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         BlobPath shardLevelBlobPath = getShardLevelBlobPath(
             client(),
             remoteStoreIndex,
             remoteStoreRepository.basePath(),
             "0",
             SEGMENTS,
-            LOCK_FILES
+            LOCK_FILES,
+            segmentsPathFixedPrefix
         );
         BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
         try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
@@ -671,6 +685,16 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             }, statePredicate);
             future.get(30L, TimeUnit.SECONDS);
         }
+    }
+
+    protected ActionFuture<AcknowledgedResponse> deleteSnapshotBlockedOnClusterManager(String repoName, String snapshotName) {
+        blockClusterManagerFromDeletingIndexNFile(repoName);
+        return deleteSnapshot(repoName, snapshotName);
+    }
+
+    protected ActionFuture<AcknowledgedResponse> deleteSnapshot(String repoName, String snapshotName) {
+        logger.info("--> Deleting snapshot [{}] to repo [{}]", snapshotName, repoName);
+        return clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 
     protected ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName, String dataNode)
