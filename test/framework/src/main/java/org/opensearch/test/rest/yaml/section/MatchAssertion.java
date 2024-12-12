@@ -40,6 +40,7 @@ import org.opensearch.test.NotEqualMessageBuilder;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -110,6 +111,25 @@ public class MatchAssertion extends Assertion {
         }
 
         if (expectedValue.equals(actualValue) == false) {
+            if (expectedValue instanceof ArrayList
+                && actualValue instanceof ArrayList
+                && ((ArrayList<?>) expectedValue).get(0) instanceof Number) {
+                ArrayList expectedList = (ArrayList) expectedValue;
+                ArrayList actualList = (ArrayList) actualValue;
+                if (expectedList.size() == 1
+                    && actualList.size() == 1
+                    && expectedList.get(0) instanceof Number
+                    && actualList.get(0) instanceof Number) {
+                    // BigInteger 1 is equal to Integer 1
+                    assertThat(
+                        "field [" + getField() + "] doesn't match the expected value",
+                        ((Number) actualList.get(0)).longValue(),
+                        equalTo(((Number) expectedList.get(0)).longValue())
+                    );
+                    return;
+                }
+            }
+
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compare(getField(), true, actualValue, expectedValue);
             throw new AssertionError(getField() + " didn't match expected value:\n" + message);
