@@ -111,22 +111,25 @@ public class MatchAssertion extends Assertion {
         }
 
         if (expectedValue.equals(actualValue) == false) {
-            if (expectedValue instanceof ArrayList
-                && actualValue instanceof ArrayList
-                && ((ArrayList<?>) expectedValue).get(0) instanceof Number) {
-                ArrayList expectedList = (ArrayList) expectedValue;
-                ArrayList actualList = (ArrayList) actualValue;
-                if (expectedList.size() == 1
-                    && actualList.size() == 1
-                    && expectedList.get(0) instanceof Number
-                    && actualList.get(0) instanceof Number) {
-                    // BigInteger 1 is equal to Integer 1
-                    assertThat(
-                        "field [" + getField() + "] doesn't match the expected value",
-                        ((Number) actualList.get(0)).longValue(),
-                        equalTo(((Number) expectedList.get(0)).longValue())
-                    );
-                    return;
+            if (expectedValue instanceof ArrayList && actualValue instanceof ArrayList) {
+                ArrayList<?> expectedList = (ArrayList<?>) expectedValue;
+                ArrayList<?> actualList = (ArrayList<?>) actualValue;
+                if (expectedList.size() == actualList.size()) {
+                    boolean pass = true;
+                    for (int i = 0; i < expectedList.size(); i++) {
+                        // BigInteger 1 is equal to Integer 1
+                        Object expected = expectedList.get(i);
+                        Object actual = actualList.get(i);
+                        if (expected instanceof Number == false
+                            || actual instanceof Number == false
+                            || ((Number) expected).longValue() != ((Number) actual).longValue()) {
+                            pass = false;
+                            break;
+                        }
+                    }
+                    if (pass) {
+                        return;
+                    }
                 }
             }
 
