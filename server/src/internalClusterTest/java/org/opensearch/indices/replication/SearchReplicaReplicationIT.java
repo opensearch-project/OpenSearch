@@ -61,7 +61,7 @@ public class SearchReplicaReplicationIT extends SegmentReplicationBaseIT {
     public Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
             .build();

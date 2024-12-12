@@ -64,7 +64,6 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         this.currentReplicationTimeMillis = in.readVLong();
         this.lastCompletedReplicationTimeMillis = in.readVLong();
         this.currentReplicationLagMillis = in.readVLong();
-        this.currentReplicationState = in.readOptionalWriteable(SegmentReplicationState::new);
     }
 
     public String getAllocationId() {
