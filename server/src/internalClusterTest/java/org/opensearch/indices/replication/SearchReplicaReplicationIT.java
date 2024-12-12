@@ -33,7 +33,7 @@ public class SearchReplicaReplicationIT extends SegmentReplicationBaseIT {
 
     @Before
     public void randomizeRemoteStoreEnabled() {
-        useRemoteStore = true;
+        useRemoteStore = randomBoolean();
     }
 
     @Override

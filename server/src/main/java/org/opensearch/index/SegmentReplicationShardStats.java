@@ -135,7 +135,6 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         out.writeVLong(currentReplicationTimeMillis);
         out.writeVLong(lastCompletedReplicationTimeMillis);
         out.writeVLong(currentReplicationLagMillis);
-        out.writeOptionalWriteable(currentReplicationState);
     }
 
     @Override
