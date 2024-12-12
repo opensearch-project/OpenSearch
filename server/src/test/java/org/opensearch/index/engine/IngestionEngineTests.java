@@ -23,6 +23,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.ingest.KafkaUtils;
+import org.opensearch.indices.ingest.StreamPoller;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 import org.testcontainers.containers.KafkaContainer;
@@ -30,12 +31,17 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
+/**
+ * To run this test in IDE, need to add TESTCONTAINERS_RYUK_DISABLED=true in Environment Variables
+ * and -Djava.security.manager=allow to VM options
+ */
 public class IngestionEngineTests extends EngineTestCase {
     static final String topicName = "test";
 
@@ -49,6 +55,7 @@ public class IngestionEngineTests extends EngineTestCase {
     @Override
     @Before
     public void setUp() throws Exception {
+        System.setProperty("TESTCONTAINERS_RYUK_DISABLED", "true");
         kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.2.1"));
         kafka.start();
         bootstrapServers = kafka.getBootstrapServers();
@@ -82,6 +89,7 @@ public class IngestionEngineTests extends EngineTestCase {
         super.tearDown();
         if (kafka != null) {
             kafka.stop();
+            kafka = null;
         }
     }
 
@@ -109,6 +117,12 @@ public class IngestionEngineTests extends EngineTestCase {
                 () -> {
                     Assert.assertTrue(resultsFound(ingestionEngine));
                 });
+        // flush
+        ingestionEngine.flush(false, true);
+        Map<String, String> commitData = ingestionEngine.commitDataAsMap();
+        Assert.assertEquals(2, commitData.size());
+        Assert.assertEquals("3", commitData.get(StreamPoller.BATCH_START));
+        Assert.assertEquals("3", commitData.get(StreamPoller.BATCH_END));
     }
 
     private IngestionEngine buildIngestionEngine(AtomicLong globalCheckpoint, Store store, IndexSettings settings) throws IOException {

@@ -14,18 +14,18 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.*;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
-import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.seqno.SeqNoStats;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
@@ -37,11 +37,10 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
@@ -51,9 +50,18 @@ public class IngestionEngine extends Engine {
     private volatile SegmentInfos lastCommittedSegmentInfos;
     private final CompletionStatsCache completionStatsCache;
     private final IndexWriter indexWriter;
+    private final OpenSearchReaderManager internalReaderManager;
     private final ExternalReaderManager externalReaderManager;
-    private final SoftDeletesPolicy softDeletesPolicy;
+    private final Lock flushLock = new ReentrantLock();
+    private final ReentrantLock optimizeLock = new ReentrantLock();
+
     protected StreamPoller streamPoller;
+
+    /**
+     * UUID value that is updated every time the engine is force merged.
+     */
+    @Nullable
+    private volatile String forceMergeUUID;
 
 
     public IngestionEngine(EngineConfig engineConfig) {
@@ -64,13 +72,13 @@ public class IngestionEngine extends Engine {
         try {
             this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
-            this.softDeletesPolicy = newSoftDeletesPolicy();
             IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
             assert indexMetadata != null;
             IngestionSourceConfig ingestionSourceConfig = indexMetadata.getIngestionSourceConfig();
             assert ingestionSourceConfig != null;
             indexWriter = createWriter();
             externalReaderManager = createReaderManager(new InternalEngine.RefreshWarmerListener(logger, isClosed, engineConfig));
+            internalReaderManager = externalReaderManager.internalReaderManager;
 
             // todo: get IngestionConsumerFactory from the config
             KafkaConsumerFactory kafkaConsumerFactory = new KafkaConsumerFactory();
@@ -97,22 +105,6 @@ public class IngestionEngine extends Engine {
                 }
             }
         }
-    }
-
-    private SoftDeletesPolicy newSoftDeletesPolicy() throws IOException {
-        final Map<String, String> commitUserData = store.readLastCommittedSegmentsInfo().userData;
-        final long lastMinRetainedSeqNo;
-        if (commitUserData.containsKey(Engine.MIN_RETAINED_SEQNO)) {
-            lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(Engine.MIN_RETAINED_SEQNO));
-        } else {
-            lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
-        }
-        return new SoftDeletesPolicy(
-            () -> 0L,
-            lastMinRetainedSeqNo,
-            engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
-            engineConfig.retentionLeasesSupplier()
-        );
     }
 
     private IndexWriter createWriter() throws IOException {
@@ -227,17 +219,6 @@ public class IngestionEngine extends Engine {
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         // set merge scheduler
         MergePolicy mergePolicy = config().getMergePolicy();
-        // always configure soft-deletes field so an engine with soft-deletes disabled can open a Lucene index with soft-deletes.
-        iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
-        mergePolicy = new RecoverySourcePruneMergePolicy(
-            SourceFieldMapper.RECOVERY_SOURCE_NAME,
-            softDeletesPolicy::getRetentionQuery,
-            new SoftDeletesRetentionMergePolicy(
-                Lucene.SOFT_DELETES_FIELD,
-                softDeletesPolicy::getRetentionQuery,
-                new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
-            )
-        );
         boolean shuffleForcedMerge = Booleans.parseBoolean(System.getProperty("opensearch.shuffle_forced_merge", Boolean.TRUE.toString()));
         if (shuffleForcedMerge) {
             // We wrap the merge policy for all indices even though it is mostly useful for time-based indices
@@ -438,8 +419,6 @@ public class IngestionEngine extends Engine {
             if (store.tryIncRef()) {
                 // increment the ref just to ensure nobody closes the store during a refresh
                 try {
-                    // TODO: is this needed?
-//                    indexWriter.flush();
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
                     // the second refresh will only do the extra work we have to do for warming caches etc.
                     ReferenceManager<OpenSearchDirectoryReader> referenceManager = getReferenceManager(scope);
@@ -477,12 +456,12 @@ public class IngestionEngine extends Engine {
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
-        return false;
+        return refresh(source, SearcherScope.EXTERNAL, false);
     }
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
-
+        refresh("write indexing buffer", SearcherScope.INTERNAL, false);
     }
 
     @Override
@@ -492,16 +471,207 @@ public class IngestionEngine extends Engine {
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        ensureOpen();
+        if (force && waitIfOngoing == false) {
+            assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
+            throw new IllegalArgumentException(
+                "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing
+            );
+        }
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            if (flushLock.tryLock() == false) {
+                // if we can't get the lock right away we block if needed otherwise barf
+                if (waitIfOngoing == false) {
+                    return;
+                }
+                logger.trace("waiting for in-flight flush to finish");
+                flushLock.lock();
+                logger.trace("acquired flush lock after blocking");
+            } else {
+                logger.trace("acquired flush lock immediately");
+            }
+            try {
+                // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller,
+                //
+                // do we need to consider #3 and #4 as in InternalEngine?
+                // (3) the newly created commit points to a different translog generation (can free translog),
+                // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
+                boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
+                if(hasUncommittedChanges || force) {
+                    logger.trace("starting commit for flush;");
 
+                    // TODO: do we need to close the latest commit as done in InternalEngine?
+                    commitIndexWriter(indexWriter);
+
+                    logger.trace("finished commit for flush");
+
+                    // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
+                    logger.debug(
+                        "new commit on flush, hasUncommittedChanges:{}, force:{}",
+                        hasUncommittedChanges, force);
+
+                    // we need to refresh in order to clear older version values
+                    refresh("version_table_flush", SearcherScope.INTERNAL, true);
+                }
+            } catch (FlushFailedEngineException ex) {
+                maybeFailEngine("flush", ex);
+                throw ex;
+            } catch (IOException e) {
+                throw new FlushFailedEngineException(shardId, e);
+            } finally {
+                flushLock.unlock();
+            }
+        }
+    }
+
+    /**
+     * Commits the specified index writer.
+     *
+     * @param writer   the index writer to commit
+     */
+    protected void commitIndexWriter(final IndexWriter writer) throws IOException {
+        try {
+            writer.setLiveCommitData(() -> {
+                /*
+                 * The user data captured the min and max range of the stream poller
+                 */
+                final Map<String, String> commitData = new HashMap<>(3);
+
+                commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer());
+                commitData.put(StreamPoller.BATCH_END, streamPoller.getBatchEndPointer());
+
+                // TODO: do we need forceMergeUUID?
+                final String currentForceMergeUUID = forceMergeUUID;
+                if (currentForceMergeUUID != null) {
+                    commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
+                }
+                logger.trace("committing writer with commit data [{}]", commitData);
+                return commitData.entrySet().iterator();
+            });
+            writer.commit();
+        } catch (final Exception ex) {
+            try {
+                failEngine("lucene commit failed", ex);
+            } catch (final Exception inner) {
+                ex.addSuppressed(inner);
+            }
+            throw ex;
+        } catch (final AssertionError e) {
+            /*
+             * If assertions are enabled, IndexWriter throws AssertionError on commit if any files don't exist, but tests that randomly
+             * throw FileNotFoundException or NoSuchFileException can also hit this.
+             */
+            if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+                final EngineException engineException = new EngineException(shardId, "failed to commit engine", e);
+                try {
+                    failEngine("lucene commit failed", engineException);
+                } catch (final Exception inner) {
+                    engineException.addSuppressed(inner);
+                }
+                throw engineException;
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    protected Map<String, String> commitDataAsMap() {
+        return commitDataAsMap(indexWriter);
+    }
+
+    /**
+     * Gets the commit data from {@link IndexWriter} as a map.
+     */
+    protected static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
+        final Map<String, String> commitData = new HashMap<>(8);
+        for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
+            commitData.put(entry.getKey(), entry.getValue());
+        }
+        return commitData;
     }
 
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) throws EngineException, IOException {
-
+        /*
+         * We do NOT acquire the readlock here since we are waiting on the merges to finish
+         * that's fine since the IW.rollback should stop all the threads and trigger an IOException
+         * causing us to fail the forceMerge
+         *
+         * The way we implement upgrades is a bit hackish in the sense that we set an instance
+         * variable and that this setting will thus apply to the next forced merge that will be run.
+         * This is ok because (1) this is the only place we call forceMerge, (2) we have a single
+         * thread for optimize, and the 'optimizeLock' guarding this code, and (3) ConcurrentMergeScheduler
+         * syncs calls to findForcedMerges.
+         */
+        assert indexWriter.getConfig().getMergePolicy() instanceof OpenSearchMergePolicy : "MergePolicy is "
+            + indexWriter.getConfig().getMergePolicy().getClass().getName();
+        OpenSearchMergePolicy mp = (OpenSearchMergePolicy) indexWriter.getConfig().getMergePolicy();
+        optimizeLock.lock();
+        try {
+            ensureOpen();
+            if (upgrade) {
+                logger.info("starting segment upgrade upgradeOnlyAncientSegments={}", upgradeOnlyAncientSegments);
+                mp.setUpgradeInProgress(true, upgradeOnlyAncientSegments);
+            }
+            store.incRef(); // increment the ref just to ensure nobody closes the store while we optimize
+            try {
+                if (onlyExpungeDeletes) {
+                    assert upgrade == false;
+                    indexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
+                } else if (maxNumSegments <= 0) {
+                    assert upgrade == false;
+                    indexWriter.maybeMerge();
+                } else {
+                    indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
+                    this.forceMergeUUID = forceMergeUUID;
+                }
+                if (flush) {
+                    flush(false, true);
+                }
+                if (upgrade) {
+                    logger.info("finished segment upgrade");
+                }
+            } finally {
+                store.decRef();
+            }
+        } catch (AlreadyClosedException ex) {
+            /* in this case we first check if the engine is still open. If so this exception is just fine
+             * and expected. We don't hold any locks while we block on forceMerge otherwise it would block
+             * closing the engine as well. If we are not closed we pass it on to failOnTragicEvent which ensures
+             * we are handling a tragic even exception here */
+            ensureOpen(ex);
+            failOnTragicEvent(ex);
+            throw ex;
+        } catch (Exception e) {
+            try {
+                maybeFailEngine(FORCE_MERGE, e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        } finally {
+            try {
+                // reset it just to make sure we reset it in a case of an error
+                mp.setUpgradeInProgress(false, false);
+            } finally {
+                optimizeLock.unlock();
+            }
+        }
     }
 
     @Override
     public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
+        // TODO: do we need this?
+
+//        if (flushFirst) {
+//            logger.trace("start flush for snapshot");
+//            flush(false, true);
+//            logger.trace("finish flush for snapshot");
+//        }
+//        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+//        return new GatedCloseable<>(lastCommit, () -> releaseIndexCommit(lastCommit));
+
         return null;
     }
 
@@ -522,7 +692,7 @@ public class IngestionEngine extends Engine {
                 : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 try {
-                    IOUtils.close(externalReaderManager);
+                    IOUtils.close(externalReaderManager, internalReaderManager);
                 } catch (Exception e) {
                     logger.warn("Failed to close ReaderManager", e);
                 }
@@ -575,37 +745,39 @@ public class IngestionEngine extends Engine {
 
     @Override
     public void activateThrottling() {
-
+        // TODO: is this needed?
     }
 
     @Override
     public void deactivateThrottling() {
-
+        // TODO: is this needed?
     }
 
     @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
+        // TODO: is this needed?
         return 0;
     }
 
     @Override
     public void maybePruneDeletes() {
-
+        // TODO: is this needed?
     }
 
     @Override
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
-
+        // TODO: is this needed?
     }
 
     @Override
     public long getMaxSeqNoOfUpdatesOrDeletes() {
+        // TODO: is this needed?
         return 0;
     }
 
     @Override
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
-
+        // TODO: is this needed?
     }
 
     @Override
