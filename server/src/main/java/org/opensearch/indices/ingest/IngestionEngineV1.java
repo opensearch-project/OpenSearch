@@ -48,10 +48,4 @@ public class IngestionEngineV1 extends InternalEngine {
         }
         super.close();
     }
-
-    @Override
-    protected IngestionShardPointer getPointer() {
-        return streamPoller.getCurrentPointer();
-    }
-
 }

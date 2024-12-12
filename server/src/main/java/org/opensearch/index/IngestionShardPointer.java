@@ -14,4 +14,7 @@ public interface IngestionShardPointer  {
 
     IngestionShardPointer deserialize(byte[] serialized);
 
+    String asString();
+
+    IngestionShardPointer fromString(String pointer);
 }

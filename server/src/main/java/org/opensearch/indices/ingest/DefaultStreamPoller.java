@@ -42,7 +42,14 @@ public class DefaultStreamPoller implements StreamPoller {
 
     private DocumentProcessor processor;
 
-    private IngestionShardPointer nextPointer;
+    // start of the batch, inclusive
+    private IngestionShardPointer batchStartPointer;
+
+    // end of the batch, exclusive
+    private IngestionShardPointer batchEndPointer;
+
+    // batch end pointer restored from the last checkpoint
+    private IngestionShardPointer restoredBatchEndPointer;
 
     // todo: find the default value
     private IngestionShardPointer currentPointer;
@@ -50,7 +57,8 @@ public class DefaultStreamPoller implements StreamPoller {
     public DefaultStreamPoller(IngestionShardPointer startPointer, IngestionShardConsumer consumer, DocumentProcessor processor) {
         this.consumer = consumer;
         this.processor = processor;
-        nextPointer = startPointer;
+        batchStartPointer = startPointer;
+        batchEndPointer = startPointer;
         this.consumerThread =
             Executors.newSingleThreadExecutor(
                 r ->
@@ -96,22 +104,25 @@ public class DefaultStreamPoller implements StreamPoller {
                 state = State.POLLING;
 
                 List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results
-                    = consumer.readNext(nextPointer, MAX_POLL_SIZE, POLL_TIMEOUT);
+                    = consumer.readNext(batchStartPointer, MAX_POLL_SIZE, POLL_TIMEOUT);
+
                 if(results.isEmpty()) {
                     // no new records
+                    batchEndPointer = batchStartPointer;
                     continue;
+                } else {
+                    batchEndPointer = consumer.nextPointer();
                 }
                 state = State.PROCESSING;
                 // process the records
                 // TODO: consider a separate thread to decoupling the polling and processing
                 for (IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> result : results) {
-                    nextPointer = result.getPointer();
                     processor.accept(result.getMessage());
                     currentPointer = result.getPointer();
                 }
 
                 // move pointer to read next
-                nextPointer = consumer.nextPointer();
+                batchStartPointer = batchEndPointer;
             }  catch (Throwable e) {
                 // TODO better error handling
                 logger.error("Error in polling the shard {}", consumer.getShardId(), e);
@@ -154,6 +165,12 @@ public class DefaultStreamPoller implements StreamPoller {
     }
 
     @Override
+    public void resetPointer(IngestionShardPointer batchStartPointer, IngestionShardPointer batchEndPointer) {
+        this.batchStartPointer = batchStartPointer;
+        this.restoredBatchEndPointer = batchEndPointer;
+    }
+
+    @Override
     public void resetPointer() {
         throw new UnsupportedOperationException("reset pointer is not supported");
     }
@@ -166,6 +183,16 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public boolean isClosed() {
         return closed;
+    }
+
+    @Override
+    public String getBatchStartPointer() {
+        return batchStartPointer.asString();
+    }
+
+    @Override
+    public String getBatchEndPointer() {
+        return batchEndPointer.asString();
     }
 
     public State getState() {
