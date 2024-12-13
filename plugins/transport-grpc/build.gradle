@@ -8,8 +8,6 @@ import org.gradle.api.attributes.java.TargetJvmEnvironment
  * compatible open source license.
  */
 
-apply plugin: 'opensearch.internal-cluster-test'
-
 opensearchplugin {
   description 'gRPC based transport implementation'
   classname 'org.opensearch.transport.grpc.GrpcModulePlugin'
