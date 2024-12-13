@@ -21,6 +21,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryException;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -183,6 +184,20 @@ public class RemoteStoreNodeService {
                 boolean repositoryAlreadyPresent = false;
                 for (RepositoryMetadata existingRepositoryMetadata : existingRepositories.repositories()) {
                     if (newRepositoryMetadata.name().equals(existingRepositoryMetadata.name())) {
+                        try {
+                            // This is to handle cases where-in the during a previous node-join attempt if the publish operation succeeded
+                            // but the commit operation failed, the cluster-state may have the repository metadata which is not applied
+                            // into the repository service. This may lead to assertion failures down the line.
+                            repositoriesService.get().repository(newRepositoryMetadata.name());
+                        } catch (RepositoryMissingException e) {
+                            logger.warn(
+                                "Skipping repositories metadata checks: Remote repository [{}] is in the cluster state but not present "
+                                    + "in the repository service.",
+                                newRepositoryMetadata.name()
+                            );
+                            break;
+                        }
+
                         try {
                             // This will help in handling two scenarios -
                             // 1. When a fresh cluster is formed and a node tries to join the cluster, the repository
