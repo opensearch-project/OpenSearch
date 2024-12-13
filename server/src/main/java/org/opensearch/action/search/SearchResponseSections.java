@@ -66,6 +66,7 @@ import java.util.Objects;
 public class SearchResponseSections implements ToXContentFragment {
 
     public static final ParseField EXT_FIELD = new ParseField("ext");
+    public static final ParseField PROCESSOR_RESULT_FIELD = new ParseField("processor_results");
     protected final SearchHits hits;
     protected final Aggregations aggregations;
     protected final Suggest suggest;
@@ -181,7 +182,7 @@ public class SearchResponseSections implements ToXContentFragment {
         }
 
         if (!processorResult.isEmpty()) {
-            builder.field("processor_result", processorResult);
+            builder.field(PROCESSOR_RESULT_FIELD.getPreferredName(), processorResult);
         }
         return builder;
     }
