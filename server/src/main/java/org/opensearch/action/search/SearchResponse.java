@@ -74,6 +74,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.opensearch.action.search.SearchResponseSections.EXT_FIELD;
+import static org.opensearch.action.search.SearchResponseSections.PROCESSOR_RESULT_FIELD;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -518,6 +519,11 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                             }
                             extBuilders.add(searchExtBuilder);
                         }
+                    }
+                } else if (PROCESSOR_RESULT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                        ProcessorExecutionDetail detail = ProcessorExecutionDetail.fromXContent(parser);
+                        processorResult.add(detail);
                     }
                 } else {
                     parser.skipChildren();
