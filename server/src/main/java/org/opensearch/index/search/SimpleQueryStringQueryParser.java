@@ -49,13 +49,11 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SimpleQueryStringBuilder;
-import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -161,7 +159,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                     settings.fuzzyPrefixLength,
                     settings.fuzzyMaxExpansions,
                     settings.fuzzyTranspositions,
-                    QueryParsers.parseRewriteMethod(null, LoggingDeprecationHandler.INSTANCE),
+                    null,
                     context
                 );
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));

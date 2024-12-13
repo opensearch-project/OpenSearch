@@ -269,7 +269,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
         );
 
-        Query indexExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true);
+        Query indexExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
         assertEquals(
             indexExpected,

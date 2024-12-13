@@ -148,7 +148,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     public void testFuzzyQuery() {
         MappedFieldType ft = createFieldType(true);
         assertEquals(
-            new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true),
+            new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, CONSTANT_SCORE_BLENDED_REWRITE),
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC)
         );
 
@@ -223,7 +223,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         expected = new ConstantScoreQuery(
             new BooleanQuery.Builder().add(
-                new AutomatonQuery(new Term("field._index_prefix", "g*"), automaton, false, CONSTANT_SCORE_REWRITE),
+                new AutomatonQuery(new Term("field._index_prefix", "g*"), automaton, false, CONSTANT_SCORE_BLENDED_REWRITE),
                 BooleanClause.Occur.SHOULD
             ).add(new TermQuery(new Term("field", "g")), BooleanClause.Occur.SHOULD).build()
         );
