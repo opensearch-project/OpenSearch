@@ -27,6 +27,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.ReadAdvice;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
@@ -64,7 +65,6 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
 
     private final DocValuesProducer delegate;
     private IndexInput dataIn;
-    private ChecksumIndexInput metaIn;
     private final Map<String, IndexInput> compositeIndexInputMap = new LinkedHashMap<>();
     private final Map<String, CompositeIndexMetadata> compositeIndexMetadataMap = new LinkedHashMap<>();
     private final List<String> fields;
@@ -89,10 +89,10 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
         );
 
         boolean success = false;
-        try {
+        try (ChecksumIndexInput metaIn = readState.directory.openChecksumInput(metaFileName)) {
 
-            // initialize meta input
-            dataIn = readState.directory.openInput(dataFileName, readState.context);
+            // initialize data input
+            dataIn = readState.directory.openInput(dataFileName, readState.context.withReadAdvice(ReadAdvice.NORMAL));
             CodecUtil.checkIndexHeader(
                 dataIn,
                 Composite912DocValuesFormat.DATA_CODEC_NAME,
@@ -102,8 +102,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                 readState.segmentSuffix
             );
 
-            // initialize data input
-            metaIn = readState.directory.openChecksumInput(metaFileName);
+            // initialize meta input
             Throwable priorE = null;
             try {
                 CodecUtil.checkIndexHeader(
@@ -259,17 +258,16 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
         delegate.close();
         boolean success = false;
         try {
-            IOUtils.close(metaIn, dataIn);
+            IOUtils.close(dataIn);
             IOUtils.close(compositeDocValuesProducer);
             success = true;
         } finally {
             if (!success) {
-                IOUtils.closeWhileHandlingException(metaIn, dataIn);
+                IOUtils.closeWhileHandlingException(dataIn);
             }
             compositeIndexInputMap.clear();
             compositeIndexMetadataMap.clear();
             fields.clear();
-            metaIn = null;
             dataIn = null;
         }
     }
