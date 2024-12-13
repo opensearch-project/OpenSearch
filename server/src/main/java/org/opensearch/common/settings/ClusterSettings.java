@@ -276,6 +276,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BalancedShardsAllocator.THRESHOLD_SETTING,
                 BalancedShardsAllocator.IGNORE_THROTTLE_FOR_REMOTE_RESTORE,
                 BalancedShardsAllocator.ALLOCATOR_TIMEOUT_SETTING,
+                BalancedShardsAllocator.PRIMARY_CONSTRAINT_THRESHOLD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_TYPE,
@@ -518,6 +519,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING,
+                IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING,
                 HunspellService.HUNSPELL_LAZY_LOAD,
                 HunspellService.HUNSPELL_IGNORE_CASE,
                 HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
@@ -784,6 +786,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Snapshot related Settings
                 BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING,
                 BlobStoreRepository.SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING,
+                BlobStoreRepository.SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD,
 
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
 
@@ -805,7 +808,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Settings to be used for limiting rest requests
                 ResponseLimitSettings.CAT_INDICES_RESPONSE_LIMIT_SETTING,
                 ResponseLimitSettings.CAT_SHARDS_RESPONSE_LIMIT_SETTING,
-                ResponseLimitSettings.CAT_SEGMENTS_RESPONSE_LIMIT_SETTING
+                ResponseLimitSettings.CAT_SEGMENTS_RESPONSE_LIMIT_SETTING,
+
+                // Thread pool Settings
+                ThreadPool.CLUSTER_THREAD_POOL_SIZE_SETTING
             )
         )
     );

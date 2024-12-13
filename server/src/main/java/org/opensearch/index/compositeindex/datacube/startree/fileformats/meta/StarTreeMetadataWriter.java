@@ -10,6 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.fileformats.meta;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
@@ -130,8 +131,9 @@ public class StarTreeMetadataWriter {
         metaOut.writeVInt(starTreeField.getDimensionNames().size());
 
         // dimensions
-        for (String dim : starTreeField.getDimensionNames()) {
-            metaOut.writeString(dim);
+        for (int i = 0; i < starTreeField.getDimensionNames().size(); i++) {
+            metaOut.writeString(starTreeField.getDimensionNames().get(i));
+            metaOut.writeByte(docValuesByte(starTreeField.getDimensionDocValueTypes().get(i)));
         }
 
         // number of metrics
@@ -170,5 +172,25 @@ public class StarTreeMetadataWriter {
         // star-tree data file length
         metaOut.writeVLong(dataFileLength);
 
+    }
+
+    private static byte docValuesByte(DocValuesType type) {
+        switch (type) {
+            case NONE:
+                return 0;
+            case NUMERIC:
+                return 1;
+            case BINARY:
+                return 2;
+            case SORTED:
+                return 3;
+            case SORTED_SET:
+                return 4;
+            case SORTED_NUMERIC:
+                return 5;
+            default:
+                // BUG
+                throw new AssertionError("unhandled DocValuesType: " + type);
+        }
     }
 }

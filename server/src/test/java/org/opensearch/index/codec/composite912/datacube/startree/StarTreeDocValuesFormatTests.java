@@ -8,107 +8,47 @@
 
 package org.opensearch.index.codec.composite912.datacube.startree;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.opensearch.Version;
-import org.opensearch.cluster.ClusterModule;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MapperTestUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.composite912.Composite912Codec;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
-import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
-import org.opensearch.indices.IndicesModule;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
+import static org.opensearch.index.compositeindex.CompositeIndexConstants.STAR_TREE_DOCS_COUNT;
 import static org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils.assertStarTreeDocuments;
 
 /**
  * Star tree doc values Lucene tests
  */
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
-    MapperService mapperService = null;
-    StarTreeFieldConfiguration.StarTreeBuildMode buildMode;
+public class StarTreeDocValuesFormatTests extends AbstractStarTreeDVFormatTests {
 
     public StarTreeDocValuesFormatTests(StarTreeFieldConfiguration.StarTreeBuildMode buildMode) {
-        this.buildMode = buildMode;
-    }
-
-    @ParametersFactory
-    public static Collection<Object[]> parameters() {
-        List<Object[]> parameters = new ArrayList<>();
-        parameters.add(new Object[] { StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP });
-        parameters.add(new Object[] { StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP });
-        return parameters;
-    }
-
-    @BeforeClass
-    public static void createMapper() throws Exception {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(STAR_TREE_INDEX, "true").build());
-    }
-
-    @AfterClass
-    public static void clearMapper() {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        mapperService.close();
-    }
-
-    @Override
-    protected Codec getCodec() {
-        final Logger testLogger = LogManager.getLogger(StarTreeDocValuesFormatTests.class);
-
-        try {
-            createMapperService(getExpandedMapping());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        Codec codec = new Composite912Codec(Lucene912Codec.Mode.BEST_SPEED, mapperService, testLogger);
-        return codec;
+        super(buildMode);
     }
 
     public void testStarTreeDocValues() throws IOException {
@@ -118,24 +58,24 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
         Document doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 1));
-        doc.add(new SortedNumericDocValuesField("dv", 1));
-        doc.add(new SortedNumericDocValuesField("field", -1));
+        doc.add(new SortedNumericDocValuesField("dv1", 1));
+        doc.add(new SortedNumericDocValuesField("field1", -1));
         iw.addDocument(doc);
         doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 1));
-        doc.add(new SortedNumericDocValuesField("dv", 1));
-        doc.add(new SortedNumericDocValuesField("field", -1));
+        doc.add(new SortedNumericDocValuesField("dv1", 1));
+        doc.add(new SortedNumericDocValuesField("field1", -1));
         iw.addDocument(doc);
         doc = new Document();
         iw.forceMerge(1);
         doc.add(new SortedNumericDocValuesField("sndv", 2));
-        doc.add(new SortedNumericDocValuesField("dv", 2));
-        doc.add(new SortedNumericDocValuesField("field", -2));
+        doc.add(new SortedNumericDocValuesField("dv1", 2));
+        doc.add(new SortedNumericDocValuesField("field1", -2));
         iw.addDocument(doc);
         doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 2));
-        doc.add(new SortedNumericDocValuesField("dv", 2));
-        doc.add(new SortedNumericDocValuesField("field", -2));
+        doc.add(new SortedNumericDocValuesField("dv1", 2));
+        doc.add(new SortedNumericDocValuesField("field1", -2));
         iw.addDocument(doc);
         iw.forceMerge(1);
         iw.close();
@@ -207,7 +147,115 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         directory.close();
     }
 
-    private XContentBuilder getExpandedMapping() throws IOException {
+    public void testStarTreeDocValuesWithDeletions() throws IOException {
+        Directory directory = newDirectory();
+        IndexWriterConfig conf = newIndexWriterConfig(null);
+        conf.setMergePolicy(newLogMergePolicy());
+        conf.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
+        conf.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+        int iterations = 3;
+        Map<String, Integer> map = new HashMap<>();
+        List<String> allIds = new ArrayList<>();
+        for (int iter = 0; iter < iterations; iter++) {
+            // Add 10 documents
+            for (int i = 0; i < 10; i++) {
+                String id = String.valueOf(random().nextInt() + i);
+                allIds.add(id);
+                Document doc = new Document();
+                doc.add(new StringField("_id", id, Field.Store.YES));
+                int fieldValue = random().nextInt(5) + 1;
+                doc.add(new SortedNumericDocValuesField("field", fieldValue));
+
+                int sndvValue = random().nextInt(3);
+
+                doc.add(new SortedNumericDocValuesField("sndv", sndvValue));
+                int dvValue = random().nextInt(3);
+
+                doc.add(new SortedNumericDocValuesField("dv", dvValue));
+                map.put(sndvValue + "-" + dvValue, fieldValue + map.getOrDefault(sndvValue + "-" + dvValue, 0));
+                doc.add(new NumericDocValuesField("field-ndv", fieldValue));
+
+                iw.addDocument(doc);
+            }
+            iw.flush();
+        }
+        iw.commit();
+        // Update random number of documents
+        int docsToDelete = random().nextInt(9); // Delete up to 9 documents
+        for (int i = 0; i < docsToDelete; i++) {
+            if (!allIds.isEmpty()) {
+                String idToDelete = allIds.remove(random().nextInt(allIds.size() - 1));
+                Document doc = new Document();
+                doc.add(new NumericDocValuesField("field-ndv", 1L));
+                iw.w.softUpdateDocuments(
+                    new Term("_id", idToDelete),
+                    List.of(doc),
+                    new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1)
+                );
+                allIds.remove(idToDelete);
+            }
+        }
+        iw.flush();
+        iw.commit();
+        iw.forceMerge(1);
+        iw.close();
+
+        DirectoryReader ir = DirectoryReader.open(directory);
+        TestUtil.checkReader(ir);
+        assertEquals(1, ir.leaves().size());
+
+        // Assert star tree documents
+        for (LeafReaderContext context : ir.leaves()) {
+            SegmentReader reader = Lucene.segmentReader(context.reader());
+            CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+            List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
+
+            for (CompositeIndexFieldInfo compositeIndexFieldInfo : compositeIndexFields) {
+                StarTreeValues starTreeValues = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(compositeIndexFieldInfo);
+                StarTreeDocument[] actualStarTreeDocuments = StarTreeTestUtils.getSegmentsStarTreeDocuments(
+                    List.of(starTreeValues),
+                    List.of(
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.DOUBLE,
+                        NumberFieldMapper.NumberType.LONG
+                    ),
+                    Integer.parseInt(starTreeValues.getAttributes().get(STAR_TREE_DOCS_COUNT))
+                );
+                for (StarTreeDocument starDoc : actualStarTreeDocuments) {
+                    Long sndvVal = null;
+                    if (starDoc.dimensions[0] != null) {
+                        sndvVal = starDoc.dimensions[0];
+                    }
+                    Long dvVal = null;
+                    if (starDoc.dimensions[1] != null) {
+                        dvVal = starDoc.dimensions[1];
+                    }
+                    if (starDoc.metrics[0] != null) {
+                        double metric = (double) starDoc.metrics[0];
+                        if (map.containsKey(sndvVal + "-" + dvVal)) {
+                            assertEquals((long) map.get(sndvVal + "-" + dvVal), (long) metric);
+                        }
+                    }
+                }
+            }
+        }
+        ir.close();
+        directory.close();
+    }
+
+    @Override
+    protected XContentBuilder getMapping() throws IOException {
+        return getExpandedMapping();
+    }
+
+    public static XContentBuilder getExpandedMapping() throws IOException {
         return topMapping(b -> {
             b.startObject("composite");
             b.startObject("startree");
@@ -219,12 +267,12 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
             b.field("name", "sndv");
             b.endObject();
             b.startObject();
-            b.field("name", "dv");
+            b.field("name", "dv1");
             b.endObject();
             b.endArray();
             b.startArray("metrics");
             b.startObject();
-            b.field("name", "field");
+            b.field("name", "field1");
             b.startArray("stats");
             b.value("sum");
             b.value("value_count");
@@ -251,39 +299,13 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
             b.startObject("sndv");
             b.field("type", "integer");
             b.endObject();
-            b.startObject("dv");
+            b.startObject("dv1");
             b.field("type", "integer");
             b.endObject();
-            b.startObject("field");
+            b.startObject("field1");
             b.field("type", "integer");
             b.endObject();
             b.endObject();
         });
-    }
-
-    private XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
-        buildFields.accept(builder);
-        return builder.endObject().endObject();
-    }
-
-    private void createMapperService(XContentBuilder builder) throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
-            .build();
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).putMapping(builder.toString()).build();
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        mapperService = MapperTestUtils.newMapperServiceWithHelperAnalyzer(
-            new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
-            createTempDir(),
-            settings,
-            indicesModule,
-            "test"
-        );
-        mapperService.merge(indexMetadata, MapperService.MergeReason.INDEX_TEMPLATE);
     }
 }

@@ -40,14 +40,14 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ResyncReplicationRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
-        final byte[] bytes = "{}".getBytes(Charset.forName("UTF-8"));
+        final byte[] bytes = "{}".getBytes(StandardCharsets.UTF_8);
         final Translog.Index index = new Translog.Index("id", 0, randomNonNegativeLong(), randomNonNegativeLong(), bytes, null, -1);
         final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
         final ResyncReplicationRequest before = new ResyncReplicationRequest(shardId, 42L, 100, new Translog.Operation[] { index });
@@ -59,6 +59,20 @@ public class ResyncReplicationRequestTests extends OpenSearchTestCase {
         final ResyncReplicationRequest after = new ResyncReplicationRequest(in);
 
         assertThat(after, equalTo(before));
+    }
+
+    public void testContractBetweenEqualsAndHashCode() {
+        final byte[] bytes = "{}".getBytes(StandardCharsets.UTF_8);
+        final Translog.Index index = new Translog.Index("id", 0, 123L, -123L, bytes, null, -1);
+        final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
+        // Both created requests have arrays `operations` with the same content, and we want to verify that
+        // equals() and hashCode() are following the contract:
+        // If objects are equal, they have the same hash code
+        final ResyncReplicationRequest request1 = new ResyncReplicationRequest(shardId, 42L, 100, new Translog.Operation[] { index });
+        final ResyncReplicationRequest request2 = new ResyncReplicationRequest(shardId, 42L, 100, new Translog.Operation[] { index });
+
+        assertEquals(request1, request2);
+        assertEquals(request1.hashCode(), request2.hashCode());
     }
 
 }

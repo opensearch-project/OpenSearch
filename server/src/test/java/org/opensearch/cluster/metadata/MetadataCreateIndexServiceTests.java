@@ -136,6 +136,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
@@ -1821,6 +1822,42 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(expectedValue, customData.get(expectedKey));
     }
 
+    public void testNumberOfRoutingShardsShowsInIndexSettings() {
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesServices,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                null,
+                null,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
+            );
+            final int routingNumberOfShards = 4;
+            Settings indexSettings = Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
+                .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), routingNumberOfShards)
+                .build();
+            CreateIndexClusterStateUpdateRequest request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+            IndexMetadata indexMetadata = checkerService.buildAndValidateTemporaryIndexMetadata(
+                indexSettings,
+                request,
+                routingNumberOfShards
+            );
+            assertEquals(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexMetadata.getSettings()).intValue(), routingNumberOfShards);
+        }));
+    }
+
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {
         Settings indexSettings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
@@ -1855,6 +1892,24 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, sourceIndexMetadata);
         assertThat(targetRoutingNumberOfShards, is(6));
+    }
+
+    public void testGetIndexNumberOfRoutingShardsWhenExplicitlySetToNull() {
+        String nullValue = null;
+        Settings indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), nullValue)
+            .build();
+        int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat(targetRoutingNumberOfShards, is(1024));
+
+        indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), nullValue)
+            .build();
+        targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
+        assertThat(targetRoutingNumberOfShards, is(768));
     }
 
     public void testSoftDeletesDisabledIsRejected() {

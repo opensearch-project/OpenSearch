@@ -617,12 +617,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 );
                                 return;
                             }
-                            listener.onResponse(snapshotInfo);
-                            logger.info("created snapshot-v2 [{}] in repository [{}]", repositoryName, snapshotName);
-                            // For snapshot-v2, we don't allow concurrent snapshots . But meanwhile non-v2 snapshot operations
-                            // can get queued . This is triggering them.
-                            runNextQueuedOperation(repositoryData, repositoryName, true);
                             cleanOrphanTimestamp(repositoryName, repositoryData);
+                            logger.info("created snapshot-v2 [{}] in repository [{}]", repositoryName, snapshotName);
+                            leaveRepoLoop(repositoryName);
+                            listener.onResponse(snapshotInfo);
                         }
 
                         @Override
@@ -657,17 +655,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (orphanPinnedEntities.isEmpty()) {
             return;
         }
-
         logger.info("Found {} orphan timestamps. Cleaning it up now", orphanPinnedEntities.size());
-        if (tryEnterRepoLoop(repoName)) {
-            deleteOrphanTimestamps(pinnedEntities, orphanPinnedEntities);
-            leaveRepoLoop(repoName);
-        } else {
-            logger.info("Concurrent snapshot create/delete is happening. Skipping clean up of orphan timestamps");
-        }
+        deleteOrphanTimestamps(pinnedEntities, orphanPinnedEntities);
     }
 
-    private boolean isOrphanPinnedEntity(String repoName, Collection<String> snapshotUUIDs, String pinnedEntity) {
+    static boolean isOrphanPinnedEntity(String repoName, Collection<String> snapshotUUIDs, String pinnedEntity) {
         Tuple<String, String> tokens = getRepoSnapshotUUIDTuple(pinnedEntity);
         return Objects.equals(tokens.v1(), repoName) && snapshotUUIDs.contains(tokens.v2()) == false;
     }
@@ -754,7 +746,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static Tuple<String, String> getRepoSnapshotUUIDTuple(String pinningEntity) {
         String[] tokens = pinningEntity.split(SNAPSHOT_PINNED_TIMESTAMP_DELIMITER);
-        return new Tuple<>(tokens[0], tokens[1]);
+        String snapUUID = String.join(SNAPSHOT_PINNED_TIMESTAMP_DELIMITER, Arrays.copyOfRange(tokens, 1, tokens.length));
+        return new Tuple<>(tokens[0], snapUUID);
     }
 
     private void cloneSnapshotPinnedTimestamp(
@@ -885,7 +878,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     ) {
 
         long startTime = System.currentTimeMillis();
-        ClusterState currentState = clusterService.state();
         String snapshotName = snapshot.getSnapshotId().getName();
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.URGENT) {
             private SnapshotsInProgress.Entry newEntry;
@@ -963,8 +955,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
                 executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshotId)));
-                final ShardGenerations shardGenerations = repositoryData.shardGenerations();
-
                 snapshotInfoListener.whenComplete(snapshotInfo -> {
                     final SnapshotInfo cloneSnapshotInfo = new SnapshotInfo(
                         snapshot.getSnapshotId(),
@@ -984,17 +974,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         throw new SnapshotException(repositoryName, snapshotName, "Aborting snapshot-v2 clone, no longer cluster manager");
                     }
                     final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-                    pinnedTimestampListener.whenComplete(repoData -> {
+                    final StepListener<Metadata> metadataListener = new StepListener<>();
+                    pinnedTimestampListener.whenComplete(
+                        rData -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
+                            final Metadata.Builder metaBuilder = Metadata.builder(repository.getSnapshotGlobalMetadata(newEntry.source()));
+                            for (IndexId index : newEntry.indices()) {
+                                metaBuilder.put(repository.getSnapshotIndexMetaData(repositoryData, newEntry.source(), index), false);
+                            }
+                            return metaBuilder.build();
+                        })),
+                        e -> {
+                            logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} ", repositoryName, snapshotName);
+                            stateWithoutSnapshotV2(newState);
+                            leaveRepoLoop(repositoryName);
+                            listener.onFailure(e);
+                        }
+                    );
+                    metadataListener.whenComplete(meta -> {
+                        ShardGenerations shardGenerations = buildGenerationsV2(newEntry, meta);
                         repository.finalizeSnapshot(
                             shardGenerations,
                             repositoryData.getGenId(),
-                            metadataForSnapshot(
-                                currentState.metadata(),
-                                newEntry.includeGlobalState(),
-                                false,
-                                newEntry.dataStreams(),
-                                newEntry.indices()
-                            ),
+                            metadataForSnapshot(meta, newEntry.includeGlobalState(), false, newEntry.dataStreams(), newEntry.indices()),
                             cloneSnapshotInfo,
                             repositoryData.getVersion(sourceSnapshotId),
                             state -> stateWithoutSnapshot(state, snapshot),
@@ -1018,10 +1019,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         return;
                                     }
                                     logger.info("snapshot-v2 clone [{}] completed successfully", snapshot);
+                                    leaveRepoLoop(repositoryName);
                                     listener.onResponse(null);
-                                    // For snapshot-v2, we don't allow concurrent snapshots . But meanwhile non-v2 snapshot operations
-                                    // can get queued . This is triggering them.
-                                    runNextQueuedOperation(repositoryData, repositoryName, true);
                                 }
 
                                 @Override
@@ -1038,7 +1037,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         );
                     }, e -> {
-                        logger.error("Failed to update pinned timestamp for snapshot-v2 {} {} ", repositoryName, snapshotName);
+                        logger.error("Failed to retrieve metadata for snapshot-v2 {} {} ", repositoryName, snapshotName);
                         stateWithoutSnapshotV2(newState);
                         leaveRepoLoop(repositoryName);
                         listener.onFailure(e);
@@ -1541,6 +1540,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             });
         }
+        return builder.build();
+    }
+
+    private static ShardGenerations buildGenerationsV2(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
+        ShardGenerations.Builder builder = ShardGenerations.builder();
+        snapshot.indices().forEach(indexId -> {
+            int shardCount = metadata.index(indexId.getName()).getNumberOfShards();
+            for (int i = 0; i < shardCount; i++) {
+                builder.put(indexId, i, null);
+            }
+        });
         return builder.build();
     }
 
@@ -2550,6 +2560,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public ClusterState execute(ClusterState currentState) throws Exception {
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> snapshotEntries = findInProgressSnapshots(snapshots, snapshotNames, repoName);
+                boolean isSnapshotV2 = SHALLOW_SNAPSHOT_V2.get(repository.getMetadata().settings());
+                boolean remoteStoreIndexShallowCopy = remoteStoreShallowCopyEnabled(repository);
+                List<SnapshotsInProgress.Entry> entriesForThisRepo = snapshots.entries()
+                    .stream()
+                    .filter(entry -> Objects.equals(entry.repository(), repoName))
+                    .collect(Collectors.toList());
+                if (isSnapshotV2 && remoteStoreIndexShallowCopy && entriesForThisRepo.isEmpty() == false) {
+                    throw new ConcurrentSnapshotExecutionException(
+                        repoName,
+                        String.join(",", snapshotNames),
+                        "cannot delete snapshots in v2 repo while a snapshot is in progress"
+                    );
+                }
                 final List<SnapshotId> snapshotIds = matchingSnapshotIds(
                     snapshotEntries.stream().map(e -> e.snapshot().getSnapshotId()).collect(Collectors.toList()),
                     repositoryData,

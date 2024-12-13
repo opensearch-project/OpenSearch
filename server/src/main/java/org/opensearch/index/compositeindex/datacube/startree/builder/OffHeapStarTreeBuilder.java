@@ -11,8 +11,10 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesConsumer;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.LongValues;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
@@ -28,7 +30,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -117,7 +121,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         }
         try {
             for (int i = 0; i < totalSegmentDocs; i++) {
-                StarTreeDocument document = getSegmentStarTreeDocument(i, dimensionReaders, metricReaders);
+                StarTreeDocument document = getSegmentStarTreeDocumentWithMetricFieldValues(i, dimensionReaders, metricReaders);
                 segmentDocumentFileManager.writeStarTreeDocument(document, false);
             }
         } catch (IOException ex) {
@@ -126,6 +130,45 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         }
         // Create an iterator for aggregated documents
         return sortAndReduceDocuments(sortedDocIds, totalSegmentDocs, false);
+    }
+
+    /**
+     * Returns the star-tree document from the segment based on the current doc id
+     */
+    StarTreeDocument getSegmentStarTreeDocumentWithMetricFieldValues(
+        int currentDocId,
+        SequentialDocValuesIterator[] dimensionReaders,
+        List<SequentialDocValuesIterator> metricReaders
+    ) throws IOException {
+        Long[] dimensions = getStarTreeDimensionsFromSegment(currentDocId, dimensionReaders);
+        Object[] metricValues = getStarTreeMetricFieldValuesFromSegment(currentDocId, metricReaders);
+        return new StarTreeDocument(dimensions, metricValues);
+    }
+
+    /**
+     * Returns the metric field values for the star-tree document from the segment based on the current doc id
+     */
+    private Object[] getStarTreeMetricFieldValuesFromSegment(int currentDocId, List<SequentialDocValuesIterator> metricReaders) {
+        Object[] metricValues = new Object[starTreeField.getMetrics().size()];
+        for (int i = 0; i < starTreeField.getMetrics().size(); i++) {
+            if (starTreeField.getMetrics().get(i).getBaseMetrics().isEmpty()) continue;
+            SequentialDocValuesIterator metricReader = metricReaders.get(i);
+            if (metricReader != null) {
+                try {
+                    metricReader.nextEntry(currentDocId);
+                    metricValues[i] = metricReader.value(currentDocId);
+                } catch (IOException e) {
+                    logger.error("unable to iterate to next doc", e);
+                    throw new RuntimeException("unable to iterate to next doc", e);
+                } catch (Exception e) {
+                    logger.error("unable to read the metric values from the segment", e);
+                    throw new IllegalStateException("unable to read the metric values from the segment", e);
+                }
+            } else {
+                throw new IllegalStateException("metric reader is empty");
+            }
+        }
+        return metricValues;
     }
 
     /**
@@ -138,19 +181,27 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValuesSubs) throws IOException {
         int numDocs = 0;
         int[] docIds;
+        this.isMerge = true;
+        Map<String, OrdinalMap> ordinalMaps = getOrdinalMaps(starTreeValuesSubs);
         try {
+            int seg = 0;
             for (StarTreeValues starTreeValues : starTreeValuesSubs) {
                 SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[numDimensions];
                 List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
                 AtomicInteger numSegmentDocs = new AtomicInteger();
-                setReadersAndNumSegmentDocs(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
+                setReadersAndNumSegmentDocsDuringMerge(dimensionReaders, metricReaders, numSegmentDocs, starTreeValues);
                 int currentDocId = 0;
+                Map<String, LongValues> longValuesMap = new LinkedHashMap<>();
+                for (Map.Entry<String, OrdinalMap> entry : ordinalMaps.entrySet()) {
+                    longValuesMap.put(entry.getKey(), entry.getValue().getGlobalOrds(seg));
+                }
                 while (currentDocId < numSegmentDocs.get()) {
-                    StarTreeDocument starTreeDocument = getStarTreeDocument(currentDocId, dimensionReaders, metricReaders);
+                    StarTreeDocument starTreeDocument = getStarTreeDocument(currentDocId, dimensionReaders, metricReaders, longValuesMap);
                     segmentDocumentFileManager.writeStarTreeDocument(starTreeDocument, true);
                     numDocs++;
                     currentDocId++;
                 }
+                seg++;
             }
             docIds = new int[numDocs];
             for (int i = 0; i < numDocs; i++) {
