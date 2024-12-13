@@ -31,10 +31,12 @@ public interface ResourceAccessControlPlugin {
     /**
      * Returns all accessible resources for current user for a given plugin index.
      * @param resourceIndex index where the resource exists
-     *
+     * @param clazz class of the resource. Required to parse the resource object retrieved from resourceIndex
      * @return set of {@link ResourceSharing} items accessible by current user.
      */
-    Set<String> getAccessibleResourcesForCurrentUser(String resourceIndex);
+    default <T> Set<T> getAccessibleResourcesForCurrentUser(String resourceIndex, Class<T> clazz) {
+        return Set.of();
+    }
 
     /**
      * Checks whether current user has permission to given resource.
@@ -44,7 +46,9 @@ public interface ResourceAccessControlPlugin {
      * @param scope the scope being requested
      * @return true if current user has access, false otherwise
      */
-    boolean hasPermission(String resourceId, String resourceIndex, String scope);
+    default boolean hasPermission(String resourceId, String resourceIndex, String scope) {
+        return true;
+    }
 
     /**
      * Adds an entity to the share-with. Resource needs to be in restricted mode.
@@ -54,7 +58,9 @@ public interface ResourceAccessControlPlugin {
      * @param shareWith an object that contains entries of entities with whom the resource should be shared with
      * @return updated resource sharing record
      */
-    ResourceSharing shareWith(String resourceId, String resourceIndex, ShareWith shareWith);
+    default ResourceSharing shareWith(String resourceId, String resourceIndex, ShareWith shareWith) {
+        return null;
+    }
 
     /**
      * Revokes given permission to a resource
@@ -65,7 +71,14 @@ public interface ResourceAccessControlPlugin {
      * @param scopes Scopes to be checked for revoking access. If empty, all scopes will be checked.
      * @return the updated ResourceSharing record
      */
-    ResourceSharing revokeAccess(String resourceId, String resourceIndex, Map<EntityType, Set<String>> revokeAccess, Set<String> scopes);
+    default ResourceSharing revokeAccess(
+        String resourceId,
+        String resourceIndex,
+        Map<EntityType, Set<String>> revokeAccess,
+        Set<String> scopes
+    ) {
+        return null;
+    }
 
     /**
      * Deletes an entry from .resource_sharing index
@@ -73,14 +86,18 @@ public interface ResourceAccessControlPlugin {
      * @param resourceIndex index where this resource is stored
      * @return true if resource record was deleted, false otherwise
      */
-    boolean deleteResourceSharingRecord(String resourceId, String resourceIndex);
+    default boolean deleteResourceSharingRecord(String resourceId, String resourceIndex) {
+        return false;
+    }
 
     /**
      * TODO check if this method is needed
      * Deletes all entries from .resource_sharing index where current user is the creator of the resource
      * @return true if resource record was deleted, false otherwise
      */
-    boolean deleteAllResourceSharingRecordsForCurrentUser();
+    default boolean deleteAllResourceSharingRecordsForCurrentUser() {
+        return false;
+    }
 
     // TODO: Check whether methods for bulk updates are required
 }

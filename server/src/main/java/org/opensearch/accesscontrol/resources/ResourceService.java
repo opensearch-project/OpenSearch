@@ -11,9 +11,12 @@ package org.opensearch.accesscontrol.resources;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
-import org.opensearch.plugins.NoOpResourceAccessControlPlugin;
+import org.opensearch.accesscontrol.resources.fallback.DefaultResourceAccessControlPlugin;
+import org.opensearch.client.Client;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.plugins.ResourceAccessControlPlugin;
 import org.opensearch.plugins.ResourcePlugin;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -29,12 +32,18 @@ public class ResourceService {
     private final ResourceAccessControlPlugin resourceACPlugin;
     private final List<ResourcePlugin> resourcePlugins;
 
-    public ResourceService(final List<ResourceAccessControlPlugin> resourceACPlugins, List<ResourcePlugin> resourcePlugins) {
+    @Inject
+    public ResourceService(
+        final List<ResourceAccessControlPlugin> resourceACPlugins,
+        List<ResourcePlugin> resourcePlugins,
+        Client client,
+        ThreadPool threadPool
+    ) {
         this.resourcePlugins = resourcePlugins;
 
         if (resourceACPlugins.isEmpty()) {
-            log.info("Security plugin disabled: Using NoOpResourceAccessControlPlugin");
-            resourceACPlugin = new NoOpResourceAccessControlPlugin();
+            log.info("Security plugin disabled: Using DefaultResourceAccessControlPlugin");
+            resourceACPlugin = new DefaultResourceAccessControlPlugin(client, threadPool);
         } else if (resourceACPlugins.size() == 1) {
             log.info("Security plugin enabled: Using OpenSearchSecurityPlugin");
             resourceACPlugin = resourceACPlugins.get(0);

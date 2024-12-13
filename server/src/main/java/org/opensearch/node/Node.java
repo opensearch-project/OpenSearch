@@ -1115,7 +1115,7 @@ public class Node implements Closeable {
                 ResourceAccessControlPlugin.class
             );
             final List<ResourcePlugin> resourcePlugins = pluginsService.filterPlugins(ResourcePlugin.class);
-            ResourceService resourceService = new ResourceService(resourceAccessControlPlugins, resourcePlugins);
+            ResourceService resourceService = new ResourceService(resourceAccessControlPlugins, resourcePlugins, client, threadPool);
 
             final RestController restController = actionModule.getRestController();
 
