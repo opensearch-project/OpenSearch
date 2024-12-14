@@ -150,7 +150,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 "1.8",
                 pluginClass.getName(),
                 null,
-                Collections.emptyList(),
+                classpathPlugins.stream().map(Class::getName).filter(cp -> !pluginClass.getName().equals(cp)).collect(Collectors.toList()),
                 false
             );
             if (logger.isTraceEnabled()) {
@@ -159,6 +159,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
             pluginsList.add(pluginInfo);
             pluginsNames.add(pluginInfo.getName());
+            loadExtensions(pluginsLoaded);
         }
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();
