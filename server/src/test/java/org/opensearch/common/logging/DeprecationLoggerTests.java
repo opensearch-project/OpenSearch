@@ -69,4 +69,22 @@ public class DeprecationLoggerTests extends OpenSearchTestCase {
         // assert that only unique warnings are logged
         assertWarnings("Deprecated message 1", "Deprecated message 2", "Deprecated message 3");
     }
+
+    public void testMaximumSizeOfCache() {
+        final int maxEntries = DeprecatedMessage.MAX_DEDUPE_CACHE_ENTRIES;
+        // Fill up the cache, asserting every message is new
+        for (int i = 0; i < maxEntries; i++) {
+            DeprecatedMessage message = new DeprecatedMessage("key-" + i, "message-" + i, "");
+            assertFalse(message.toString(), message.isAlreadyLogged());
+        }
+        // Do the same thing except assert every message has been seen
+        for (int i = 0; i < maxEntries; i++) {
+            DeprecatedMessage message = new DeprecatedMessage("key-" + i, "message-" + i, "");
+            assertTrue(message.toString(), message.isAlreadyLogged());
+        }
+        // Add one more new entry, asserting it will forever been seen as already logged (cache is full)
+        DeprecatedMessage message = new DeprecatedMessage("key-new", "message-new", "");
+        assertTrue(message.toString(), message.isAlreadyLogged());
+        assertTrue(message.toString(), message.isAlreadyLogged());
+    }
 }

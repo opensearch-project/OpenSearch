@@ -55,6 +55,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -1376,6 +1377,72 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         DiscoveryNode joiningNode = newDiscoveryNode(remotePublicationNodeAttributes());
         JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
+    }
+
+    public void testUpdatesClusterStateWithRepositoryMetadataNotInSync() throws Exception {
+        Map<String, String> newNodeAttributes = new HashMap<>();
+        newNodeAttributes.putAll(remoteStateNodeAttributes(CLUSTER_STATE_REPO));
+        newNodeAttributes.putAll(remoteRoutingTableAttributes(ROUTING_TABLE_REPO));
+
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        RepositoriesService repositoriesService = mock(RepositoriesService.class);
+        when(repositoriesService.repository(any())).thenThrow(RepositoryMissingException.class);
+        final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, null);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreNodeService
+        );
+
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            newNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        final RepositoryMetadata clusterStateRepo = buildRepositoryMetadata(clusterManagerNode, CLUSTER_STATE_REPO);
+        final RepositoryMetadata routingTableRepo = buildRepositoryMetadata(clusterManagerNode, ROUTING_TABLE_REPO);
+        List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>() {
+            {
+                add(clusterStateRepo);
+                add(routingTableRepo);
+            }
+        };
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .metadata(Metadata.builder().putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositoriesMetadata)))
+            .build();
+
+        final DiscoveryNode joiningNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            newNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(joiningNode, "test"))
+        );
+        assertThat(result.executionResults.entrySet(), hasSize(1));
+        final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
+        assertTrue(taskResult.isSuccess());
+        validatePublicationRepositoryMetadata(result.resultingState, clusterManagerNode);
+
     }
 
     private void validateRepositoryMetadata(ClusterState updatedState, DiscoveryNode existingNode, int expectedRepositories)
