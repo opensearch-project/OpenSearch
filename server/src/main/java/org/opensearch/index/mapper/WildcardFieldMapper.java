@@ -575,7 +575,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             }
 
             RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
-            Automaton automaton = regExp.toAutomaton();
+            Automaton automaton = Operations.determinize(regExp.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
 
             Predicate<String> regexpPredicate;
