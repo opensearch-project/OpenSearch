@@ -1473,8 +1473,22 @@ public class RemoteClusterStateService implements Closeable {
         try {
             ClusterState stateFromCache = remoteClusterStateCache.getState(clusterName, manifest);
             if (stateFromCache != null) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "Found cluster state in cache for term {} and version {}",
+                        manifest.getClusterTerm(),
+                        manifest.getStateVersion()
+                    )
+                );
                 return stateFromCache;
             }
+            logger.info(
+                () -> new ParameterizedMessage(
+                    "Cluster state not found in cache for term {} and version {}",
+                    manifest.getClusterTerm(),
+                    manifest.getStateVersion()
+                )
+            );
 
             final ClusterState clusterState;
             final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
