@@ -237,7 +237,9 @@ public class FilterRepository implements Repository {
         String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         long primaryTerm,
+        long commitGeneration,
         long startTime,
+        Map<String, Long> indexFilesToFileLengthMap,
         ActionListener<String> listener
     ) {
         in.snapshotRemoteStoreIndexShard(
@@ -248,7 +250,9 @@ public class FilterRepository implements Repository {
             shardStateIdentifier,
             snapshotStatus,
             primaryTerm,
+            commitGeneration,
             startTime,
+            indexFilesToFileLengthMap,
             listener
         );
     }

@@ -3753,13 +3753,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         long primaryTerm,
+        long commitGeneration,
         long startTime,
+        Map<String, Long> indexFilesToFileLengthMap,
         ActionListener<String> listener
     ) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
             return;
         }
+        if (snapshotIndexCommit == null && indexFilesToFileLengthMap == null) {
+            listener.onFailure(new RepositoryException(metadata.name(), "both snapshot index commit and index files map cannot be null"));
+            return;
+        }
+
         final ShardId shardId = store.shardId();
         try {
             final String generation = snapshotStatus.generation();
@@ -3767,13 +3774,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
 
             long indexTotalFileSize = 0;
-            // local store is being used here to fetch the files metadata instead of remote store as currently
-            // remote store is mirroring the local store.
-            List<String> fileNames = new ArrayList<>(snapshotIndexCommit.getFileNames());
-            Store.MetadataSnapshot commitSnapshotMetadata = store.getMetadata(snapshotIndexCommit);
-            for (String fileName : fileNames) {
-                indexTotalFileSize += commitSnapshotMetadata.get(fileName).length();
+            List<String> fileNames;
+
+            if (snapshotIndexCommit != null) {
+                // local store is being used here to fetch the files metadata instead of remote store as currently
+                // remote store is mirroring the local store.
+                fileNames = new ArrayList<>(snapshotIndexCommit.getFileNames());
+                Store.MetadataSnapshot commitSnapshotMetadata = store.getMetadata(snapshotIndexCommit);
+                for (String fileName : fileNames) {
+                    indexTotalFileSize += commitSnapshotMetadata.get(fileName).length();
+                }
+            } else {
+                fileNames = new ArrayList<>(indexFilesToFileLengthMap.keySet());
+                indexTotalFileSize = indexFilesToFileLengthMap.values().stream().mapToLong(Long::longValue).sum();
             }
+
             int indexTotalNumberOfFiles = fileNames.size();
 
             snapshotStatus.moveToStarted(
@@ -3784,7 +3799,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexTotalFileSize
             );
 
-            final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
+            final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(commitGeneration);
 
             // now create and write the commit point
             logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
@@ -3795,7 +3810,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotId.getName(),
                         lastSnapshotStatus.getIndexVersion(),
                         primaryTerm,
-                        snapshotIndexCommit.getGeneration(),
+                        commitGeneration,
                         lastSnapshotStatus.getStartTime(),
                         threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
                         indexTotalNumberOfFiles,
