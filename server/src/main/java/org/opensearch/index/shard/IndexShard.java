@@ -1625,6 +1625,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * reads the last metadata file from remote store and fetches files present in commit and their sizes.
+     * @return Tuple(Tuple(primaryTerm, commitGeneration), indexFilesToFileLengthMap)
+     * @throws IOException
+     */
+
+    public Tuple<Tuple<Long, Long>, Map<String, Long>> acquireLastRemoteUploadedIndexCommit() throws IOException {
+        if (!indexSettings.isAssignedOnRemoteNode()) {
+            throw new IllegalStateException("Index is not assigned on Remote Node");
+        }
+        RemoteSegmentMetadata lastUploadedMetadata = getRemoteDirectory().readLatestMetadataFile();
+        final Map<String, Long> indexFilesToFileLengthMap = lastUploadedMetadata.getMetadata()
+            .entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getLength()));
+        long primaryTerm = lastUploadedMetadata.getPrimaryTerm();
+        long commitGeneration = lastUploadedMetadata.getGeneration();
+        return new Tuple<>(new Tuple<>(primaryTerm, commitGeneration), indexFilesToFileLengthMap);
+    }
+
+    /**
      * Creates a new {@link IndexCommit} snapshot from the currently running engine. All resources referenced by this
      * commit won't be freed until the commit / snapshot is closed.
      *
