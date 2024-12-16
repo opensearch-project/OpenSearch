@@ -111,7 +111,7 @@ import org.opensearch.gateway.remote.RemoteClusterStateCleanupManager;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.RemoteIndexMetadataManager;
 import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
-import org.opensearch.grpc.GrpcTransportSettings;
+import org.opensearch.grpc.AuxTransportSettings;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -360,6 +360,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                 NetworkModule.HTTP_TYPE_SETTING,
                 NetworkModule.TRANSPORT_TYPE_SETTING,
+                NetworkModule.AUX_TRANSPORT_TYPE_SETTING,
                 NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED,
                 NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION,
                 NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME,
@@ -848,6 +849,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         List.of(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL),
         List.of(SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING),
         List.of(FeatureFlags.GRPC_EXPERIMENTAL),
-        List.of(GrpcTransportSettings.SETTING_GRPC_PORT)
+        List.of(AuxTransportSettings.SETTING_AUX_PORT)
     );
 }
