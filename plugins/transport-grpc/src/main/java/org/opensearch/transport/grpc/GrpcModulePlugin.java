@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.opensearch.aux.AuxTransportSettings.SETTING_AUX_BIND_HOST;
-import static org.opensearch.aux.AuxTransportSettings.SETTING_AUX_HOST;
-import static org.opensearch.aux.AuxTransportSettings.SETTING_AUX_PUBLISH_HOST;
+import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_BIND_HOST;
+import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_HOST;
+import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_PUBLISH_HOST;
 
 /**
  * Main class for the gRPC plugin

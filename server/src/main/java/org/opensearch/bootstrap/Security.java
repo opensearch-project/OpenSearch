@@ -32,7 +32,7 @@
 
 package org.opensearch.bootstrap;
 
-import org.opensearch.aux.AuxTransportSettings;
+import org.opensearch.auxiliary.AuxTransportSettings;
 import org.opensearch.cli.Command;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;

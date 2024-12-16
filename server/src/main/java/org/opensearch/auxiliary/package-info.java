@@ -9,4 +9,4 @@
 /**
  * Settings and configuration helpers for optional auxiliary client/server transports provided by installed plugins.
  */
-package org.opensearch.aux;
+package org.opensearch.auxiliary;

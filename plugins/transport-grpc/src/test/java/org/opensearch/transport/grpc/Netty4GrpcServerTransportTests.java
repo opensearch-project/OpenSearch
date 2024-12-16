@@ -8,7 +8,7 @@
 
 package org.opensearch.transport.grpc;
 
-import org.opensearch.aux.AuxTransportSettings;
+import org.opensearch.auxiliary.AuxTransportSettings;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;

@@ -41,10 +41,10 @@ import io.grpc.netty.shaded.io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.grpc.protobuf.services.HealthStatusManager;
 import io.grpc.protobuf.services.ProtoReflectionService;
 
-import static org.opensearch.aux.AuxTransportSettings.SETTING_AUX_BIND_HOST;
-import static org.opensearch.aux.AuxTransportSettings.SETTING_AUX_PORT;
-import static org.opensearch.aux.AuxTransportSettings.SETTING_AUX_PUBLISH_HOST;
-import static org.opensearch.aux.AuxTransportSettings.SETTING_AUX_PUBLISH_PORT;
+import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_BIND_HOST;
+import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_PORT;
+import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_PUBLISH_HOST;
+import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_PUBLISH_PORT;
 import static org.opensearch.common.network.NetworkService.resolvePublishPort;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 import static org.opensearch.transport.grpc.GrpcModulePlugin.SETTING_GRPC_WORKER_COUNT;

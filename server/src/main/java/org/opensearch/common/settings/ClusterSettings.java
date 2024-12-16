@@ -41,7 +41,7 @@ import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.replication.TransportReplicationAction;
-import org.opensearch.aux.AuxTransportSettings;
+import org.opensearch.auxiliary.AuxTransportSettings;
 import org.opensearch.bootstrap.BootstrapSettings;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterModule;
