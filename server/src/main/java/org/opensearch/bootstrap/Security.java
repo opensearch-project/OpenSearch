@@ -36,11 +36,9 @@ import org.opensearch.cli.Command;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.Environment;
 import org.opensearch.grpc.AuxTransportSettings;
 import org.opensearch.http.HttpTransportSettings;
-import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.secure_sm.SecureSM;
@@ -75,7 +73,6 @@ import java.util.regex.Pattern;
 import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 import static org.opensearch.common.network.NetworkModule.AUX_TRANSPORT_TYPE_SETTING;
-import static org.opensearch.common.util.FeatureFlags.GRPC_ENABLE_SETTING;
 
 /**
  * Initializes SecurityManager with necessary permissions.

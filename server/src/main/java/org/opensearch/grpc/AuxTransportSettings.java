@@ -19,12 +19,7 @@ import org.opensearch.common.transport.PortsRange;
  */
 public final class AuxTransportSettings {
 
-    public static final Setting<PortsRange> SETTING_AUX_PORT = new Setting<>(
-        "aux.port",
-        "9400-9500",
-        PortsRange::new,
-        Property.NodeScope
-    );
+    public static final Setting<PortsRange> SETTING_AUX_PORT = new Setting<>("aux.port", "9400-9500", PortsRange::new, Property.NodeScope);
 
     private AuxTransportSettings() {}
 }
