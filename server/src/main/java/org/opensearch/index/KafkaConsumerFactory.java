@@ -8,11 +8,22 @@
 
 package org.opensearch.index;
 
-public class KafkaConsumerFactory extends IngestionConsumerFactory<KafkaPartitionConsumer> {
+import java.util.Map;
+
+public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaPartitionConsumer> {
+
+    public static final String TYPE = "kafka";
+
+    private KafkaSourceConfig config;
+
+    @Override
+    public void initialize(Map<String, Object> params) {
+        config = new KafkaSourceConfig(params);
+    }
 
     @Override
     public KafkaPartitionConsumer createShardConsumer(String clientId, int shardId) {
-        KafkaSourceConfig config = (KafkaSourceConfig) this.config;
+        assert config!=null;
         return new KafkaPartitionConsumer(clientId, config, shardId);
     }
 }

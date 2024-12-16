@@ -17,4 +17,5 @@ public interface IngestionShardPointer  {
     String asString();
 
     IngestionShardPointer fromString(String pointer);
+    long toSequenceNumber();
 }

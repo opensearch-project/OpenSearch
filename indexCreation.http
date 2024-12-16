@@ -1,0 +1,25 @@
+### send request to create index
+PUT http://localhost:9200/my-index
+Content-Type: application/json
+
+{
+  "settings": {
+    "ingestion_source": {
+      "type": "kafka",
+      "param": {
+        "topic": "test",
+        "groupId": "test",
+        "bootstrapServers": "localhost:49353"
+      }
+    },
+    "index.number_of_shards": 2,
+    "index.number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "age": {
+        "type": "integer"
+      }
+    }
+  }
+}

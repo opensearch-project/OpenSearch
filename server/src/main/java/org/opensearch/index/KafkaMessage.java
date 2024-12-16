@@ -30,10 +30,13 @@ public class KafkaMessage implements Message<String> {
     // TODO: support kafka header
     private final String key;
     private final String payload;
+    // FIXME: how to make this generic outside of kafka message?
+    private final KafkaOffset offset;
 
-    public KafkaMessage(String key, String payload) {
+    public KafkaMessage(String key, String payload, KafkaOffset offset) {
         this.key = key;
         this.payload = payload;
+        this.offset = offset;
     }
 
 
@@ -49,17 +52,17 @@ public class KafkaMessage implements Message<String> {
     @Override
     public Engine.Operation getOperation() {
         // TODO: decode the bytes to get the operation
-        ParsedDocument doc = testParsedDocument(
-            "1",
+        ParsedDocument doc = toParsedDocument(
+            key,
             null,
             testDocumentWithTextField("test"),
             new BytesArray("{}".getBytes(Charset.defaultCharset())),
             null
         );
-        return new Engine.Index(
+        Engine.Index index = new Engine.Index(
             new Term("_id", key),
             doc,
-            UNASSIGNED_SEQ_NO,
+            offset.toSequenceNumber(),
             1,
             Versions.MATCH_ANY,
             VersionType.INTERNAL,
@@ -70,6 +73,9 @@ public class KafkaMessage implements Message<String> {
             UNASSIGNED_SEQ_NO,
             0
         );
+        // set the offset as the sequence number
+        index.parsedDoc().updateSeqID(offset.toSequenceNumber(), 1);
+        return index;
     }
 
     ParseContext.Document testDocumentWithTextField(String value) {
@@ -78,7 +84,7 @@ public class KafkaMessage implements Message<String> {
         return document;
     }
 
-    private ParsedDocument testParsedDocument(String id,
+    private ParsedDocument toParsedDocument(String id,
                                               String routing,
                                               ParseContext.Document document,
                                               BytesReference source,
