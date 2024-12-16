@@ -38,8 +38,9 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.Environment;
-import org.opensearch.grpc.GrpcTransportSettings;
+import org.opensearch.grpc.AuxTransportSettings;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.secure_sm.SecureSM;
@@ -73,6 +74,7 @@ import java.util.regex.Pattern;
 
 import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
+import static org.opensearch.common.network.NetworkModule.AUX_TRANSPORT_TYPE_SETTING;
 import static org.opensearch.common.util.FeatureFlags.GRPC_ENABLE_SETTING;
 
 /**
@@ -405,10 +407,7 @@ final class Security {
     private static void addBindPermissions(Permissions policy, Settings settings) {
         addSocketPermissionForHttp(policy, settings);
         addSocketPermissionForTransportProfiles(policy, settings);
-
-        if (FeatureFlags.isEnabled(GRPC_ENABLE_SETTING)) {
-            addSocketPermissionForGrpc(policy, settings);
-        }
+        addSocketPermissionForAux(policy, settings);
     }
 
     /**
@@ -424,14 +423,18 @@ final class Security {
     }
 
     /**
-     * Add dynamic {@link SocketPermission} based on gRPC settings.
+     * Add dynamic {@link SocketPermission} based on auxiliary transport settings {@link AuxTransportSettings}.
+     * Socket permissions are not provided if no auxiliary transport is selected.
      *
      * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
      * @param settings the {@link Settings} instance to read the gRPC settings from
      */
-    private static void addSocketPermissionForGrpc(final Permissions policy, final Settings settings) {
-        final String grpcRange = GrpcTransportSettings.SETTING_GRPC_PORT.get(settings).getPortRangeString();
-        addSocketPermissionForPortRange(policy, grpcRange);
+    private static void addSocketPermissionForAux(final Permissions policy, final Settings settings) {
+        if (!AUX_TRANSPORT_TYPE_SETTING.exists(settings)) {
+            return;
+        }
+        final String auxRange = AuxTransportSettings.SETTING_AUX_PORT.get(settings).getPortRangeString();
+        addSocketPermissionForPortRange(policy, auxRange);
     }
 
     /**

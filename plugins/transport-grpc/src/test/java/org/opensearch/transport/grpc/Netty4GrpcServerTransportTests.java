@@ -10,7 +10,7 @@ package org.opensearch.transport.grpc;
 
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.grpc.GrpcTransportSettings;
+import org.opensearch.grpc.AuxTransportSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Before;
@@ -34,8 +34,7 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     public void test() {
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services)) {
-            transport.setNetworkService(networkService);
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService)) {
             transport.start();
 
             MatcherAssert.assertThat(transport.boundAddress().boundAddresses(), not(emptyArray()));
@@ -46,6 +45,6 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     private static Settings createSettings() {
-        return Settings.builder().put(GrpcTransportSettings.SETTING_GRPC_PORT.getKey(), getPortRange()).build();
+        return Settings.builder().put(AuxTransportSettings.SETTING_AUX_PORT.getKey(), getPortRange()).build();
     }
 }

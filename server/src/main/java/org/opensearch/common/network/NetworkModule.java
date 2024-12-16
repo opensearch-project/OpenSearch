@@ -89,6 +89,7 @@ public final class NetworkModule {
 
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
     public static final String HTTP_TYPE_KEY = "http.type";
+    public static final String AUX_TRANSPORT_TYPE_KEY = "aux_transport.type";
     public static final String HTTP_TYPE_DEFAULT_KEY = "http.type.default";
     public static final String TRANSPORT_TYPE_DEFAULT_KEY = "transport.type.default";
     public static final String TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_KEY = "transport.ssl.enforce_hostname_verification";
@@ -101,6 +102,7 @@ public final class NetworkModule {
     );
     public static final Setting<String> HTTP_DEFAULT_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_DEFAULT_KEY, Property.NodeScope);
     public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
+    public static final Setting<String> AUX_TRANSPORT_TYPE_SETTING = Setting.simpleString(AUX_TRANSPORT_TYPE_KEY, Property.NodeScope);
     public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_KEY, Property.NodeScope);
 
     public static final Setting<Boolean> TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION = Setting.boolSetting(
@@ -157,6 +159,8 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
+    private final Map<String, Supplier<NetworkPlugin.ServerTransport>> transportAuxFactories = new HashMap<>();
+
     private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
     /**
@@ -220,6 +224,18 @@ public final class NetworkModule {
             );
             for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
                 registerHttpTransport(entry.getKey(), entry.getValue());
+            }
+
+            Map<String, Supplier<NetworkPlugin.ServerTransport>> auxTransportFactory = plugin.getAuxTransports(
+                settings,
+                threadPool,
+                circuitBreakerService,
+                networkService,
+                clusterSettings,
+                tracer
+            );
+            for (Map.Entry<String, Supplier<NetworkPlugin.ServerTransport>> entry : auxTransportFactory.entrySet()) {
+                registerAuxTransport(entry.getKey(), entry.getValue());
             }
 
             Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(
@@ -305,6 +321,12 @@ public final class NetworkModule {
         }
     }
 
+    private void registerAuxTransport(String key, Supplier<NetworkPlugin.ServerTransport> factory) {
+        if (transportAuxFactories.putIfAbsent(key, factory) != null) {
+            throw new IllegalArgumentException("transport for name: " + key + " is already registered");
+        }
+    }
+
     /**
      * Register an allocation command.
      * <p>
@@ -343,6 +365,25 @@ public final class NetworkModule {
         if (factory == null) {
             throw new IllegalStateException("Unsupported http.type [" + name + "]");
         }
+        return factory;
+    }
+
+    /**
+     * Auxiliary transports are optional and may not be enabled.
+     * If AUX_TRANSPORT_TYPE_SETTING is not set return a no-op supplier.
+     * If AUX_TRANSPORT_TYPE_SETTING is set but no factory is registered for the given type an exception is thrown.
+     */
+    public Supplier<NetworkPlugin.ServerTransport> getAuxServerTransportSupplier() {
+        if (!AUX_TRANSPORT_TYPE_SETTING.exists(settings)) {
+            return NetworkPlugin.NoOpServerTransport::new;
+        }
+
+        final String name = AUX_TRANSPORT_TYPE_SETTING.get(settings);
+        final Supplier<NetworkPlugin.ServerTransport> factory = transportAuxFactories.get(name);
+        if (factory == null) {
+            throw new IllegalStateException("Unsupported " + AUX_TRANSPORT_TYPE_KEY + " [" + name + "]");
+        }
+
         return factory;
     }
 
