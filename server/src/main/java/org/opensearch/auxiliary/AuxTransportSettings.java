@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.aux;
+package org.opensearch.auxiliary;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
