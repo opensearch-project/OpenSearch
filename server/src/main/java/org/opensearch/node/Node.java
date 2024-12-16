@@ -2115,7 +2115,7 @@ public class Node implements Closeable {
         return networkModule.getHttpServerTransportSupplier().get();
     }
 
-    protected NetworkPlugin.ServerTransport newAuxTransport(NetworkModule networkModule) {
+    protected LifecycleComponent newAuxTransport(NetworkModule networkModule) {
         return networkModule.getAuxServerTransportSupplier().get();
     }
 

@@ -11,13 +11,13 @@ package org.opensearch.transport.grpc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.PortsRange;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.transport.BindTransportException;
 
 import java.io.IOException;
@@ -49,7 +49,7 @@ import static org.opensearch.transport.grpc.GrpcModulePlugin.SETTING_GRPC_PUBLIS
 import static org.opensearch.transport.grpc.GrpcModulePlugin.SETTING_GRPC_PUBLISH_PORT;
 import static org.opensearch.transport.grpc.GrpcModulePlugin.SETTING_GRPC_WORKER_COUNT;
 
-public class Netty4GrpcServerTransport extends AbstractLifecycleComponent implements NetworkPlugin.ServerTransport {
+public class Netty4GrpcServerTransport extends AbstractLifecycleComponent implements LifecycleComponent {
     private static final Logger logger = LogManager.getLogger(Netty4GrpcServerTransport.class);
 
     private final Settings settings;
