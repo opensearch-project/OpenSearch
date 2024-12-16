@@ -19,6 +19,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
+import org.opensearch.index.compositeindex.datacube.ComparatorType;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.KeywordDimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -28,6 +29,7 @@ import org.opensearch.index.compositeindex.datacube.UnsignedLongDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionProperty;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
@@ -131,9 +133,9 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         metaOut.close();
         dataOut.close();
         docValuesConsumer.close();
-        LinkedHashMap<String, DocValuesType> docValues = new LinkedHashMap<>();
-        docValues.put("field1", DocValuesType.SORTED_NUMERIC);
-        docValues.put("field3", DocValuesType.SORTED_NUMERIC);
+        LinkedHashMap<String, DimensionProperty> docValues = new LinkedHashMap<>();
+        docValues.put("field1", new DimensionProperty(DocValuesType.SORTED_NUMERIC, ComparatorType.LONG));
+        docValues.put("field3", new DimensionProperty(DocValuesType.SORTED_NUMERIC, ComparatorType.LONG));
         StarTreeMetadata starTreeMetadata = new StarTreeMetadata(
             "sf",
             STAR_TREE,
@@ -231,9 +233,9 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         dataOut.close();
         docValuesConsumer.close();
 
-        LinkedHashMap<String, DocValuesType> docValues = new LinkedHashMap<>();
-        docValues.put("field1", DocValuesType.SORTED_NUMERIC);
-        docValues.put("field3", DocValuesType.SORTED_NUMERIC);
+        LinkedHashMap<String, DimensionProperty> docValues = new LinkedHashMap<>();
+        docValues.put("field1", new DimensionProperty(DocValuesType.SORTED_NUMERIC, ComparatorType.LONG));
+        docValues.put("field3", new DimensionProperty(DocValuesType.SORTED_NUMERIC, ComparatorType.LONG));
         StarTreeMetadata starTreeMetadata = new StarTreeMetadata(
             "sf",
             STAR_TREE,
@@ -344,9 +346,9 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         metaOut.close();
         dataOut.close();
         docValuesConsumer.close();
-        LinkedHashMap<String, DocValuesType> docValues = new LinkedHashMap<>();
-        docValues.put("field1", DocValuesType.SORTED_NUMERIC);
-        docValues.put("field3", DocValuesType.SORTED_NUMERIC);
+        LinkedHashMap<String, DimensionProperty> docValues = new LinkedHashMap<>();
+        docValues.put("field1", new DimensionProperty(DocValuesType.SORTED_NUMERIC, ComparatorType.UNSIGNED_LONG));
+        docValues.put("field3", new DimensionProperty(DocValuesType.SORTED_NUMERIC, ComparatorType.UNSIGNED_LONG));
         StarTreeMetadata starTreeMetadata = new StarTreeMetadata(
             "sf",
             STAR_TREE,
@@ -447,9 +449,9 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         dataOut.close();
         docValuesConsumer.close();
 
-        LinkedHashMap<String, DocValuesType> map = new LinkedHashMap<>();
-        map.put("field1", DocValuesType.SORTED_NUMERIC);
-        map.put("field3", DocValuesType.SORTED_NUMERIC);
+        LinkedHashMap<String, DimensionProperty> map = new LinkedHashMap<>();
+        map.put("field1", new DimensionProperty(DocValuesType.SORTED_NUMERIC, ComparatorType.LONG));
+        map.put("field3", new DimensionProperty(DocValuesType.SORTED_NUMERIC, ComparatorType.LONG));
         StarTreeMetadata starTreeMetadata = getStarTreeMetadata(map, 100, 1, 6699);
 
         validateStarTreeFileFormats(
@@ -604,9 +606,9 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         metaOut.close();
         dataOut.close();
         docValuesConsumer.close();
-        LinkedHashMap<String, DocValuesType> docValues = new LinkedHashMap<>();
-        docValues.put("field1", DocValuesType.SORTED_SET);
-        docValues.put("field3", DocValuesType.SORTED_SET);
+        LinkedHashMap<String, DimensionProperty> docValues = new LinkedHashMap<>();
+        docValues.put("field1", new DimensionProperty(DocValuesType.SORTED_SET, ComparatorType.LONG));
+        docValues.put("field3", new DimensionProperty(DocValuesType.SORTED_SET, ComparatorType.LONG));
         StarTreeMetadata starTreeMetadata = new StarTreeMetadata(
             "sf",
             STAR_TREE,

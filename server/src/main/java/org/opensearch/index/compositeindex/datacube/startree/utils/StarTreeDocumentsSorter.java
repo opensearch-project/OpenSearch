@@ -11,7 +11,6 @@ package org.opensearch.index.compositeindex.datacube.startree.utils;
 import org.apache.lucene.util.IntroSorter;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.IntFunction;
@@ -48,12 +47,17 @@ public class StarTreeDocumentsSorter {
             @Override
             protected int comparePivot(int j) {
                 Long[] currentDimensions = dimensionsReader.apply(j);
-                for (int i = dimensionId + 1; i < dimensions.length; i++) {
+                int totalDimensions = dimensionsOrder.size();
+                int currentIndex = dimensionId + 1;
+                for (int i = dimensionId + 1; i < totalDimensions; i++) {
                     Dimension dimension = dimensionsOrder.get(i);
-                    Long dimensionValue = currentDimensions[i];
-                    if (!Objects.equals(dimensions[i], dimensionValue)) {
-                        Comparator<Long> comparator = dimension.comparator();
-                        return comparator.compare(dimensions[i], dimensionValue);
+                    int subDimensionsToProcess = dimension.getNumSubDimensions();
+                    while (subDimensionsToProcess > 0) {
+                        if (!Objects.equals(dimensions[currentIndex], currentDimensions[currentIndex])) {
+                            return dimension.comparator().compare(dimensions[currentIndex], currentDimensions[currentIndex]);
+                        }
+                        currentIndex++;
+                        subDimensionsToProcess--;
                     }
                 }
                 return 0;

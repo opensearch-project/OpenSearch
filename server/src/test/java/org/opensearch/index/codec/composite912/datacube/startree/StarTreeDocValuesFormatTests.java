@@ -90,7 +90,7 @@ public class StarTreeDocValuesFormatTests extends AbstractStarTreeDVFormatTests 
 
         // Segment documents
         /**
-         * sndv dv unsignedLongDimension field
+         * unsignedLongDimension sndv dv field
          * [10, 1,  1, -1]
          * [10, 1,  1, -1]
          * [-20, 2,  2, -2]

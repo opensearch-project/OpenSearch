@@ -23,7 +23,6 @@ import org.opensearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,8 +43,8 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
     /**
      * Constructor for OnHeapStarTreeBuilder
      *
-     * @param metaOut an index output to write star-tree metadata
-     * @param dataOut an index output to write star-tree data
+     * @param metaOut           an index output to write star-tree metadata
+     * @param dataOut           an index output to write star-tree data
      * @param starTreeField     star-tree field
      * @param segmentWriteState segment write state
      * @param mapperService     helps with the numeric type of field
@@ -84,9 +83,8 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * Sorts and aggregates all the documents of the segment based on dimension and metrics configuration
      *
      * @param dimensionReaders List of docValues readers to read dimensions from the segment
-     * @param metricReaders List of docValues readers to read metrics from the segment
+     * @param metricReaders    List of docValues readers to read metrics from the segment
      * @return Iterator of star-tree documents
-     *
      */
     @Override
     public Iterator<StarTreeDocument> sortAndAggregateSegmentDocuments(
@@ -269,16 +267,23 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * Sorts the star-tree documents from the given dimension id
      *
      * @param starTreeDocuments star-tree documents
-     * @param dimensionId id of the dimension
+     * @param dimensionId       id of the dimension
      */
     private void sortStarTreeDocumentsFromDimensionId(StarTreeDocument[] starTreeDocuments, int dimensionId) {
-        Arrays.sort(starTreeDocuments, (o1, o2) -> {
+        Arrays.sort(starTreeDocuments, (doc1, doc2) -> {
             List<Dimension> dimensionsOrder = starTreeField.getDimensionsOrder();
-            for (int i = dimensionId; i < numDimensions; i++) {
-                if (!Objects.equals(o1.dimensions[i], o2.dimensions[i])) {
-                    Dimension dimension = dimensionsOrder.get(i);
-                    Comparator<Long> comparator = dimension.comparator();
-                    return comparator.compare(o1.dimensions[i], o2.dimensions[i]);
+            int totalDimensions = dimensionsOrder.size();
+
+            int currentIndex = dimensionId;
+            for (int i = dimensionId; i < totalDimensions; i++) {
+                Dimension dimension = dimensionsOrder.get(i);
+                int subDimensionsToProcess = dimension.getNumSubDimensions();
+                while (subDimensionsToProcess > 0) {
+                    if (!Objects.equals(doc1.dimensions[currentIndex], doc2.dimensions[currentIndex])) {
+                        return dimension.comparator().compare(doc1.dimensions[currentIndex], doc2.dimensions[currentIndex]);
+                    }
+                    currentIndex++;
+                    subDimensionsToProcess--;
                 }
             }
             return 0;

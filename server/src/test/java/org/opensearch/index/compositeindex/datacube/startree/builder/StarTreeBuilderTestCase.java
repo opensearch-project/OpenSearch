@@ -41,6 +41,7 @@ import org.opensearch.index.compositeindex.datacube.UnsignedLongDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionProperty;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
@@ -248,7 +249,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         return BuilderTestsUtils.getWriteState(numDocs, id, fieldsInfo, directory);
     }
 
-    SegmentReadState getReadState(int numDocs, Map<String, DocValuesType> dimensionFields, List<Metric> metrics) {
+    SegmentReadState getReadState(int numDocs, Map<String, DimensionProperty> dimensionFields, List<Metric> metrics) {
         return BuilderTestsUtils.getReadState(numDocs, dimensionFields, metrics, compositeField, writeState, directory);
     }
 
@@ -256,11 +257,11 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         return Map.of(CompositeIndexConstants.SEGMENT_DOCS_COUNT, String.valueOf(numSegmentDocs));
     }
 
-    protected LinkedHashMap<String, DocValuesType> getStarTreeDimensionNames(List<Dimension> dimensionsOrder) {
-        LinkedHashMap<String, DocValuesType> dimensionNames = new LinkedHashMap<>();
+    protected LinkedHashMap<String, DimensionProperty> getStarTreeDimensionNames(List<Dimension> dimensionsOrder) {
+        LinkedHashMap<String, DimensionProperty> dimensionNames = new LinkedHashMap<>();
         for (Dimension dimension : dimensionsOrder) {
             for (String dimensionName : dimension.getSubDimensionNames()) {
-                dimensionNames.put(dimensionName, dimension.getDocValuesType());
+                dimensionNames.put(dimensionName, new DimensionProperty(dimension.getDocValuesType(), dimension.getComparatorType()));
             }
         }
         return dimensionNames;
@@ -395,7 +396,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
     }
 
     protected StarTreeMetadata getStarTreeMetadata(
-        LinkedHashMap<String, DocValuesType> fields,
+        LinkedHashMap<String, DimensionProperty> fields,
         int segmentAggregatedDocCount,
         int maxLeafDocs,
         int dataLength
