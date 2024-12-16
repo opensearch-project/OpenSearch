@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,12 +28,25 @@ import java.util.stream.IntStream;
  */
 public class BrainLogParser {
 
-    private static final List<Pattern> DEFAULT_FILTER_PATTERNS = Arrays.asList(
-        Pattern.compile("(/|)([0-9]+\\.){3}[0-9]+(:[0-9]+|)(:|)"), // IP
-        Pattern.compile("(?<=[^A-Za-z0-9])(\\-?\\+?\\d+)(?=[^A-Za-z0-9])|[0-9]+$") // Numbers
-    );
-    private static final List<String> DEFAULT_DELIMITERS = List.of(":", "=", "[", "]", "(", ")", "-", "|", ",", "+");
     private static final String VARIABLE_DENOTER = "<*>";
+    private static final Map<Pattern, String> DEFAULT_FILTER_PATTERN_VARIABLE_MAP = new LinkedHashMap<>();
+    static {
+        // IP
+        DEFAULT_FILTER_PATTERN_VARIABLE_MAP.put(Pattern.compile("(/|)([0-9]+\\.){3}[0-9]+(:[0-9]+|)(:|)"), "<*IP*>");
+        // Simple ISO date and time
+        DEFAULT_FILTER_PATTERN_VARIABLE_MAP.put(
+            Pattern.compile("(\\d{4}-\\d{2}-\\d{2})[T ]?(\\d{2}:\\d{2}:\\d{2})(\\.\\d{3})?(Z|([+-]\\d{2}:?\\d{2}))?"),
+            "<*DATETIME*>"
+        );
+        // Hex Decimal, letters followed by digits, float numbers
+        DEFAULT_FILTER_PATTERN_VARIABLE_MAP.put(
+            Pattern.compile("((0x|0X)[0-9a-fA-F]+)|[a-zA-Z]+\\d+|([+-]?(\\d+(\\.\\d*)?|\\.\\d+))"),
+            VARIABLE_DENOTER
+        );
+        // generic number surrounded by non-alphanumeric
+        DEFAULT_FILTER_PATTERN_VARIABLE_MAP.put(Pattern.compile("(?<=[^A-Za-z0-9])(-?\\+?\\d+)(?=[^A-Za-z0-9])|[0-9]+$"), VARIABLE_DENOTER);
+    }
+    private static final List<String> DEFAULT_DELIMITERS = List.of(",", "+");
     // counting frequency will be grouped by composite of position and token string
     private static final String POSITIONED_TOKEN_KEY_FORMAT = "%d-%s";
     // Token set will be grouped by composite of tokens length per log message, word combination candidate and token position.
@@ -50,22 +64,19 @@ public class BrainLogParser {
     private final Map<String, String> logIdGroupCandidateMap;
     private final int variableCountThreshold;
     private final float thresholdPercentage;
-    private final List<Pattern> filterPatterns;
+    private final Map<Pattern, String> filterPatternVariableMap;
     private final List<String> delimiters;
 
     /**
      * Creates new Brain log parser with default parameters
      */
     public BrainLogParser() {
-        this(DEFAULT_VARIABLE_COUNT_THRESHOLD, DEFAULT_FREQUENCY_THRESHOLD_PERCENTAGE, DEFAULT_FILTER_PATTERNS, DEFAULT_DELIMITERS);
-    }
-
-    /**
-     * Creates new Brain log parser with overridden variableCountThreshold
-     * @param variableCountThreshold the threshold to decide whether low frequency token is variable
-     */
-    public BrainLogParser(int variableCountThreshold) {
-        this(variableCountThreshold, DEFAULT_FREQUENCY_THRESHOLD_PERCENTAGE, DEFAULT_FILTER_PATTERNS, DEFAULT_DELIMITERS);
+        this(
+            DEFAULT_VARIABLE_COUNT_THRESHOLD,
+            DEFAULT_FREQUENCY_THRESHOLD_PERCENTAGE,
+            DEFAULT_FILTER_PATTERN_VARIABLE_MAP,
+            DEFAULT_DELIMITERS
+        );
     }
 
     /**
@@ -75,18 +86,17 @@ public class BrainLogParser {
      *                            frequency per log message
      */
     public BrainLogParser(int variableCountThreshold, float thresholdPercentage) {
-        this(variableCountThreshold, thresholdPercentage, DEFAULT_FILTER_PATTERNS, DEFAULT_DELIMITERS);
+        this(variableCountThreshold, thresholdPercentage, DEFAULT_FILTER_PATTERN_VARIABLE_MAP, DEFAULT_DELIMITERS);
     }
 
     /**
-     * Creates new Brain log parser with overridden variableCountThreshold, thresholdPercentage and filter patterns
-     * @param variableCountThreshold the threshold to decide whether low frequency token is variable
-     * @param thresholdPercentage the threshold percentage to decide which frequency is representative
-     *                            frequency per log message
-     * @param filterPatterns a list of regex to replace matched pattern with variable denoter
+     * Creates new Brain log parser with overridden filter patterns and delimiters
+     * @param filterPatternVariableMap a map of regex patterns to variable denoter, with which the matched pattern will be replaced,
+     *                                 recommend to use LinkedHashMap to make sure patterns in order
+     * @param delimiters a list of delimiters to be replaced with empty string after regex replacement
      */
-    public BrainLogParser(int variableCountThreshold, float thresholdPercentage, List<Pattern> filterPatterns) {
-        this(variableCountThreshold, thresholdPercentage, filterPatterns, DEFAULT_DELIMITERS);
+    public BrainLogParser(Map<Pattern, String> filterPatternVariableMap, List<String> delimiters) {
+        this(DEFAULT_VARIABLE_COUNT_THRESHOLD, DEFAULT_FREQUENCY_THRESHOLD_PERCENTAGE, filterPatternVariableMap, delimiters);
     }
 
     /**
@@ -95,10 +105,16 @@ public class BrainLogParser {
      * @param variableCountThreshold the threshold to decide whether low frequency token is variable
      * @param thresholdPercentage the threshold percentage to decide which frequency is representative
      *                            frequency per log message
-     * @param filterPatterns a list of regex to replace matched pattern with variable denoter
+     * @param filterPatternVariableMap a map of regex patterns to variable denoter, with which the matched pattern will be replaced,
+     *                                 recommend to use LinkedHashMap to make sure patterns in order
      * @param delimiters a list of delimiters to be replaced with empty string after regex replacement
      */
-    public BrainLogParser(int variableCountThreshold, float thresholdPercentage, List<Pattern> filterPatterns, List<String> delimiters) {
+    public BrainLogParser(
+        int variableCountThreshold,
+        float thresholdPercentage,
+        Map<Pattern, String> filterPatternVariableMap,
+        List<String> delimiters
+    ) {
         this.tokenFreqMap = new HashMap<>();
         this.groupTokenSetMap = new HashMap<>();
         this.logIdGroupCandidateMap = new HashMap<>();
@@ -107,7 +123,7 @@ public class BrainLogParser {
             throw new IllegalArgumentException("Threshold percentage must be between 0.0 and 1.0");
         }
         this.thresholdPercentage = thresholdPercentage;
-        this.filterPatterns = filterPatterns;
+        this.filterPatternVariableMap = filterPatternVariableMap;
         this.delimiters = delimiters;
     }
 
@@ -121,19 +137,19 @@ public class BrainLogParser {
         if (logMessage == null || logId == null) {
             throw new IllegalArgumentException("log message or logId must not be null");
         }
-        // match regex and replace it with variable denoter
-        for (Pattern pattern : filterPatterns) {
-            logMessage = pattern.matcher(logMessage).replaceAll(VARIABLE_DENOTER);
+        // match regex and replace it with variable denoter in order
+        for (Map.Entry<Pattern, String> patternVariablePair : filterPatternVariableMap.entrySet()) {
+            logMessage = patternVariablePair.getKey().matcher(logMessage).replaceAll(patternVariablePair.getValue());
         }
 
         for (String delimiter : delimiters) {
-            logMessage = logMessage.replace(delimiter, "");
+            logMessage = logMessage.replace(delimiter, " ");
         }
 
         // Append logId/docId to the end of the split tokens
         logMessage = logMessage.trim() + " " + logId;
 
-        return Arrays.asList(logMessage.split(" "));
+        return Arrays.asList(logMessage.split("\\s+"));
     }
 
     /**

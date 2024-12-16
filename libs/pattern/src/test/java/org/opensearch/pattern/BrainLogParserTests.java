@@ -61,14 +61,14 @@ public class BrainLogParserTests extends OpenSearchTestCase {
     public void testPreprocess() {
         String logMessage = "127.0.0.1 - 1234 something";
         String logId = "log1";
-        List<String> expectedResult = Arrays.asList("<*>", "", "<*>", "something", "log1");
+        List<String> expectedResult = Arrays.asList("<*IP*>", "-", "<*>", "something", "log1");
         List<String> result = parser.preprocess(logMessage, logId);
         assertEquals(expectedResult, result);
 
         // Test with different delimiter
         logMessage = "127.0.0.1=1234 something";
         logId = "log2";
-        expectedResult = Arrays.asList("<*><*>", "something", "log2");
+        expectedResult = Arrays.asList("<*IP*>=<*>", "something", "log2");
         result = parser.preprocess(logMessage, logId);
         assertEquals(expectedResult, result);
     }
@@ -92,8 +92,8 @@ public class BrainLogParserTests extends OpenSearchTestCase {
         List<List<String>> result = parser.preprocessAllLogs(logMessages, logIds);
 
         assertEquals(2, result.size());
-        assertEquals(Arrays.asList("<*>", "", "<*>", "something", "log1"), result.get(0));
-        assertEquals(Arrays.asList("<*>", "", "<*>", "something_else", "log2"), result.get(1));
+        assertEquals(Arrays.asList("<*IP*>", "-", "<*>", "something", "log1"), result.get(0));
+        assertEquals(Arrays.asList("<*IP*>", "-", "<*>", "something_else", "log2"), result.get(1));
     }
 
     public void testProcessTokenHistogram() {
@@ -144,10 +144,10 @@ public class BrainLogParserTests extends OpenSearchTestCase {
 
         List<String> expectedLogPattern = Arrays.asList(
             "BLOCK*",
-            "NameSystem.addStoredBlock",
+            "NameSystem.addStoredBlock:",
             "blockMap",
-            "updated",
-            "<*>",
+            "updated:",
+            "<*IP*>",
             "is",
             "added",
             "to",
@@ -167,9 +167,9 @@ public class BrainLogParserTests extends OpenSearchTestCase {
             2,
             "Verification succeeded for blk_<*>",
             2,
-            "BLOCK* NameSystem.addStoredBlock blockMap updated <*> is added to blk_<*> size <*>",
+            "BLOCK* NameSystem.addStoredBlock: blockMap updated: <*IP*> is added to blk_<*> size <*>",
             8,
-            "BLOCK* NameSystem.allocateBlock <*> blk_<*>",
+            "BLOCK* NameSystem.allocateBlock: <*> blk_<*>",
             8
         );
         Map<String, Integer> logPatternByCountMap = logPatternMap.entrySet()
@@ -180,7 +180,7 @@ public class BrainLogParserTests extends OpenSearchTestCase {
 
     public void testParseLogPatternWhenLowerFrequencyTokenIsVariable() {
         int testVariableCountThreshold = 3;
-        parser = new BrainLogParser(testVariableCountThreshold);
+        parser = new BrainLogParser(testVariableCountThreshold, 0.0f);
         List<String> logMessages = Arrays.asList(
             "Verification succeeded a blk_-1547954353065580372",
             "Verification succeeded b blk_6996194389878584395",
