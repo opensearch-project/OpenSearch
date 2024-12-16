@@ -23,40 +23,17 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
-import static org.opensearch.common.settings.Setting.intSetting;
-import static org.opensearch.common.settings.Setting.listSetting;
+import static org.opensearch.aux.AuxTransportSettings.SETTING_AUX_BIND_HOST;
+import static org.opensearch.aux.AuxTransportSettings.SETTING_AUX_HOST;
+import static org.opensearch.aux.AuxTransportSettings.SETTING_AUX_PUBLISH_HOST;
 
 /**
  * Main class for the gRPC plugin
  */
 public final class GrpcModulePlugin extends Plugin implements NetworkPlugin {
     public static final String GRPC_TRANSPORT_NAME = "grpc-transport";
-    public static final Setting<Integer> SETTING_GRPC_PUBLISH_PORT = intSetting("grpc.publish_port", -1, -1, Setting.Property.NodeScope);
-
-    public static final Setting<List<String>> SETTING_GRPC_HOST = listSetting(
-        "grpc.host",
-        emptyList(),
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<List<String>> SETTING_GRPC_PUBLISH_HOST = listSetting(
-        "grpc.publish_host",
-        SETTING_GRPC_HOST,
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<List<String>> SETTING_GRPC_BIND_HOST = listSetting(
-        "grpc.bind_host",
-        SETTING_GRPC_HOST,
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
 
     public static final Setting<Integer> SETTING_GRPC_WORKER_COUNT = new Setting<>(
         "grpc.netty.worker_count",
@@ -85,6 +62,6 @@ public final class GrpcModulePlugin extends Plugin implements NetworkPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(SETTING_GRPC_HOST, SETTING_GRPC_PUBLISH_HOST, SETTING_GRPC_BIND_HOST, SETTING_GRPC_WORKER_COUNT);
+        return List.of(SETTING_AUX_HOST, SETTING_AUX_PUBLISH_HOST, SETTING_AUX_BIND_HOST, SETTING_GRPC_WORKER_COUNT);
     }
 }

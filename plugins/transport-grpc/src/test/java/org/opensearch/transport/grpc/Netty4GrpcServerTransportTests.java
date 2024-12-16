@@ -8,9 +8,9 @@
 
 package org.opensearch.transport.grpc;
 
+import org.opensearch.aux.AuxTransportSettings;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.grpc.AuxTransportSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Before;
