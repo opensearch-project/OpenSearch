@@ -37,13 +37,13 @@ setup:
   - length: {hits.hits: 4 }
   - match: { hits.hits.0._index: long_sort }
   - match: { hits.hits.0._source.field: [ 9223372036854775807, 1 ] }
-  - match: { hits.hits.0.sort: [ 9223372036854775807 ] }
+  - match: { hits.hits.0.sort.0: 9223372036854775807 }
   - match: { hits.hits.1._source.field: [ 922337203685477777, 2 ] }
-  - match: { hits.hits.1.sort: [ 922337203685477777 ] }
+  - match: { hits.hits.1.sort.0: 922337203685477777 }
   - match: { hits.hits.2._source.field: [ 2147483648, 5, -1, -2 ] }
-  - match: { hits.hits.2.sort: [ 2147483648 ] }
+  - match: { hits.hits.2.sort.0: 2147483648 }
   - match: { hits.hits.3._source.field: [ 2147483647, 3, 4 ] }
-  - match: { hits.hits.3.sort: [ 2147483647 ] }
+  - match: { hits.hits.3.sort.0: 2147483647 }
 
   - do:
       search:
@@ -55,13 +55,13 @@ setup:
   - length: { hits.hits: 4 }
   - match: { hits.hits.0._index: long_sort }
   - match: { hits.hits.0._source.field: [ 2147483647, 3, 4 ] }
-  - match: { hits.hits.0.sort: [ 2147483647 ] }
+  - match: { hits.hits.0.sort.0: 2147483647 }
   - match: { hits.hits.1._source.field: [ 2147483648, 5, -1, -2 ] }
-  - match: { hits.hits.1.sort: [ 2147483648 ] }
+  - match: { hits.hits.1.sort.0: 2147483648 }
   - match: { hits.hits.2._source.field: [ 922337203685477777, 2 ] }
-  - match: { hits.hits.2.sort: [ 922337203685477777 ] }
+  - match: { hits.hits.2.sort.0: 922337203685477777 }
   - match: { hits.hits.3._source.field: [ 9223372036854775807, 1 ] }
-  - match: { hits.hits.3.sort: [ 9223372036854775807 ] }
+  - match: { hits.hits.3.sort.0: 9223372036854775807 }
 
 
   - do:
@@ -74,11 +74,11 @@ setup:
   - length: { hits.hits: 4 }
   - match: { hits.hits.0._index: long_sort }
   - match: { hits.hits.0._source.field: [ 2147483647, 3, 4 ] }
-  - match: { hits.hits.0.sort: [ 3 ] }
+  - match: { hits.hits.0.sort.0: 3 }
   - match: { hits.hits.1._source.field: [ 922337203685477777, 2 ] }
-  - match: { hits.hits.1.sort: [ 2 ] }
+  - match: { hits.hits.1.sort.0: 2 }
   - match: { hits.hits.2._source.field: [ 9223372036854775807, 1 ] }
-  - match: { hits.hits.2.sort: [ 1 ] }
+  - match: { hits.hits.2.sort.0: 1 }
   - match: { hits.hits.3._source.field: [ 2147483648, 5, -1, -2 ] }
   - match: { hits.hits.3.sort: [ -2 ] }
 
@@ -92,13 +92,13 @@ setup:
   - length: { hits.hits: 4 }
   - match: { hits.hits.0._index: long_sort }
   - match: { hits.hits.0._source.field: [ 2147483648, 5, -1, -2 ] }
-  - match: { hits.hits.0.sort: [ 2 ] }
+  - match: { hits.hits.0.sort.0: 2 }
   - match: { hits.hits.1._source.field: [ 2147483647, 3, 4 ] }
-  - match: { hits.hits.1.sort: [ 4 ] }
+  - match: { hits.hits.1.sort.0: 4 }
   - match: { hits.hits.2._source.field: [ 922337203685477777, 2 ] }
-  - match: { hits.hits.2.sort: [ 461168601842738880 ] }
+  - match: { hits.hits.2.sort.0: 461168601842738880 }
   - match: { hits.hits.3._source.field: [ 9223372036854775807, 1 ] }
-  - match: { hits.hits.3.sort: [ 4611686018427387904 ] }
+  - match: { hits.hits.3.sort.0: 4611686018427387904 }
 
   - do:
       search:
@@ -110,11 +110,11 @@ setup:
   - length: { hits.hits: 4 }
   - match: { hits.hits.0._index: long_sort }
   - match: { hits.hits.0._source.field: [ 922337203685477777, 2 ] }
-  - match: { hits.hits.0.sort: [ 461168601842738880 ] }
+  - match: { hits.hits.0.sort.0: 461168601842738880 }
   - match: { hits.hits.1._source.field: [ 2147483647, 3, 4 ] }
-  - match: { hits.hits.1.sort: [ 715827885 ] }
+  - match: { hits.hits.1.sort.0: 715827885 }
   - match: { hits.hits.2._source.field: [ 2147483648, 5, -1, -2 ] }
-  - match: { hits.hits.2.sort: [ 536870913 ] }
+  - match: { hits.hits.2.sort.0: 536870913 }
   - match: { hits.hits.3._source.field: [ 9223372036854775807, 1 ] }
   - match: { hits.hits.3.sort: [ -4611686018427387904 ] }
 
@@ -130,8 +130,8 @@ setup:
   - match: { hits.hits.0._source.field: [ 9223372036854775807, 1 ] }
   - match: { hits.hits.0.sort: [ -9223372036854775808 ] }
   - match: { hits.hits.1._source.field: [ 2147483648, 5, -1, -2 ] }
-  - match: { hits.hits.1.sort: [ 2147483650 ] }
+  - match: { hits.hits.1.sort.0: 2147483650 }
   - match: { hits.hits.2._source.field: [ 2147483647, 3, 4 ] }
-  - match: { hits.hits.2.sort: [ 2147483654 ] }
+  - match: { hits.hits.2.sort.0: 2147483654 }
   - match: { hits.hits.3._source.field: [ 922337203685477777, 2 ] }
-  - match: { hits.hits.3.sort: [ 922337203685477779 ] }
+  - match: { hits.hits.3.sort.0: 922337203685477779 }
