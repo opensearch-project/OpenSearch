@@ -32,12 +32,12 @@
 
 package org.opensearch.bootstrap;
 
+import org.opensearch.aux.AuxTransportSettings;
 import org.opensearch.cli.Command;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
-import org.opensearch.grpc.AuxTransportSettings;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
