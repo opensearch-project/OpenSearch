@@ -73,7 +73,8 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
     ReplicationResponse> {
 
     public static final String NAME = AddIndexBlockAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new) {
+    };
     protected Logger logger = LogManager.getLogger(getClass());
 
     @Inject

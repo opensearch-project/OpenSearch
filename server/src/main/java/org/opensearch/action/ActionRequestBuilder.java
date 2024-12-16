@@ -58,6 +58,10 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
         this.client = client;
     }
 
+    public OpenSearchClient client() {
+        return this.client;
+    }
+
     public Request request() {
         return this.request;
     }

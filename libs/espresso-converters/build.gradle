@@ -1,0 +1,32 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.info.BuildParams
+
+apply plugin: 'opensearch.publish'
+
+base {
+  archivesName = 'espresso-converters'
+}
+
+dependencies {
+  implementation "org.graalvm.espresso:polyglot:24.1.1"
+  implementation project(":server")
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+
+tasks.named('missingJavadoc').configure {
+  enabled = false
+}

@@ -86,7 +86,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
-    public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayStartedShards::new);
+    public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayStartedShards::new) {
+    };
 
     private final Settings settings;
     private final NodeEnvironment nodeEnv;

@@ -45,7 +45,7 @@ import org.opensearch.transport.TransportRequestOptions;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class ActionType<Response extends ActionResponse> {
+public abstract class ActionType<Response extends ActionResponse> {
 
     private final String name;
     private final Writeable.Reader<Response> responseReader;

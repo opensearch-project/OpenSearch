@@ -1,0 +1,50 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.info.BuildParams
+
+apply plugin: 'opensearch.publish'
+
+base {
+  archivesName = 'espresso-sm'
+}
+
+dependencies {
+  implementation "org.graalvm.polyglot:polyglot:24.1.1"
+  implementation "org.graalvm.sdk:nativeimage:24.1.1"
+  implementation "org.graalvm.sdk:collections:24.1.1"
+  implementation "org.graalvm.sdk:word:24.1.1"
+  implementation "org.graalvm.sdk:jniutils:24.1.1"
+  implementation "org.graalvm.llvm:llvm-api:24.1.1"
+  implementation "org.graalvm.llvm:llvm-language:24.1.1"
+  implementation "org.graalvm.llvm:llvm-language-native:24.1.1"
+  implementation "org.graalvm.llvm:llvm-language-native-resources:24.1.1"
+  implementation "org.graalvm.llvm:llvm-language-nfi:24.1.1"
+  implementation "org.graalvm.truffle:truffle-api:24.1.1"
+  implementation "org.graalvm.truffle:truffle-compiler:24.1.1"
+  implementation "org.graalvm.truffle:truffle-nfi:24.1.1"
+  implementation "org.graalvm.truffle:truffle-nfi-libffi:24.1.1"
+  implementation "org.graalvm.truffle:truffle-runtime:24.1.1"
+  implementation "org.graalvm.espresso:espresso-language:24.1.1"
+  implementation "org.graalvm.espresso:polyglot:24.1.1"
+  implementation "org.graalvm.espresso:espresso-libs-resources-linux-amd64:24.0.2"
+  implementation "org.graalvm.espresso:espresso-runtime-resources-linux-amd64:24.0.2"
+  implementation project(":server")
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+
+tasks.named('missingJavadoc').configure {
+  enabled = false
+}
