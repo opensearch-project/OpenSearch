@@ -44,6 +44,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -53,12 +54,45 @@ import java.util.Map;
  */
 class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    /**
+     * Execution mode for cardinality agg
+     *
+     * @opensearch.internal
+     */
+    public enum ExecutionMode {
+
+        UNSET,
+        DIRECT,
+        ORDINALS;
+
+        ExecutionMode() {}
+
+        public static ExecutionMode fromString(String value) {
+            if (value == null) {
+                return UNSET;
+            }
+            try {
+                return ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [direct, ordinals]");
+            }
+        }
+
+        @Override
+        public String toString() {
+            return this.name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    private final ExecutionMode executionMode;
+
     private final Long precisionThreshold;
 
     CardinalityAggregatorFactory(
         String name,
         ValuesSourceConfig config,
         Long precisionThreshold,
+        String executionHint,
         QueryShardContext queryShardContext,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -66,6 +100,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.precisionThreshold = precisionThreshold;
+        this.executionMode = ExecutionMode.fromString(executionHint);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -74,7 +109,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata);
+        return new CardinalityAggregator(name, config, precision(), executionMode, searchContext, parent, metadata);
     }
 
     @Override
@@ -86,7 +121,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(CardinalityAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, precision(), searchContext, parent, metadata);
+            .build(name, config, precision(), executionMode, searchContext, parent, metadata);
     }
 
     @Override
