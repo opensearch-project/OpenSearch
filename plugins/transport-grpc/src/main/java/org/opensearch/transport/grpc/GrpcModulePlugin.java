@@ -7,6 +7,7 @@
  */
 package org.opensearch.transport.grpc;
 
+import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -65,7 +66,7 @@ public final class GrpcModulePlugin extends Plugin implements NetworkPlugin {
     );
 
     @Override
-    public Map<String, Supplier<ServerTransport>> getAuxTransports(
+    public Map<String, Supplier<LifecycleComponent>> getAuxTransports(
         Settings settings,
         ThreadPool threadPool,
         CircuitBreakerService circuitBreakerService,

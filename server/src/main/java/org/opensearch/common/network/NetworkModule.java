@@ -40,6 +40,9 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.lifecycle.Lifecycle;
+import org.opensearch.common.lifecycle.LifecycleComponent;
+import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -159,7 +162,7 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final Map<String, Supplier<NetworkPlugin.ServerTransport>> transportAuxFactories = new HashMap<>();
+    private final Map<String, Supplier<LifecycleComponent>> transportAuxFactories = new HashMap<>();
 
     private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
@@ -226,7 +229,7 @@ public final class NetworkModule {
                 registerHttpTransport(entry.getKey(), entry.getValue());
             }
 
-            Map<String, Supplier<NetworkPlugin.ServerTransport>> auxTransportFactory = plugin.getAuxTransports(
+            Map<String, Supplier<LifecycleComponent>> auxTransportFactory = plugin.getAuxTransports(
                 settings,
                 threadPool,
                 circuitBreakerService,
@@ -234,7 +237,7 @@ public final class NetworkModule {
                 clusterSettings,
                 tracer
             );
-            for (Map.Entry<String, Supplier<NetworkPlugin.ServerTransport>> entry : auxTransportFactory.entrySet()) {
+            for (Map.Entry<String, Supplier<LifecycleComponent>> entry : auxTransportFactory.entrySet()) {
                 registerAuxTransport(entry.getKey(), entry.getValue());
             }
 
@@ -321,7 +324,7 @@ public final class NetworkModule {
         }
     }
 
-    private void registerAuxTransport(String key, Supplier<NetworkPlugin.ServerTransport> factory) {
+    private void registerAuxTransport(String key, Supplier<LifecycleComponent> factory) {
         if (transportAuxFactories.putIfAbsent(key, factory) != null) {
             throw new IllegalArgumentException("transport for name: " + key + " is already registered");
         }
@@ -373,13 +376,34 @@ public final class NetworkModule {
      * If AUX_TRANSPORT_TYPE_SETTING is not set return a no-op supplier.
      * If AUX_TRANSPORT_TYPE_SETTING is set but no factory is registered for the given type an exception is thrown.
      */
-    public Supplier<NetworkPlugin.ServerTransport> getAuxServerTransportSupplier() {
+    public Supplier<LifecycleComponent> getAuxServerTransportSupplier() {
         if (!AUX_TRANSPORT_TYPE_SETTING.exists(settings)) {
-            return NetworkPlugin.NoOpServerTransport::new;
+            // Supplier for no-op server transport.
+            return () -> new LifecycleComponent() {
+                @Override
+                public Lifecycle.State lifecycleState() {
+                    return null;
+                }
+
+                @Override
+                public void addLifecycleListener(LifecycleListener listener) {}
+
+                @Override
+                public void removeLifecycleListener(LifecycleListener listener) {}
+
+                @Override
+                public void start() {}
+
+                @Override
+                public void stop() {}
+
+                @Override
+                public void close() {}
+            };
         }
 
         final String name = AUX_TRANSPORT_TYPE_SETTING.get(settings);
-        final Supplier<NetworkPlugin.ServerTransport> factory = transportAuxFactories.get(name);
+        final Supplier<LifecycleComponent> factory = transportAuxFactories.get(name);
         if (factory == null) {
             throw new IllegalStateException("Unsupported " + AUX_TRANSPORT_TYPE_KEY + " [" + name + "]");
         }
