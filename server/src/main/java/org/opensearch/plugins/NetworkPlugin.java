@@ -31,6 +31,10 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lifecycle.Lifecycle;
+import org.opensearch.common.lifecycle.LifecycleComponent;
+import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -57,6 +61,28 @@ import java.util.function.Supplier;
  * @opensearch.api
  */
 public interface NetworkPlugin {
+
+    public interface ServerTransport extends LifecycleComponent {}
+
+    public class NoOpServerTransport implements ServerTransport {
+        @Override
+        public Lifecycle.State lifecycleState() { return null; }
+
+        @Override
+        public void addLifecycleListener(LifecycleListener listener) {}
+
+        @Override
+        public void removeLifecycleListener(LifecycleListener listener) {}
+
+        @Override
+        public void start() {}
+
+        @Override
+        public void stop() {}
+
+        @Override
+        public void close() {}
+    }
 
     /**
      * Returns a list of {@link TransportInterceptor} instances that are used to intercept incoming and outgoing
@@ -102,6 +128,23 @@ public interface NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Auxiliary transports are optional and run in parallel to the default HttpServerTransport.
+     * Returns a map of {@link ServerTransport} suppliers.
+     * See {@link org.opensearch.common.network.NetworkModule#AUX_TRANSPORT_TYPE_SETTING} to configure a specific implementation.
+     */
+    @ExperimentalApi
+    default Map<String, Supplier<ServerTransport>> getAuxTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        CircuitBreakerService circuitBreakerService,
+        NetworkService networkService,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {

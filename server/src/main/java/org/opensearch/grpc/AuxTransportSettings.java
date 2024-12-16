@@ -17,14 +17,14 @@ import org.opensearch.common.transport.PortsRange;
  *
  * @opensearch.internal
  */
-public final class GrpcTransportSettings {
+public final class AuxTransportSettings {
 
-    public static final Setting<PortsRange> SETTING_GRPC_PORT = new Setting<>(
-        "grpc.port",
+    public static final Setting<PortsRange> SETTING_AUX_PORT = new Setting<>(
+        "aux.port",
         "9400-9500",
         PortsRange::new,
         Property.NodeScope
     );
 
-    private GrpcTransportSettings() {}
+    private AuxTransportSettings() {}
 }

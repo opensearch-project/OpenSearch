@@ -17,6 +17,7 @@ import org.opensearch.common.transport.PortsRange;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.transport.BindTransportException;
 
 import java.io.IOException;
@@ -42,16 +43,17 @@ import io.grpc.protobuf.services.ProtoReflectionService;
 
 import static org.opensearch.common.network.NetworkService.resolvePublishPort;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
-import static org.opensearch.grpc.GrpcTransportSettings.SETTING_GRPC_PORT;
+import static org.opensearch.grpc.AuxTransportSettings.SETTING_AUX_PORT;
 import static org.opensearch.transport.grpc.GrpcModulePlugin.SETTING_GRPC_BIND_HOST;
 import static org.opensearch.transport.grpc.GrpcModulePlugin.SETTING_GRPC_PUBLISH_HOST;
 import static org.opensearch.transport.grpc.GrpcModulePlugin.SETTING_GRPC_PUBLISH_PORT;
 import static org.opensearch.transport.grpc.GrpcModulePlugin.SETTING_GRPC_WORKER_COUNT;
 
-public class Netty4GrpcServerTransport extends AbstractLifecycleComponent {
+public class Netty4GrpcServerTransport extends AbstractLifecycleComponent implements NetworkPlugin.ServerTransport {
     private static final Logger logger = LogManager.getLogger(Netty4GrpcServerTransport.class);
 
     private final Settings settings;
+    private final NetworkService networkService;
     private final List<BindableService> services;
     private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
     private final String[] bindHosts;
@@ -59,13 +61,13 @@ public class Netty4GrpcServerTransport extends AbstractLifecycleComponent {
     private final PortsRange port;
     private final int nettyEventLoopThreads;
 
-    private volatile NetworkService networkService;
     private volatile BoundTransportAddress boundAddress;
     private volatile EventLoopGroup eventLoopGroup;
 
-    public Netty4GrpcServerTransport(Settings settings, List<BindableService> services) {
+    public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService) {
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
+        this.networkService = Objects.requireNonNull(networkService);
 
         final List<String> httpBindHost = SETTING_GRPC_BIND_HOST.get(settings);
         this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : httpBindHost).toArray(
@@ -76,12 +78,8 @@ public class Netty4GrpcServerTransport extends AbstractLifecycleComponent {
         this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings) : httpPublishHost)
             .toArray(Strings.EMPTY_ARRAY);
 
-        this.port = SETTING_GRPC_PORT.get(settings);
+        this.port = SETTING_AUX_PORT.get(settings);
         this.nettyEventLoopThreads = SETTING_GRPC_WORKER_COUNT.get(settings);
-    }
-
-    void setNetworkService(NetworkService networkService) {
-        this.networkService = networkService;
     }
 
     BoundTransportAddress boundAddress() {
@@ -162,7 +160,7 @@ public class Netty4GrpcServerTransport extends AbstractLifecycleComponent {
                     + publishInetAddress
                     + "). "
                     + "Please specify a unique port by setting "
-                    + SETTING_GRPC_PORT.getKey()
+                    + SETTING_AUX_PORT.getKey()
                     + " or "
                     + SETTING_GRPC_PUBLISH_PORT.getKey()
             );
