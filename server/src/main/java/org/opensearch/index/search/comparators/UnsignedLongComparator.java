@@ -58,7 +58,7 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
 
     @Override
     protected long sortableBytesToLong(byte[] bytes) {
-        return NumericUtils.sortableBytesToBigInt(bytes, 0, 0).longValue();
+        return NumericUtils.sortableBytesToBigInt(bytes, 0, BigIntegerPoint.BYTES).longValue();
     }
 
     /** Leaf comparator for {@link UnsignedLongComparator} that provides skipping functionality */
