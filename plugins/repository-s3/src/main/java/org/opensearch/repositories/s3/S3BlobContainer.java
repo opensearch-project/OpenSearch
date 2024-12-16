@@ -770,7 +770,11 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         try (AmazonAsyncS3Reference asyncClientReference = blobStore.asyncClientReference()) {
             S3AsyncClient s3AsyncClient = asyncClientReference.get().client();
 
-            ListObjectsV2Request listRequest = ListObjectsV2Request.builder().bucket(blobStore.bucket()).prefix(keyPath).build();
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                .bucket(blobStore.bucket())
+                .prefix(keyPath)
+                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().listObjectsMetricPublisher))
+                .build();
             ListObjectsV2Publisher listPublisher = s3AsyncClient.listObjectsV2Paginator(listRequest);
 
             AtomicLong deletedBlobs = new AtomicLong();
