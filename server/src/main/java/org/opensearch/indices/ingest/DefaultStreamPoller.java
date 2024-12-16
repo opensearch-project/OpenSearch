@@ -171,11 +171,6 @@ public class DefaultStreamPoller implements StreamPoller {
     }
 
     @Override
-    public void resetPointer() {
-        throw new UnsupportedOperationException("reset pointer is not supported");
-    }
-
-    @Override
     public boolean isPaused() {
         return paused;
     }

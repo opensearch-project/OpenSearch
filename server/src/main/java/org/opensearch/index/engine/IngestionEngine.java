@@ -14,17 +14,26 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.InfoStream;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.lucene.LoggerInfoStream;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.*;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
+import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.OnGoingMerge;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.translog.Translog;
@@ -34,11 +43,14 @@ import org.opensearch.indices.ingest.DefaultStreamPoller;
 import org.opensearch.indices.ingest.DocumentProcessor;
 import org.opensearch.indices.ingest.StreamPoller;
 import org.opensearch.search.suggest.completion.CompletionStats;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
@@ -54,6 +66,8 @@ public class IngestionEngine extends Engine {
     private final ExternalReaderManager externalReaderManager;
     private final Lock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
+    private final OpenSearchConcurrentMergeScheduler mergeScheduler;
+    private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
 
     protected StreamPoller streamPoller;
 
@@ -62,6 +76,23 @@ public class IngestionEngine extends Engine {
      */
     @Nullable
     private volatile String forceMergeUUID;
+
+
+    // TODO: make this pluggable
+    IngestionConsumerFactory getIngestionConsumerFactory(IngestionSource ingestionSource) {
+        final IngestionConsumerFactory ingestionConsumerFactory;
+
+        switch (ingestionSource.getType().toLowerCase()) {
+            case KafkaConsumerFactory.TYPE:
+                ingestionConsumerFactory = new KafkaConsumerFactory();
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown ingestion source type: " + ingestionSource.getType());
+        }
+
+        ingestionConsumerFactory.initialize(ingestionSource.params());
+        return ingestionConsumerFactory;
+    }
 
 
     public IngestionEngine(EngineConfig engineConfig) {
@@ -74,16 +105,13 @@ public class IngestionEngine extends Engine {
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
             assert indexMetadata != null;
-            IngestionSourceConfig ingestionSourceConfig = indexMetadata.getIngestionSourceConfig();
-            assert ingestionSourceConfig != null;
+            mergeScheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             indexWriter = createWriter();
             externalReaderManager = createReaderManager(new InternalEngine.RefreshWarmerListener(logger, isClosed, engineConfig));
             internalReaderManager = externalReaderManager.internalReaderManager;
 
-            // todo: get IngestionConsumerFactory from the config
-            KafkaConsumerFactory kafkaConsumerFactory = new KafkaConsumerFactory();
-            kafkaConsumerFactory.initialize(ingestionSourceConfig);
-            IngestionShardConsumer ingestionShardConsumer = kafkaConsumerFactory.createShardConsumer("clientId", 0);
+            IngestionConsumerFactory factory = getIngestionConsumerFactory(indexMetadata.getIngestionSource());
+            IngestionShardConsumer ingestionShardConsumer = factory.createShardConsumer("clientId", 0);
 
             // todo: get pointer policy from the config
             KafkaOffset kafkaOffset = new KafkaOffset(0);
@@ -217,6 +245,13 @@ public class IngestionEngine extends Engine {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
+        boolean verbose = false;
+        try {
+            verbose = Boolean.parseBoolean(System.getProperty("tests.verbose"));
+        } catch (Exception ignore) {}
+        iwc.setInfoStream(verbose ? InfoStream.getDefault() : new LoggerInfoStream(logger));
+        iwc.setMergeScheduler(mergeScheduler);
         // set merge scheduler
         MergePolicy mergePolicy = config().getMergePolicy();
         boolean shuffleForcedMerge = Booleans.parseBoolean(System.getProperty("opensearch.shuffle_forced_merge", Boolean.TRUE.toString()));
@@ -404,7 +439,23 @@ public class IngestionEngine extends Engine {
 
     @Override
     public List<Segment> segments(boolean verbose) {
-        return List.of();
+        try (ReleasableLock lock = readLock.acquire()) {
+            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, verbose);
+
+            // fill in the merges flag
+            Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();
+            for (OnGoingMerge onGoingMerge : onGoingMerges) {
+                for (SegmentCommitInfo segmentInfoPerCommit : onGoingMerge.getMergedSegments()) {
+                    for (Segment segment : segmentsArr) {
+                        if (segment.getName().equals(segmentInfoPerCommit.info.name)) {
+                            segment.mergeId = onGoingMerge.getId();
+                            break;
+                        }
+                    }
+                }
+            }
+            return Arrays.asList(segmentsArr);
+        }
     }
 
     @Override
@@ -449,8 +500,8 @@ public class IngestionEngine extends Engine {
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
         // for a long time:
         maybePruneDeletes();
-        // use OS merge scheduler
-//        mergeScheduler.refreshConfig();
+        // TODO: use OS merge scheduler
+        mergeScheduler.refreshConfig();
         return refreshed;
     }
 
@@ -576,6 +627,17 @@ public class IngestionEngine extends Engine {
         }
     }
 
+    @Override
+    public MergeStats getMergeStats() {
+        return mergeScheduler.stats();
+    }
+
+    @Override
+    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
+        mergeScheduler.refreshConfig();
+        // TODO: do we need more?
+    }
+
     protected Map<String, String> commitDataAsMap() {
         return commitDataAsMap(indexWriter);
     }
@@ -662,27 +724,28 @@ public class IngestionEngine extends Engine {
 
     @Override
     public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
-        // TODO: do we need this?
-
-//        if (flushFirst) {
-//            logger.trace("start flush for snapshot");
-//            flush(false, true);
-//            logger.trace("finish flush for snapshot");
-//        }
-//        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
-//        return new GatedCloseable<>(lastCommit, () -> releaseIndexCommit(lastCommit));
-
-        return null;
+        store.incRef();
+        try {
+            var reader = getReferenceManager(SearcherScope.INTERNAL).acquire();
+            return new GatedCloseable<>(reader.getIndexCommit(), ()->{
+                store.decRef();
+                getReferenceManager(SearcherScope.INTERNAL).release(reader);
+            });
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
-        return null;
+        // TODO: do we need this? likely not
+        return acquireLastIndexCommit(false);
     }
 
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
-        return null;
+        // TODO: do we need this?
+        return SafeCommitInfo.EMPTY;
     }
 
     @Override
@@ -743,9 +806,85 @@ public class IngestionEngine extends Engine {
         return engineFailed;
     }
 
+    private final class EngineMergeScheduler extends OpenSearchConcurrentMergeScheduler {
+        private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
+        private final AtomicBoolean isThrottling = new AtomicBoolean();
+
+        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+            super(shardId, indexSettings);
+        }
+
+        @Override
+        public synchronized void beforeMerge(OnGoingMerge merge) {
+            int maxNumMerges = mergeScheduler.getMaxMergeCount();
+            if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
+                if (isThrottling.getAndSet(true) == false) {
+                    logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    activateThrottling();
+                }
+            }
+        }
+
+        @Override
+        public synchronized void afterMerge(OnGoingMerge merge) {
+            int maxNumMerges = mergeScheduler.getMaxMergeCount();
+            if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
+                if (isThrottling.getAndSet(false)) {
+                    logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    deactivateThrottling();
+                }
+            }
+            if (indexWriter.hasPendingMerges() == false
+                && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+                // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer
+                // we deadlock on engine#close for instance.
+                engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (isClosed.get() == false) {
+                            logger.warn("failed to flush after merge has finished");
+                        }
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        // if we have no pending merges and we are supposed to flush once merges have finished to
+                        // free up transient disk usage of the (presumably biggish) segments that were just merged
+                        flush();
+                    }
+                });
+            } else if (merge.getTotalBytesSize() >= engineConfig.getIndexSettings().getFlushAfterMergeThresholdSize().getBytes()) {
+                // we hit a significant merge which would allow us to free up memory if we'd commit it hence on the next change
+                // we should execute a flush on the next operation if that's a flush after inactive or indexing a document.
+                // we could fork a thread and do it right away but we try to minimize forking and piggyback on outside events.
+                shouldPeriodicallyFlushAfterBigMerge.set(true);
+            }
+        }
+
+        @Override
+        protected void handleMergeException(final Throwable exc) {
+            engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("merge failure action rejected", e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    /*
+                     * We do this on another thread rather than the merge thread that we are initially called on so that we have complete
+                     * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
+                     * here from being caught and never reaching the uncaught exception handler.
+                     */
+                    failEngine(MERGE_FAILED, new MergePolicy.MergeException(exc));
+                }
+            });
+        }
+    }
+
     @Override
     public void activateThrottling() {
-        // TODO: is this needed?
+        // TODO: add this when we have a thread pool for indexing in parallel
     }
 
     @Override
@@ -761,7 +900,7 @@ public class IngestionEngine extends Engine {
 
     @Override
     public void maybePruneDeletes() {
-        // TODO: is this needed?
+        // no need to prune deletes in ingestion engine
     }
 
     @Override

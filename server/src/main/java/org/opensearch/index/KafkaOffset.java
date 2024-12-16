@@ -43,6 +43,11 @@ public class KafkaOffset implements IngestionShardPointer {
         return new KafkaOffset(Long.valueOf(pointer));
     }
 
+    @Override
+    public long toSequenceNumber() {
+        return offset;
+    }
+
 
     public long getOffset() {
         return offset;

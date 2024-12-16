@@ -8,14 +8,10 @@
 
 package org.opensearch.index;
 
-public abstract class IngestionConsumerFactory<T extends IngestionShardConsumer> {
-    protected IngestionSourceConfig config;
+import java.util.Map;
 
-    public void initialize(IngestionSourceConfig config) {
-        this.config = config;
-    }
+public interface IngestionConsumerFactory<T extends IngestionShardConsumer> {
+    void initialize(Map<String, Object> params);
 
-
-    public abstract T createShardConsumer(String clientId, int shardId);
-
+    T createShardConsumer(String clientId, int shardId);
 }

@@ -75,6 +75,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.common.ReplicationType;
 
+import javax.net.ssl.SNIHostName;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -636,6 +637,43 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Used to specify the type for the ingestion index. If not specified, the ingestion source not enabled
+     */
+    public static final String SETTING_INGESTION_SOURCE_TYPE = "index.ingestion_source.type";
+    public static final String NONE_INGESTION_SOURCE_TYPE = "none";
+    public static final Setting<String> INGESTION_SOURCE_TYPE_SETTING = Setting.simpleString(
+        SETTING_INGESTION_SOURCE_TYPE,
+        NONE_INGESTION_SOURCE_TYPE,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {
+                // TODO: validate this with the registered types in the ingestion source plugin
+            }
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                // TODO: validate this with the ingestion source params
+            }
+        },
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
+        "index.ingestion_source.param.",
+        key -> new Setting<>(key, "", (value) -> {
+            // TODO: add ingestion source params validation
+            return value;
+        },Property.IndexScope));
+
+    /**
+     * Used to specify the params for the ingestion index.
+     */
+    public static final String SETTING_INGESTION_SOURCE_PARAMS = "index.ingestion_source.params";
+
+
+    /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
      */
     private static final String INDEX_FORMAT = "index.format";
@@ -662,7 +700,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
     public static final String CONTEXT_KEY = "context";
-    public static final String KEY_INGESTION_SOURCE_TYPE = "ingestion_source_type";
+    public static final String INGESTION_SOURCE_KEY = "ingestion_source";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -707,8 +745,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final Version indexCreatedVersion;
     private final Version indexUpgradedVersion;
 
-    // TODO better config this
-    private IngestionSourceConfig ingestionSourceConfig;
+    private IngestionSource ingestionSource;
 
     private final ActiveShardCount waitForActiveShards;
     private final Map<String, RolloverInfo> rolloverInfos;
@@ -748,7 +785,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final boolean isSystem,
         final int indexTotalShardsPerNodeLimit,
         final Context context,
-        final IngestionSourceConfig ingestionSourceConfig
+        final IngestionSource ingestionSource
     ) {
 
         this.index = index;
@@ -787,7 +824,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.indexTotalShardsPerNodeLimit = indexTotalShardsPerNodeLimit;
         this.context = context;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
-        this.ingestionSourceConfig = ingestionSourceConfig;
+        this.ingestionSource = ingestionSource;
     }
 
     public Index getIndex() {
@@ -845,8 +882,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return indexCreatedVersion;
     }
 
-    public IngestionSourceConfig getIngestionSourceConfig(){
-        return ingestionSourceConfig;
+    public IngestionSource getIngestionSource(){
+        return ingestionSource;
     }
 
 
@@ -1192,6 +1229,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.context(context);
+            // TODO: support ingestion source
             return builder.build();
         }
     }
@@ -1388,7 +1426,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
         private Context context;
-        private IngestionSourceConfig ingestionSourceConfig;
+        private IngestionSource ingestionSource;
 
         public Builder(String index) {
             this.index = index;
@@ -1417,7 +1455,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos = new HashMap<>(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.context = indexMetadata.context;
-            this.ingestionSourceConfig = indexMetadata.ingestionSourceConfig;
+            this.ingestionSource = indexMetadata.ingestionSource;
         }
 
         public Builder index(String index) {
@@ -1439,8 +1477,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public Builder setIngestionSourceConfig(IngestionSourceConfig ingestionSourceConfig) {
-            this.ingestionSourceConfig = ingestionSourceConfig;
+        public Builder setIngestionSource(IngestionSource ingestionSource) {
+            this.ingestionSource = ingestionSource;
             return this;
         }
 
@@ -1756,6 +1794,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
+            // check the ingestion source config
+            final String ingestionSourceType = INGESTION_SOURCE_TYPE_SETTING.get(settings);
+            if (!NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType)) {
+                final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
+                ingestionSource = new IngestionSource(ingestionSourceType, ingestionSourceParams);
+            }
+
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -1785,7 +1830,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 isSystem,
                 indexTotalShardsPerNodeLimit,
                 context,
-                ingestionSourceConfig
+                ingestionSource
             );
         }
 
@@ -1893,9 +1938,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexMetadata.context.toXContent(builder, params);
             }
 
-            if(indexMetadata.ingestionSourceConfig!=null) {
-                builder.field(KEY_INGESTION_SOURCE_TYPE, indexMetadata.ingestionSourceConfig.getIngestionSourceType());
-                indexMetadata.ingestionSourceConfig.toXContent(builder, params);
+            if(indexMetadata.ingestionSource !=null) {
+                builder.field(INGESTION_SOURCE_KEY);
+                indexMetadata.ingestionSource.toXContent(builder, params);
             }
 
             builder.endObject();
@@ -1981,9 +2026,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         parser.skipChildren();
                     } else if (CONTEXT_KEY.equals(currentFieldName)) {
                         builder.context(Context.fromXContent(parser));
-                    } else if (KEY_INGESTION_SOURCE_TYPE.equals(currentFieldName)) {
-                        String ingestionSourceType = parser.text();
-                        builder.setIngestionSourceConfig(IngestionSourceConfig.fromXContent(parser, ingestionSourceType));
+                    } else if (INGESTION_SOURCE_KEY.equals(currentFieldName)) {
+                        builder.setIngestionSource(IngestionSource.fromXContent(parser));
                     } else {
                         // assume it's custom index metadata
                         builder.putCustom(currentFieldName, parser.mapStrings());
