@@ -289,6 +289,12 @@ public class OperationRouting {
             if (slice != null) {
                 // Filter the returned shards for the given slice
                 CollectionUtil.timSort(indexIterators);
+                // We use the ordinal of the iterator in the group (after sorting) rather than the shard id, because
+                // computeTargetedShards may return a subset of shards for an index, if a routing parameter was
+                // specified. In that case, the set of routable shards is considered the full universe of available
+                // shards for each index, when mapping shards to slices. If no routing parameter was specified,
+                // then ordinals and shard IDs are the same. This mimics the logic in
+                // org.opensearch.search.slice.SliceBuilder.toFilter.
                 for (int i = 0; i < indexIterators.size(); i++) {
                     if (slice.shardMatches(i, indexIterators.size())) {
                         allShardIterators.add(indexIterators.get(i));
