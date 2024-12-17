@@ -10,14 +10,15 @@ package org.opensearch.transport.grpc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.PortsRange;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.transport.BindTransportException;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import io.grpc.BindableService;
 import io.grpc.InsecureServerCredentials;
@@ -41,16 +43,48 @@ import io.grpc.netty.shaded.io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.grpc.protobuf.services.HealthStatusManager;
 import io.grpc.protobuf.services.ProtoReflectionService;
 
-import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_BIND_HOST;
-import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_PORT;
-import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_PUBLISH_HOST;
-import static org.opensearch.auxiliary.AuxTransportSettings.SETTING_AUX_PUBLISH_PORT;
+import static java.util.Collections.emptyList;
 import static org.opensearch.common.network.NetworkService.resolvePublishPort;
+import static org.opensearch.common.settings.Setting.intSetting;
+import static org.opensearch.common.settings.Setting.listSetting;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
-import static org.opensearch.transport.grpc.GrpcModulePlugin.SETTING_GRPC_WORKER_COUNT;
 
-public class Netty4GrpcServerTransport extends AbstractLifecycleComponent implements LifecycleComponent {
+public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
     private static final Logger logger = LogManager.getLogger(Netty4GrpcServerTransport.class);
+    public static final String GRPC_TRANSPORT_SETTING_KEY = "grpc-transport";
+    public static final Setting<PortsRange> SETTING_GRPC_PORTS = AUX_TRANSPORT_PORTS.getConcreteSettingForNamespace(
+        GRPC_TRANSPORT_SETTING_KEY
+    );
+
+    public static final Setting<Integer> SETTING_GRPC_WORKER_COUNT = new Setting<>(
+        "grpc.netty.worker_count",
+        (s) -> Integer.toString(OpenSearchExecutors.allocatedProcessors(s)),
+        (s) -> Setting.parseInt(s, 1, "grpc.netty.worker_count"),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SETTING_GRPC_PUBLISH_PORT = intSetting("grpc.publish_port", -1, -1, Setting.Property.NodeScope);
+
+    public static final Setting<List<String>> SETTING_GRPC_HOST = listSetting(
+        "grpc.host",
+        emptyList(),
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<List<String>> SETTING_GRPC_PUBLISH_HOST = listSetting(
+        "grpc.publish_host",
+        SETTING_GRPC_HOST,
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<List<String>> SETTING_GRPC_BIND_HOST = listSetting(
+        "grpc.bind_host",
+        SETTING_GRPC_HOST,
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
 
     private final Settings settings;
     private final NetworkService networkService;
@@ -69,16 +103,16 @@ public class Netty4GrpcServerTransport extends AbstractLifecycleComponent implem
         this.services = Objects.requireNonNull(services);
         this.networkService = Objects.requireNonNull(networkService);
 
-        final List<String> httpBindHost = SETTING_AUX_BIND_HOST.get(settings);
+        final List<String> httpBindHost = SETTING_GRPC_BIND_HOST.get(settings);
         this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : httpBindHost).toArray(
             Strings.EMPTY_ARRAY
         );
 
-        final List<String> httpPublishHost = SETTING_AUX_PUBLISH_HOST.get(settings);
+        final List<String> httpPublishHost = SETTING_GRPC_PUBLISH_HOST.get(settings);
         this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings) : httpPublishHost)
             .toArray(Strings.EMPTY_ARRAY);
 
-        this.port = SETTING_AUX_PORT.get(settings);
+        this.port = SETTING_GRPC_PORTS.get(settings);
         this.nettyEventLoopThreads = SETTING_GRPC_WORKER_COUNT.get(settings);
     }
 
@@ -151,7 +185,7 @@ public class Netty4GrpcServerTransport extends AbstractLifecycleComponent implem
             throw new BindTransportException("Failed to resolve publish address", e);
         }
 
-        final int publishPort = resolvePublishPort(SETTING_AUX_PUBLISH_PORT.get(settings), boundAddresses, publishInetAddress);
+        final int publishPort = resolvePublishPort(SETTING_GRPC_PUBLISH_PORT.get(settings), boundAddresses, publishInetAddress);
         if (publishPort < 0) {
             throw new BindTransportException(
                 "Failed to auto-resolve grpc publish port, multiple bound addresses "
@@ -160,9 +194,9 @@ public class Netty4GrpcServerTransport extends AbstractLifecycleComponent implem
                     + publishInetAddress
                     + "). "
                     + "Please specify a unique port by setting "
-                    + SETTING_AUX_PORT.getKey()
+                    + SETTING_GRPC_PORTS.getKey()
                     + " or "
-                    + SETTING_AUX_PUBLISH_PORT.getKey()
+                    + SETTING_GRPC_PUBLISH_PORT.getKey()
             );
         }
 

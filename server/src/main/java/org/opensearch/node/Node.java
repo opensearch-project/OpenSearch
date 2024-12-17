@@ -1216,7 +1216,8 @@ public class Node implements Closeable {
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
             );
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
-            pluginComponents.add(newAuxTransport(networkModule));
+
+            pluginComponents.addAll(newAuxTransports(networkModule));
 
             final IndexingPressureService indexingPressureService = new IndexingPressureService(settings, clusterService);
             // Going forward, IndexingPressureService will have required constructs for exposing listeners/interfaces for plugin
@@ -2115,8 +2116,8 @@ public class Node implements Closeable {
         return networkModule.getHttpServerTransportSupplier().get();
     }
 
-    protected LifecycleComponent newAuxTransport(NetworkModule networkModule) {
-        return networkModule.getAuxServerTransportSupplier().get();
+    protected List<NetworkPlugin.AuxTransport> newAuxTransports(NetworkModule networkModule) {
+        return networkModule.getAuxServerTransportSupplierList();
     }
 
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {
