@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 
 ### Dependencies
+- Bump Apache Lucene from 9.12.0 to 9.12.1 ([#16846](https://github.com/opensearch-project/OpenSearch/pull/16846))
 
 ### Changed
 
