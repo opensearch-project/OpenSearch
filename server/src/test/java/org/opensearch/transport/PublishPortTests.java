@@ -44,7 +44,6 @@ import java.util.List;
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
 import static org.opensearch.transport.TcpTransport.resolvePublishPort;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PublishPortTests extends OpenSearchTestCase {
