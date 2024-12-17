@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.CompositeReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
@@ -279,7 +280,7 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
     }
 
     private static IndexReader mockIndexReader(int maxDoc, int numDocs) {
-        IndexReader reader = mock(IndexReader.class);
+        CompositeReader reader = mock(CompositeReader.class);
         when(reader.hasDeletions()).thenReturn(maxDoc - numDocs > 0);
         when(reader.maxDoc()).thenReturn(maxDoc);
         when(reader.numDocs()).thenReturn(numDocs);
