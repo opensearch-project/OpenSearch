@@ -2112,6 +2112,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertEquals(TieredSpilloverCacheSettings.defaultSegments(), tieredSpilloverCache.getNumberOfSegments());
         assertTrue(VALID_SEGMENT_COUNT_VALUES.contains(tieredSpilloverCache.getNumberOfSegments()));
     }
+
     public void testDropStatsForDimensions() throws Exception {
         int onHeapCacheSize = randomIntBetween(300, 600);
         int diskCacheSize = randomIntBetween(700, 1200);
@@ -2165,6 +2166,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         tieredSpilloverCache.invalidate(dropDimensionsKey);
         assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), tieredSpilloverCache.stats().getTotalStats());
     }
+
     public void testSegmentSizesWhenUsingFactory() {
         // The TSC's tier size settings, TIERED_SPILLOVER_ONHEAP_STORE_SIZE and TIERED_SPILLOVER_DISK_STORE_SIZE,
         // should always be respected, overriding the individual implementation's size settings if present
