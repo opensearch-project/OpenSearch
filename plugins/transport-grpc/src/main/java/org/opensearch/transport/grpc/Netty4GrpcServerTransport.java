@@ -51,7 +51,7 @@ import static org.opensearch.transport.TcpTransport.resolveTransportPublishPort;
 
 public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
     private static final Logger logger = LogManager.getLogger(Netty4GrpcServerTransport.class);
-    public static final String GRPC_TRANSPORT_SETTING_KEY = "grpc-transport";
+    public static final String GRPC_TRANSPORT_SETTING_KEY = "experimental-transport-grpc";
     public static final Setting<PortsRange> SETTING_GRPC_PORTS = AUX_TRANSPORT_PORTS.getConcreteSettingForNamespace(
         GRPC_TRANSPORT_SETTING_KEY
     );
