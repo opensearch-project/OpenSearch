@@ -77,7 +77,7 @@ public interface NetworkPlugin {
      */
     abstract class AuxTransport extends AbstractLifecycleComponent {
         public static final String AUX_SETTINGS_PREFIX = "aux.transport.";
-        public static final String AUX_TRANSPORT_TYPES_KEY = AUX_SETTINGS_PREFIX + "type";
+        public static final String AUX_TRANSPORT_TYPES_KEY = AUX_SETTINGS_PREFIX + "types";
         public static final String AUX_PORT_DEFAULTS = "9400-9500";
         public static final Setting.AffixSetting<PortsRange> AUX_TRANSPORT_PORTS = affixKeySetting(
             AUX_SETTINGS_PREFIX,
