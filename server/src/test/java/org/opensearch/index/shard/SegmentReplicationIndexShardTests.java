@@ -892,7 +892,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             replicateSegments(primaryShard, shards.getReplicas());
             shards.assertAllEqual(10);
 
-            final SnapshotShardsService shardsService = getSnapshotShardsService(replicaShard);
+            final SnapshotShardsService shardsService = getSnapshotShardsService(replicaShard, shards.getIndexMetadata());
             final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
 
             final ClusterState initState = addSnapshotIndex(clusterService.state(), snapshot, replicaShard, SnapshotsInProgress.State.INIT);
@@ -956,13 +956,14 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    private SnapshotShardsService getSnapshotShardsService(IndexShard replicaShard) {
+    private SnapshotShardsService getSnapshotShardsService(IndexShard replicaShard, IndexMetadata indexMetadata) {
         final TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         final IndicesService indicesService = mock(IndicesService.class);
         final IndexService indexService = mock(IndexService.class);
         when(indicesService.indexServiceSafe(any())).thenReturn(indexService);
         when(indexService.getShardOrNull(anyInt())).thenReturn(replicaShard);
+        when(indexService.getMetadata()).thenReturn(indexMetadata);
         return new SnapshotShardsService(settings, clusterService, createRepositoriesService(), transportService, indicesService);
     }
 
