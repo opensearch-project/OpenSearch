@@ -119,8 +119,14 @@ class S3AsyncService implements Closeable {
             if (existing != null && existing.tryIncRef()) {
                 return existing;
             }
+
             final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(
-                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder)
+                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder),
+                () -> {
+                    urgentExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+                    priorityExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+                    normalExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+                }
             );
             clientReference.incRef();
             clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientSettings, clientReference).immutableMap();
@@ -437,5 +443,6 @@ class S3AsyncService implements Closeable {
     @Override
     public void close() {
         releaseCachedClients();
+
     }
 }

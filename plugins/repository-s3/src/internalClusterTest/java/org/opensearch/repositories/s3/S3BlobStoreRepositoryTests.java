@@ -96,7 +96,6 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
     public void setUp() throws Exception {
         signerOverride = AwsRequestSigner.VERSION_FOUR_SIGNER.getName();
         previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
-        logger.info("previousOpenSearchPathConf={}", previousOpenSearchPathConf);
         super.setUp();
     }
 
