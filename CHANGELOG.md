@@ -32,7 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.apis:google-api-services-compute` from v1-rev20240407-2.0.0 to v1-rev20241105-2.0.0 ([#16502](https://github.com/opensearch-project/OpenSearch/pull/16502), [#16548](https://github.com/opensearch-project/OpenSearch/pull/16548), [#16613](https://github.com/opensearch-project/OpenSearch/pull/16613))
 - Bump `com.azure:azure-storage-blob` from 12.23.0 to 12.28.1 ([#16501](https://github.com/opensearch-project/OpenSearch/pull/16501))
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.0 to 3.4.1 ([#16550](https://github.com/opensearch-project/OpenSearch/pull/16550))
-- Bump `org.apache.xmlbeans:xmlbeans` from 5.2.1 to 5.2.2 ([#16612](https://github.com/opensearch-project/OpenSearch/pull/16612))
+- Bump `org.apache.xmlbeans:xmlbeans` from 5.2.1 to 5.3.0 ([#16612](https://github.com/opensearch-project/OpenSearch/pull/16612), [#16854](https://github.com/opensearch-project/OpenSearch/pull/16854))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 9.47 ([#16611](https://github.com/opensearch-project/OpenSearch/pull/16611), [#16807](https://github.com/opensearch-project/OpenSearch/pull/16807))
 - Bump `lycheeverse/lychee-action` from 2.0.2 to 2.1.0 ([#16610](https://github.com/opensearch-project/OpenSearch/pull/16610))
 - Bump `me.champeau.gradle.japicmp` from 0.4.4 to 0.4.5 ([#16614](https://github.com/opensearch-project/OpenSearch/pull/16614))
@@ -40,10 +40,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `Netty` from 4.1.114.Final to 4.1.115.Final ([#16661](https://github.com/opensearch-project/OpenSearch/pull/16661))
 - Bump `org.xerial.snappy:snappy-java` from 1.1.10.6 to 1.1.10.7 ([#16665](https://github.com/opensearch-project/OpenSearch/pull/16665))
 - Bump `codecov/codecov-action` from 4 to 5 ([#16667](https://github.com/opensearch-project/OpenSearch/pull/16667))
-- Bump `org.apache.logging.log4j:log4j-core` from 2.24.1 to 2.24.2 ([#16718](https://github.com/opensearch-project/OpenSearch/pull/16718))
+- Bump `org.apache.logging.log4j:log4j-core` from 2.24.1 to 2.24.3 ([#16718](https://github.com/opensearch-project/OpenSearch/pull/16718), [#16858](https://github.com/opensearch-project/OpenSearch/pull/16858))
 - Bump `jackson` from 2.17.2 to 2.18.2 ([#16733](https://github.com/opensearch-project/OpenSearch/pull/16733))
 - Bump `ch.qos.logback:logback-classic` from 1.2.13 to 1.5.12 ([#16716](https://github.com/opensearch-project/OpenSearch/pull/16716))
 - Bump `com.azure:azure-identity` from 1.13.2 to 1.14.2 ([#16778](https://github.com/opensearch-project/OpenSearch/pull/16778))
+- Bump Apache Lucene from 9.12.0 to 9.12.1 ([#16846](https://github.com/opensearch-project/OpenSearch/pull/16846))
 - Bump `com.gradle.develocity` from 3.18.2 to 3.19 ([#16855](https://github.com/opensearch-project/OpenSearch/pull/16855))
 
 ### Changed
