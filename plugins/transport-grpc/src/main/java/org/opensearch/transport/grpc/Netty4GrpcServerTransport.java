@@ -44,10 +44,10 @@ import io.grpc.protobuf.services.HealthStatusManager;
 import io.grpc.protobuf.services.ProtoReflectionService;
 
 import static java.util.Collections.emptyList;
-import static org.opensearch.common.network.NetworkService.resolvePublishPort;
 import static org.opensearch.common.settings.Setting.intSetting;
 import static org.opensearch.common.settings.Setting.listSetting;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
+import static org.opensearch.transport.TcpTransport.resolveTransportPublishPort;
 
 public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
     private static final Logger logger = LogManager.getLogger(Netty4GrpcServerTransport.class);
@@ -185,7 +185,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
 
-        final int publishPort = resolvePublishPort(SETTING_GRPC_PUBLISH_PORT.get(settings), boundAddresses, publishInetAddress);
+        final int publishPort = resolveTransportPublishPort(SETTING_GRPC_PUBLISH_PORT.get(settings), boundAddresses, publishInetAddress);
         if (publishPort < 0) {
             throw new BindTransportException(
                 "Failed to auto-resolve grpc publish port, multiple bound addresses "
