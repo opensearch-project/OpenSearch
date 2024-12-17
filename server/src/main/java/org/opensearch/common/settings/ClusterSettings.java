@@ -519,7 +519,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING,
-                IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING,
+                IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING,
                 HunspellService.HUNSPELL_LAZY_LOAD,
                 HunspellService.HUNSPELL_IGNORE_CASE,
                 HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
@@ -738,6 +738,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteClusterStateService.REMOTE_PUBLICATION_SETTING,
+                RemoteClusterStateService.REMOTE_STATE_DOWNLOAD_TO_SERVE_READ_API,
+
                 INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
                 GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
                 METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
