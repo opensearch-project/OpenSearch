@@ -40,9 +40,6 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.lifecycle.Lifecycle;
-import org.opensearch.common.lifecycle.LifecycleComponent;
-import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -83,6 +80,9 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
+import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
+
 /**
  * A module to handle registering and binding all network related classes.
  *
@@ -92,7 +92,6 @@ public final class NetworkModule {
 
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
     public static final String HTTP_TYPE_KEY = "http.type";
-    public static final String AUX_TRANSPORT_TYPE_KEY = "aux_transport.type";
     public static final String HTTP_TYPE_DEFAULT_KEY = "http.type.default";
     public static final String TRANSPORT_TYPE_DEFAULT_KEY = "transport.type.default";
     public static final String TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_KEY = "transport.ssl.enforce_hostname_verification";
@@ -105,7 +104,6 @@ public final class NetworkModule {
     );
     public static final Setting<String> HTTP_DEFAULT_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_DEFAULT_KEY, Property.NodeScope);
     public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
-    public static final Setting<String> AUX_TRANSPORT_TYPE_SETTING = Setting.simpleString(AUX_TRANSPORT_TYPE_KEY, Property.NodeScope);
     public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_KEY, Property.NodeScope);
 
     public static final Setting<Boolean> TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION = Setting.boolSetting(
@@ -162,7 +160,7 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final Map<String, Supplier<LifecycleComponent>> transportAuxFactories = new HashMap<>();
+    private final Map<String, Supplier<NetworkPlugin.AuxTransport>> transportAuxFactories = new HashMap<>();
 
     private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
@@ -229,7 +227,7 @@ public final class NetworkModule {
                 registerHttpTransport(entry.getKey(), entry.getValue());
             }
 
-            Map<String, Supplier<LifecycleComponent>> auxTransportFactory = plugin.getAuxTransports(
+            Map<String, Supplier<NetworkPlugin.AuxTransport>> auxTransportFactory = plugin.getAuxTransports(
                 settings,
                 threadPool,
                 circuitBreakerService,
@@ -237,7 +235,7 @@ public final class NetworkModule {
                 clusterSettings,
                 tracer
             );
-            for (Map.Entry<String, Supplier<LifecycleComponent>> entry : auxTransportFactory.entrySet()) {
+            for (Map.Entry<String, Supplier<NetworkPlugin.AuxTransport>> entry : auxTransportFactory.entrySet()) {
                 registerAuxTransport(entry.getKey(), entry.getValue());
             }
 
@@ -324,7 +322,7 @@ public final class NetworkModule {
         }
     }
 
-    private void registerAuxTransport(String key, Supplier<LifecycleComponent> factory) {
+    private void registerAuxTransport(String key, Supplier<NetworkPlugin.AuxTransport> factory) {
         if (transportAuxFactories.putIfAbsent(key, factory) != null) {
             throw new IllegalArgumentException("transport for name: " + key + " is already registered");
         }
@@ -372,43 +370,22 @@ public final class NetworkModule {
     }
 
     /**
-     * Auxiliary transports are optional and may not be enabled.
-     * If AUX_TRANSPORT_TYPE_SETTING is not set return a no-op supplier.
-     * If AUX_TRANSPORT_TYPE_SETTING is set but no factory is registered for the given type an exception is thrown.
+     * Optional client/server transports that run in parallel to HttpServerTransport.
+     * Multiple transport types can be registered and enabled via AUX_TRANSPORT_TYPES_SETTING.
+     * An IllegalStateException is thrown if a transport type is enabled not registered.
      */
-    public Supplier<LifecycleComponent> getAuxServerTransportSupplier() {
-        if (!AUX_TRANSPORT_TYPE_SETTING.exists(settings)) {
-            // Supplier for no-op server transport.
-            return () -> new LifecycleComponent() {
-                @Override
-                public Lifecycle.State lifecycleState() {
-                    return null;
-                }
+    public List<NetworkPlugin.AuxTransport> getAuxServerTransportSupplierList() {
+        List<NetworkPlugin.AuxTransport> serverTransportSuppliers = new ArrayList<>();
 
-                @Override
-                public void addLifecycleListener(LifecycleListener listener) {}
-
-                @Override
-                public void removeLifecycleListener(LifecycleListener listener) {}
-
-                @Override
-                public void start() {}
-
-                @Override
-                public void stop() {}
-
-                @Override
-                public void close() {}
-            };
+        for (String transportType : AUX_TRANSPORT_TYPES_SETTING.get(settings)) {
+            final Supplier<NetworkPlugin.AuxTransport> factory = transportAuxFactories.get(transportType);
+            if (factory == null) {
+                throw new IllegalStateException("Unsupported " + AUX_TRANSPORT_TYPES_KEY + " [" + transportType + "]");
+            }
+            serverTransportSuppliers.add(factory.get());
         }
 
-        final String name = AUX_TRANSPORT_TYPE_SETTING.get(settings);
-        final Supplier<LifecycleComponent> factory = transportAuxFactories.get(name);
-        if (factory == null) {
-            throw new IllegalStateException("Unsupported " + AUX_TRANSPORT_TYPE_KEY + " [" + name + "]");
-        }
-
-        return factory;
+        return serverTransportSuppliers;
     }
 
     public Supplier<Transport> getTransportSupplier() {

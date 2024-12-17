@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import org.opensearch.auxiliary.AuxTransportSettings;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
@@ -45,6 +44,6 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     private static Settings createSettings() {
-        return Settings.builder().put(AuxTransportSettings.SETTING_AUX_PORT.getKey(), getPortRange()).build();
+        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORTS.getKey(), getPortRange()).build();
     }
 }

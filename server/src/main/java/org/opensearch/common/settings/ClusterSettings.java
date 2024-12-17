@@ -41,7 +41,6 @@ import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.replication.TransportReplicationAction;
-import org.opensearch.auxiliary.AuxTransportSettings;
 import org.opensearch.bootstrap.BootstrapSettings;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterModule;
@@ -150,6 +149,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.decider.EnableAssignmentDecider;
+import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
@@ -360,10 +360,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                 NetworkModule.HTTP_TYPE_SETTING,
                 NetworkModule.TRANSPORT_TYPE_SETTING,
-                NetworkModule.AUX_TRANSPORT_TYPE_SETTING,
                 NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED,
                 NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION,
                 NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME,
+                NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_SETTING,
                 HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS,
                 HttpTransportSettings.SETTING_CORS_ENABLED,
                 HttpTransportSettings.SETTING_CORS_MAX_AGE,
@@ -847,8 +847,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             )
         ),
         List.of(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL),
-        List.of(SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING),
-        List.of(FeatureFlags.GRPC_EXPERIMENTAL),
-        List.of(AuxTransportSettings.SETTING_AUX_PORT)
+        List.of(SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING)
     );
 }
