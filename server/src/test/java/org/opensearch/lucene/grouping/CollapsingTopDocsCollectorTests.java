@@ -83,7 +83,11 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         }
 
         public void search(Weight weight, Collector collector) throws IOException {
-            search(weight, collector);
+            LeafReaderContextPartition[] partitions = new LeafReaderContextPartition[ctx.size()];
+            for (int i = 0; i < partitions.length; i++) {
+                partitions[i] = LeafReaderContextPartition.createForEntireSegment(ctx.get(i));
+            }
+            search(partitions, weight, collector);
         }
 
         @Override
