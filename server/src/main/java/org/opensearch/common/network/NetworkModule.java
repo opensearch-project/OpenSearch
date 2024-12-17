@@ -374,7 +374,7 @@ public final class NetworkModule {
      * Multiple transport types can be registered and enabled via AUX_TRANSPORT_TYPES_SETTING.
      * An IllegalStateException is thrown if a transport type is enabled not registered.
      */
-    public List<NetworkPlugin.AuxTransport> getAuxServerTransportSupplierList() {
+    public List<NetworkPlugin.AuxTransport> getAuxServerTransportList() {
         List<NetworkPlugin.AuxTransport> serverTransportSuppliers = new ArrayList<>();
 
         for (String transportType : AUX_TRANSPORT_TYPES_SETTING.get(settings)) {
