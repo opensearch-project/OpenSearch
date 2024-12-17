@@ -272,12 +272,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
     private final int totalOpenIndexShards;
 
-    private final String[] allIndices;
-    private final String[] visibleIndices;
-    private final String[] allOpenIndices;
-    private final String[] visibleOpenIndices;
-    private final String[] allClosedIndices;
-    private final String[] visibleClosedIndices;
+    private final Set<String> allIndices;
+    private final List<String> visibleIndices;
+    private final List<String> allOpenIndices;
+    private final List<String> visibleOpenIndices;
+    private final List<String> allClosedIndices;
+    private final List<String> visibleClosedIndices;
 
     private final SortedMap<String, IndexAbstraction> indicesLookup;
 
@@ -294,12 +294,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         final Map<String, IndexMetadata> indices,
         final Map<String, IndexTemplateMetadata> templates,
         final Map<String, Custom> customs,
-        String[] allIndices,
-        String[] visibleIndices,
-        String[] allOpenIndices,
-        String[] visibleOpenIndices,
-        String[] allClosedIndices,
-        String[] visibleClosedIndices,
+        Set<String> allIndices,
+        List<String> visibleIndices,
+        List<String> allOpenIndices,
+        List<String> visibleOpenIndices,
+        List<String> allClosedIndices,
+        List<String> visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
         Map<String, SortedMap<Long, String>> systemTemplatesLookup
     ) {
@@ -325,12 +325,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.totalNumberOfShards = totalNumberOfShards;
         this.totalOpenIndexShards = totalOpenIndexShards;
 
-        this.allIndices = allIndices;
-        this.visibleIndices = visibleIndices;
-        this.allOpenIndices = allOpenIndices;
-        this.visibleOpenIndices = visibleOpenIndices;
-        this.allClosedIndices = allClosedIndices;
-        this.visibleClosedIndices = visibleClosedIndices;
+        this.allIndices = Collections.unmodifiableSet(allIndices);
+        this.visibleIndices = Collections.unmodifiableList(visibleIndices);
+        this.allOpenIndices = Collections.unmodifiableList(allOpenIndices);
+        this.visibleOpenIndices = Collections.unmodifiableList(visibleOpenIndices);
+        this.allClosedIndices = Collections.unmodifiableList(allClosedIndices);
+        this.visibleClosedIndices = Collections.unmodifiableList(visibleClosedIndices);
         this.indicesLookup = indicesLookup;
         this.systemTemplatesLookup = systemTemplatesLookup;
     }
@@ -608,42 +608,42 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Returns all the concrete indices.
      */
-    public String[] getConcreteAllIndices() {
+    public Set<String> getConcreteAllIndices() {
         return allIndices;
     }
 
     /**
      * Returns all the concrete indices that are not hidden.
      */
-    public String[] getConcreteVisibleIndices() {
+    public List<String> getConcreteVisibleIndices() {
         return visibleIndices;
     }
 
     /**
      * Returns all of the concrete indices that are open.
      */
-    public String[] getConcreteAllOpenIndices() {
+    public List<String> getConcreteAllOpenIndices() {
         return allOpenIndices;
     }
 
     /**
      * Returns all of the concrete indices that are open and not hidden.
      */
-    public String[] getConcreteVisibleOpenIndices() {
+    public List<String> getConcreteVisibleOpenIndices() {
         return visibleOpenIndices;
     }
 
     /**
      * Returns all of the concrete indices that are closed.
      */
-    public String[] getConcreteAllClosedIndices() {
+    public List<String> getConcreteAllClosedIndices() {
         return allClosedIndices;
     }
 
     /**
      * Returns all of the concrete indices that are closed and not hidden.
      */
-    public String[] getConcreteVisibleClosedIndices() {
+    public List<String> getConcreteVisibleClosedIndices() {
         return visibleClosedIndices;
     }
 
@@ -1647,12 +1647,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 indices,
                 templates,
                 customs,
-                Arrays.copyOf(previousMetadata.allIndices, previousMetadata.allIndices.length),
-                Arrays.copyOf(previousMetadata.visibleIndices, previousMetadata.visibleIndices.length),
-                Arrays.copyOf(previousMetadata.allOpenIndices, previousMetadata.allOpenIndices.length),
-                Arrays.copyOf(previousMetadata.visibleOpenIndices, previousMetadata.visibleOpenIndices.length),
-                Arrays.copyOf(previousMetadata.allClosedIndices, previousMetadata.allClosedIndices.length),
-                Arrays.copyOf(previousMetadata.visibleClosedIndices, previousMetadata.visibleClosedIndices.length),
+                previousMetadata.allIndices,
+                previousMetadata.visibleIndices,
+                previousMetadata.allOpenIndices,
+                previousMetadata.visibleOpenIndices,
+                previousMetadata.allClosedIndices,
+                previousMetadata.visibleClosedIndices,
                 Collections.unmodifiableSortedMap(previousMetadata.indicesLookup),
                 systemTemplatesLookup
             );
@@ -1749,17 +1749,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             validateDataStreams(indicesLookup, (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE));
 
-            // build all concrete indices arrays:
-            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
-            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
-            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = allIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleIndicesArray = visibleIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] allOpenIndicesArray = allOpenIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleOpenIndicesArray = visibleOpenIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] allClosedIndicesArray = allClosedIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
-
             return new Metadata(
                 clusterUUID,
                 clusterUUIDCommitted,
@@ -1771,12 +1760,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 indices,
                 templates,
                 customs,
-                allIndicesArray,
-                visibleIndicesArray,
-                allOpenIndicesArray,
-                visibleOpenIndicesArray,
-                allClosedIndicesArray,
-                visibleClosedIndicesArray,
+                allIndices,
+                visibleIndices,
+                allOpenIndices,
+                visibleOpenIndices,
+                allClosedIndices,
+                visibleClosedIndices,
                 indicesLookup,
                 systemTemplatesLookup
             );
