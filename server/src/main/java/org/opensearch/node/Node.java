@@ -2117,7 +2117,7 @@ public class Node implements Closeable {
     }
 
     protected List<NetworkPlugin.AuxTransport> newAuxTransports(NetworkModule networkModule) {
-        return networkModule.getAuxServerTransportSupplierList();
+        return networkModule.getAuxServerTransportList();
     }
 
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {
