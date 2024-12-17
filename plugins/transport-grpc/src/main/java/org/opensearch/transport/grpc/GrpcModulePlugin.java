@@ -11,7 +11,6 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
@@ -45,9 +44,6 @@ public final class GrpcModulePlugin extends Plugin implements NetworkPlugin {
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
-        if (FeatureFlags.isEnabled(FeatureFlags.GRPC_ENABLE_SETTING) == false) {
-            throw new IllegalArgumentException("transport-grpc is experimental and feature flag must be enabled before use");
-        }
         return Collections.singletonMap(
             GRPC_TRANSPORT_SETTING_KEY,
             () -> new Netty4GrpcServerTransport(settings, Collections.emptyList(), networkService)
