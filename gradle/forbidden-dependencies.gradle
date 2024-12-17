@@ -31,10 +31,6 @@ subprojects {
     // fixtures are allowed to use whatever dependencies they want...
     return
   }
-  if (project.path == ':plugins:transport-grpc') {
-    // Temporarily exempt gRPC module until we figure out how to handle generated code compilation
-    return
-  }
   pluginManager.withPlugin('java') {
     checkDeps(configurations.compileClasspath)
     checkDeps(configurations.testCompileClasspath)
