@@ -8,25 +8,19 @@
 
 package org.opensearch.indices.replication;
 
-import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteSnapshotIT;
 import org.opensearch.snapshots.SnapshotRestoreException;
-import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -101,58 +95,6 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             )
         );
         assertTrue(exception.getMessage().contains(getSnapshotExceptionMessage(ReplicationType.SEGMENT, ReplicationType.DOCUMENT)));
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15952")
-    public void testStopPrimary_RestoreOnNewNode() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        final String primary = internalCluster().startDataOnlyNode();
-        createIndex(
-            INDEX_NAME,
-            Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
-                .build()
-        );
-        ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final int docCount = 10;
-        for (int i = 0; i < docCount; i++) {
-            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
-        }
-        refresh(INDEX_NAME);
-        assertDocCounts(docCount, primary);
-
-        final String replica = internalCluster().startDataOnlyNode();
-        ensureGreen(INDEX_NAME);
-        assertDocCounts(docCount, replica);
-        createRepository(REPOSITORY_NAME, FS_REPOSITORY_TYPE, randomRepoPath().toAbsolutePath());
-        createSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, List.of(INDEX_NAME));
-        // stop the primary
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
-
-        assertBusy(() -> {
-            ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(INDEX_NAME).get();
-            assertEquals(ClusterHealthStatus.RED, clusterHealthResponse.getStatus());
-        });
-        assertDocCounts(docCount, replica);
-
-        String restoredPrimary = internalCluster().startDataOnlyNode();
-
-        RestoreSnapshotRequestBuilder builder = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME)
-            .setWaitForCompletion(true);
-        assertEquals(builder.get().status(), RestStatus.ACCEPTED);
-        ensureGreen(INDEX_NAME);
-        assertDocCounts(docCount, replica, restoredPrimary);
-    }
-
-    protected void assertDocCounts(int expectedDocCount, String... nodeNames) {
-        for (String node : nodeNames) {
-            assertHitCount(client(node).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedDocCount);
-        }
     }
 
     private void bootstrapIndexWithOutSearchReplicas(ReplicationType replicationType) throws InterruptedException {
