@@ -8,6 +8,10 @@
 
 package org.opensearch.accesscontrol.resources.fallback;
 
+import org.opensearch.accesscontrol.resources.EntityType;
+import org.opensearch.accesscontrol.resources.ResourceSharing;
+import org.opensearch.accesscontrol.resources.ShareWith;
+import org.opensearch.accesscontrol.resources.SharedWithScope;
 import org.opensearch.client.Client;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
@@ -19,6 +23,7 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.accesscontrol.resources.fallback.TestResourcePlugin.SAMPLE_TEST_INDEX;
@@ -27,6 +32,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasProperty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DefaultResourceAccessControlPluginIT extends OpenSearchIntegTestCase {
     @Override
@@ -57,7 +63,7 @@ public class DefaultResourceAccessControlPluginIT extends OpenSearchIntegTestCas
         }
     }
 
-    public void testSampleResourcePluginCallsDefaultRACPlugin() throws IOException {
+    public void testSampleResourcePluginListResources() throws IOException {
         createIndex(SAMPLE_TEST_INDEX);
         indexSampleDocuments();
 
@@ -73,6 +79,60 @@ public class DefaultResourceAccessControlPluginIT extends OpenSearchIntegTestCas
         MatcherAssert.assertThat(resources, hasSize(2));
         MatcherAssert.assertThat(resources, hasItem(hasProperty("id", is("1"))));
         MatcherAssert.assertThat(resources, hasItem(hasProperty("id", is("2"))));
+    }
+
+    public void testSampleResourcePluginCallsHasPermission() {
+
+        ResourceAccessControlPlugin racPlugin = TestResourcePlugin.GuiceHolder.getResourceService().getResourceAccessControlPlugin();
+        MatcherAssert.assertThat(racPlugin.getClass(), is(DefaultResourceAccessControlPlugin.class));
+
+        boolean canAccess = racPlugin.hasPermission("1", SAMPLE_TEST_INDEX, "some_scope");
+
+        MatcherAssert.assertThat(canAccess, is(true));
+
+    }
+
+    public void testSampleResourcePluginCallsShareWith() {
+
+        ResourceAccessControlPlugin racPlugin = TestResourcePlugin.GuiceHolder.getResourceService().getResourceAccessControlPlugin();
+        MatcherAssert.assertThat(racPlugin.getClass(), is(DefaultResourceAccessControlPlugin.class));
+
+        SharedWithScope.SharedWithPerScope sharedWithPerScope = new SharedWithScope.SharedWithPerScope(Set.of(), Set.of(), Set.of());
+        SharedWithScope sharedWithScope = new SharedWithScope("some_scope", sharedWithPerScope);
+        ResourceSharing sharingInfo = racPlugin.shareWith("1", SAMPLE_TEST_INDEX, new ShareWith(Set.of(sharedWithScope)));
+
+        MatcherAssert.assertThat(sharingInfo, is(nullValue()));
+    }
+
+    public void testSampleResourcePluginCallsRevokeAccess() {
+
+        ResourceAccessControlPlugin racPlugin = TestResourcePlugin.GuiceHolder.getResourceService().getResourceAccessControlPlugin();
+        MatcherAssert.assertThat(racPlugin.getClass(), is(DefaultResourceAccessControlPlugin.class));
+
+        Map<EntityType, Set<String>> entityTypes = Map.of(EntityType.USERS, Set.of("some_user"));
+        ResourceSharing sharingInfo = racPlugin.revokeAccess("1", SAMPLE_TEST_INDEX, entityTypes, Set.of("some_scope"));
+
+        MatcherAssert.assertThat(sharingInfo, is(nullValue()));
+    }
+
+    public void testSampleResourcePluginCallsDeleteResourceSharingRecord() {
+        ResourceAccessControlPlugin racPlugin = TestResourcePlugin.GuiceHolder.getResourceService().getResourceAccessControlPlugin();
+        MatcherAssert.assertThat(racPlugin.getClass(), is(DefaultResourceAccessControlPlugin.class));
+
+        boolean recordDeleted = racPlugin.deleteResourceSharingRecord("1", SAMPLE_TEST_INDEX);
+
+        // no record to delete
+        MatcherAssert.assertThat(recordDeleted, is(false));
+    }
+
+    public void testSampleResourcePluginCallsDeleteAllResourceSharingRecordsForCurrentUser() {
+        ResourceAccessControlPlugin racPlugin = TestResourcePlugin.GuiceHolder.getResourceService().getResourceAccessControlPlugin();
+        MatcherAssert.assertThat(racPlugin.getClass(), is(DefaultResourceAccessControlPlugin.class));
+
+        boolean recordDeleted = racPlugin.deleteAllResourceSharingRecordsForCurrentUser();
+
+        // no records to delete
+        MatcherAssert.assertThat(recordDeleted, is(false));
     }
 
     private void indexSampleDocuments() throws IOException {
