@@ -2354,6 +2354,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .getState(clusterState.getClusterName().value(), expectedManifest);
         assertEquals(stateFromCache.getMetadata(), state.getMetadata());
 
+        ClusterState stateFromCache2 = remoteClusterStateService.getClusterStateForManifest(
+            clusterState.getClusterName().value(),
+            expectedManifest,
+            "nodeA",
+            true
+        );
+        assertEquals(stateFromCache2.getMetadata(), state.getMetadata());
+
         final ClusterMetadataManifest notExistMetadata = ClusterMetadataManifest.builder()
             .indices(List.of())
             .clusterTerm(1L)
