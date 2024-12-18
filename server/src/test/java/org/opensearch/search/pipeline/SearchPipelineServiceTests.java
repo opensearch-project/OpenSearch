@@ -1817,6 +1817,106 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals("fixed_score", executionDetails.get(1).getProcessorName());
     }
 
+    public void testVerbosePipelineWithRequestProcessorOnly() throws Exception {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "request_only_pipeline",
+                new PipelineConfiguration(
+                    "request_only_pipeline",
+                    new BytesArray("{" + "\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ]" + "}"),
+                    MediaTypeRegistry.JSON
+                )
+            )
+        );
+
+        ClusterState initialState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState updatedState = ClusterState.builder(initialState)
+            .metadata(Metadata.builder().putCustom(SearchPipelineMetadata.TYPE, metadata))
+            .build();
+
+        searchPipelineService.applyClusterState(new ClusterChangedEvent("clusterStateUpdated", updatedState, initialState));
+
+        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().size(10))
+            .pipeline("request_only_pipeline");
+        searchRequest.source().verbosePipeline(true);
+
+        PipelinedRequest pipelinedRequest = syncTransformRequest(
+            searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+        );
+
+        SearchResponseSections sections = new SearchResponseSections(
+            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f),
+            null,
+            null,
+            false,
+            null,
+            null,
+            1,
+            List.of(),
+            List.of()
+        );
+
+        SearchResponse searchResponse = new SearchResponse(sections, null, 0, 0, 0, 0, null, null);
+        SearchResponse transformedResponse = syncTransformResponse(pipelinedRequest, searchResponse);
+        List<ProcessorExecutionDetail> executionDetails = transformedResponse.getInternalResponse().getProcessorResult();
+
+        assertNotNull(executionDetails);
+        assertEquals(1, executionDetails.size());
+        assertEquals("scale_request_size", executionDetails.get(0).getProcessorName());
+    }
+
+    public void testVerbosePipelineWithResponseProcessorOnly() throws Exception {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "response_only_pipeline",
+                new PipelineConfiguration(
+                    "response_only_pipeline",
+                    new BytesArray("{" + "\"response_processors\": [ { \"fixed_score\": { \"score\": 5.0 } } ]" + "}"),
+                    MediaTypeRegistry.JSON
+                )
+            )
+        );
+
+        ClusterState initialState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState updatedState = ClusterState.builder(initialState)
+            .metadata(Metadata.builder().putCustom(SearchPipelineMetadata.TYPE, metadata))
+            .build();
+
+        searchPipelineService.applyClusterState(new ClusterChangedEvent("clusterStateUpdated", updatedState, initialState));
+
+        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().size(10))
+            .pipeline("response_only_pipeline");
+        searchRequest.source().verbosePipeline(true);
+
+        PipelinedRequest pipelinedRequest = syncTransformRequest(
+            searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+        );
+
+        SearchResponseSections sections = new SearchResponseSections(
+            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f),
+            null,
+            null,
+            false,
+            null,
+            null,
+            1,
+            List.of(),
+            List.of()
+        );
+
+        SearchResponse searchResponse = new SearchResponse(sections, null, 0, 0, 0, 0, null, null);
+        SearchResponse transformedResponse = syncTransformResponse(pipelinedRequest, searchResponse);
+        List<ProcessorExecutionDetail> executionDetails = transformedResponse.getInternalResponse().getProcessorResult();
+
+        assertNotNull(executionDetails);
+        assertEquals(1, executionDetails.size());
+        assertEquals("fixed_score", executionDetails.get(0).getProcessorName());
+    }
+
     private SearchSourceBuilder createDefaultSearchSourceBuilder() {
         return SearchSourceBuilder.searchSource().size(10);
     }

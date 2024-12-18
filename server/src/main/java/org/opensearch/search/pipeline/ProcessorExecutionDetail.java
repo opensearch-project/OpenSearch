@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+
 /**
  * Detailed information about a processor execution in a search pipeline.
  *
@@ -167,7 +169,10 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         long durationMillis = 0;
         Object inputData = null;
         Object outputData = null;
-
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            parser.nextToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        }
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             String fieldName = parser.currentName();
             parser.nextToken();
