@@ -349,6 +349,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         CompositeIndexFieldInfo starTree,
         List<Dimension> supportedDimensions,
         MultiBucketConsumer bucketConsumer,
+        AggregatorFactory aggregatorFactory,
         MappedFieldType... fieldTypes
     ) throws IOException {
         SearchContext searchContext;
@@ -361,6 +362,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                 starTree,
                 supportedDimensions,
                 bucketConsumer,
+                aggregatorFactory,
                 fieldTypes
             );
         } else {
@@ -390,6 +392,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         CompositeIndexFieldInfo starTree,
         List<Dimension> supportedDimensions,
         MultiBucketConsumer bucketConsumer,
+        AggregatorFactory aggregatorFactory,
         MappedFieldType... fieldTypes
     ) throws IOException {
         SearchContext searchContext = createSearchContext(
@@ -406,7 +409,12 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
         when(searchContext.aggregations()).thenReturn(searchContextAggregations);
         when(searchContextAggregations.factories()).thenReturn(aggregatorFactories);
-        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] {});
+
+        if (aggregatorFactory != null) {
+            when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] { aggregatorFactory });
+        } else {
+            when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] {});
+        }
 
         CompositeDataCubeFieldType compositeMappedFieldType = mock(CompositeDataCubeFieldType.class);
         when(compositeMappedFieldType.name()).thenReturn(starTree.getField());
@@ -742,6 +750,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         List<Dimension> supportedDimensions,
         int maxBucket,
         boolean hasNested,
+        AggregatorFactory aggregatorFactory,
         MappedFieldType... fieldTypes
     ) throws IOException {
         query = query.rewrite(searcher);
@@ -765,6 +774,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             compositeIndexFieldInfo,
             supportedDimensions,
             bucketConsumer,
+            aggregatorFactory,
             fieldTypes
         );
 

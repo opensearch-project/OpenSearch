@@ -28,6 +28,10 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.codec.composite.composite912.Composite912Codec;
@@ -38,8 +42,10 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -267,6 +273,29 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             );
         }
 
+        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+
+        QueryShardContext queryShardContext = queryShardContextMock(
+            indexSearcher,
+            mapperServiceMock(),
+            createIndexSettings(),
+            circuitBreakerService,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
+        );
+
+        // Test that feature parity is maintained for unmapped field names.
+        sumAggregationBuilder = new SumAggregationBuilder("sumaggs").field("hello");
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            verifyAggregation(InternalSum::getValue),
+            sumAggregationBuilder.build(queryShardContext, null)
+        );
+
         ir.close();
         directory.close();
     }
@@ -288,6 +317,19 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         List<Dimension> supportedDimensions,
         BiConsumer<V, V> verify
     ) throws IOException {
+        testCase(searcher, query, queryBuilder, aggBuilder, starTree, supportedDimensions, verify, null);
+    }
+
+    private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
+        IndexSearcher searcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        T aggBuilder,
+        CompositeIndexFieldInfo starTree,
+        List<Dimension> supportedDimensions,
+        BiConsumer<V, V> verify,
+        AggregatorFactory aggregatorFactory
+    ) throws IOException {
         V starTreeAggregation = searchAndReduceStarTree(
             createIndexSettings(),
             searcher,
@@ -298,6 +340,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             supportedDimensions,
             DEFAULT_MAX_BUCKETS,
             false,
+            aggregatorFactory,
             DEFAULT_MAPPED_FIELD
         );
         V expectedAggregation = searchAndReduceStarTree(
@@ -310,6 +353,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             null,
             DEFAULT_MAX_BUCKETS,
             false,
+            aggregatorFactory,
             DEFAULT_MAPPED_FIELD
         );
         verify.accept(expectedAggregation, starTreeAggregation);
