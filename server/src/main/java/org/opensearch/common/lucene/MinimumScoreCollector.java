@@ -40,6 +40,7 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 
@@ -79,6 +80,11 @@ public class MinimumScoreCollector extends FilterCollector {
                 }
             }
         });
+    }
+
+    @Override
+    public void setWeight(Weight weight) {
+        // Not redirecting to delegate collector to maintain same behaviour when this extended SimpleCollector.
     }
 
     @Override
