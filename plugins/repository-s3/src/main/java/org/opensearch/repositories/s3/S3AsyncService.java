@@ -121,12 +121,7 @@ class S3AsyncService implements Closeable {
             }
 
             final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(
-                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder),
-                () -> {
-                    urgentExecutorBuilder.getAsyncTransferEventLoopGroup().close();
-                    priorityExecutorBuilder.getAsyncTransferEventLoopGroup().close();
-                    normalExecutorBuilder.getAsyncTransferEventLoopGroup().close();
-                }
+                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder)
             );
             clientReference.incRef();
             clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientSettings, clientReference).immutableMap();

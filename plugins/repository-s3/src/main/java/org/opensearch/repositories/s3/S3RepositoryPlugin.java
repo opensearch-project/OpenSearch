@@ -387,5 +387,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public void close() throws IOException {
         service.close();
         s3AsyncService.close();
+        urgentExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+        priorityExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+        normalExecutorBuilder.getAsyncTransferEventLoopGroup().close();
     }
 }

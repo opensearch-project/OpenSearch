@@ -1136,8 +1136,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
         final AmazonAsyncS3Reference amazonAsyncS3Reference = new AmazonAsyncS3Reference(
-            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, s3AsyncClient, null),
-            () -> {}
+            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, s3AsyncClient, null)
         );
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);
@@ -1195,8 +1194,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
         final AmazonAsyncS3Reference amazonAsyncS3Reference = new AmazonAsyncS3Reference(
-            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, s3AsyncClient, null),
-            () -> {}
+            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, s3AsyncClient, null)
         );
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         final BlobPath blobPath = new BlobPath();
@@ -1251,8 +1249,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
         final AmazonAsyncS3Reference amazonAsyncS3Reference = new AmazonAsyncS3Reference(
-            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, s3AsyncClient, null),
-            () -> {}
+            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, s3AsyncClient, null)
         );
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);
@@ -1295,8 +1292,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
         final AmazonAsyncS3Reference amazonAsyncS3Reference = new AmazonAsyncS3Reference(
-            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, s3AsyncClient, null),
-            () -> {}
+            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, s3AsyncClient, null)
         );
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);

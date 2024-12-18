@@ -294,7 +294,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             AsyncExecutorContainer priorityExecutorBuilder,
             AsyncExecutorContainer normalExecutorBuilder
         ) {
-            return new AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials.create(asyncClient, asyncClient, asyncClient, null), () -> {});
+            return new AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials.create(asyncClient, asyncClient, asyncClient, null));
         }
     }
 

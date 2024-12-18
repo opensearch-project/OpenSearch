@@ -25,7 +25,7 @@ public class AmazonAsyncS3Reference extends RefCountedReleasable<AmazonAsyncS3Wi
 
     private static final Logger logger = LogManager.getLogger(AmazonAsyncS3Reference.class);
 
-    AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials client, Runnable onClose) {
+    AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials client) {
         super("AWS_S3_CLIENT", client, () -> {
             client.client().close();
             client.priorityClient().close();
@@ -38,7 +38,6 @@ public class AmazonAsyncS3Reference extends RefCountedReleasable<AmazonAsyncS3Wi
                     logger.error("Exception while closing AwsCredentialsProvider", e);
                 }
             }
-            onClose.run();
         });
     }
 }
