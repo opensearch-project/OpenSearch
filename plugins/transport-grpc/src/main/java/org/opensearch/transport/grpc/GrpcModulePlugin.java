@@ -31,9 +31,14 @@ import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GR
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT;
 
 /**
- * Main class for the gRPC plugin
+ * Main class for the gRPC plugin.
  */
 public final class GrpcModulePlugin extends Plugin implements NetworkPlugin {
+
+    /**
+     * Creates a new GrpcModulePlugin instance.
+     */
+    GrpcModulePlugin() {}
 
     @Override
     public Map<String, Supplier<AuxTransport>> getAuxTransports(
