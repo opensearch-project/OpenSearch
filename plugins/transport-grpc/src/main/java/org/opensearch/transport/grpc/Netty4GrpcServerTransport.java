@@ -49,22 +49,35 @@ import static org.opensearch.common.settings.Setting.listSetting;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 import static org.opensearch.transport.TcpTransport.resolveTransportPublishPort;
 
+/**
+ * Netty4 gRPC server implemented as a LifecycleComponent.
+ * Services injected through BindableService list.
+ */
 public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
     private static final Logger logger = LogManager.getLogger(Netty4GrpcServerTransport.class);
+
+    /**
+     * Type key for configuring settings of this auxiliary transport.
+     */
     public static final String GRPC_TRANSPORT_SETTING_KEY = "experimental-transport-grpc";
+
+    /**
+     * Port range on which to bind.
+     * Note this setting is configured through AffixSetting AUX_TRANSPORT_PORTS where the aux transport type matches the GRPC_TRANSPORT_SETTING_KEY.
+     */
     public static final Setting<PortsRange> SETTING_GRPC_PORTS = AUX_TRANSPORT_PORTS.getConcreteSettingForNamespace(
         GRPC_TRANSPORT_SETTING_KEY
     );
 
-    public static final Setting<Integer> SETTING_GRPC_WORKER_COUNT = new Setting<>(
-        "grpc.netty.worker_count",
-        (s) -> Integer.toString(OpenSearchExecutors.allocatedProcessors(s)),
-        (s) -> Setting.parseInt(s, 1, "grpc.netty.worker_count"),
-        Setting.Property.NodeScope
-    );
-
+    /**
+     * Port published to peers for this server.
+     */
     public static final Setting<Integer> SETTING_GRPC_PUBLISH_PORT = intSetting("grpc.publish_port", -1, -1, Setting.Property.NodeScope);
 
+    /**
+     * Host list to bind and publish.
+     * For distinct bind/publish hosts configure SETTING_GRPC_BIND_HOST + SETTING_GRPC_PUBLISH_HOST separately.
+     */
     public static final Setting<List<String>> SETTING_GRPC_HOST = listSetting(
         "grpc.host",
         emptyList(),
@@ -72,6 +85,19 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Host list to bind.
+     */
+    public static final Setting<List<String>> SETTING_GRPC_BIND_HOST = listSetting(
+        "grpc.bind_host",
+        SETTING_GRPC_HOST,
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Host list published to peers.
+     */
     public static final Setting<List<String>> SETTING_GRPC_PUBLISH_HOST = listSetting(
         "grpc.publish_host",
         SETTING_GRPC_HOST,
@@ -79,10 +105,13 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<List<String>> SETTING_GRPC_BIND_HOST = listSetting(
-        "grpc.bind_host",
-        SETTING_GRPC_HOST,
-        Function.identity(),
+    /**
+     * Configure size of thread pool backing this transport server.
+     */
+    public static final Setting<Integer> SETTING_GRPC_WORKER_COUNT = new Setting<>(
+        "grpc.netty.worker_count",
+        (s) -> Integer.toString(OpenSearchExecutors.allocatedProcessors(s)),
+        (s) -> Setting.parseInt(s, 1, "grpc.netty.worker_count"),
         Setting.Property.NodeScope
     );
 
@@ -98,6 +127,12 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
     private volatile BoundTransportAddress boundAddress;
     private volatile EventLoopGroup eventLoopGroup;
 
+    /**
+     * Creates a new Netty4GrpcServerTransport instance.
+     * @param settings the configured settings.
+     * @param services the gRPC compatible services to be registered with the server.
+     * @param networkService the bind/publish addresses.
+     */
     public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService) {
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
