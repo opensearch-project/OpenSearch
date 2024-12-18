@@ -12,6 +12,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.ToXContent;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -34,8 +35,8 @@ public interface Dimension extends ToXContent {
     /**
      * Sets the dimension values with the consumer
      *
-     * @param value   The value to be set
-     * @param dimSetter  Consumer which sets the dimensions
+     * @param value     The value to be set
+     * @param dimSetter Consumer which sets the dimensions
      */
     void setDimensionValues(final Long value, final Consumer<Long> dimSetter);
 
@@ -45,4 +46,19 @@ public interface Dimension extends ToXContent {
     List<String> getSubDimensionNames();
 
     DocValuesType getDocValuesType();
+
+    /**
+     * Returns the comparator type used for comparing dimension values. <br>
+     * This determines how numeric values are compared: <br>
+     *   - ComparatorType.UNSIGNED_LONG for unsigned long values <br>
+     *   - ComparatorType.LONG for all other numeric types (DEFAULT)
+     */
+    default ComparatorType getComparatorType() {
+        return ComparatorType.LONG;
+    }
+
+    default Comparator<Long> comparator() {
+        return (a, b) -> getComparatorType().compare(a, b);
+    }
+
 }

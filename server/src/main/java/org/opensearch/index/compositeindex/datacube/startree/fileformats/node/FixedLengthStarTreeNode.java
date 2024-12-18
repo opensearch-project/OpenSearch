@@ -8,11 +8,13 @@
 package org.opensearch.index.compositeindex.datacube.startree.fileformats.node;
 
 import org.apache.lucene.store.RandomAccessInput;
+import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Comparator;
 import java.util.Iterator;
 
 /**
@@ -192,7 +194,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
     }
 
     @Override
-    public StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException {
+    public StarTreeNode getChildForDimensionValue(Long dimensionValue, Dimension dimension) throws IOException {
         // there will be no children for leaf nodes
         if (isLeaf()) {
             return null;
@@ -200,7 +202,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
 
         StarTreeNode resultStarTreeNode = null;
         if (null != dimensionValue) {
-            resultStarTreeNode = binarySearchChild(dimensionValue);
+            resultStarTreeNode = binarySearchChild(dimensionValue, dimension);
         }
         return resultStarTreeNode;
     }
@@ -240,7 +242,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
      * @return The child node if found, null otherwise
      * @throws IOException If there's an error reading from the input
      */
-    private FixedLengthStarTreeNode binarySearchChild(long dimensionValue) throws IOException {
+    private FixedLengthStarTreeNode binarySearchChild(long dimensionValue, Dimension dimension) throws IOException {
 
         int low = firstChildId;
 
@@ -255,14 +257,15 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
             high--;
         }
 
+        Comparator<Long> comparator = dimension.comparator();
         while (low <= high) {
             int mid = low + (high - low) / 2;
             FixedLengthStarTreeNode midNode = new FixedLengthStarTreeNode(in, mid);
             long midDimensionValue = midNode.getDimensionValue();
-
-            if (midDimensionValue == dimensionValue) {
+            int compare = comparator.compare(midDimensionValue, dimensionValue);
+            if (compare == 0) {
                 return midNode;
-            } else if (midDimensionValue < dimensionValue) {
+            } else if (compare < 0) {
                 low = mid + 1;
             } else {
                 high = mid - 1;
