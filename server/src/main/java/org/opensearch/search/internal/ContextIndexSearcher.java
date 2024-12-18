@@ -305,6 +305,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Override
     protected void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+        // If search is already flagged as timed out, do not continue
+        if (searchContext.isSearchTimedOut()) {
+            return;
+        }
 
         // Check if at all we need to call this leaf for collecting results.
         if (canMatch(ctx) == false) {
