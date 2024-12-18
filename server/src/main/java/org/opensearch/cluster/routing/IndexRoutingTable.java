@@ -149,7 +149,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                     "Shard ["
                         + indexShardRoutingTable.shardId().id()
                         + "] routing table has wrong number of replicas, expected ["
+                        + "Replicas:  "
                         + indexMetadata.getNumberOfReplicas()
+                        + "Search Replicas: "
+                        + indexMetadata.getNumberOfSearchOnlyReplicas()
                         + "], got ["
                         + routingNumberOfReplicas
                         + "]"
@@ -513,6 +516,16 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                         indexShardRoutingBuilder.addShard(
                             ShardRouting.newUnassigned(shardId, false, PeerRecoverySource.INSTANCE, unassignedInfo)
                         );
+                    }
+                    // if writers are red we do not want to re-recover search only shards if already assigned.
+                    for (ShardRouting shardRouting : indexShardRoutingTable.searchOnlyReplicas()) {
+                        if (shardRouting.unassigned()) {
+                            indexShardRoutingBuilder.addShard(
+                                ShardRouting.newUnassigned(shardId, false, EmptyStoreRecoverySource.INSTANCE, unassignedInfo)
+                            );
+                        } else {
+                            indexShardRoutingBuilder.addShard(shardRouting);
+                        }
                     }
                 } else {
                     // Primary is either active or initializing. Do not trigger restore.

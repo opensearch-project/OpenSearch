@@ -10,6 +10,8 @@ package org.opensearch.indices.replication;
 
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -161,6 +163,51 @@ public class SearchReplicaReplicationIT extends SegmentReplicationBaseIT {
         assertDocCounts(10, replica);
     }
 
+    public void testStopPrimary_RestoreOnNewNode() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        final String primary = internalCluster().startDataOnlyNode();
+        createIndex(
+            INDEX_NAME,
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                .build()
+        );
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final int docCount = 10;
+        for (int i = 0; i < docCount; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
+        }
+        refresh(INDEX_NAME);
+        assertDocCounts(docCount, primary);
+
+        final String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+        assertDocCounts(docCount, replica);
+        // stop the primary
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
+
+        assertBusy(() -> {
+            ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(INDEX_NAME).get();
+            assertEquals(ClusterHealthStatus.RED, clusterHealthResponse.getStatus());
+        });
+        assertDocCounts(docCount, replica);
+
+        String restoredPrimary = internalCluster().startDataOnlyNode();
+
+        client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
+        ensureGreen(INDEX_NAME);
+        assertDocCounts(docCount, replica, restoredPrimary);
+
+        for (int i = docCount; i < docCount * 2; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
+        }
+        refresh(INDEX_NAME);
+        assertBusy(() -> assertDocCounts(20, replica, restoredPrimary));
+    }
+
     public void testFailoverToNewPrimaryWithPollingReplication() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String primary = internalCluster().startDataOnlyNode();
@@ -199,7 +246,6 @@ public class SearchReplicaReplicationIT extends SegmentReplicationBaseIT {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
         refresh(INDEX_NAME);
-        assertBusy(() -> { assertDocCounts(20, replica, writer_replica); });
-
+        assertBusy(() -> assertDocCounts(20, replica, writer_replica));
     }
 }
