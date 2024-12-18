@@ -66,6 +66,6 @@ public class ResourceService {
      * List active plugins that define resources
      */
     public List<ResourcePlugin> listResourcePlugins() {
-        return resourcePlugins;
+        return List.copyOf(resourcePlugins);
     }
 }
