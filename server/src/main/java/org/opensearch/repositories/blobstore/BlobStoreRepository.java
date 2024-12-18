@@ -2994,7 +2994,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private BlobContainer testContainer(String seed) {
         BlobPath testBlobPath;
-        if (prefixModeVerification == true) {
+
+        if (prefixModeVerification == true
+            && (clusterService.isStateInitialised() == false
+                || clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_2_17_0))) {
+            // During the remote store node bootstrap, the cluster state is not initialised
+            // Otherwise, the cluster state is initialised and available with the min node version information
             PathInput pathInput = PathInput.builder().basePath(basePath()).indexUUID(seed).build();
             testBlobPath = PathType.HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE_1);
         } else {
