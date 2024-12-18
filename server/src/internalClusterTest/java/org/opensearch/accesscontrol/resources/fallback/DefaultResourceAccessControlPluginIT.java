@@ -12,7 +12,6 @@ import org.opensearch.client.Client;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ResourceAccessControlPlugin;
-import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
@@ -22,7 +21,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
-import static org.opensearch.accesscontrol.resources.fallback.SampleTestResourcePlugin.SAMPLE_TEST_INDEX;
+import static org.opensearch.accesscontrol.resources.fallback.TestResourcePlugin.SAMPLE_TEST_INDEX;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasProperty;
@@ -32,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 public class DefaultResourceAccessControlPluginIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SampleTestResourcePlugin.class);
+        return List.of(TestResourcePlugin.class);
     }
 
     public void testGetResources() throws IOException {
@@ -41,33 +40,34 @@ public class DefaultResourceAccessControlPluginIT extends OpenSearchIntegTestCas
         createIndex(SAMPLE_TEST_INDEX);
         indexSampleDocuments();
 
-        Set<TestResource> resources;
+        Set<TestResourcePlugin.TestResource> resources;
         try (
-            InternalTestCluster cluster = internalCluster();
             DefaultResourceAccessControlPlugin plugin = new DefaultResourceAccessControlPlugin(
                 client,
-                cluster.getInstance(ThreadPool.class)
+                internalCluster().getInstance(ThreadPool.class)
             )
         ) {
+            resources = plugin.getAccessibleResourcesForCurrentUser(SAMPLE_TEST_INDEX, TestResourcePlugin.TestResource.class);
 
-            resources = plugin.getAccessibleResourcesForCurrentUser(SAMPLE_TEST_INDEX, TestResource.class);
+            assertNotNull(resources);
+            MatcherAssert.assertThat(resources, hasSize(2));
+
+            MatcherAssert.assertThat(resources, hasItem(hasProperty("id", is("1"))));
+            MatcherAssert.assertThat(resources, hasItem(hasProperty("id", is("2"))));
         }
-
-        assertNotNull(resources);
-        MatcherAssert.assertThat(resources, hasSize(2));
-
-        MatcherAssert.assertThat(resources, hasItem(hasProperty("id", is("1"))));
-        MatcherAssert.assertThat(resources, hasItem(hasProperty("id", is("2"))));
     }
 
-    public void testSampleResourcePluginCallsDefaultPlugin() throws IOException {
+    public void testSampleResourcePluginCallsDefaultRACPlugin() throws IOException {
         createIndex(SAMPLE_TEST_INDEX);
         indexSampleDocuments();
 
-        ResourceAccessControlPlugin racPlugin = SampleTestResourcePlugin.GuiceHolder.getResourceService().getResourceAccessControlPlugin();
+        ResourceAccessControlPlugin racPlugin = TestResourcePlugin.GuiceHolder.getResourceService().getResourceAccessControlPlugin();
         MatcherAssert.assertThat(racPlugin.getClass(), is(DefaultResourceAccessControlPlugin.class));
 
-        Set<TestResource> resources = racPlugin.getAccessibleResourcesForCurrentUser(SAMPLE_TEST_INDEX, TestResource.class);
+        Set<TestResourcePlugin.TestResource> resources = racPlugin.getAccessibleResourcesForCurrentUser(
+            SAMPLE_TEST_INDEX,
+            TestResourcePlugin.TestResource.class
+        );
 
         assertNotNull(resources);
         MatcherAssert.assertThat(resources, hasSize(2));
@@ -87,21 +87,6 @@ public class DefaultResourceAccessControlPluginIT extends OpenSearchIntegTestCas
             client.prepareIndex(SAMPLE_TEST_INDEX).setId("2").setSource(doc2).get();
 
             client.admin().indices().prepareRefresh(SAMPLE_TEST_INDEX).get();
-        }
-    }
-
-    public static class TestResource {
-        public String id;
-        public String name;
-
-        public TestResource() {}
-
-        public String getId() {
-            return id;
-        }
-
-        public String getName() {
-            return name;
         }
     }
 }

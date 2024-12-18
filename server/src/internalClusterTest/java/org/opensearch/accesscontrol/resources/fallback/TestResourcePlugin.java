@@ -21,7 +21,7 @@ import java.util.Collection;
 import java.util.List;
 
 // Sample test resource plugin
-public class SampleTestResourcePlugin extends Plugin implements ResourcePlugin {
+public class TestResourcePlugin extends Plugin implements ResourcePlugin {
 
     public static final String SAMPLE_TEST_INDEX = ".sample_test_resource";
 
@@ -75,5 +75,20 @@ public class SampleTestResourcePlugin extends Plugin implements ResourcePlugin {
         @Override
         public void stop() {}
 
+    }
+
+    public static class TestResource {
+        public String id;
+        public String name;
+
+        public TestResource() {}
+
+        public String getId() {
+            return id;
+        }
+
+        public String getName() {
+            return name;
+        }
     }
 }

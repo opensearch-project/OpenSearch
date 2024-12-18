@@ -8,6 +8,8 @@
 
 package org.opensearch.accesscontrol.resources.fallback;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
@@ -27,13 +29,12 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.lang.reflect.Field;
 import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -42,14 +43,14 @@ import java.util.stream.Stream;
  *
  * @opensearch.experimental
  */
-@SuppressWarnings("removal")
 public class DefaultResourceAccessControlPlugin extends Plugin implements ResourceAccessControlPlugin {
 
     private static final Logger log = LogManager.getLogger(DefaultResourceAccessControlPlugin.class);
 
-    private Client client;
+    private final Client client;
 
     private final ThreadPool threadPool;
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Inject
     public DefaultResourceAccessControlPlugin(Client client, ThreadPool threadPool) {
@@ -79,7 +80,7 @@ public class DefaultResourceAccessControlPlugin extends Plugin implements Resour
             SearchHit[] searchHits = searchResponse.getHits().getHits();
 
             while (searchHits != null && searchHits.length > 0) {
-                parseAndAddToDocuments(Arrays.stream(searchHits).map(SearchHit::getSourceAsMap), clazz, documents);
+                parseAndAddToDocuments(Arrays.stream(searchHits), clazz, documents);
 
                 final SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId);
                 scrollRequest.scroll(scrollTimeout);
@@ -112,26 +113,17 @@ public class DefaultResourceAccessControlPlugin extends Plugin implements Resour
         return searchRequest;
     }
 
-    private static <T> T parse(Map<String, Object> sourceMap, Class<T> clazz) {
-        return AccessController.doPrivileged((PrivilegedAction<T>) () -> {
-            try {
-                final T instance = clazz.getDeclaredConstructor().newInstance();
-                for (Field field : clazz.getDeclaredFields()) {
-                    field.setAccessible(true);
-                    Object value = sourceMap.get(field.getName());
-                    if (value != null) {
-                        field.set(instance, value);
-                    }
-                }
-                return instance;
-            } catch (Exception e) {
-                throw new OpenSearchException("Failed to parse source map into " + clazz.getName(), e);
-            }
-        });
+    private static <T> T parse(String source, Class<T> clazz) {
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> objectMapper.readValue(source, clazz));
+        } catch (PrivilegedActionException e) {
+            log.error("Error parsing source: {}", e.toString());
+            throw new OpenSearchException("Error parsing source into : " + clazz.getName(), e.getException());
+        }
     }
 
-    private static <T> void parseAndAddToDocuments(Stream<Map<String, Object>> searchHits, Class<T> clazz, Set<T> documents) {
-        searchHits.map(hit -> parse(hit, clazz)).forEach(documents::add);
+    private static <T> void parseAndAddToDocuments(Stream<SearchHit> searchHits, Class<T> clazz, Set<T> documents) {
+        searchHits.map(hit -> parse(hit.getSourceAsString(), clazz)).forEach(documents::add);
     }
 
 }
