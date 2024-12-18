@@ -22,7 +22,7 @@ import java.util.Set;
  * In clusters, where security plugin is disabled these requests will be pass-through via a No-op implementation.
  * There are 3 scope of sharing for a resource: Private, Restricted, Public. To learn more visit <a href="https://github.com/opensearch-project/security/issues/4500">...</a>
  * If security plugin is disabled, all resources will be considered public by default.
- * TODO: add documentation around "how to use"
+ * Refer to the sample-resource-plugin introduced <a href="https://github.com/opensearch-project/security/pull/4893">here</a> to understand the usage of this class.
  *
  * @opensearch.experimental
  */

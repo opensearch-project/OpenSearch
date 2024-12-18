@@ -8,5 +8,7 @@
 
 /**
  * This package defines all default implementations of  Resource Sharing and Access Control which will be utilized when security is disabled
+ *
+ * @opensearch.experimental
  */
 package org.opensearch.accesscontrol.resources.fallback;

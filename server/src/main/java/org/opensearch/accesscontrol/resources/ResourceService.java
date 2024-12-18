@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * Resource access control for OpenSearch
  *
  * @opensearch.experimental
- * */
+ */
 public class ResourceService {
     private static final Logger log = LogManager.getLogger(ResourceService.class);
 
