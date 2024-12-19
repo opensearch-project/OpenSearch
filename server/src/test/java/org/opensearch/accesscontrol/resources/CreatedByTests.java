@@ -85,7 +85,7 @@ public class CreatedByTests extends OpenSearchTestCase {
             exception = assertThrows(IllegalArgumentException.class, () -> CreatedBy.fromXContent(parser));
         }
 
-        MatcherAssert.assertThat("user field is required", equalTo(exception.getMessage()));
+        MatcherAssert.assertThat("user is required", equalTo(exception.getMessage()));
     }
 
     public void testFromXContentWithEmptyInput() throws IOException {
@@ -120,7 +120,7 @@ public class CreatedByTests extends OpenSearchTestCase {
             exception = assertThrows(IllegalArgumentException.class, () -> CreatedBy.fromXContent(parser));
         }
 
-        MatcherAssert.assertThat("user field is required", equalTo(exception.getMessage()));
+        MatcherAssert.assertThat("user is required", equalTo(exception.getMessage()));
     }
 
     public void testFromXContentWithMissingUserField() throws IOException {
@@ -266,7 +266,7 @@ public class CreatedByTests extends OpenSearchTestCase {
             exception = assertThrows(IllegalArgumentException.class, () -> { CreatedBy.fromXContent(parser); });
         }
 
-        MatcherAssert.assertThat("user field is required", equalTo(exception.getMessage()));
+        MatcherAssert.assertThat("user is required", equalTo(exception.getMessage()));
     }
 
     public void test_toXContent_serializesCorrectly() throws IOException {
