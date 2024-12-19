@@ -295,6 +295,13 @@ public enum FieldData {
     /**
      * Returns a multi-valued view over the provided {@link NumericDoubleValues}.
      */
+    public static SortedNumericUnsignedLongValues singleton(SortedNumericDocValues values) {
+        return new SingletonSortedNumericUnsignedLongValues(values);
+    }
+
+    /**
+     * Returns a multi-valued view over the provided {@link NumericDoubleValues}.
+     */
     public static SortedNumericDoubleValues singleton(NumericDoubleValues values) {
         return new SingletonSortedNumericDoubleValues(values);
     }

@@ -37,14 +37,18 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import java.io.IOException;
 
 /**
- * Clone of {@link SortedNumericDocValues} for double values.
+ * Exposes multi-valued view over a single-valued instance.
+ * <p>
+ * This can be used if you want to have one multi-valued implementation
+ * that works for single or multi-valued types.
  *
  * @opensearch.internal
  */
-public final class SingletonSortedNumericUnsignedLongValues extends SortedNumericUnsignedLongValues {
+
+final class SingletonSortedNumericUnsignedLongValues extends SortedNumericUnsignedLongValues {
     private final SortedNumericDocValues values;
 
-    public SingletonSortedNumericUnsignedLongValues(SortedNumericDocValues values) {
+    SingletonSortedNumericUnsignedLongValues(SortedNumericDocValues values) {
         this.values = values;
     }
 
