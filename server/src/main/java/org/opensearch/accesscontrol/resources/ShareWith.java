@@ -20,8 +20,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
+ *
  * This class contains information about whom a resource is shared with and at what scope.
- * Here is a sample of what this would look like:
+ * Example:
  * "share_with": {
  *       "read_only": {
  *          "users": [],
@@ -39,6 +40,9 @@ import java.util.Set;
  */
 public class ShareWith implements ToXContentFragment, NamedWriteable {
 
+    /**
+     * A set of objects representing the scopes and their associated users, roles, and backend roles.
+     */
     private final Set<SharedWithScope> sharedWithScopes;
 
     public ShareWith(Set<SharedWithScope> sharedWithScopes) {

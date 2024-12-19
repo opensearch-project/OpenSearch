@@ -18,21 +18,45 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A document in .resource_sharing index.
- * Holds information about the resource (obtained from defining plugin's meta-data),
- * the index which defines the resources, the creator of the resource,
- * and the information on whom this resource is shared with.
+ * Represents a resource sharing configuration that manages access control for OpenSearch resources.
+ * This class holds information about shared resources including their source, creator, and sharing permissions.
  *
+ * <p>This class implements {@link ToXContentFragment} for JSON serialization and {@link NamedWriteable}
+ * for stream-based serialization.</p>
+ *
+ * The class maintains information about:
+ * <ul>
+ *   <li>The source index where the resource is defined</li>
+ *   <li>The unique identifier of the resource</li>
+ *   <li>The creator's information</li>
+ *   <li>The sharing permissions and recipients</li>
+ * </ul>
+ *
+ *
+ * @see CreatedBy
+ * @see ShareWith
  * @opensearch.experimental
  */
 public class ResourceSharing implements ToXContentFragment, NamedWriteable {
 
+    /**
+     * The index where the resource is defined
+     */
     private String sourceIdx;
 
+    /**
+     * The unique identifier of the resource
+     */
     private String resourceId;
 
+    /**
+     * Information about who created the resource
+     */
     private CreatedBy createdBy;
 
+    /**
+     * Information about with whom the resource is shared with
+     */
     private ShareWith shareWith;
 
     public ResourceSharing(String sourceIdx, String resourceId, CreatedBy createdBy, ShareWith shareWith) {
@@ -168,18 +192,16 @@ public class ResourceSharing implements ToXContentFragment, NamedWriteable {
             }
         }
 
-        // Validate required fields
-        if (sourceIdx == null) {
-            throw new IllegalArgumentException("source_idx is required");
-        }
-        if (resourceId == null) {
-            throw new IllegalArgumentException("resource_id is required");
-        }
-        if (createdBy == null) {
-            throw new IllegalArgumentException("created_by is required");
-        }
+        validateRequiredField("source_idx", sourceIdx);
+        validateRequiredField("resource_id", resourceId);
+        validateRequiredField("created_by", createdBy);
 
         return new ResourceSharing(sourceIdx, resourceId, createdBy, shareWith);
     }
 
+    private static <T> void validateRequiredField(String field, T value) {
+        if (value == null) {
+            throw new IllegalArgumentException(field + " is required");
+        }
+    }
 }

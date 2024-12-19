@@ -40,6 +40,7 @@ import java.util.stream.Stream;
 
 /**
  * This plugin class defines a pass-through implementation of ResourceAccessControlPlugin.
+ * This plugin will come into effect when security plugin is disabled in the cluster.
  *
  * @opensearch.experimental
  */
@@ -59,7 +60,7 @@ public class DefaultResourceAccessControlPlugin extends Plugin implements Resour
     }
 
     /**
-     * Returns a list of all resource ids in provided systemIndex
+     * Returns a list of all resource ids in provided resourceIndex
      * @param resourceIndex index where resources are stored
      *
      * @return Set of resource ids
@@ -93,7 +94,7 @@ public class DefaultResourceAccessControlPlugin extends Plugin implements Resour
             clearScrollRequest.addScrollId(scrollId);
             client.clearScroll(clearScrollRequest).actionGet();
         } catch (Exception e) {
-            log.error("Exception: {}", e.getMessage());
+            log.error("Error fetching resources : {}", e.getMessage());
             return Set.of();
         }
         log.info("Found {} documents", documents.size());

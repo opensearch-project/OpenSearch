@@ -97,8 +97,8 @@ public class DefaultResourceAccessControlPluginIT extends OpenSearchIntegTestCas
         ResourceAccessControlPlugin racPlugin = TestResourcePlugin.GuiceHolder.getResourceService().getResourceAccessControlPlugin();
         MatcherAssert.assertThat(racPlugin.getClass(), is(DefaultResourceAccessControlPlugin.class));
 
-        SharedWithScope.SharedWithPerScope sharedWithPerScope = new SharedWithScope.SharedWithPerScope(Set.of(), Set.of(), Set.of());
-        SharedWithScope sharedWithScope = new SharedWithScope("some_scope", sharedWithPerScope);
+        SharedWithScope.ScopeRecipients scopeRecipients = new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of());
+        SharedWithScope sharedWithScope = new SharedWithScope("some_scope", scopeRecipients);
         ResourceSharing sharingInfo = racPlugin.shareWith("1", SAMPLE_TEST_INDEX, new ShareWith(Set.of(sharedWithScope)));
 
         MatcherAssert.assertThat(sharingInfo, is(nullValue()));

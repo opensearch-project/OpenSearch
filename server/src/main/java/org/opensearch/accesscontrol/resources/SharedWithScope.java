@@ -20,7 +20,13 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Defines the scope and who this scope is shared with
+ * This class represents the scope at which a resource is shared with.
+ * Example:
+ * "read_only": {
+ *      "users": [],
+ *      "roles": [],
+ *      "backend_roles": []
+ * }
  *
  * @opensearch.experimental
  */
@@ -28,24 +34,24 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
 
     private final String scope;
 
-    private final SharedWithPerScope sharedWithPerScope;
+    private final ScopeRecipients scopeRecipients;
 
-    public SharedWithScope(String scope, SharedWithPerScope sharedWithPerScope) {
+    public SharedWithScope(String scope, ScopeRecipients scopeRecipients) {
         this.scope = scope;
-        this.sharedWithPerScope = sharedWithPerScope;
+        this.scopeRecipients = scopeRecipients;
     }
 
     public SharedWithScope(StreamInput in) throws IOException {
         this.scope = in.readString();
-        this.sharedWithPerScope = new SharedWithPerScope(in);
+        this.scopeRecipients = new ScopeRecipients(in);
     }
 
     public String getScope() {
         return scope;
     }
 
-    public SharedWithPerScope getSharedWithPerScope() {
-        return sharedWithPerScope;
+    public ScopeRecipients getSharedWithPerScope() {
+        return scopeRecipients;
     }
 
     @Override
@@ -53,7 +59,7 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
         builder.field(scope);
         builder.startObject();
 
-        sharedWithPerScope.toXContent(builder, params);
+        scopeRecipients.toXContent(builder, params);
 
         return builder.endObject();
     }
@@ -63,14 +69,14 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
 
         parser.nextToken();
 
-        SharedWithPerScope sharedWithPerScope = SharedWithPerScope.fromXContent(parser);
+        ScopeRecipients scopeRecipients = ScopeRecipients.fromXContent(parser);
 
-        return new SharedWithScope(scope, sharedWithPerScope);
+        return new SharedWithScope(scope, scopeRecipients);
     }
 
     @Override
     public String toString() {
-        return "{" + scope + ": " + sharedWithPerScope + '}';
+        return "{" + scope + ": " + scopeRecipients + '}';
     }
 
     @Override
@@ -81,15 +87,15 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(scope);
-        out.writeNamedWriteable(sharedWithPerScope);
+        out.writeNamedWriteable(scopeRecipients);
     }
 
     /**
-     * This class defines who a resource is shared_with for a particular scope
+     * This class represents the entities with whom a resource is shared with for a given scope.
      *
      * @opensearch.experimental
      */
-    public static class SharedWithPerScope implements ToXContentFragment, NamedWriteable {
+    public static class ScopeRecipients implements ToXContentFragment, NamedWriteable {
         private static final String USERS_FIELD = EntityType.USERS.toString();
         private static final String ROLES_FIELD = EntityType.ROLES.toString();
         private static final String BACKEND_ROLES_FIELD = EntityType.BACKEND_ROLES.toString();
@@ -100,13 +106,13 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
 
         private Set<String> backendRoles;
 
-        public SharedWithPerScope(Set<String> users, Set<String> roles, Set<String> backendRoles) {
+        public ScopeRecipients(Set<String> users, Set<String> roles, Set<String> backendRoles) {
             this.users = users;
             this.roles = roles;
             this.backendRoles = backendRoles;
         }
 
-        public SharedWithPerScope(StreamInput in) throws IOException {
+        public ScopeRecipients(StreamInput in) throws IOException {
             this.users = Set.of(in.readStringArray());
             this.roles = Set.of(in.readStringArray());
             this.backendRoles = Set.of(in.readStringArray());
@@ -161,7 +167,7 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
             return builder;
         }
 
-        public static SharedWithPerScope fromXContent(XContentParser parser) throws IOException {
+        public static ScopeRecipients fromXContent(XContentParser parser) throws IOException {
             Set<String> users = new HashSet<>();
             Set<String> roles = new HashSet<>();
             Set<String> backendRoles = new HashSet<>();
@@ -190,7 +196,7 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
                 }
             }
 
-            return new SharedWithPerScope(users, roles, backendRoles);
+            return new ScopeRecipients(users, roles, backendRoles);
         }
 
         private void writeFieldOrEmptyArray(XContentBuilder builder, String fieldName, Set<String> values) throws IOException {
@@ -203,7 +209,7 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
 
         @Override
         public String getWriteableName() {
-            return "shared_with_per_scope";
+            return "scope_recipients";
         }
 
         @Override

@@ -10,12 +10,12 @@ package org.opensearch.accesscontrol.resources;
 
 /**
  * This interface defines the two basic access scopes for resource-access.
- * Each plugin must implement their own scopes and manage them
+ * Each plugin must implement their own scopes and manage them.
  * These access scopes will then be used to verify the type of access being requested.
  *
  * @opensearch.experimental
  */
 public interface ResourceAccessScope {
-    String READ_ONLY = "READ_ONLY";
-    String READ_WRITE = "READ_WRITE";
+    String READ_ONLY = "read_only";
+    String READ_WRITE = "read_write";
 }

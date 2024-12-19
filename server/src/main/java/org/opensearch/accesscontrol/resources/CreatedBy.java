@@ -18,13 +18,14 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * This class contains information on the creator of a resource.
- * Creator can either be a user or a backend_role.
+ * This class is used to store information about the creator of a resource.
+ * Creator can only be a user.
  *
  * @opensearch.experimental
  */
 public class CreatedBy implements ToXContentFragment, NamedWriteable {
 
+    private static final String USER_FIELD = "user";
     private String user;
 
     public CreatedBy(String user) {
@@ -45,7 +46,7 @@ public class CreatedBy implements ToXContentFragment, NamedWriteable {
 
     @Override
     public String toString() {
-        return "CreatedBy {" + "user='" + user + '\'' + '}';
+        return "CreatedBy {" + USER_FIELD + "='" + user + '\'' + '}';
     }
 
     @Override
@@ -60,7 +61,7 @@ public class CreatedBy implements ToXContentFragment, NamedWriteable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field("user", user).endObject();
+        return builder.startObject().field(USER_FIELD, user).endObject();
     }
 
     public static CreatedBy fromXContent(XContentParser parser) throws IOException {
@@ -72,14 +73,14 @@ public class CreatedBy implements ToXContentFragment, NamedWriteable {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("user".equals(currentFieldName)) {
+                if (USER_FIELD.equals(currentFieldName)) {
                     user = parser.text();
                 }
             }
         }
 
         if (user == null) {
-            throw new IllegalArgumentException("user field is required");
+            throw new IllegalArgumentException(USER_FIELD + " is required");
         }
 
         return new CreatedBy(user);

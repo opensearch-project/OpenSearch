@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Resource access control for OpenSearch
+ * Service to get the current ResourcePlugin to perform authorization.
  *
  * @opensearch.experimental
  */
@@ -56,14 +56,14 @@ public class ResourceService {
     }
 
     /**
-     * Gets the current ResourcePlugin to perform authorization
+     * Gets the ResourceAccessControlPlugin in-effect to perform authorization
      */
     public ResourceAccessControlPlugin getResourceAccessControlPlugin() {
         return resourceACPlugin;
     }
 
     /**
-     * List active plugins that define resources
+     * Gets the list of ResourcePlugins
      */
     public List<ResourcePlugin> listResourcePlugins() {
         return List.copyOf(resourcePlugins);

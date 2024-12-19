@@ -16,13 +16,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * This interface determines presence of security plugin in the cluster.
- * If yes, security plugin will be used for resource access authorization
- * User information is fetched from thread context by security plugin.
- * In clusters, where security plugin is disabled these requests will be pass-through via a No-op implementation.
- * There are 3 scope of sharing for a resource: Private, Restricted, Public. To learn more visit <a href="https://github.com/opensearch-project/security/issues/4500">...</a>
- * If security plugin is disabled, all resources will be considered public by default.
- * Refer to the sample-resource-plugin introduced <a href="https://github.com/opensearch-project/security/pull/4893">here</a> to understand the usage of this class.
+ * This plugin allows to control access to resources. It is used by the ResourcePlugins to check whether a user has access to a resource defined by that plugin.
+ * It also defines java APIs to list, share or revoke resources with other users.
+ * User information will be fetched from the ThreadContext.
  *
  * @opensearch.experimental
  */
@@ -51,7 +47,7 @@ public interface ResourceAccessControlPlugin {
     }
 
     /**
-     * Adds an entity to the share-with. Resource needs to be in restricted mode.
+     * Adds an entity to the share-with.
      * Creates a resource sharing record if one doesn't exist.
      * @param resourceId id of the resource to be updated
      * @param resourceIndex index where this resource is stored
@@ -63,7 +59,7 @@ public interface ResourceAccessControlPlugin {
     }
 
     /**
-     * Revokes given permission to a resource
+     * Revokes given scope permission to a resource
      *
      * @param resourceId if of the resource to be updated
      * @param resourceIndex index where this resource is stored
@@ -81,8 +77,9 @@ public interface ResourceAccessControlPlugin {
     }
 
     /**
-     * Deletes an entry from .resource_sharing index
-     * @param resourceId if of the resource to be updated
+     * Deletes a resource sharing record
+     *
+     * @param resourceId if of the resource to delete the resource sharing record
      * @param resourceIndex index where this resource is stored
      * @return true if resource record was deleted, false otherwise
      */
@@ -91,13 +88,11 @@ public interface ResourceAccessControlPlugin {
     }
 
     /**
-     * TODO check if this method is needed
-     * Deletes all entries from .resource_sharing index where current user is the creator of the resource
-     * @return true if resource record was deleted, false otherwise
+     * Deletes all resource sharing records for current user
+     * @return true if resource records were deleted, false otherwise
      */
     default boolean deleteAllResourceSharingRecordsForCurrentUser() {
         return false;
     }
 
-    // TODO: Check whether methods for bulk updates are required
 }

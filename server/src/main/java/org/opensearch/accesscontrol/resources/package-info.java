@@ -7,7 +7,7 @@
  */
 
 /**
- * This package defines all classes required for Resource Sharing and Access Control in OpenSearch
+ * This package defines class required to implement resource access control in OpenSearch.
  *
  * @opensearch.experimental
  */

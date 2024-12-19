@@ -44,12 +44,12 @@ public class ShareWithTests extends OpenSearchTestCase {
         SharedWithScope scope = sharedWithScopes.iterator().next();
         MatcherAssert.assertThat("read_only", equalTo(scope.getScope()));
 
-        SharedWithScope.SharedWithPerScope sharedWithPerScope = scope.getSharedWithPerScope();
-        assertNotNull(sharedWithPerScope);
-        MatcherAssert.assertThat(1, equalTo(sharedWithPerScope.getUsers().size()));
-        MatcherAssert.assertThat("user1", equalTo(sharedWithPerScope.getUsers().iterator().next()));
-        MatcherAssert.assertThat(0, equalTo(sharedWithPerScope.getRoles().size()));
-        MatcherAssert.assertThat(0, equalTo(sharedWithPerScope.getBackendRoles().size()));
+        SharedWithScope.ScopeRecipients scopeRecipients = scope.getSharedWithPerScope();
+        assertNotNull(scopeRecipients);
+        MatcherAssert.assertThat(1, equalTo(scopeRecipients.getUsers().size()));
+        MatcherAssert.assertThat("user1", equalTo(scopeRecipients.getUsers().iterator().next()));
+        MatcherAssert.assertThat(0, equalTo(scopeRecipients.getRoles().size()));
+        MatcherAssert.assertThat(0, equalTo(scopeRecipients.getBackendRoles().size()));
     }
 
     public void testFromXContentWithEmptyInput() throws IOException {
@@ -87,18 +87,18 @@ public class ShareWithTests extends OpenSearchTestCase {
 
         assertNotNull(shareWith);
         Set<SharedWithScope> scopes = shareWith.getSharedWithScopes();
-        assertEquals(2, scopes.size());
+        MatcherAssert.assertThat(scopes.size(), equalTo(2));
 
         for (SharedWithScope scope : scopes) {
-            SharedWithScope.SharedWithPerScope perScope = scope.getSharedWithPerScope();
+            SharedWithScope.ScopeRecipients perScope = scope.getSharedWithPerScope();
             if (scope.getScope().equals(ResourceAccessScope.READ_ONLY)) {
-                assertEquals(2, perScope.getUsers().size());
-                assertEquals(1, perScope.getRoles().size());
-                assertEquals(1, perScope.getBackendRoles().size());
+                MatcherAssert.assertThat(perScope.getUsers().size(), equalTo(2));
+                MatcherAssert.assertThat(perScope.getRoles().size(), equalTo(1));
+                MatcherAssert.assertThat(perScope.getBackendRoles().size(), equalTo(1));
             } else if (scope.getScope().equals(ResourceAccessScope.READ_WRITE)) {
-                assertEquals(1, perScope.getUsers().size());
-                assertEquals(2, perScope.getRoles().size());
-                assertEquals(0, perScope.getBackendRoles().size());
+                MatcherAssert.assertThat(perScope.getUsers().size(), equalTo(1));
+                MatcherAssert.assertThat(perScope.getRoles().size(), equalTo(2));
+                MatcherAssert.assertThat(perScope.getBackendRoles().size(), equalTo(0));
             }
         }
     }
@@ -111,11 +111,11 @@ public class ShareWithTests extends OpenSearchTestCase {
         ShareWith result = ShareWith.fromXContent(mockParser);
 
         assertNotNull(result);
-        assertTrue(result.getSharedWithScopes().isEmpty());
+        MatcherAssert.assertThat(result.getSharedWithScopes(), is(empty()));
     }
 
     public void testToXContentBuildsCorrectly() throws IOException {
-        SharedWithScope scope = new SharedWithScope("scope1", new SharedWithScope.SharedWithPerScope(Set.of(), Set.of(), Set.of()));
+        SharedWithScope scope = new SharedWithScope("scope1", new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of()));
 
         Set<SharedWithScope> scopes = new HashSet<>();
         scopes.add(scope);
@@ -146,7 +146,7 @@ public class ShareWithTests extends OpenSearchTestCase {
 
     public void testWriteToWithIOException() throws IOException {
         Set<SharedWithScope> set = new HashSet<>();
-        set.add(new SharedWithScope("test", new SharedWithScope.SharedWithPerScope(Set.of(), Set.of(), Set.of())));
+        set.add(new SharedWithScope("test", new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of())));
         ShareWith shareWith = new ShareWith(set);
         StreamOutput mockOutput = Mockito.mock(StreamOutput.class);
 
@@ -158,7 +158,7 @@ public class ShareWithTests extends OpenSearchTestCase {
     public void testWriteToWithLargeSet() throws IOException {
         Set<SharedWithScope> largeSet = new HashSet<>();
         for (int i = 0; i < 10000; i++) {
-            largeSet.add(new SharedWithScope("scope" + i, new SharedWithScope.SharedWithPerScope(Set.of(), Set.of(), Set.of())));
+            largeSet.add(new SharedWithScope("scope" + i, new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of())));
         }
         ShareWith shareWith = new ShareWith(largeSet);
         StreamOutput mockOutput = Mockito.mock(StreamOutput.class);
@@ -177,7 +177,7 @@ public class ShareWithTests extends OpenSearchTestCase {
 
         ShareWith shareWith = ShareWith.fromXContent(parser);
 
-        assertTrue(shareWith.getSharedWithScopes().isEmpty());
+        MatcherAssert.assertThat(shareWith.getSharedWithScopes(), is(empty()));
     }
 
     public void test_writeSharedWithScopesToStream() throws IOException {
@@ -185,10 +185,10 @@ public class ShareWithTests extends OpenSearchTestCase {
 
         Set<SharedWithScope> sharedWithScopes = new HashSet<>();
         sharedWithScopes.add(
-            new SharedWithScope(ResourceAccessScope.READ_ONLY, new SharedWithScope.SharedWithPerScope(Set.of(), Set.of(), Set.of()))
+            new SharedWithScope(ResourceAccessScope.READ_ONLY, new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of()))
         );
         sharedWithScopes.add(
-            new SharedWithScope(ResourceAccessScope.READ_WRITE, new SharedWithScope.SharedWithPerScope(Set.of(), Set.of(), Set.of()))
+            new SharedWithScope(ResourceAccessScope.READ_WRITE, new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of()))
         );
 
         ShareWith shareWith = new ShareWith(sharedWithScopes);

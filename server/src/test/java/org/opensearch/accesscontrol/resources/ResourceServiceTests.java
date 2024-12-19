@@ -17,7 +17,10 @@ import java.util.List;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class ResourceServiceTests extends OpenSearchTestCase {
@@ -47,7 +50,7 @@ public class ResourceServiceTests extends OpenSearchTestCase {
 
         ResourceAccessControlPlugin result = resourceService.getResourceAccessControlPlugin();
 
-        assertEquals(mockPlugin, result);
+        MatcherAssert.assertThat(mockPlugin, equalTo(result));
     }
 
     public void testGetResourceAccessControlPlugin_NoPlugins() {
@@ -60,7 +63,7 @@ public class ResourceServiceTests extends OpenSearchTestCase {
         ResourceAccessControlPlugin result = resourceService.getResourceAccessControlPlugin();
 
         assertNotNull(result);
-        assertTrue(result instanceof DefaultResourceAccessControlPlugin);
+        MatcherAssert.assertThat(result, instanceOf(DefaultResourceAccessControlPlugin.class));
     }
 
     public void testGetResourceAccessControlPlugin_SinglePlugin() {
@@ -120,7 +123,7 @@ public class ResourceServiceTests extends OpenSearchTestCase {
         List<ResourcePlugin> result = resourceService.listResourcePlugins();
 
         assertNotNull(result);
-        assertTrue(result.isEmpty());
+        MatcherAssert.assertThat(result, is(empty()));
     }
 
     public void testListResourcePlugins_immutability() {
@@ -182,8 +185,8 @@ public class ResourceServiceTests extends OpenSearchTestCase {
 
         ResourceService resourceService = new ResourceService(resourceACPlugins, resourcePlugins, client, threadPool);
 
-        assertTrue(resourceService.getResourceAccessControlPlugin() instanceof DefaultResourceAccessControlPlugin);
-        assertEquals(resourcePlugins, resourceService.listResourcePlugins());
+        MatcherAssert.assertThat(resourceService.getResourceAccessControlPlugin(), instanceOf(DefaultResourceAccessControlPlugin.class));
+        MatcherAssert.assertThat(resourcePlugins, equalTo(resourceService.listResourcePlugins()));
     }
 
     public void testResourceServiceWithNoResourceACPlugins() {
@@ -207,7 +210,7 @@ public class ResourceServiceTests extends OpenSearchTestCase {
         ResourceService resourceService = new ResourceService(resourceACPlugins, resourcePlugins, client, threadPool);
 
         assertNotNull(resourceService);
-        assertEquals(mockPlugin, resourceService.getResourceAccessControlPlugin());
-        assertEquals(resourcePlugins, resourceService.listResourcePlugins());
+        MatcherAssert.assertThat(mockPlugin, equalTo(resourceService.getResourceAccessControlPlugin()));
+        MatcherAssert.assertThat(resourcePlugins, equalTo(resourceService.listResourcePlugins()));
     }
 }
