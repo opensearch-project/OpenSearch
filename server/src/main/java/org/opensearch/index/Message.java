@@ -9,6 +9,7 @@
 package org.opensearch.index;
 
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.mapper.DocumentMapperForType;
 
 /**
  *  A message ingested from the ingestion source that contains an index operation
@@ -16,5 +17,5 @@ import org.opensearch.index.engine.Engine;
 public interface Message<T> {
     T getPayload();
 
-    Engine.Operation getOperation();
+    Engine.Operation getOperation(DocumentMapperForType documentMapperForType);
 }

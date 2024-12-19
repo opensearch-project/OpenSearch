@@ -194,4 +194,13 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
+  permission javax.management.MBeanServerPermission "createMBeanServer";
+  permission javax.management.MBeanTrustPermission "register";
+  permission javax.management.MBeanPermission "*", "*";
+  permission java.lang.management.ManagementPermission "monitor";
+  permission java.lang.management.ManagementPermission "control";
+  // Allow host/ip name service lookups
+  permission java.net.SocketPermission "*", "connect";
+  permission java.net.SocketPermission "*", "resolve";
 };

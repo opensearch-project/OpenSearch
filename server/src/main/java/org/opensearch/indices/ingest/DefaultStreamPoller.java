@@ -119,6 +119,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 for (IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> result : results) {
                     processor.accept(result.getMessage());
                     currentPointer = result.getPointer();
+                    logger.info("Processed message with pointer {}", currentPointer.asString());
                 }
 
                 // move pointer to read next

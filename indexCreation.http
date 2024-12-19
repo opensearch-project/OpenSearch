@@ -7,18 +7,36 @@ Content-Type: application/json
     "ingestion_source": {
       "type": "kafka",
       "param": {
-        "topic": "test",
+        "topic": "test1",
         "groupId": "test",
         "bootstrapServers": "localhost:49353"
       }
     },
-    "index.number_of_shards": 2,
+    "index.number_of_shards": 1,
     "index.number_of_replicas": 1
   },
   "mappings": {
     "properties": {
+      "name": {
+        "type": "text"
+      },
       "age": {
         "type": "integer"
+      }
+    }
+  }
+}
+
+
+### query the index
+GET http://localhost:9200/my-index/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "range": {
+      "age": {
+        "gt": 18
       }
     }
   }
