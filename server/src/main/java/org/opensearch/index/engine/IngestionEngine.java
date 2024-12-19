@@ -30,15 +30,14 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.*;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.OnGoingMerge;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogCorruptedException;
-import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.*;
 import org.opensearch.indices.ingest.DefaultStreamPoller;
 import org.opensearch.indices.ingest.DocumentProcessor;
 import org.opensearch.indices.ingest.StreamPoller;
@@ -68,7 +67,8 @@ public class IngestionEngine extends Engine {
     private final ReentrantLock optimizeLock = new ReentrantLock();
     private final OpenSearchConcurrentMergeScheduler mergeScheduler;
     private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
-
+    private final TranslogManager translogManager;
+    private final DocumentMapperForType documentMapperForType;
     protected StreamPoller streamPoller;
 
     /**
@@ -97,7 +97,6 @@ public class IngestionEngine extends Engine {
 
     public IngestionEngine(EngineConfig engineConfig) {
         super(engineConfig);
-
         store.incRef();
         boolean success = false;
         try {
@@ -109,7 +108,22 @@ public class IngestionEngine extends Engine {
             indexWriter = createWriter();
             externalReaderManager = createReaderManager(new InternalEngine.RefreshWarmerListener(logger, isClosed, engineConfig));
             internalReaderManager = externalReaderManager.internalReaderManager;
+            translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, new TranslogStats(0, 0, 0, 0, 0), new Translog.Snapshot() {
+                @Override
+                public void close() {
+                }
 
+                @Override
+                public int totalOperations() {
+                    return 0;
+                }
+
+                @Override
+                public Translog.Operation next() {
+                    return null;
+                }
+            });
+            documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
             IngestionConsumerFactory factory = getIngestionConsumerFactory(indexMetadata.getIngestionSource());
             IngestionShardConsumer ingestionShardConsumer = factory.createShardConsumer("clientId", 0);
 
@@ -143,6 +157,10 @@ public class IngestionEngine extends Engine {
             logger.warn("could not lock IndexWriter", ex);
             throw ex;
         }
+    }
+
+    public DocumentMapperForType getDocumentMapperForType() {
+        return documentMapperForType;
     }
 
     /**
@@ -299,7 +317,7 @@ public class IngestionEngine extends Engine {
     @Override
     public TranslogManager translogManager() {
         // ingestion engine does not have translog
-        return null;
+        return translogManager;
     }
 
     @Override

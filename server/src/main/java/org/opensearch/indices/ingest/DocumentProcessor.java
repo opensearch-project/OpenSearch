@@ -10,21 +10,22 @@ package org.opensearch.indices.ingest;
 
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.IngestionEngine;
 
 import java.io.IOException;
 import java.util.function.Consumer;
 
 public class DocumentProcessor implements Consumer<Message> {
-    private final Engine engine;
+    private final IngestionEngine engine;
 
-    public DocumentProcessor(Engine engine) {
+    public DocumentProcessor(IngestionEngine engine) {
         this.engine = engine;
     }
 
 
     @Override
     public void accept(Message message) {
-        Engine.Operation operation = message.getOperation();
+        Engine.Operation operation = message.getOperation(engine.getDocumentMapperForType());
         try {
             switch (operation.operationType()) {
                 case INDEX:
