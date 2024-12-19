@@ -1197,6 +1197,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
         verifyNoMoreInteractions(mockedSearchContext);
     }
 
+    public void testEmptyQueryCollectorContextAndDifferentScoreModes() throws Exception {
+        QueryCollectorContext topScoresContext = QueryCollectorContext.EMPTY_CONTEXT_TOP_SCORES_SCORE_MODE;
+
+        // Verify score mode
+        assertEquals(org.apache.lucene.search.ScoreMode.TOP_SCORES, topScoresContext.create(null).scoreMode());
+
+        // Verify it's a different instance than empty context
+        assertNotEquals(QueryCollectorContext.EMPTY_CONTEXT, topScoresContext);
+    }
+
     private static class TestSearchContextWithRewriteAndCancellation extends TestSearchContext {
 
         private TestSearchContextWithRewriteAndCancellation(
