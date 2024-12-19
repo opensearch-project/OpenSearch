@@ -623,11 +623,12 @@ public final class SearchPhaseController {
                 SortField.Type sortType = getSortType(sortField);
                 if (SortedWiderNumericSortField.isTypeSupported(sortType) == false) {
                     // throw exception if sortType is not CUSTOM?
+                    // skip this shard or do not widen?
                     requireWiden = false;
                     break;
                 }
-                requireWiden = sortType != firstType;
-                isFloat = sortType == SortField.Type.FLOAT || sortType == SortField.Type.DOUBLE;
+                requireWiden = requireWiden || sortType != firstType;
+                isFloat = isFloat || sortType == SortField.Type.FLOAT || sortType == SortField.Type.DOUBLE;
             }
 
             if (requireWiden) {
