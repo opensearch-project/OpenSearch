@@ -312,6 +312,18 @@ public enum FieldData {
     }
 
     /**
+     * Returns a single-valued view of the {@link SortedNumericDoubleValues},
+     * if it was previously wrapped with {@link DocValues#singleton(NumericDocValues)},
+     * or null.
+     */
+    public static SortedNumericDocValues unwrapSingleton(SortedNumericUnsignedLongValues values) {
+        if (values instanceof SingletonSortedNumericUnsignedLongValues) {
+            return ((SingletonSortedNumericUnsignedLongValues) values).getNumericUnsignedLongValues();
+        }
+        return null;
+    }
+
+    /**
      * Returns a multi-valued view over the provided {@link GeoPointValues}.
      */
     public static MultiGeoPointValues singleton(GeoPointValues values) {
