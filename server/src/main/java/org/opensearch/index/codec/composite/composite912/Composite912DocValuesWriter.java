@@ -33,9 +33,11 @@ import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
 import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreesBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.index.CompositeIndexValues;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.DocCountFieldMapper;
-import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -44,6 +46,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -262,22 +265,38 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
                         return DocValues.emptySortedSet();
                     }
                 });
-            }
-            // TODO : change this logic to evaluate for sortedNumericField specifically
-            else {
+            } else if (isSortedNumericField(compositeField)) {
                 fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
                     @Override
                     public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
                         return DocValues.emptySortedNumeric();
                     }
                 });
+            } else {
+                throw new IllegalStateException(
+                    String.format(Locale.ROOT, "Unsupported DocValues field associated with the composite field : %s", compositeField)
+                );
             }
         }
         compositeFieldSet.remove(compositeField);
     }
 
     private boolean isSortedSetField(String field) {
-        return mapperService.fieldType(field) instanceof KeywordFieldMapper.KeywordFieldType;
+        MappedFieldType ft = mapperService.fieldType(field);
+        assert ft.isAggregatable();
+        return ft.fielddataBuilder(
+            "",
+            () -> { throw new UnsupportedOperationException("SearchLookup not available"); }
+        ) instanceof SortedSetOrdinalsIndexFieldData.Builder;
+    }
+
+    private boolean isSortedNumericField(String field) {
+        MappedFieldType ft = mapperService.fieldType(field);
+        assert ft.isAggregatable();
+        return ft.fielddataBuilder(
+            "",
+            () -> { throw new UnsupportedOperationException("SearchLookup not available"); }
+        ) instanceof IndexNumericFieldData.Builder;
     }
 
     @Override
@@ -370,5 +389,4 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
             segmentWriteState.segmentSuffix
         );
     }
-
 }
