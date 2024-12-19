@@ -308,9 +308,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
         jars.forEach(jar -> {
             FileTree jarFiles = getProject().zipTree(jar);
+            String jarNamePrefix = jar.getName().split("-")[0];
+            File jarSubDir = new File(jarExpandDir, jarNamePrefix);
+
             getProject().copy(spec -> {
                 spec.from(jarFiles);
-                spec.into(jarExpandDir);
+                spec.into(jarSubDir);
                 // exclude classes from multi release jars
                 spec.exclude("META-INF/versions/**");
             });
@@ -329,7 +332,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 Integer.parseInt(targetCompatibility.get().getMajorVersion())
             ).forEach(majorVersion -> getProject().copy(spec -> {
                 spec.from(getProject().zipTree(jar));
-                spec.into(jarExpandDir);
+                spec.into(jarSubDir);
                 String metaInfPrefix = "META-INF/versions/" + majorVersion;
                 spec.include(metaInfPrefix + "/**");
                 // Drop the version specific prefix
