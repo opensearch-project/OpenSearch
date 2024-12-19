@@ -1,0 +1,88 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+testingConventions.enabled = false
+dependencies {
+  api project(':libs:opensearch-core')
+  api "org.apache.arrow:arrow-vector:${versions.arrow}"
+  api "org.apache.arrow:arrow-format:${versions.arrow}"
+  api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  runtimeOnly "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
+  runtimeOnly "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
+  runtimeOnly "io.netty:netty-buffer:${versions.netty}"
+  runtimeOnly "io.netty:netty-common:${versions.netty}"
+
+  runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
+  implementation "commons-codec:commons-codec:${versions.commonscodec}"
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('thirdPartyAudit').configure {
+  ignoreMissingClasses(
+    // Logging frameworks
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
+    'org.apache.log4j.Level',
+    'org.apache.log4j.Logger',
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
+
+    // Reactor BlockHound
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
+  )
+
+  ignoreViolations(
+    "io.netty.util.internal.PlatformDependent0",
+    "io.netty.util.internal.PlatformDependent0\$1",
+    "io.netty.util.internal.PlatformDependent0\$2",
+    "io.netty.util.internal.PlatformDependent0\$3",
+    "io.netty.util.internal.PlatformDependent0\$4",
+    "io.netty.util.internal.PlatformDependent0\$6",
+    "io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef",
+    "io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef",
+    "io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields",
+    "io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields",
+    "io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields",
+    "io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode",
+    "io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField",
+    "io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField",
+    "io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField",
+    "io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField",
+    "io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField",
+    "io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess",
+    "io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess",
+    "io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess",
+    "io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField",
+    "io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField",
+    "io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField",
+    "org.apache.arrow.memory.ArrowBuf",
+    "org.apache.arrow.memory.util.ByteFunctionHelpers",
+    "org.apache.arrow.memory.util.MemoryUtil",
+    "org.apache.arrow.memory.util.MemoryUtil\$1",
+    "org.apache.arrow.memory.util.hash.MurmurHasher",
+    "org.apache.arrow.memory.util.hash.SimpleHasher",
+    "org.apache.arrow.vector.BaseFixedWidthVector",
+    "org.apache.arrow.vector.BitVectorHelper",
+    "org.apache.arrow.vector.Decimal256Vector",
+    "org.apache.arrow.vector.DecimalVector",
+    "org.apache.arrow.vector.util.DecimalUtility",
+    "org.apache.arrow.vector.util.VectorAppender"
+  )
+}
