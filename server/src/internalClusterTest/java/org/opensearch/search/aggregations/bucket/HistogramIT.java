@@ -961,7 +961,7 @@ public class HistogramIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         List<? extends Bucket> buckets = histo.getBuckets();

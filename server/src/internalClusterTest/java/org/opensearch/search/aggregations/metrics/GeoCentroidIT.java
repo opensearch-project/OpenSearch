@@ -67,7 +67,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
-        assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();

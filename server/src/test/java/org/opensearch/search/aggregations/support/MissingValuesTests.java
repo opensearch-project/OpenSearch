@@ -152,7 +152,7 @@ public class MissingValuesTests extends OpenSearchTestCase {
                 if (i < ords[doc].length) {
                     return ords[doc][i++];
                 } else {
-                    return NO_MORE_ORDS;
+                    return NO_MORE_DOCS;
                 }
             }
 
@@ -178,10 +178,10 @@ public class MissingValuesTests extends OpenSearchTestCase {
                     for (int ord : ords[i]) {
                         assertEquals(values[ord], withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
                     }
-                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
+                    assertEquals(SortedSetDocValues.NO_MORE_DOCS, withMissingReplaced.nextOrd());
                 } else {
                     assertEquals(missing, withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
-                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
+                    assertEquals(SortedSetDocValues.NO_MORE_DOCS, withMissingReplaced.nextOrd());
                 }
             }
         }

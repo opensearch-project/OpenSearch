@@ -846,6 +846,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             Query tq = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
             if (method == null
                 || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
+                || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
                 || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
                 return new ConstantScoreQuery(tq);
             }

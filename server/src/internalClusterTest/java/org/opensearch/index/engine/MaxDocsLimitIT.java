@@ -136,7 +136,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .get();
         OpenSearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) maxDocs.get()));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) maxDocs.get()));
         if (randomBoolean()) {
             client().admin().indices().prepareFlush("test").get();
         }
@@ -149,7 +149,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .get();
         OpenSearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) maxDocs.get()));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) maxDocs.get()));
     }
 
     public void testMaxDocsLimitConcurrently() throws Exception {
@@ -167,7 +167,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .get();
         OpenSearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) indexingResult.numSuccess));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) indexingResult.numSuccess));
         int totalSuccess = indexingResult.numSuccess;
         while (totalSuccess < maxDocs.get()) {
             indexingResult = indexDocs(between(1, 10), between(1, 8));
@@ -185,7 +185,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .get();
         OpenSearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalSuccess));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) totalSuccess));
     }
 
     static final class IndexingResult {

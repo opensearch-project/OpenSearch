@@ -595,10 +595,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         );
 
         TopDocs topDocs = searcher.search(rangeQuery, dates.size());
-        assertEquals("Number of non-null date documents", dates.size() - numNullDates, topDocs.totalHits.value);
+        assertEquals("Number of non-null date documents", dates.size() - numNullDates, topDocs.totalHits.value());
 
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-            org.apache.lucene.document.Document doc = reader.document(scoreDoc.doc);
+            org.apache.lucene.document.Document doc = reader.storedFields().document(scoreDoc.doc);
             IndexableField dateField = doc.getField(ft.name());
             if (dateField != null) {
                 long dateValue = dateField.numericValue().longValue();
@@ -622,7 +622,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         Query nullValueQuery = ftWithNullValue.termQuery("2020-01-01T00:00:00Z", context);
         topDocs = searcher.search(nullValueQuery, dates.size());
-        assertEquals("Documents matching the 2020-01-01 date", 1, topDocs.totalHits.value);
+        assertEquals("Documents matching the 2020-01-01 date", 1, topDocs.totalHits.value());
 
         IOUtils.close(reader, w, dir);
     }
@@ -672,9 +672,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         for (int i = 0; i < 100; i++) {
             TopDocs topDocs = searcher.search(queryBuilder.build(), nullDocs + datedDocs, sort);
-            assertEquals("Total hits should match total documents", nullDocs + datedDocs, topDocs.totalHits.value);
+            assertEquals("Total hits should match total documents", nullDocs + datedDocs, topDocs.totalHits.value());
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                org.apache.lucene.document.Document doc = reader.document(scoreDoc.doc);
+                org.apache.lucene.document.Document doc = reader.storedFields().document(scoreDoc.doc);
                 IndexableField dateField = doc.getField(ft.name());
                 if (dateField != null) {
                     long dateValue = dateField.numericValue().longValue();

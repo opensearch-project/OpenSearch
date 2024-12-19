@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene912.Lucene912Codec;
+import org.apache.lucene.codecs.lucene100.Lucene100Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -30,7 +30,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.composite912.Composite912Codec;
+import org.opensearch.index.codec.composite.composite100.Composite100Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
@@ -94,7 +94,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new Composite912Codec(Lucene912Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        return new Composite100Codec(Lucene100Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
     public void testStarTreeDocValues() throws IOException {

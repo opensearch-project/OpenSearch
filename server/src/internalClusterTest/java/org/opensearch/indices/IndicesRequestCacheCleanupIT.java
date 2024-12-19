@@ -83,7 +83,7 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         SearchResponse resp = client.prepareSearch(index).setRequestCache(true).setQuery(QueryBuilders.termQuery("k", "hello")).get();
         assertSearchResponse(resp);
         OpenSearchAssertions.assertAllSuccessful(resp);
-        assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
 
         assertCacheState(client, index, 0, 1);
         // Index but don't refresh

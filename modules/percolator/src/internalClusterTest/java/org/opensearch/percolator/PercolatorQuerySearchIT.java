@@ -1332,7 +1332,7 @@ public class PercolatorQuerySearchIT extends ParameterizedStaticSettingsOpenSear
                 )
             )
             .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertEquals(1, response.getHits().getTotalHits().value());
 
         response = client().prepareSearch("test")
             .setQuery(
@@ -1344,7 +1344,7 @@ public class PercolatorQuerySearchIT extends ParameterizedStaticSettingsOpenSear
             )
             .addSort("_doc", SortOrder.ASC)
             .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertEquals(1, response.getHits().getTotalHits().value());
 
         response = client().prepareSearch("test")
             .setQuery(
@@ -1357,7 +1357,7 @@ public class PercolatorQuerySearchIT extends ParameterizedStaticSettingsOpenSear
                 )
             )
             .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertEquals(1, response.getHits().getTotalHits().value());
 
     }
 }

@@ -79,8 +79,7 @@ import java.util.function.LongPredicate;
 import java.util.function.LongUnaryOperator;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_DOCS;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
@@ -289,7 +288,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == globalOrds.advanceExact(doc)) {
                         return;
                     }
-                    for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                    int count = globalOrds.docValueCount();
+                    long globalOrd;
+                    while ((count-- > 0) && (globalOrd = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
                 }
@@ -301,7 +302,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 if (false == globalOrds.advanceExact(doc)) {
                     return;
                 }
-                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                int count = globalOrds.docValueCount();
+                long globalOrd;
+                while ((count-- > 0) && (globalOrd = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                     if (false == acceptedGlobalOrdinals.test(globalOrd)) {
                         continue;
                     }
@@ -478,7 +481,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == segmentOrds.advanceExact(doc)) {
                         return;
                     }
-                    for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_ORDS; segmentOrd = segmentOrds.nextOrd()) {
+                    int count = segmentOrds.docValueCount();
+                    long segmentOrd;
+                    while ((count-- > 0) && (segmentOrd = segmentOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                         long docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(segmentOrd + 1, docCount);
                     }
