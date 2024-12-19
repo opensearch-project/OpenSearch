@@ -23,6 +23,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.SearchPhaseResult;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -146,11 +147,18 @@ class Pipeline {
             final ActionListener<SearchRequest> nextListener = currentListener;
             SearchRequestProcessor processor = searchRequestProcessors.get(i);
             currentListener = ActionListener.wrap(r -> {
+                ProcessorExecutionDetail detail = new ProcessorExecutionDetail(processor.getType());
+                detail.addInput(r.source().shallowCopy());
                 long start = relativeTimeSupplier.getAsLong();
                 beforeRequestProcessor(processor);
                 processor.processRequestAsync(r, requestContext, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterRequestProcessor(processor, took);
+                    detail.addOutput(rr.source().shallowCopy());
+                    detail.addTook(took);
+                    if (rr.source().verbosePipeline()) {
+                        requestContext.addProcessorExecutionDetail(detail);
+                    }
                     nextListener.onResponse(rr);
                 }, e -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
@@ -202,6 +210,14 @@ class Pipeline {
     ) {
         if (searchResponseProcessors.isEmpty()) {
             // No response transformation necessary
+            if (!requestContext.getProcessorExecutionDetails().isEmpty()) {
+                ActionListener<SearchResponse> finalResponseListener = responseListener;
+                return ActionListener.wrap(r -> {
+                    List<ProcessorExecutionDetail> details = requestContext.getProcessorExecutionDetails();
+                    r.getInternalResponse().getProcessorResult().addAll(details);
+                    finalResponseListener.onResponse(r);
+                }, responseListener::onFailure);
+            }
             return responseListener;
         }
 
@@ -225,11 +241,19 @@ class Pipeline {
             final SearchResponseProcessor processor = searchResponseProcessors.get(i);
 
             responseListener = ActionListener.wrap(r -> {
+                ProcessorExecutionDetail detail = new ProcessorExecutionDetail(processor.getType());
+                detail.addInput(Arrays.asList(r.getHits().deepCopy().getHits()));
                 beforeResponseProcessor(processor);
                 final long start = relativeTimeSupplier.getAsLong();
                 processor.processResponseAsync(request, r, requestContext, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterResponseProcessor(processor, took);
+                    detail.addOutput(Arrays.asList(rr.getHits().deepCopy().getHits()));
+                    detail.addTook(took);
+                    if (request.source().verbosePipeline()) {
+                        requestContext.addProcessorExecutionDetail(detail);
+                        rr.getInternalResponse().getProcessorResult().add(detail);
+                    }
                     currentFinalListener.onResponse(rr);
                 }, e -> {
                     onResponseProcessorFailed(processor);
@@ -254,6 +278,9 @@ class Pipeline {
         }
         final ActionListener<SearchResponse> chainListener = responseListener;
         return ActionListener.wrap(r -> {
+            // Adding all the request processor detail
+            List<ProcessorExecutionDetail> details = requestContext.getProcessorExecutionDetails();
+            r.getInternalResponse().getProcessorResult().addAll(details);
             beforeTransformResponse();
             pipelineStart[0] = relativeTimeSupplier.getAsLong();
             chainListener.onResponse(r);
