@@ -629,9 +629,9 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         return new InetAddressField(name, value);
     }
 
-    // Field type that combines dimensional points and
-    private static class InetAddressField extends Field {
-        private static FieldType FIELD_TYPE = new FieldType();
+    // Field type that combines dimensional points and doc values for IP fields
+    public static class InetAddressField extends Field {
+        private static final FieldType FIELD_TYPE = new FieldType();
         static {
             FIELD_TYPE.setDimensions(1, InetAddressPoint.BYTES);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_SET);
