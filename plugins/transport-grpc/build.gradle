@@ -9,8 +9,8 @@ import org.gradle.api.attributes.java.TargetJvmEnvironment
  */
 
 opensearchplugin {
-  description 'gRPC based transport implementation'
-  classname 'org.opensearch.transport.grpc.GrpcPlugin'
+  description = 'gRPC based transport implementation'
+  classname = 'org.opensearch.transport.grpc.GrpcPlugin'
 }
 
 dependencies {

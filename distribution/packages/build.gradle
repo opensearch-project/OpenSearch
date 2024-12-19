@@ -320,13 +320,13 @@ apply plugin: 'com.netflix.nebula.ospackage-base'
 
 // this is package indepdendent configuration
 ospackage {
-  maintainer 'OpenSearch Team <opensearch@amazon.com>'
-  summary 'Distributed RESTful search engine built for the cloud'
-  packageDescription '''
+  maintainer ='OpenSearch Team <opensearch@amazon.com>'
+  summary = 'Distributed RESTful search engine built for the cloud'
+  packageDescription = '''
     Reference documentation can be found at
     https://github.com/opensearch-project/OpenSearch
   '''.stripIndent().trim()
-  url 'https://github.com/opensearch-project/OpenSearch'
+  url = 'https://github.com/opensearch-project/OpenSearch'
 
   // signing setup
   if (project.hasProperty('signing.password') && BuildParams.isSnapshotBuild() == false) {
@@ -340,10 +340,10 @@ ospackage {
   // version found on oldest supported distro, centos-6
   requires('coreutils', '8.4', GREATER | EQUAL)
 
-  fileMode 0644
-  dirMode 0755
-  user 'root'
-  permissionGroup 'root'
+  fileMode = 0644
+  dirMode = 0755
+  user = 'root'
+  permissionGroup = 'root'
 
   into '/usr/share/opensearch'
 }

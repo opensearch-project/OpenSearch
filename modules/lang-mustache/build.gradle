@@ -32,8 +32,8 @@ apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Mustache scripting integration for OpenSearch'
-  classname 'org.opensearch.script.mustache.MustacheModulePlugin'
+  description = 'Mustache scripting integration for OpenSearch'
+  classname = 'org.opensearch.script.mustache.MustacheModulePlugin'
   hasClientJar = true // For the template apis and query
 }
 

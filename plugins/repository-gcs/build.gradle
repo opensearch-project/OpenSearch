@@ -43,8 +43,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
-  classname 'org.opensearch.repositories.gcs.GoogleCloudStoragePlugin'
+  description = 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
+  classname = 'org.opensearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
 dependencies {

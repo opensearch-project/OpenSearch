@@ -41,8 +41,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'The S3 repository plugin adds S3 repositories'
-  classname 'org.opensearch.repositories.s3.S3RepositoryPlugin'
+  description = 'The S3 repository plugin adds S3 repositories'
+  classname = 'org.opensearch.repositories.s3.S3RepositoryPlugin'
 }
 
 dependencies {

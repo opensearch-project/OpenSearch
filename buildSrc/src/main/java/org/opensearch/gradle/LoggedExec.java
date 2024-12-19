@@ -70,6 +70,7 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
     private Consumer<Logger> outputLogger;
     private FileSystemOperations fileSystemOperations;
+    private final Project project;
 
     interface InjectedExecOps {
         @Inject
@@ -77,8 +78,9 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
     }
 
     @Inject
-    public LoggedExec(FileSystemOperations fileSystemOperations) {
+    public LoggedExec(FileSystemOperations fileSystemOperations, Project project) {
         this.fileSystemOperations = fileSystemOperations;
+        this.project = project;
         if (getLogger().isInfoEnabled() == false) {
             setIgnoreExitValue(true);
             setSpoolOutput(false);
@@ -111,7 +113,7 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
     public void setSpoolOutput(boolean spoolOutput) {
         final OutputStream out;
         if (spoolOutput) {
-            File spoolFile = new File(getProject().getBuildDir() + "/buffered-output/" + this.getName());
+            File spoolFile = new File(project.getBuildDir() + "/buffered-output/" + this.getName());
             out = new LazyFileOutputStream(spoolFile);
             outputLogger = logger -> {
                 try {

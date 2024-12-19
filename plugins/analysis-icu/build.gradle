@@ -32,8 +32,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'The ICU Analysis plugin integrates the Lucene ICU module into OpenSearch, adding ICU-related analysis components.'
-  classname 'org.opensearch.plugin.analysis.icu.AnalysisICUPlugin'
+  description = 'The ICU Analysis plugin integrates the Lucene ICU module into OpenSearch, adding ICU-related analysis components.'
+  classname = 'org.opensearch.plugin.analysis.icu.AnalysisICUPlugin'
   hasClientJar = true
 }
 

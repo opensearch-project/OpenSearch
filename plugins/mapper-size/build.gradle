@@ -31,8 +31,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'The Mapper Size plugin allows document to record their uncompressed size at index time.'
-  classname 'org.opensearch.plugin.mapper.MapperSizePlugin'
+  description = 'The Mapper Size plugin allows document to record their uncompressed size at index time.'
+  classname = 'org.opensearch.plugin.mapper.MapperSizePlugin'
 }
 
 restResources {
