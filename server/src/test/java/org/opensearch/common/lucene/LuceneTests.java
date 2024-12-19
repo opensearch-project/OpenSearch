@@ -107,6 +107,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class LuceneTests extends OpenSearchTestCase {
     private static final NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(Collections.emptyList());
 
+    public static final String OLDER_VERSION_INDEX_ZIP_RELATIVE_PATH = "/indices/bwc/os-1.3.0/testIndex-os-1.3.0.zip";
+
     public void testCleanIndex() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig();
@@ -332,10 +334,9 @@ public class LuceneTests extends OpenSearchTestCase {
      * in the README <a href="file:../../../../../resources/indices/bwc/os-1.3.0/README.md">here</a>.
      */
     public void testReadSegmentInfosExtendedCompatibility() throws IOException {
-        final String pathToTestIndex = "/indices/bwc/os-1.3.0/testIndex-os-1.3.0.zip";
         final Version minVersion = LegacyESVersion.V_7_2_0;
         Path tmp = createTempDir();
-        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        TestUtil.unzip(getClass().getResourceAsStream(OLDER_VERSION_INDEX_ZIP_RELATIVE_PATH), tmp);
         try (MockDirectoryWrapper dir = newMockFSDirectory(tmp)) {
             // The standard API will throw an exception
             expectThrows(IndexFormatTooOldException.class, () -> Lucene.readSegmentInfos(dir));
