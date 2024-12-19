@@ -93,19 +93,19 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     private static final String NORMAL_TRANSFER_QUEUE_CONSUMER = "normal_transfer_queue_consumer";
 
     protected final S3Service service;
-    private final S3AsyncService s3AsyncService;
+    protected final S3AsyncService s3AsyncService;
 
     private final Path configPath;
 
-    private AsyncExecutorContainer urgentExecutorBuilder;
-    private AsyncExecutorContainer priorityExecutorBuilder;
-    private AsyncExecutorContainer normalExecutorBuilder;
+    protected AsyncExecutorContainer urgentExecutorBuilder;
+    protected AsyncExecutorContainer priorityExecutorBuilder;
+    protected AsyncExecutorContainer normalExecutorBuilder;
     private ExecutorService lowTransferQConsumerService;
     private ExecutorService normalTransferQConsumerService;
-    private SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
-    private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
-    private TransferSemaphoresHolder transferSemaphoresHolder;
-    private GenericStatsMetricPublisher genericStatsMetricPublisher;
+    protected SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
+    protected SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
+    protected TransferSemaphoresHolder transferSemaphoresHolder;
+    protected GenericStatsMetricPublisher genericStatsMetricPublisher;
 
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
@@ -387,5 +387,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public void close() throws IOException {
         service.close();
         s3AsyncService.close();
+        urgentExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+        priorityExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+        normalExecutorBuilder.getAsyncTransferEventLoopGroup().close();
     }
 }
