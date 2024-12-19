@@ -707,11 +707,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public boolean isFieldPartOfCompositeIndex(String field) {
-        return fieldsPartOfCompositeMappings.contains(field);
-    }
-
-    public boolean isCompositeIndexFieldNestedField(String field) {
-        return nestedFieldsPartOfCompositeMappings.contains(field);
+        return fieldsPartOfCompositeMappings.contains(field) || nestedFieldsPartOfCompositeMappings.contains(field);
     }
 
     public ObjectMapper getObjectMapper(String name) {

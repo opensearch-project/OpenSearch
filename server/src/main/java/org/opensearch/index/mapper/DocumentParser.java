@@ -664,7 +664,7 @@ final class DocumentParser {
         // block array values for composite index fields
         if (context.indexSettings().isCompositeIndex()
             && (context.mapperService().isFieldPartOfCompositeIndex(arrayFieldName)
-                || context.mapperService().isCompositeIndexFieldNestedField(context.path().pathAsText(arrayFieldName)))) {
+                || context.mapperService().isFieldPartOfCompositeIndex(context.path().pathAsText(arrayFieldName)))) {
             throw new MapperParsingException(
                 String.format(
                     Locale.ROOT,
