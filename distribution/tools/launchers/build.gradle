@@ -35,7 +35,10 @@ dependencies {
   compileOnly project(':distribution:tools:java-version-checker')
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.mockito:mockito-core:${versions.mockito}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation "net.bytebuddy:byte-buddy:1.15.4"
+  testImplementation "net.bytebuddy:byte-buddy-agent:1.15.4"
 }
 
 base {
