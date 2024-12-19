@@ -129,6 +129,15 @@ public abstract class BucketsAggregator extends AggregatorBase {
         subCollector.collect(doc, bucketOrd);
     }
 
+    public final void collectStarTreeBucket(long docCount, long bucketOrd)
+        throws IOException {
+        if (docCounts.increment(bucketOrd, docCount) == docCount) {
+            multiBucketConsumer.accept(0);
+        }
+        // Only collect own bucket & not sub-aggregator buckets
+        // subCollector.collectStarEntry(entryBit, bucketOrd);
+    }
+
     /**
      * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}  to merge the actual
      * ordinals and doc ID deltas.
