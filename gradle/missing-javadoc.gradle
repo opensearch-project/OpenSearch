@@ -170,7 +170,6 @@ configure([
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
   project(":libs:opensearch-compress"),
-  project(":plugins:events-correlation-engine"),
   project(":server")
 ]) {
   project.tasks.withType(MissingJavadocTask) {

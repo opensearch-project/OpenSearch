@@ -30,8 +30,14 @@ public enum DimensionType {
     DATE,
 
     /**
-     * Represents a keyword dimension type.
-     * This is used for dimensions that contain keyword ordinals.
+     * Represents dimension types which uses ordinals.
+     * This is used for dimensions that contain sortedSet ordinals.
      */
-    KEYWORD
+    ORDINAL,
+
+    /**
+     * Represents an IP dimension type.
+     * This is used for dimensions that contain IP ordinals.
+     */
+    IP
 }

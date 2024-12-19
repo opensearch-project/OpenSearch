@@ -56,7 +56,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
         .build();
 
-    private static XContentBuilder createMinimalTestMapping(boolean invalidDim, boolean invalidMetric, boolean ipdim) {
+    private static XContentBuilder createMinimalTestMapping(boolean invalidDim, boolean invalidMetric, boolean wildcard) {
         try {
             return jsonBuilder().startObject()
                 .startObject("composite")
@@ -68,7 +68,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .startArray("ordered_dimensions")
                 .startObject()
-                .field("name", getDim(invalidDim, ipdim))
+                .field("name", getDim(invalidDim, wildcard))
                 .endObject()
                 .startObject()
                 .field("name", "keyword_dv")
@@ -102,8 +102,16 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .field("type", "keyword")
                 .field("doc_values", false)
                 .endObject()
+                .startObject("ip_no_dv")
+                .field("type", "ip")
+                .field("doc_values", false)
+                .endObject()
                 .startObject("ip")
                 .field("type", "ip")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("wildcard")
+                .field("type", "wildcard")
                 .field("doc_values", false)
                 .endObject()
                 .endObject()
@@ -362,11 +370,11 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         return mapping;
     }
 
-    private static String getDim(boolean hasDocValues, boolean isKeyword) {
+    private static String getDim(boolean hasDocValues, boolean isWildCard) {
         if (hasDocValues) {
-            return random().nextBoolean() ? "numeric" : "keyword";
-        } else if (isKeyword) {
-            return "ip";
+            return random().nextBoolean() ? "numeric" : random().nextBoolean() ? "keyword" : "ip_no_dv";
+        } else if (isWildCard) {
+            return "wildcard";
         }
         return "numeric_dv";
     }
@@ -748,7 +756,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, true)).get()
         );
         assertEquals(
-            "Failed to parse mapping [_doc]: unsupported field type associated with dimension [ip] as part of star tree field [startree-1]",
+            "Failed to parse mapping [_doc]: unsupported field type associated with dimension [wildcard] as part of star tree field [startree-1]",
             ex.getMessage()
         );
     }

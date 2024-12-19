@@ -261,7 +261,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Optional<DimensionType> getSupportedDataCubeDimensionType() {
-            return Optional.of(DimensionType.KEYWORD);
+            return Optional.of(DimensionType.ORDINAL);
         }
     }
 
