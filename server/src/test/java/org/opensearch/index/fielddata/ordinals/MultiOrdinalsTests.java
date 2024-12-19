@@ -280,7 +280,7 @@ public class MultiOrdinalsTests extends OpenSearchTestCase {
                 for (long ord : ords) {
                     assertThat(docs.nextOrd(), equalTo(ord));
                 }
-                assertThat(docs.nextOrd(), equalTo(SortedSetDocValues.NO_MORE_DOCS));
+                assertThat(docs.nextOrd(), equalTo((long) SortedSetDocValues.NO_MORE_DOCS));
             }
         }
     }
