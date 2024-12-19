@@ -38,6 +38,8 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContentParser;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -56,6 +58,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -73,10 +76,21 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
     public static final String OPENSEARCH_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String OPENSEARCH_PLUGIN_POLICY = "plugin-security.policy";
+    public static final String OPENSEARCH_PLUGIN_ACTIONS = "plugin-permissions.yml";
     private static final JsonFactory jsonFactory = new JsonFactory().configure(
         JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES.mappedFeature(),
         true
     );
+
+    public static final Setting<List<String>> CLUSTER_ACTIONS_SETTING = Setting.listSetting(
+        "cluster.actions",
+        Collections.emptyList(),
+        Function.identity()
+    );
+
+    public static final Setting<Settings> INDEX_ACTIONS_SETTING = Setting.groupSetting("index.actions.");
+
+    public static final Setting<String> DESCRIPTION_SETTING = Setting.simpleString("description");
 
     private final String name;
     private final String description;
@@ -87,6 +101,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String customFolderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+    private final Settings requestedActions;
 
     /**
      * Construct plugin info.
@@ -110,7 +125,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String classname,
         String customFolderName,
         List<String> extendedPlugins,
-        boolean hasNativeController
+        boolean hasNativeController,
+        Settings requestedActions
     ) {
         this(
             name,
@@ -121,7 +137,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             customFolderName,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            requestedActions
         );
     }
 
@@ -134,7 +151,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String classname,
         String customFolderName,
         List<String> extendedPlugins,
-        boolean hasNativeController
+        boolean hasNativeController,
+        Settings requestedActions
     ) {
         this.name = name;
         this.description = description;
@@ -151,6 +169,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = customFolderName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
+        this.requestedActions = requestedActions;
     }
 
     /**
@@ -184,7 +203,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             null /* customFolderName */,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            Settings.EMPTY /* requestedActions */
         );
     }
 
@@ -209,6 +229,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            this.requestedActions = Settings.readSettingsFromStream(in);
+        } else {
+            this.requestedActions = Settings.EMPTY;
+        }
     }
 
     @Override
@@ -234,6 +259,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            Settings.writeSettingsToStream(requestedActions, out);
+        }
     }
 
     /**
@@ -363,6 +391,17 @@ public class PluginInfo implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
         }
 
+        Settings requestedActions = Settings.EMPTY;
+        Path actions = path.resolve(PluginInfo.OPENSEARCH_PLUGIN_ACTIONS);
+
+        if (Files.exists(actions)) {
+            try {
+                requestedActions = PluginSecurity.parseRequestedActions(actions);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         return new PluginInfo(
             name,
             description,
@@ -372,7 +411,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             customFolderName,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            requestedActions
         );
     }
 
@@ -480,6 +520,33 @@ public class PluginInfo implements Writeable, ToXContentObject {
         return (this.customFolderName == null || this.customFolderName.isEmpty()) ? this.name : this.customFolderName;
     }
 
+    /**
+     * Returns cluster actions requested by this plugin in the plugin-permissions.yml file
+     *
+     * @return A list of cluster actions contained within the plugin-permissions.yml file
+     */
+    public List<String> getClusterActions() {
+        return CLUSTER_ACTIONS_SETTING.get(requestedActions);
+    }
+
+    /**
+     * Returns index actions requested by this plugin in the plugin-permissions.yml file
+     *
+     * @return A list of index actions contained within the plugin-permissions.yml file. This method returns a map
+     * of index pattern -> list of actions that apply on the index pattern
+     */
+    public Map<String, List<String>> getIndexActions() {
+        final Map<String, List<String>> indexActions = new HashMap<>();
+        final Settings requestedIndexActionsGroup = INDEX_ACTIONS_SETTING.get(requestedActions);
+        if (!requestedIndexActionsGroup.keySet().isEmpty()) {
+            for (String indexPattern : requestedIndexActionsGroup.keySet()) {
+                List<String> indexActionsForPattern = requestedIndexActionsGroup.getAsList(indexPattern);
+                indexActions.put(indexPattern, indexActionsForPattern);
+            }
+        }
+        return indexActions;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -493,6 +560,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("custom_foldername", customFolderName);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
+            if (!Settings.EMPTY.equals(requestedActions)) {
+                builder.field("cluster.actions", getClusterActions());
+                builder.field("index.actions", getIndexActions());
+            }
         }
         builder.endObject();
 

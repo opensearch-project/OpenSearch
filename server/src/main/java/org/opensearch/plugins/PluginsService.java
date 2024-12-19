@@ -151,7 +151,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 pluginClass.getName(),
                 null,
                 Collections.emptyList(),
-                false
+                false,
+                Settings.EMPTY
             );
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
@@ -815,6 +816,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             "(org.opensearch.common.settings.Settings)",
             "()"
         );
+    }
+
+    public List<Tuple<PluginInfo, Plugin>> filterPluginTuples(Class<?> type) {
+        return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).collect(Collectors.toList());
     }
 
     public <T> List<T> filterPlugins(Class<T> type) {

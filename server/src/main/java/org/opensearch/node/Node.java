@@ -91,6 +91,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.StopWatch;
 import org.opensearch.common.cache.module.CacheModule;
 import org.opensearch.common.cache.service.CacheService;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Module;
@@ -212,6 +213,7 @@ import org.opensearch.plugins.MetadataUpgrader;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
@@ -1043,8 +1045,8 @@ public class Node implements Closeable {
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
 
-            List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
-            identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
+            List<Tuple<PluginInfo, Plugin>> identityAwarePluginTuples = pluginsService.filterPluginTuples(IdentityAwarePlugin.class);
+            identityService.initializeIdentityAwarePlugins(identityAwarePluginTuples);
 
             final QueryGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(
                 taskResourceTrackingService
