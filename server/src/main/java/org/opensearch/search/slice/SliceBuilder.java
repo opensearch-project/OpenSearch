@@ -214,13 +214,13 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         return Objects.hash(this.field, this.id, this.max);
     }
 
-    public boolean shardMatches(int shardId, int numShards) {
+    public boolean shardMatches(int shardOrdinal, int numShards) {
         if (max >= numShards) {
             // Slices are distributed over shards
-            return id % numShards == shardId;
+            return id % numShards == shardOrdinal;
         }
         // Shards are distributed over slices
-        return shardId % max == id;
+        return shardOrdinal % max == id;
     }
 
     /**
@@ -234,7 +234,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("field " + field + " not found");
         }
 
-        int shardId = request.shardId().id();
+        int shardOrdinal = request.shardId().id();
         int numShards = context.getIndexSettings().getNumberOfShards();
         if ((request.preference() != null || request.indexRoutings().length > 0)) {
             GroupShardsIterator<ShardIterator> group = buildShardIterator(clusterService, request);
@@ -250,21 +250,21 @@ public class SliceBuilder implements Writeable, ToXContentObject {
                  */
                 numShards = group.size();
                 int ord = 0;
-                shardId = -1;
+                shardOrdinal = -1;
                 // remap the original shard id with its index (position) in the sorted shard iterator.
                 for (ShardIterator it : group) {
                     assert it.shardId().getIndex().equals(request.shardId().getIndex());
                     if (request.shardId().equals(it.shardId())) {
-                        shardId = ord;
+                        shardOrdinal = ord;
                         break;
                     }
                     ++ord;
                 }
-                assert shardId != -1 : "shard id: " + request.shardId().getId() + " not found in index shard routing";
+                assert shardOrdinal != -1 : "shard id: " + request.shardId().getId() + " not found in index shard routing";
             }
         }
 
-        if (shardMatches(shardId, numShards) == false) {
+        if (shardMatches(shardOrdinal, numShards) == false) {
             // We should have already excluded this shard before routing to it.
             // If we somehow land here, then we match nothing.
             return new MatchNoDocsQuery("this shard is not part of the slice");
