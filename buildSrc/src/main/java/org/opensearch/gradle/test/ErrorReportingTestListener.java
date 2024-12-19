@@ -192,6 +192,10 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                         public String getMessage() {
                             return message;
                         }
+
+                        public long getLogTime() {
+                            return System.currentTimeMillis();
+                        }
                     });
                 }
             }
