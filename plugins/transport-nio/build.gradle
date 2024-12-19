@@ -34,8 +34,8 @@ apply plugin: "opensearch.publish"
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'The nio transport.'
-  classname 'org.opensearch.transport.nio.NioTransportPlugin'
+  description = 'The nio transport.'
+  classname = 'org.opensearch.transport.nio.NioTransportPlugin'
   hasClientJar = true
 }
 

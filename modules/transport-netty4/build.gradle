@@ -49,8 +49,8 @@ apply plugin: 'opensearch.publish'
    * maybe figure out a way to run all tests from core with netty4/network?
  */
 opensearchplugin {
-  description 'Netty 4 based transport implementation'
-  classname 'org.opensearch.transport.Netty4ModulePlugin'
+  description = 'Netty 4 based transport implementation'
+  classname = 'org.opensearch.transport.Netty4ModulePlugin'
   hasClientJar = true
 }
 

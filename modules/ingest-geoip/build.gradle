@@ -34,8 +34,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
-  classname 'org.opensearch.ingest.geoip.IngestGeoIpModulePlugin'
+  description = 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
+  classname = 'org.opensearch.ingest.geoip.IngestGeoIpModulePlugin'
 }
 
 dependencies {

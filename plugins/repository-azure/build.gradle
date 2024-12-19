@@ -39,8 +39,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'The Azure Repository plugin adds support for Azure storage repositories.'
-  classname 'org.opensearch.repositories.azure.AzureRepositoryPlugin'
+  description = 'The Azure Repository plugin adds support for Azure storage repositories.'
+  classname = 'org.opensearch.repositories.azure.AzureRepositoryPlugin'
 }
 
 dependencies {
