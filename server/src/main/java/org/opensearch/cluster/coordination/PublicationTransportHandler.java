@@ -258,7 +258,7 @@ public class PublicationTransportHandler {
             }
 
             if (applyFullState == true) {
-                logger.debug(
+                logger.info(
                     () -> new ParameterizedMessage(
                         "Downloading full cluster state for term {}, version {}, stateUUID {}",
                         manifest.getClusterTerm(),
