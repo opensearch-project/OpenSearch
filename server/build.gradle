@@ -115,6 +115,11 @@ dependencies {
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
 
+  // bouncyCastle
+  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  api "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  api "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -148,6 +153,10 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.binary'
     exclude '**/*.st'
     exclude '**/*.meta'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 tasks.named("testingConventions").configure {
