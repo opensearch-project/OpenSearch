@@ -329,11 +329,11 @@ public class LuceneTests extends OpenSearchTestCase {
 
     /**
      * Tests whether old segments are readable and queryable based on the data documented
-     * in the README <a href="file:../../../../../resources/indices/bwc/es-6.3.0/README.md">here</a>.
+     * in the README <a href="file:../../../../../resources/indices/bwc/os-1.3.0/README.md">here</a>.
      */
     public void testReadSegmentInfosExtendedCompatibility() throws IOException {
-        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
-        final Version minVersion = LegacyESVersion.V_6_0_0;
+        final String pathToTestIndex = "/indices/bwc/os-1.3.0/testIndex-os-1.3.0.zip";
+        final Version minVersion = LegacyESVersion.V_7_2_0;
         Path tmp = createTempDir();
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
         try (MockDirectoryWrapper dir = newMockFSDirectory(tmp)) {

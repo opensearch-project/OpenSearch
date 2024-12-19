@@ -1,6 +1,6 @@
-# README for _testIndex-es-6.3.0.zip_
+# README for _testIndex-os-1.3.0.zip_
 
-This zip file holds a Lucene index created using ElasticSearch 6.3.0.
+This zip file holds a Lucene index created using OpenSearch 1.3.0 downloaded from https://opensearch.org/versions/opensearch-1-3-0.html
 It was created by running the underlying commands against a single-node cluster,
 then compressing the contents of the underlying Lucene index directory i.e.
 the files under `<elasticsearch-root>/data/nodes/0/indices/<index-uuid>/0/index`.
@@ -16,7 +16,6 @@ curl -X PUT -H 'Content-Type: application/json' 'localhost:9200/testindex?pretty
     "number_of_replicas": 0
   },
   "mappings": {
-    "testData": {
       "properties": {
         "id": { "type": "keyword" },
         "isTestData": { "type": "boolean" },
@@ -35,11 +34,10 @@ curl -X PUT -H 'Content-Type: application/json' 'localhost:9200/testindex?pretty
         "testDate": { "type": "date" },
         "testLocation": { "type": "geo_point"}
       }
-    }
   }
 }'
 
-curl -X POST "localhost:9200/testindex/testData/?pretty" -H 'Content-Type: application/json' -d'
+curl -X POST "localhost:9200/testindex/_doc/1" -H 'Content-Type: application/json' -d'
 {
   "id": "testData1",
   "isTestData": true,
@@ -54,4 +52,7 @@ curl -X POST "localhost:9200/testindex/testData/?pretty" -H 'Content-Type: appli
   "testLocation": "48.553532,-113.022881"
 }
 '
+
+curl -X POST "localhost:9200/testindex/_flush" -H 'Content-Type: application/json' -d'{}'
 ```
+Flushing is essential to commit the changes to ensure tests don't fail complaining there are no docs in segment.

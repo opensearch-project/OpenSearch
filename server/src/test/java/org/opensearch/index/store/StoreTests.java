@@ -1284,7 +1284,7 @@ public class StoreTests extends OpenSearchTestCase {
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
     public void testReadSegmentsFromOldIndices() throws Exception {
         int expectedIndexCreatedVersionMajor = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION.luceneVersion.major;
-        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
+        final String pathToTestIndex = "/indices/bwc/os-1.3.0/testIndex-os-1.3.0.zip";
         Path tmp = createTempDir();
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
         final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -1309,7 +1309,7 @@ public class StoreTests extends OpenSearchTestCase {
     }
 
     public void testReadSegmentsFromOldIndicesFailure() throws IOException {
-        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
+        final String pathToTestIndex = "/indices/bwc/os-1.3.0/testIndex-os-1.3.0.zip";
         final ShardId shardId = new ShardId("index", "_na_", 1);
         Path tmp = createTempDir();
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);

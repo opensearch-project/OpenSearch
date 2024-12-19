@@ -243,7 +243,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         // The index has one document in it, so the checkpoint cannot be NO_OPS_PERFORMED
         final AtomicLong globalCheckpoint = new AtomicLong(0);
-        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
+        final String pathToTestIndex = "/indices/bwc/os-1.3.0/testIndex-os-1.3.0.zip";
         Path tmp = createTempDir();
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
         FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
@@ -266,7 +266,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         // The index has one document in it, so the checkpoint cannot be NO_OPS_PERFORMED
         final AtomicLong globalCheckpoint = new AtomicLong(0);
-        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
+        final String pathToTestIndex = "/indices/bwc/os-1.3.0/testIndex-os-1.3.0.zip";
         Path tmp = createTempDir();
         TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
         try (Store store = createStore(newFSDirectory(tmp))) {
