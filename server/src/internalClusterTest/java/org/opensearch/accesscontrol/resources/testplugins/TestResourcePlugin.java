@@ -8,6 +8,7 @@
 
 package org.opensearch.accesscontrol.resources.testplugins;
 
+import org.opensearch.accesscontrol.resources.Resource;
 import org.opensearch.accesscontrol.resources.ResourceService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.Lifecycle;
@@ -77,7 +78,7 @@ public class TestResourcePlugin extends Plugin implements ResourcePlugin {
 
     }
 
-    public static class TestResource {
+    public static class TestResource implements Resource {
         public String id;
         public String name;
 

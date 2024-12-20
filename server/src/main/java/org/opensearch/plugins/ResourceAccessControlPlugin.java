@@ -9,6 +9,7 @@
 package org.opensearch.plugins;
 
 import org.opensearch.accesscontrol.resources.EntityType;
+import org.opensearch.accesscontrol.resources.Resource;
 import org.opensearch.accesscontrol.resources.ResourceSharing;
 import org.opensearch.accesscontrol.resources.ShareWith;
 
@@ -27,10 +28,10 @@ public interface ResourceAccessControlPlugin {
     /**
      * Returns all accessible resources for current user for a given plugin index.
      * @param resourceIndex index where the resource exists
-     * @param clazz class of the resource. Required to parse the resource object retrieved from resourceIndex
+     * @param clazz class of the resource. Required to parse the resource object retrieved from resourceIndex. Must be a type of {@link Resource}
      * @return set of {@link ResourceSharing} items accessible by current user.
      */
-    default <T> Set<T> getAccessibleResourcesForCurrentUser(String resourceIndex, Class<T> clazz) {
+    default <T extends Resource> Set<T> getAccessibleResourcesForCurrentUser(String resourceIndex, Class<T> clazz) {
         return Set.of();
     }
 

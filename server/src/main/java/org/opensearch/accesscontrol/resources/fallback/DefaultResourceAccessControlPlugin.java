@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.accesscontrol.resources.Resource;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -66,7 +67,7 @@ public class DefaultResourceAccessControlPlugin extends Plugin implements Resour
      * @return Set of resource ids
      */
     @Override
-    public <T> Set<T> getAccessibleResourcesForCurrentUser(String resourceIndex, Class<T> clazz) {
+    public <T extends Resource> Set<T> getAccessibleResourcesForCurrentUser(String resourceIndex, Class<T> clazz) {
         final Set<T> documents = new HashSet<>();
         final TimeValue scrollTimeout = TimeValue.timeValueMinutes(1);
         String scrollId;
