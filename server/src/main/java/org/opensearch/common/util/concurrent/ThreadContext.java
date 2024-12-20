@@ -221,6 +221,7 @@ public final class ThreadContext implements Writeable {
      *
      * permission org.opensearch.secure_sm.ThreadContextPermission "stashWithOrigin";
      */
+    @SuppressWarnings("removal")
     public StoredContext stashWithOrigin(String origin) {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -243,6 +244,7 @@ public final class ThreadContext implements Writeable {
      *
      * permission org.opensearch.secure_sm.ThreadContextPermission "stashAndMergeHeaders";
      */
+    @SuppressWarnings("removal")
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -601,6 +603,7 @@ public final class ThreadContext implements Writeable {
      *
      * permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
      */
+    @SuppressWarnings("removal")
     public void markAsSystemContext() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {

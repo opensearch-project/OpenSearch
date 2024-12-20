@@ -16,6 +16,7 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
@@ -175,9 +176,10 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
             @Nullable MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
-            Automaton automaton = new RegExp(value, syntaxFlags, matchFlags).toAutomaton(
-                RegexpQuery.DEFAULT_PROVIDER,
-                maxDeterminizedStates
+            final RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
+            final Automaton automaton = Operations.determinize(
+                regExp.toAutomaton(RegexpQuery.DEFAULT_PROVIDER),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             );
             ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automaton);
             BytesRef valueBytes = BytesRefs.toBytesRef(this.value);

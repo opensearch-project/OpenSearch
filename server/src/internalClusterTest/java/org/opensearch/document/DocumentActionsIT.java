@@ -180,7 +180,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
             // test successful
             SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
             assertNoFailures(countResponse);
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
@@ -191,7 +191,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
                 countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
                 equalTo(0)
             );
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }
