@@ -205,6 +205,98 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         }
     }
 
+    private static XContentBuilder createNestedTestMappingForArray() {
+        try {
+            return jsonBuilder().startObject()
+                .startObject("composite")
+                .startObject("startree-1")
+                .field("type", "star_tree")
+                .startObject("config")
+                .startObject("date_dimension")
+                .field("name", "timestamp")
+                .endObject()
+                .startArray("ordered_dimensions")
+                .startObject()
+                .field("name", "status")
+                .endObject()
+                .startObject()
+                .field("name", "nested.nested1.keyword_dv")
+                .endObject()
+                .endArray()
+                .startArray("metrics")
+                .startObject()
+                .field("name", "nested3.numeric_dv")
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("properties")
+                .startObject("timestamp")
+                .field("type", "date")
+                .endObject()
+                .startObject("status")
+                .field("type", "integer")
+                .endObject()
+                .startObject("nested3")
+                .startObject("properties")
+                .startObject("numeric_dv")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("numeric")
+                .field("type", "integer")
+                .field("doc_values", false)
+                .endObject()
+                .startObject("nested")
+                .startObject("properties")
+                .startObject("nested1")
+                .startObject("properties")
+                .startObject("status")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("keyword_dv")
+                .field("type", "keyword")
+                .field("doc_values", true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("nested-not-startree")
+                .startObject("properties")
+                .startObject("nested1")
+                .startObject("properties")
+                .startObject("status")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("keyword_dv")
+                .field("type", "keyword")
+                .field("doc_values", true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("keyword")
+                .field("type", "keyword")
+                .field("doc_values", false)
+                .endObject()
+                .startObject("ip")
+                .field("type", "ip")
+                .field("doc_values", false)
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private static XContentBuilder createDateTestMapping(boolean duplicate) {
         try {
             return jsonBuilder().startObject()
@@ -693,6 +785,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     }
 
     public void testCompositeIndexWithArraysInNestedCompositeField() throws IOException {
+        // here nested.nested1.status is part of the composite field but "nested" field itself is an array
         prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createNestedTestMapping()).get();
         // Attempt to index a document with an array field
         XContentBuilder doc = jsonBuilder().startObject()
@@ -726,7 +819,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
 
     public void testCompositeIndexWithArraysInChildNestedCompositeField() throws IOException {
         prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createNestedTestMapping()).get();
-        // Attempt to index a document with an array field
+        // here nested.nested1.status is part of the composite field but "nested.nested1" field is an array
         XContentBuilder doc = jsonBuilder().startObject()
             .field("timestamp", "2023-06-01T12:00:00Z")
             .startObject("nested")
@@ -752,6 +845,43 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             "object mapping for [nested] with array for [nested1] cannot be accepted, as the field is also part of composite index mapping which does not accept arrays",
             ex.getMessage()
         );
+    }
+
+    public void testCompositeIndexWithArraysInNestedCompositeFieldSameNameAsNormalField() throws IOException {
+        prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createNestedTestMappingForArray()).get();
+        // here status is part of the composite field but "nested.nested1.status" field is an array which is not
+        // part of composite field
+        XContentBuilder doc = jsonBuilder().startObject()
+            .field("timestamp", "2023-06-01T12:00:00Z")
+            .startObject("nested")
+            .startObject("nested1")
+            .startArray("status")
+            .value(10)
+            .value(20)
+            .value(30)
+            .endArray()
+            .endObject()
+            .endObject()
+            .field("status", "200")
+            .endObject();
+        // Index the document and refresh
+        // Index the document and refresh
+        IndexResponse indexResponse = client().prepareIndex(TEST_INDEX).setSource(doc).get();
+
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+
+        client().admin().indices().prepareRefresh(TEST_INDEX).get();
+        // Verify the document was indexed
+        SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).setQuery(QueryBuilders.matchAllQuery()).get();
+
+        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+
+        // Verify the values in the indexed document
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals("2023-06-01T12:00:00Z", hit.getSourceAsMap().get("timestamp"));
+
+        int values = Integer.parseInt((String) hit.getSourceAsMap().get("status"));
+        assertEquals(200, values);
     }
 
     public void testCompositeIndexWithNestedArraysInNonCompositeField() throws IOException {
