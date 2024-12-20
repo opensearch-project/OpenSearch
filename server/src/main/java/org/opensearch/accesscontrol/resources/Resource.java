@@ -8,7 +8,10 @@
 
 package org.opensearch.accesscontrol.resources;
 
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.xcontent.ToXContentFragment;
+
 /**
  * Marker interface for all resources
  */
-public interface Resource {}
+public interface Resource extends NamedWriteable, ToXContentFragment {}

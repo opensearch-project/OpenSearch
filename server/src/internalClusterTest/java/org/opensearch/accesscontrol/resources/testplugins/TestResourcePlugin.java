@@ -14,9 +14,12 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.lifecycle.LifecycleListener;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ResourcePlugin;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -90,6 +93,21 @@ public class TestResourcePlugin extends Plugin implements ResourcePlugin {
 
         public String getName() {
             return name;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "test_resource";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return null;
         }
     }
 }
