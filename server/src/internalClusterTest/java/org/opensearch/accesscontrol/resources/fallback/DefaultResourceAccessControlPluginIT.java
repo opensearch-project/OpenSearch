@@ -12,6 +12,7 @@ import org.opensearch.accesscontrol.resources.EntityType;
 import org.opensearch.accesscontrol.resources.ResourceSharing;
 import org.opensearch.accesscontrol.resources.ShareWith;
 import org.opensearch.accesscontrol.resources.SharedWithScope;
+import org.opensearch.accesscontrol.resources.testplugins.TestResourcePlugin;
 import org.opensearch.client.Client;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
@@ -26,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.accesscontrol.resources.fallback.TestResourcePlugin.SAMPLE_TEST_INDEX;
+import static org.opensearch.accesscontrol.resources.testplugins.TestResourcePlugin.SAMPLE_TEST_INDEX;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasProperty;

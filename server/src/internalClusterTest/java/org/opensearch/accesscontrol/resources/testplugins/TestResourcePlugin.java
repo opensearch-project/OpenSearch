@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.accesscontrol.resources.fallback;
+package org.opensearch.accesscontrol.resources.testplugins;
 
 import org.opensearch.accesscontrol.resources.ResourceService;
 import org.opensearch.common.inject.Inject;
