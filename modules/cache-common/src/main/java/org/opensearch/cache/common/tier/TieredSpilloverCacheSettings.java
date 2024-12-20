@@ -85,6 +85,9 @@ public class TieredSpilloverCacheSettings {
 
     /**
      * Setting which defines the onHeap cache size to be used within tiered cache.
+     * This setting overrides size settings from the heap tier implementation.
+     * For example, if OpenSearchOnHeapCache is the heap tier in the request cache, and
+     * indices.requests.cache.opensearch_onheap.size is set, that value will be ignored in favor of this setting.
      *
      * Pattern: {cache_type}.tiered_spillover.onheap.store.size
      * Example: indices.request.cache.tiered_spillover.onheap.store.size
@@ -96,6 +99,9 @@ public class TieredSpilloverCacheSettings {
 
     /**
      * Setting which defines the disk cache size to be used within tiered cache.
+     * This setting overrides the size setting from the disk tier implementation.
+     * For example, if EhcacheDiskCache is the disk tier in the request cache, and
+     * indices.requests.cache.ehcache_disk.max_size_in_bytes is set, that value will be ignored in favor of this setting.
      */
     public static final Setting.AffixSetting<Long> TIERED_SPILLOVER_DISK_STORE_SIZE = Setting.suffixKeySetting(
         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.store.size",
