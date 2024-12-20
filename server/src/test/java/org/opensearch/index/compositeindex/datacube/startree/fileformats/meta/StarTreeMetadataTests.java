@@ -8,7 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.fileformats.meta;
 
-import org.apache.lucene.codecs.lucene100.Lucene100Codec;
+import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -75,12 +75,12 @@ public class StarTreeMetadataTests extends OpenSearchTestCase {
         SegmentInfo segmentInfo = new SegmentInfo(
             directory,
             Version.LATEST,
-            Version.LUCENE_10_0_0,
+            Version.LUCENE_10_1_0,
             "test_segment",
             6,
             false,
             false,
-            new Lucene100Codec(),
+            new Lucene101Codec(),
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),

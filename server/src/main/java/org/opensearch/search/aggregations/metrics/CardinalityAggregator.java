@@ -354,7 +354,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             this.queue = new DisiPriorityQueue(postingMap.size());
             for (Scorer scorer : postingMap.values()) {
-                queue.add(new DisiWrapper(scorer));
+                queue.add(new DisiWrapper(scorer, false));
             }
 
             competitiveIterator = new DisjunctionDISI(queue);

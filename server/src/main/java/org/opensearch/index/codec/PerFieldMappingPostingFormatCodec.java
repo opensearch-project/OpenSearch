@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene100.Lucene100Codec;
+import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.fuzzy.FuzzyFilterPostingsFormat;
@@ -59,7 +59,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class PerFieldMappingPostingFormatCodec extends Lucene100Codec {
+public class PerFieldMappingPostingFormatCodec extends Lucene101Codec {
     private final Logger logger;
     private final MapperService mapperService;
     private final DocValuesFormat dvFormat = new Lucene90DocValuesFormat();
