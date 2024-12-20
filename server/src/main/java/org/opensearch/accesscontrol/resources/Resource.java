@@ -14,4 +14,12 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 /**
  * Marker interface for all resources
  */
-public interface Resource extends NamedWriteable, ToXContentFragment {}
+public interface Resource extends NamedWriteable, ToXContentFragment {
+    /**
+     * Get the resource name
+     * @return resource name
+     */
+    String getResourceName();
+
+    // TODO: Next iteration, check if getResourceType() should be implemented
+}

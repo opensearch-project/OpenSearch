@@ -101,13 +101,16 @@ public class TestResourcePlugin extends Plugin implements ResourcePlugin {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return null;
+        }
+
+        @Override
+        public String getResourceName() {
+            return name;
         }
     }
 }
