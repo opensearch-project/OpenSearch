@@ -309,6 +309,25 @@ public class ThirdPartyAuditTask extends DefaultTask {
         jars.forEach(jar -> {
             FileTree jarFiles = getProject().zipTree(jar);
             getProject().copy(spec -> {
+                spec.eachFile(details -> {
+                    File targetFile = new File(jarExpandDir, details.getPath());
+                    if (targetFile.exists()) {
+                        if ((targetFile.isDirectory() && !details.isDirectory()) || (details.isDirectory() && targetFile.isFile())) {
+
+                            // Windows duplicate handling. dup.txt-1, dup.txt-2, ...
+                            int counter = 1;
+                            String basePath = details.getPath();
+                            String newPath;
+                            do {
+                                newPath = basePath + "-" + counter++;
+                                targetFile = new File(jarExpandDir, newPath);
+                            } while (targetFile.exists());
+
+                            details.setPath(newPath);
+                        }
+                    }
+                });
+
                 spec.from(jarFiles);
                 spec.into(jarExpandDir);
                 // exclude classes from multi release jars
