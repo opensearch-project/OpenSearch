@@ -18,7 +18,7 @@ import java.io.IOException;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "2.19.0")
 public abstract class SortedNumericUnsignedLongValues {
 
     /** Sole constructor. (For invocation by subclass
