@@ -194,7 +194,7 @@ public class MultiBucketCollector extends BucketCollector {
         @Override
         public void setScorer(Scorable scorer) throws IOException {
             scoreCachingWrappingScorer = new ScoreCachingWrappingScorer(scorer);
-            super.setScorer(scoreCachingWrappingScorer);
+            in.setScorer(scoreCachingWrappingScorer);
         }
 
         @Override
