@@ -62,7 +62,7 @@ public class StarTreeUtilsTests extends OpenSearchTestCase {
         assertEquals(fieldNumber, actualFieldInfo.number, 0);
         assertFalse(actualFieldInfo.hasVectorValues());
         assertTrue(actualFieldInfo.hasNorms());
-        assertFalse(actualFieldInfo.hasVectors());
+        assertFalse(actualFieldInfo.hasTermVectors());
         assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, actualFieldInfo.getIndexOptions());
         assertEquals(DocValuesType.SORTED_NUMERIC, actualFieldInfo.getDocValuesType());
         assertEquals(-1, actualFieldInfo.getDocValuesGen());

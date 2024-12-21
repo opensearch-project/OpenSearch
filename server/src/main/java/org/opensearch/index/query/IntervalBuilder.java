@@ -43,7 +43,7 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
@@ -229,7 +229,7 @@ public class IntervalBuilder {
         List<IntervalsSource> clauses = new ArrayList<>();
         int[] articulationPoints = graph.articulationPoints();
         int lastState = 0;
-        int maxClauseCount = BooleanQuery.getMaxClauseCount();
+        int maxClauseCount = IndexSearcher.getMaxClauseCount();
         for (int i = 0; i <= articulationPoints.length; i++) {
             int start = lastState;
             int end = -1;
@@ -244,7 +244,7 @@ public class IntervalBuilder {
                     TokenStream ts = it.next();
                     IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, IntervalMode.ORDERED);
                     if (paths.size() >= maxClauseCount) {
-                        throw new BooleanQuery.TooManyClauses();
+                        throw new IndexSearcher.TooManyClauses();
                     }
                     paths.add(phrase);
                 }

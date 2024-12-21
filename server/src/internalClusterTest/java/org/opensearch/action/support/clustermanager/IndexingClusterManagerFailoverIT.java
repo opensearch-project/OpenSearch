@@ -126,7 +126,7 @@ public class IndexingClusterManagerFailoverIT extends OpenSearchIntegTestCase {
 
         ensureGreen("myindex");
         refresh();
-        assertThat(client().prepareSearch("myindex").get().getHits().getTotalHits().value, equalTo(10L));
+        assertThat(client().prepareSearch("myindex").get().getHits().getTotalHits().value(), equalTo(10L));
     }
 
 }

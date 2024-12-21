@@ -422,7 +422,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         final AtomicBoolean documentCountVerified = new AtomicBoolean();
         continueOrDie(searchResponseListener, r -> {
-            assertEquals(documents, Objects.requireNonNull(r.getHits().getTotalHits()).value);
+            assertEquals(documents, Objects.requireNonNull(r.getHits().getTotalHits()).value());
             documentCountVerified.set(true);
         });
 
@@ -1041,11 +1041,11 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         assertEquals(
             documentsFirstSnapshot + documentsSecondSnapshot,
-            Objects.requireNonNull(searchIndexResponseListener.result().getHits().getTotalHits()).value
+            Objects.requireNonNull(searchIndexResponseListener.result().getHits().getTotalHits()).value()
         );
         assertEquals(
             documentsFirstSnapshot + documentsSecondSnapshot,
-            Objects.requireNonNull(searchAliasResponseListener.result().getHits().getTotalHits()).value
+            Objects.requireNonNull(searchAliasResponseListener.result().getHits().getTotalHits()).value()
         );
         assertThat(deleteSnapshotStepListener.result().isAcknowledged(), is(true));
         assertThat(restoreSnapshotResponseListener.result().getRestoreInfo().failedShards(), is(0));
@@ -1405,7 +1405,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         final AtomicBoolean documentCountVerified = new AtomicBoolean();
 
         continueOrDie(searchResponseStepListener, r -> {
-            final long hitCount = r.getHits().getTotalHits().value;
+            final long hitCount = r.getHits().getTotalHits().value();
             assertThat(
                 "Documents were restored but the restored index mapping was older than some documents and misses some of their fields",
                 (int) hitCount,
