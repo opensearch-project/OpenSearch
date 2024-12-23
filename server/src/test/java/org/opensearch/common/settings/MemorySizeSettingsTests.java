@@ -81,6 +81,9 @@ public class MemorySizeSettingsTests extends OpenSearchTestCase {
             "indices.requests.cache.size",
             new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.01))
         );
+        assertWarnings(
+            "[indices.requests.cache.size] setting was deprecated in OpenSearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testCircuitBreakerSettings() {

@@ -50,7 +50,7 @@ public class CacheService {
             cacheType.getSettingPrefix()
         );
         String storeName = cacheSettingForCacheType.get(settings);
-        if (!FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) || (storeName == null || storeName.isBlank())) {
+        if (!pluggableCachingEnabled(cacheType, settings)) {
             // Condition 1: In case feature flag is off, we default to onHeap.
             // Condition 2: In case storeName is not explicitly mentioned, we assume user is looking to use older
             // settings, so we again fallback to onHeap to maintain backward compatibility.
@@ -73,5 +73,16 @@ public class CacheService {
             statsMap.put(type, cacheTypeMap.get(type).stats(flags.getLevels()));
         }
         return new NodeCacheStats(statsMap, flags);
+    }
+
+    /**
+     * Check if pluggable caching is on, and if a store type is present for this cache type.
+     */
+    public static boolean pluggableCachingEnabled(CacheType cacheType, Settings settings) {
+        Setting<String> cacheSettingForCacheType = CacheSettings.CACHE_TYPE_STORE_NAME.getConcreteSettingForNamespace(
+            cacheType.getSettingPrefix()
+        );
+        String storeName = cacheSettingForCacheType.get(settings);
+        return FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) && storeName != null && !storeName.isBlank();
     }
 }

@@ -680,6 +680,11 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         return valueSerializer.deserialize(binary.value);
     }
 
+    // Pkg-private for testing.
+    long getMaxWeightInBytes() {
+        return maxWeightInBytes;
+    }
+
     /**
      * Factory to create an ehcache disk cache.
      */
