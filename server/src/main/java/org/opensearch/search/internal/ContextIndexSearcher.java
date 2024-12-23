@@ -479,7 +479,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         );
         int seen = 0;
         checkCancelled.run();
-        iterator.advance(minDocId);
         for (int docId = iterator.nextDoc(); docId < maxDocId; docId = iterator.nextDoc()) {
             if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                 checkCancelled.run();
