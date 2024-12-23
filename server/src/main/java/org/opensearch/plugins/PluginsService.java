@@ -525,8 +525,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (String dependency : bundle.plugin.getExtendedPlugins()) {
             Bundle depBundle = bundles.get(dependency);
             if (depBundle == null) {
+                logger.warn("Missing plugin [" + dependency + "], dependency of [" + name + "]");
                 continue;
-                // throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
             }
             addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
             assert sortedBundles.contains(depBundle);

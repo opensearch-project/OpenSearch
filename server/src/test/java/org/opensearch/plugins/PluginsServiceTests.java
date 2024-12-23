@@ -362,14 +362,30 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     }
 
     public void testSortBundlesMissingDep() throws Exception {
-        Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.singletonList("dne"), false);
-        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> PluginsService.sortBundles(Collections.singleton(bundle))
-        );
-        assertEquals("Missing plugin [dne], dependency of [foo]", e.getMessage());
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(PluginsService.class))) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "[.test] warning",
+                    "org.opensearch.plugins.PluginsService",
+                    Level.WARN,
+                    "Missing plugin [dne], dependency of [foo]"
+                )
+            );
+            Path pluginDir = createTempDir();
+            PluginInfo info = new PluginInfo(
+                "foo",
+                "desc",
+                "1.0",
+                Version.CURRENT,
+                "1.8",
+                "MyPlugin",
+                Collections.singletonList("dne"),
+                false
+            );
+            PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+            PluginsService.sortBundles(Collections.singleton(bundle));
+            mockLogAppender.assertAllExpectationsMatched();
+        }
     }
 
     public void testSortBundlesCommonDep() throws Exception {
