@@ -48,6 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.gradle.develocity` from 3.18.2 to 3.19 ([#16855](https://github.com/opensearch-project/OpenSearch/pull/16855))
 - Bump `org.jline:jline` from 3.27.1 to 3.28.0 ([#16857](https://github.com/opensearch-project/OpenSearch/pull/16857))
 - Bump `com.azure:azure-core` from 1.51.0 to 1.54.1 ([#16856](https://github.com/opensearch-project/OpenSearch/pull/16856))
+- Bump `com.nimbusds:oauth2-oidc-sdk` from 11.19.1 to 11.20.1 ([#16895](https://github.com/opensearch-project/OpenSearch/pull/16895))
 
 ### Changed
 - Indexed IP field supports `terms_query` with more than 1025 IP masks [#16391](https://github.com/opensearch-project/OpenSearch/pull/16391)
