@@ -150,7 +150,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 "1.8",
                 pluginClass.getName(),
                 null,
-                classpathPlugins.stream().map(Class::getName).filter(cp -> !pluginClass.getName().equals(cp)).collect(Collectors.toList()),
+                Collections.emptyList(),
                 false
             );
             if (logger.isTraceEnabled()) {
@@ -160,7 +160,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             pluginsList.add(pluginInfo);
             pluginsNames.add(pluginInfo.getName());
         }
-        loadExtensions(pluginsLoaded);
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();
         List<PluginInfo> modulesList = new ArrayList<>();
@@ -571,17 +570,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         ExtensiblePlugin.ExtensionLoader extensionLoader = new ExtensiblePlugin.ExtensionLoader() {
             @Override
             public <T> List<T> loadExtensions(Class<T> extensionPointType) {
-                Set<Class<?>> seenClasses = new LinkedHashSet<>();
                 List<T> result = new ArrayList<>();
-
                 for (Plugin extendingPlugin : extendingPlugins) {
-                    List<? extends T> extensions = createExtensions(extensionPointType, extendingPlugin);
-                    for (T extension : extensions) {
-                        // Only add if we haven't seen this class before, needed for classpath extensions for testing
-                        if (seenClasses.add(extension.getClass())) {
-                            result.add(extension);
-                        }
-                    }
+                    result.addAll(createExtensions(extensionPointType, extendingPlugin));
                 }
                 return Collections.unmodifiableList(result);
             }
