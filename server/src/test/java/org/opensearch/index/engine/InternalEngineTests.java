@@ -732,7 +732,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             segments = engine.segments(true);
-            assertThat(segments.size(), equalTo(2));
+            assertThat(segments.size(), equalTo(1));
         }
     }
 
