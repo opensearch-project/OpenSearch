@@ -49,6 +49,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -2608,5 +2609,44 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         }
 
         assertThat(searchResponse.toString(), not(containsString("error")));
+    }
+
+    public void testSortMixedNumericFields() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        index("long", Long.MAX_VALUE);
+        index("integer", Integer.MAX_VALUE);
+        SearchResponse searchResponse = client().prepareSearch("long", "integer")
+            .setQuery(matchAllQuery())
+            .setSize(10)
+            .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC).sortMode(SortMode.MAX))
+            .get();
+        assertNoFailures(searchResponse);
+        long[] sortValues = new long[10];
+        for (int i = 0; i < 10; i++) {
+            sortValues[i] = ((Number) searchResponse.getHits().getAt(i).getSortValues()[0]).longValue();
+        }
+        for (int i = 1; i < 10; i++) {
+            assertThat(Arrays.toString(sortValues), sortValues[i - 1], lessThan(sortValues[i]));
+        }
+    }
+
+    private void index(String type, long end) throws Exception {
+        assertAcked(
+            prepareCreate(type).setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", type)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0))
+        );
+        ensureGreen(type);
+        for (int i = 0; i < 5; i++) {
+            client().prepareIndex(type).setId(Integer.toString(i)).setSource("{\"field\" : " + (end - i) + " }", XContentType.JSON).get();
+        }
+        client().admin().indices().prepareRefresh(type).get();
     }
 }
