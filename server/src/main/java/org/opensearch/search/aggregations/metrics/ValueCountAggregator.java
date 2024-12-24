@@ -86,6 +86,26 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+            if (supportedStarTree != null) {
+                StarTreeQueryHelper.precomputeAggregationFromStarTree(
+                    context,
+                    (ValuesSource.Numeric) valuesSource,
+                    ctx,
+                    supportedStarTree,
+                    MetricStat.VALUE_COUNT.getTypeName(),
+                    value -> counts.increment(0, value),
+                    () -> {}
+                );
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
@@ -93,12 +113,6 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         final BigArrays bigArrays = context.bigArrays();
 
         if (valuesSource instanceof ValuesSource.Numeric) {
-
-            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
-            if (supportedStarTree != null) {
-                return getStarTreeCollector(ctx, sub, supportedStarTree);
-            }
-
             final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
 
@@ -136,20 +150,6 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
                 }
             }
         };
-    }
-
-    public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
-        throws IOException {
-        return StarTreeQueryHelper.getStarTreeLeafCollector(
-            context,
-            (ValuesSource.Numeric) valuesSource,
-            ctx,
-            sub,
-            starTree,
-            MetricStat.VALUE_COUNT.getTypeName(),
-            value -> counts.increment(0, value),
-            () -> {}
-        );
     }
 
     @Override
