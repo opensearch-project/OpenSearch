@@ -62,6 +62,7 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregationsTests;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.pipeline.ProcessorExecutionDetail;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.profile.SearchProfileShardResultsTests;
 import org.opensearch.search.suggest.Suggest;
@@ -176,7 +177,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 timedOut,
                 terminatedEarly,
                 numReducePhases,
-                searchExtBuilders
+                searchExtBuilders,
+                Collections.emptyList()
             );
         } else {
             internalSearchResponse = InternalSearchResponse.empty();
@@ -311,6 +313,10 @@ public class SearchResponseTests extends OpenSearchTestCase {
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         String dummyId = UUID.randomUUID().toString();
+        List<ProcessorExecutionDetail> processorResults = List.of(
+            new ProcessorExecutionDetail("processor1", 50, List.of(1), List.of(1)),
+            new ProcessorExecutionDetail("processor2", 30, List.of(3), List.of(3))
+        );
         {
             SearchResponse response = new SearchResponse(
                 new InternalSearchResponse(
@@ -321,7 +327,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
                     false,
                     null,
                     1,
-                    List.of(new DummySearchExtBuilder(dummyId))
+                    List.of(new DummySearchExtBuilder(dummyId)),
+                    processorResults
                 ),
                 null,
                 0,
@@ -354,8 +361,24 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 {
                     expectedString.append("{\"dummy\":\"" + dummyId + "\"}");
                 }
+                expectedString.append(",\"processor_results\":");
+                expectedString.append("[");
+                for (int i = 0; i < processorResults.size(); i++) {
+                    ProcessorExecutionDetail detail = processorResults.get(i);
+                    expectedString.append("{");
+                    expectedString.append("\"processor_name\":\"").append(detail.getProcessorName()).append("\",");
+                    expectedString.append("\"duration_millis\":").append(detail.getDurationMillis()).append(",");
+                    expectedString.append("\"input_data\":").append(detail.getInputData()).append(",");
+                    expectedString.append("\"output_data\":").append(detail.getOutputData());
+                    expectedString.append("}");
+                    if (i < processorResults.size() - 1) {
+                        expectedString.append(",");
+                    }
+                }
+                expectedString.append("]");
             }
             expectedString.append("}");
+
             assertEquals(expectedString.toString(), Strings.toString(MediaTypeRegistry.JSON, response));
             List<SearchExtBuilder> searchExtBuilders = response.getInternalResponse().getSearchExtBuilders();
             assertEquals(1, searchExtBuilders.size());

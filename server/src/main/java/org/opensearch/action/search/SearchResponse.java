@@ -59,6 +59,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.pipeline.ProcessorExecutionDetail;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.suggest.Suggest;
@@ -73,6 +74,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.opensearch.action.search.SearchResponseSections.EXT_FIELD;
+import static org.opensearch.action.search.SearchResponseSections.PROCESSOR_RESULT_FIELD;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -394,6 +396,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         List<ShardSearchFailure> failures = new ArrayList<>();
         Clusters clusters = Clusters.EMPTY;
         List<SearchExtBuilder> extBuilders = new ArrayList<>();
+        List<ProcessorExecutionDetail> processorResult = new ArrayList<>();
         for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
             if (token == Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -517,6 +520,11 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                             extBuilders.add(searchExtBuilder);
                         }
                     }
+                } else if (PROCESSOR_RESULT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                        ProcessorExecutionDetail detail = ProcessorExecutionDetail.fromXContent(parser);
+                        processorResult.add(detail);
+                    }
                 } else {
                     parser.skipChildren();
                 }
@@ -530,7 +538,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             terminatedEarly,
             profile,
             numReducePhases,
-            extBuilders
+            extBuilders,
+            processorResult
         );
         return new SearchResponse(
             searchResponseSections,
