@@ -313,7 +313,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         getProject().delete(jarExpandDir);
 
         jars.forEach(jar -> {
-            String jarPrefix = jar.getName().split("[-.]")[0];
+            String jarPrefix = jar.getName().replace(".jar", "");
             File jarSubDir = new File(jarExpandDir, jarPrefix);
             extractedJars.add(jarSubDir);
             FileTree jarFiles = getProject().zipTree(jar);
