@@ -167,7 +167,7 @@ public class ScriptedSimilarityTests extends OpenSearchTestCase {
             3.2f
         );
         TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertTrue(called.get());
         assertEquals(42, topDocs.scoreDocs[0].score, 0);
         w.close();
@@ -258,7 +258,7 @@ public class ScriptedSimilarityTests extends OpenSearchTestCase {
         searcher.setSimilarity(sim);
         Query query = new BoostQuery(new TermQuery(new Term("f", "foo")), 3.2f);
         TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertTrue(initCalled.get());
         assertTrue(called.get());
         assertEquals(42, topDocs.scoreDocs[0].score, 0);

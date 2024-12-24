@@ -36,9 +36,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -836,7 +836,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + TEXT_FIELD_NAME
             + "\": { "
             + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"max_expansions\" : "
-            + (BooleanQuery.getMaxClauseCount() + 1)
+            + (IndexSearcher.getMaxClauseCount() + 1)
             + " } } } }";
         expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(wildcard_over_max_expand_json);
@@ -948,7 +948,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + TEXT_FIELD_NAME
             + "\": { "
             + "\"regexp\" : { \"pattern\" : \"te.m\", \"max_expansions\" : "
-            + (BooleanQuery.getMaxClauseCount() + 1)
+            + (IndexSearcher.getMaxClauseCount() + 1)
             + " } } } }";
         expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(regexp_over_max_expand_json);

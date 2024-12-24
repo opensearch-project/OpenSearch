@@ -256,7 +256,7 @@ public abstract class AbstractGeoAggregatorModulePluginTestCase extends GeoModul
             .setSize(5000)
             .get();
         assertSearchResponse(response);
-        long totalHits = response.getHits().getTotalHits().value;
+        long totalHits = response.getHits().getTotalHits().value();
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         logger.info("Full high_card_idx Response Content:\n{ {} }", builder.toString());

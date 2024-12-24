@@ -40,14 +40,14 @@ final class MaxTargetSliceSupplier {
         // Sort by maxDoc, descending:
         sortedLeaves.sort(Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
 
-        final List<List<LeafReaderContext>> groupedLeaves = new ArrayList<>(targetSliceCount);
+        final List<List<IndexSearcher.LeafReaderContextPartition>> groupedLeaves = new ArrayList<>(targetSliceCount);
         for (int i = 0; i < targetSliceCount; ++i) {
             groupedLeaves.add(new ArrayList<>());
         }
         // distribute the slices in round-robin fashion
         for (int idx = 0; idx < sortedLeaves.size(); ++idx) {
             int currentGroup = idx % targetSliceCount;
-            groupedLeaves.get(currentGroup).add(sortedLeaves.get(idx));
+            groupedLeaves.get(currentGroup).add(IndexSearcher.LeafReaderContextPartition.createForEntireSegment(sortedLeaves.get(idx)));
         }
 
         return groupedLeaves.stream().map(IndexSearcher.LeafSlice::new).toArray(IndexSearcher.LeafSlice[]::new);

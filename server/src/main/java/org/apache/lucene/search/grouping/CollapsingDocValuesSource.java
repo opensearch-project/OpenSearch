@@ -229,7 +229,7 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
                             public boolean advanceExact(int target) throws IOException {
                                 if (sorted.advanceExact(target)) {
                                     ord = (int) sorted.nextOrd();
-                                    if (sorted.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
+                                    if (sorted.docValueCount() != 1) {
                                         throw new IllegalStateException(
                                             "failed to collapse " + target + ", the collapse field must be single valued"
                                         );

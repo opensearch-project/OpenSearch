@@ -106,7 +106,7 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
                 iw.close();
                 IndexSearcher searcher = new IndexSearcher(reader);
                 TopDocs topDocs = searcher.search(derivedFieldQuery, 10);
-                assertEquals(3, topDocs.totalHits.value);
+                assertEquals(3, topDocs.totalHits.value());
             }
         }
     }
@@ -177,7 +177,7 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
                 );
                 searcher.search(derivedFieldQuery, 10);
                 TopDocs topDocs = searcher.search(derivedFieldQuery, 10);
-                assertEquals(0, topDocs.totalHits.value);
+                assertEquals(0, topDocs.totalHits.value());
             }
         }
     }

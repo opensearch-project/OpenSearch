@@ -374,67 +374,67 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 Query query = QueryBuilders.termQuery("request_succeeded", "true").toQuery(queryShardContext);
                 TopDocs topDocs = searcher.search(query, 10);
-                assertEquals(4, topDocs.totalHits.value);
+                assertEquals(4, topDocs.totalHits.value());
 
                 // IP Field Term Query
                 scriptIndex[0] = 3;
                 query = QueryBuilders.termQuery("client_ip", "192.168.0.0/16").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(1, topDocs.totalHits.value());
 
                 scriptIndex[0] = 4;
                 query = QueryBuilders.termsQuery("method", "DELETE", "PUT").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(3, topDocs.totalHits.value);
+                assertEquals(3, topDocs.totalHits.value());
 
                 query = QueryBuilders.termsQuery("method", "delete").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(0, topDocs.totalHits.value);
+                assertEquals(0, topDocs.totalHits.value());
 
                 query = QueryBuilders.termQuery("method", "delete").caseInsensitive(true).toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(2, topDocs.totalHits.value());
 
                 // Range queries of types - date, long and double
                 scriptIndex[0] = 2;
                 query = QueryBuilders.rangeQuery("@timestamp").from("2024-03-20T14:20:50").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(4, topDocs.totalHits.value);
+                assertEquals(4, topDocs.totalHits.value());
 
                 scriptIndex[0] = 5;
                 query = QueryBuilders.rangeQuery("request_size").from("4.1").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(7, topDocs.totalHits.value);
+                assertEquals(7, topDocs.totalHits.value());
 
                 scriptIndex[0] = 6;
                 query = QueryBuilders.rangeQuery("duration").from("5800").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(6, topDocs.totalHits.value);
+                assertEquals(6, topDocs.totalHits.value());
 
                 scriptIndex[0] = 4;
 
                 // Prefix Query
                 query = QueryBuilders.prefixQuery("method", "DE").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(2, topDocs.totalHits.value());
 
                 scriptIndex[0] = 4;
                 query = QueryBuilders.wildcardQuery("method", "G*").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(7, topDocs.totalHits.value);
+                assertEquals(7, topDocs.totalHits.value());
 
                 // Regexp Query
                 scriptIndex[0] = 4;
                 query = QueryBuilders.regexpQuery("method", ".*LET.*").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(2, topDocs.totalHits.value());
 
                 // GeoPoint Query
                 scriptIndex[0] = 7;
 
                 query = geoShapeQuery("geopoint", new Rectangle(0.0, 55.0, 55.0, 0.0)).toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(4, topDocs.totalHits.value);
+                assertEquals(4, topDocs.totalHits.value());
             }
         }
     }
@@ -532,7 +532,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 termQueryBuilder.caseInsensitive(true);
                 Query query = termQueryBuilder.toQuery(queryShardContext);
                 TopDocs topDocs = searcher.search(query, 10);
-                assertEquals(7, topDocs.totalHits.value);
+                assertEquals(7, topDocs.totalHits.value());
 
                 // since last doc has a malformed json, if ignore_malformed isn't set or set as false, the query should fail
                 termQueryBuilder = new TermQueryBuilder("object_field_without_ignored_malformed.keyword_field", "GET");
@@ -543,85 +543,85 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
 
                 query = QueryBuilders.matchPhraseQuery("object_field.text_field", "document number 1").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(1, topDocs.totalHits.value());
 
                 query = QueryBuilders.matchPhraseQuery("object_field.text_field", "document number 11").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(0, topDocs.totalHits.value);
+                assertEquals(0, topDocs.totalHits.value());
 
                 query = new MatchPhrasePrefixQueryBuilder("object_field.text_field", "document number").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(0, topDocs.totalHits.value);
+                assertEquals(0, topDocs.totalHits.value());
 
                 // Multi Phrase Query
                 query = QueryBuilders.multiMatchQuery("GET", "object_field.nested_field.sub_field_1", "object_field.keyword_field")
                     .type(MultiMatchQueryBuilder.Type.PHRASE)
                     .toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(7, topDocs.totalHits.value);
+                assertEquals(7, topDocs.totalHits.value());
 
                 // Range queries of types - date, long and double
                 query = QueryBuilders.rangeQuery("object_field.date_field").from("2024-03-20T14:20:50").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(4, topDocs.totalHits.value);
+                assertEquals(4, topDocs.totalHits.value());
 
                 query = QueryBuilders.rangeQuery("object_field.float_field").from("4.1").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(7, topDocs.totalHits.value);
+                assertEquals(7, topDocs.totalHits.value());
 
                 query = QueryBuilders.rangeQuery("object_field.long_field").from("5800").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(6, topDocs.totalHits.value);
+                assertEquals(6, topDocs.totalHits.value());
 
                 // Prefix Query
                 query = QueryBuilders.prefixQuery("object_field.keyword_field", "de").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(2, topDocs.totalHits.value());
 
                 query = QueryBuilders.wildcardQuery("object_field.keyword_field", "g*").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(7, topDocs.totalHits.value);
+                assertEquals(7, topDocs.totalHits.value());
 
                 QueryStringQueryParser queryParser = new QueryStringQueryParser(queryShardContext, "object_field.keyword_field");
                 queryParser.parse("GE?");
                 topDocs = searcher.search(query, 10);
-                assertEquals(7, topDocs.totalHits.value);
+                assertEquals(7, topDocs.totalHits.value());
 
                 // Regexp Query
                 query = QueryBuilders.regexpQuery("object_field.keyword_field", ".*let.*").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(2, topDocs.totalHits.value());
 
                 // tested deep nested field
                 query = QueryBuilders.regexpQuery("object_field.nested_field.sub_field_1", ".*let.*").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(2, topDocs.totalHits.value());
 
                 // Test nested array field
                 query = QueryBuilders.rangeQuery("object_field.array_field").from("1").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(10, topDocs.totalHits.value);
+                assertEquals(10, topDocs.totalHits.value());
 
                 query = QueryBuilders.rangeQuery("object_field.array_field").from("3").to("6").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(2, topDocs.totalHits.value());
 
                 query = QueryBuilders.rangeQuery("object_field.array_field").from("9").to("9").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(1, topDocs.totalHits.value());
 
                 query = QueryBuilders.rangeQuery("object_field.array_field").from("10").to("12").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(1, topDocs.totalHits.value());
 
                 query = QueryBuilders.rangeQuery("object_field.array_field").from("31").to("50").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(0, topDocs.totalHits.value);
+                assertEquals(0, topDocs.totalHits.value());
 
                 // tested missing nested field
                 query = QueryBuilders.regexpQuery("object_field.invalid_field.sub_field", ".*let.*").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(0, topDocs.totalHits.value);
+                assertEquals(0, topDocs.totalHits.value());
             }
         }
     }
@@ -774,7 +774,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 termQueryBuilder.caseInsensitive(true);
                 Query query = termQueryBuilder.toQuery(queryShardContext);
                 TopDocs topDocs = searcher.search(query, 10);
-                assertEquals(7, topDocs.totalHits.value);
+                assertEquals(7, topDocs.totalHits.value());
 
                 // test object_field_2
                 docsEvaluated[0] = 0;
@@ -782,7 +782,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 termQueryBuilder.caseInsensitive(true);
                 query = termQueryBuilder.toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(7, topDocs.totalHits.value);
+                assertEquals(7, topDocs.totalHits.value());
 
                 // since we have prefilter_field set to "raw_message", it should not evaluate all documents
                 assertEquals(8, docsEvaluated[0]);
@@ -801,20 +801,20 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 // prefilter_field
                 query = QueryBuilders.rangeQuery("invalid_object.date_field").from("2024-03-20T14:20:50").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(4, topDocs.totalHits.value);
+                assertEquals(4, topDocs.totalHits.value());
 
                 query = QueryBuilders.rangeQuery("long_prefilter_field_object.date_field")
                     .from("2024-03-20T14:20:50")
                     .toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(4, topDocs.totalHits.value);
+                assertEquals(4, topDocs.totalHits.value());
 
                 // test regular_derived_field
                 docsEvaluated[0] = 0;
                 scriptIndex[0] = 4;
                 query = QueryBuilders.termQuery("regular_derived_field", "delete").caseInsensitive(true).toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(2, topDocs.totalHits.value());
                 assertEquals(2, docsEvaluated[0]);
 
                 // test regular_derived_field_without_prefilter_field
@@ -824,7 +824,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                     .caseInsensitive(true)
                     .toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(2, topDocs.totalHits.value());
                 assertEquals(11, docsEvaluated[0]);
             }
         }
@@ -950,7 +950,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 termQueryBuilder.caseInsensitive(true);
                 Query query = termQueryBuilder.toQuery(queryShardContext);
                 TopDocs topDocs = searcher.search(query, 10);
-                assertEquals(7, topDocs.totalHits.value);
+                assertEquals(7, topDocs.totalHits.value());
 
                 // check if ignoreMalformed is set to false, the query fails on malformed values
                 query = QueryBuilders.rangeQuery("object_field_3.keyword_field").from("2024-03-20T14:20:50").toQuery(queryShardContext);
@@ -960,7 +960,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 // check if ignoreMalformed is set to true, the query passes with 0 results
                 query = QueryBuilders.rangeQuery("object_field_2.keyword_field").from("2024-03-20T14:20:50").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
-                assertEquals(0, topDocs.totalHits.value);
+                assertEquals(0, topDocs.totalHits.value());
             }
         }
     }

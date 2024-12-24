@@ -14,6 +14,8 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -25,6 +27,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.ReadAdvice;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
@@ -62,7 +65,6 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
 
     private final DocValuesProducer delegate;
     private IndexInput dataIn;
-    private ChecksumIndexInput metaIn;
     private final Map<String, IndexInput> compositeIndexInputMap = new LinkedHashMap<>();
     private final Map<String, CompositeIndexMetadata> compositeIndexMetadataMap = new LinkedHashMap<>();
     private final List<String> fields;
@@ -87,10 +89,10 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
         );
 
         boolean success = false;
-        try {
+        try (ChecksumIndexInput metaIn = readState.directory.openChecksumInput(metaFileName)) {
 
-            // initialize meta input
-            dataIn = readState.directory.openInput(dataFileName, readState.context);
+            // initialize data input
+            dataIn = readState.directory.openInput(dataFileName, readState.context.withReadAdvice(ReadAdvice.NORMAL));
             CodecUtil.checkIndexHeader(
                 dataIn,
                 Composite912DocValuesFormat.DATA_CODEC_NAME,
@@ -100,8 +102,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                 readState.segmentSuffix
             );
 
-            // initialize data input
-            metaIn = readState.directory.openChecksumInput(metaFileName, readState.context);
+            // initialize meta input
             Throwable priorE = null;
             try {
                 CodecUtil.checkIndexHeader(
@@ -257,17 +258,16 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
         delegate.close();
         boolean success = false;
         try {
-            IOUtils.close(metaIn, dataIn);
+            IOUtils.close(dataIn);
             IOUtils.close(compositeDocValuesProducer);
             success = true;
         } finally {
             if (!success) {
-                IOUtils.closeWhileHandlingException(metaIn, dataIn);
+                IOUtils.closeWhileHandlingException(dataIn);
             }
             compositeIndexInputMap.clear();
             compositeIndexMetadataMap.clear();
             fields.clear();
-            metaIn = null;
             dataIn = null;
         }
     }
@@ -295,4 +295,21 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
 
     }
 
+    /**
+     * Returns the sorted numeric doc values for the given sorted numeric field.
+     * If the sorted numeric field is null, it returns an empty doc id set iterator.
+     * <p>
+     * Sorted numeric field can be null for cases where the segment doesn't hold a particular value.
+     *
+     * @param sortedNumeric the sorted numeric doc values for a field
+     * @return empty sorted numeric values if the field is not present, else sortedNumeric
+     */
+    public static SortedNumericDocValues getSortedNumericDocValues(SortedNumericDocValues sortedNumeric) {
+        return sortedNumeric == null ? DocValues.emptySortedNumeric() : sortedNumeric;
+    }
+
+    @Override
+    public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
+        return delegate.getSkipper(field);
+    }
 }

@@ -120,7 +120,7 @@ public final class OTelTelemetrySettings {
     /**
      * Samplers orders setting.
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "removal" })
     public static final Setting<List<Class<Sampler>>> OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS = Setting.listSetting(
         "telemetry.otel.tracer.span.sampler.classes",
         Arrays.asList(ProbabilisticTransportActionSampler.class.getName(), ProbabilisticSampler.class.getName()),

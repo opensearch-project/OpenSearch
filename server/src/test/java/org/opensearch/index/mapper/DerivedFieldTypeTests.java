@@ -14,7 +14,6 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongField;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
@@ -66,7 +65,7 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
     public void testDateType() {
         DerivedFieldType dft = createDerivedFieldType("date");
         assertTrue(dft.getFieldMapper() instanceof DateFieldMapper);
-        assertTrue(dft.getIndexableFieldGenerator().apply(System.currentTimeMillis()) instanceof LongPoint);
+        assertTrue(dft.getIndexableFieldGenerator().apply(System.currentTimeMillis()) instanceof LongField);
         expectThrows(Exception.class, () -> dft.getIndexableFieldGenerator().apply("blah"));
     }
 
@@ -83,7 +82,7 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
     public void testIPType() {
         DerivedFieldType dft = createDerivedFieldType("ip");
         assertTrue(dft.getFieldMapper() instanceof IpFieldMapper);
-        assertTrue(dft.getIndexableFieldGenerator().apply("127.0.0.1") instanceof InetAddressPoint);
+        assertTrue(dft.getIndexableFieldGenerator().apply("127.0.0.1") instanceof IpFieldMapper.InetAddressField);
         expectThrows(Exception.class, () -> dft.getIndexableFieldGenerator().apply("blah"));
     }
 
