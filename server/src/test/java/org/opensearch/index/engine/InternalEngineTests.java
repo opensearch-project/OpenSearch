@@ -724,12 +724,19 @@ public class InternalEngineTests extends EngineTestCase {
             segments = engine.segments(true);
             assertThat(segments.size(), equalTo(1));
 
-            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
-            engine.index(indexForDoc(doc2));
-            engine.refresh("test");
-            ParsedDocument doc3 = testParsedDocument("3", null, testDocumentWithTextField(), B_3, null);
-            engine.index(indexForDoc(doc3));
-            engine.refresh("test");
+            // Fails for [2,3] in Lucene 10 due to changes in TieredMergePolicy https://github.com/apache/lucene/pull/266
+            // causing 3 documents to be merged within one segment.
+            for (int i = 2; i <= 4; i++) {
+                ParsedDocument document = testParsedDocument(
+                    String.valueOf(i),
+                    null,
+                    testDocumentWithTextField(),
+                    new BytesArray(new byte[] { (byte) i }),
+                    null
+                );
+                engine.index(indexForDoc(document));
+                engine.refresh("test");
+            }
 
             segments = engine.segments(true);
             assertThat(segments.size(), equalTo(2));
