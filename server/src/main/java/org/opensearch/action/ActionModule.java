@@ -184,6 +184,8 @@ import org.opensearch.action.admin.indices.replication.TransportSegmentReplicati
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.TransportRolloverAction;
+import org.opensearch.action.admin.indices.scaleToZero.PreScaleSyncAction;
+import org.opensearch.action.admin.indices.scaleToZero.TransportPreScaleSyncAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
@@ -685,6 +687,9 @@ public class ActionModule extends AbstractModule {
         actions.register(AutoPutMappingAction.INSTANCE, TransportAutoPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
+
+        actions.register(PreScaleSyncAction.INSTANCE, TransportPreScaleSyncAction.class);
+
         actions.register(AnalyzeAction.INSTANCE, TransportAnalyzeAction.class);
         actions.register(PutIndexTemplateAction.INSTANCE, TransportPutIndexTemplateAction.class);
         actions.register(GetIndexTemplatesAction.INSTANCE, TransportGetIndexTemplatesAction.class);
