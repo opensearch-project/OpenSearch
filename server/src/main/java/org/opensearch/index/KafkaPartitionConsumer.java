@@ -57,9 +57,23 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         return new KafkaOffset(lastFetchedOffset + 1);
     }
 
+    @Override
+    public IngestionShardPointer earliestPointer() {
+        long startOffset = consumer.beginningOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L);
+        return new KafkaOffset(startOffset);
+    }
+
+    @Override
+    public IngestionShardPointer latestPointer() {
+        long endOffset = consumer.endOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L);
+        return new KafkaOffset(endOffset);
+    }
+
     protected synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {
         if (lastFetchedOffset < 0 || lastFetchedOffset !=startOffset - 1) {
             consumer.seek(topicPartition, startOffset);
+            // update the last fetched offset so that we don't need to seek again if no more messages to fetch
+            lastFetchedOffset = startOffset - 1;
         }
 
         ConsumerRecords<String, String> consumerRecords = consumer.poll(Duration.ofMillis(timeoutMillis));

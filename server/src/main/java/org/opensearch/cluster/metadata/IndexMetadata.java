@@ -72,6 +72,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IngestionSourceConfig;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.indices.ingest.StreamPoller;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.common.ReplicationType;
 
@@ -660,6 +661,31 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Dynamic
     );
 
+    /**
+     * Used to specify initial reset policy for the ingestion pointer. If not specified, default to the latest
+     */
+    public static final String SETTING_INGESTION_SOURCE_POINTER_INIT_RESET = "index.ingestion_source.pointer.init.reset";
+    public static final Setting<String> INGESTION_SOURCE_POINTER_INIT_RESET_SETTING = Setting.simpleString(
+        SETTING_INGESTION_SOURCE_POINTER_INIT_RESET,
+        StreamPoller.ResetState.LATEST.name(),
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {
+                if (!(value.equalsIgnoreCase(StreamPoller.ResetState.LATEST.name()) ||
+                    value.equalsIgnoreCase(StreamPoller.ResetState.EARLIEST.name()))) {
+                    throw new IllegalArgumentException("Invalid value for " + SETTING_INGESTION_SOURCE_POINTER_INIT_RESET + " [" + value + "]");
+                }
+            }
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            }
+        },
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
         "index.ingestion_source.param.",
         key -> new Setting<>(key, "", (value) -> {
@@ -886,6 +912,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return ingestionSource;
     }
 
+    public boolean useIngestionSource() {
+        return ingestionSource != null && !NONE_INGESTION_SOURCE_TYPE.equals(ingestionSource.getType());
+    }
 
     /**
      * Return the {@link Version} on which this index has been upgraded. This
@@ -1797,8 +1826,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             // check the ingestion source config
             final String ingestionSourceType = INGESTION_SOURCE_TYPE_SETTING.get(settings);
             if (!NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType)) {
+                final String pointerInitReset = INGESTION_SOURCE_POINTER_INIT_RESET_SETTING.get(settings);
                 final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
-                ingestionSource = new IngestionSource(ingestionSourceType, ingestionSourceParams);
+                ingestionSource = new IngestionSource(ingestionSourceType, pointerInitReset, ingestionSourceParams);
             }
 
             return new IndexMetadata(

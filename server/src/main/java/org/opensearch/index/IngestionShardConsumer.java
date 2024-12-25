@@ -50,7 +50,9 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
     T nextPointer();
 
 
-//    public KafkaIngestionSource.Iterator createSourcePointer(int shardNum) {
+    IngestionShardPointer earliestPointer();
+
+    IngestionShardPointer latestPointer();
 
     int getShardId();
 }

@@ -9,8 +9,9 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -22,7 +23,9 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.LoggerInfoStream;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ReleasableLock;
@@ -124,14 +127,29 @@ public class IngestionEngine extends Engine {
                 }
             });
             documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
-            IngestionConsumerFactory factory = getIngestionConsumerFactory(indexMetadata.getIngestionSource());
+            IngestionSource ingestionSource = indexMetadata.getIngestionSource();
+            IngestionConsumerFactory factory = getIngestionConsumerFactory(ingestionSource);
             IngestionShardConsumer ingestionShardConsumer = factory.createShardConsumer("clientId", 0);
 
-            // todo: get pointer policy from the config
-            KafkaOffset kafkaOffset = new KafkaOffset(0);
-            // todo: support other kinds of stream pollers
-            streamPoller = new DefaultStreamPoller(kafkaOffset, ingestionShardConsumer,
-                new DocumentProcessor(this));
+            Map<String, String> commitData = commitDataAsMap();
+            StreamPoller.ResetState resetState = StreamPoller.ResetState.valueOf(ingestionSource.getPointerInitReset().toUpperCase());
+            IngestionShardPointer startPointer = null;
+            Set<IngestionShardPointer> persistedPointers = new HashSet<>();
+            if (commitData.containsKey(StreamPoller.BATCH_START)) {
+                // try recovering from commit data
+                String batchStartStr = commitData.get(StreamPoller.BATCH_START);
+                startPointer = factory.parsePointerFromString(batchStartStr);
+                try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
+                    persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()), startPointer.toSequenceNumber());
+                } catch (IOException e) {
+                    throw new EngineCreationFailureException(config().getShardId(), "failed to restore offset", e);
+                }
+                // reset to none so the poller will poll from the startPointer
+                resetState = StreamPoller.ResetState.NONE;
+            }
+
+            streamPoller = new DefaultStreamPoller(startPointer, persistedPointers, ingestionShardConsumer,
+                new DocumentProcessor(this), resetState);
             streamPoller.start();
             success = true;
         } catch (IOException | TranslogCorruptedException e) {
@@ -161,6 +179,40 @@ public class IngestionEngine extends Engine {
 
     public DocumentMapperForType getDocumentMapperForType() {
         return documentMapperForType;
+    }
+
+    // todo: support other types than long
+    private Set<IngestionShardPointer> fetchPersistedOffsets(DirectoryReader directoryReader, long batchStart) throws IOException {
+        final IndexSearcher searcher = new IndexSearcher(directoryReader);
+        searcher.setQueryCache(null);
+        final Query query = new BooleanQuery.Builder().add(
+            LongPoint.newRangeQuery("_offset", batchStart, Long.MAX_VALUE),
+            BooleanClause.Occur.MUST
+        )// exclude non-root nested documents
+            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
+            .build();
+        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        Set<IngestionShardPointer> result = new HashSet<>();
+        for (LeafReaderContext leaf : directoryReader.leaves()) {
+            final Scorer scorer = weight.scorer(leaf);
+            if (scorer == null) {
+                continue;
+            }
+            NumericDocValues offsetDV =  Objects.requireNonNull(leaf.reader().getNumericDocValues("_offset"), "_offset is missing");
+            final DocIdSetIterator iterator = scorer.iterator();
+            int docId;
+            while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                assert offsetDV.docID() < docId;
+                if (offsetDV.advanceExact(docId) == false) {
+                    throw new IllegalStateException("DocValues for field _offset is not found");
+                }
+                long offset =  offsetDV.longValue();
+                result.add(new KafkaOffset(offset));
+            }
+        }
+        // is this needed?
+        refresh("restore_offset", SearcherScope.INTERNAL, true);
+        return result;
     }
 
     /**
@@ -376,11 +428,6 @@ public class IngestionEngine extends Engine {
         } else {
             indexWriter.addDocument(docs.get(0));
         }
-    }
-
-    protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
-        // todo do we need seq no?
-        return 0;
     }
 
     @Override
@@ -608,9 +655,6 @@ public class IngestionEngine extends Engine {
                 final Map<String, String> commitData = new HashMap<>(3);
 
                 commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer());
-                commitData.put(StreamPoller.BATCH_END, streamPoller.getBatchEndPointer());
-
-                // TODO: do we need forceMergeUUID?
                 final String currentForceMergeUUID = forceMergeUUID;
                 if (currentForceMergeUUID != null) {
                     commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);

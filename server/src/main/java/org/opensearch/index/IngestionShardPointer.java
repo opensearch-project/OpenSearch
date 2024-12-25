@@ -8,7 +8,7 @@
 
 package org.opensearch.index;
 
-public interface IngestionShardPointer  {
+public interface IngestionShardPointer extends Comparable<IngestionShardPointer> {
 
     byte[] serialize();
 
@@ -16,6 +16,5 @@ public interface IngestionShardPointer  {
 
     String asString();
 
-    IngestionShardPointer fromString(String pointer);
     long toSequenceNumber();
 }

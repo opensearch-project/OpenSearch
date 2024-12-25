@@ -258,8 +258,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
                 // Settings for ingestion source
                 IndexMetadata.INGESTION_SOURCE_TYPE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_POINTER_INIT_RESET_SETTING,
                 IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING,
-//                Setting.groupSetting("index.ingestion_source.", Property.IndexScope), // this allows ingestion source settings to be passed
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
