@@ -15,6 +15,7 @@ import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.indices.ingest.StreamPoller;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,28 +28,32 @@ import java.util.Objects;
 @ExperimentalApi
 public class IngestionSource implements ToXContentObject  {
     private static final ParseField TYPE = new ParseField("type");
+    private static final ParseField POINTER_INIT_RESET = new ParseField("pointer_init_reset");
     private static final ParseField PARAMS = new ParseField("params");
 
     private String type;
+    private String pointerInitReset;
     private Map<String, Object> params;
 
     public static final ConstructingObjectParser<IngestionSource, Void> PARSER = new ConstructingObjectParser<>(
-        "index_template",
+        "ingestion_source_template",
         false,
-        a -> new IngestionSource((String) a[0], (Map<String, Object>) a[2])
+        a -> new IngestionSource((String) a[0],(String)a[1], (Map<String, Object>) a[2])
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), POINTER_INIT_RESET);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), PARAMS);
     }
 
     public IngestionSource(String type) {
-        this(type, Map.of());
+        this(type, StreamPoller.ResetState.LATEST.name(), Map.of());
     }
 
-    public IngestionSource(String type, Map<String, Object> params) {
+    public IngestionSource(String type, String pointerInitReset, Map<String, Object> params) {
         this.type = type;
+        this.pointerInitReset = pointerInitReset;
         this.params = params;
     }
 
@@ -59,6 +64,10 @@ public class IngestionSource implements ToXContentObject  {
 
     public String getType() {
         return type;
+    }
+
+    public String getPointerInitReset() {
+        return pointerInitReset;
     }
 
     public Map<String, Object> params() {
@@ -73,6 +82,7 @@ public class IngestionSource implements ToXContentObject  {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(TYPE.getPreferredName(), this.type);
+        builder.field(POINTER_INIT_RESET.getPreferredName(), this.pointerInitReset);
         if (this.params != null) {
             builder.field(PARAMS.getPreferredName(), this.params);
         }
@@ -89,16 +99,16 @@ public class IngestionSource implements ToXContentObject  {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IngestionSource ingestionSource = (IngestionSource) o;
-        return Objects.equals(type, ingestionSource.type) && Objects.equals(params, ingestionSource.params);
+        return Objects.equals(type, ingestionSource.type) && Objects.equals(pointerInitReset, ingestionSource.pointerInitReset) && Objects.equals(params, ingestionSource.params);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, params);
+        return Objects.hash(type, pointerInitReset, params);
     }
 
     @Override
     public String toString() {
-        return "IngestionSource{" + "type='" + type + '\'' + ", params=" + params + '}';
+        return "IngestionSource{" + "type='" + type + '\'' + ",pointer_init_reset='" + pointerInitReset + '\'' + ", params=" + params + '}';
     }
 }

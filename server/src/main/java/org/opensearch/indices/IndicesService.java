@@ -1008,7 +1008,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }
 
         // streaming ingestion
-        if(indexMetadata!=null && indexMetadata.getIngestionSource()!=null){
+        if (indexMetadata != null && indexMetadata.useIngestionSource()) {
             return new IngestionEngineFactory();
         }
 

@@ -120,9 +120,8 @@ public class IngestionEngineTests extends EngineTestCase {
         // flush
         ingestionEngine.flush(false, true);
         Map<String, String> commitData = ingestionEngine.commitDataAsMap();
-        Assert.assertEquals(2, commitData.size());
+        Assert.assertEquals(1, commitData.size());
         Assert.assertEquals("3", commitData.get(StreamPoller.BATCH_START));
-        Assert.assertEquals("3", commitData.get(StreamPoller.BATCH_END));
     }
 
     private IngestionEngine buildIngestionEngine(AtomicLong globalCheckpoint, Store store, IndexSettings settings) throws IOException {

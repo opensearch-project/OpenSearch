@@ -10,8 +10,10 @@ package org.opensearch.index;
 
 import java.util.Map;
 
-public interface IngestionConsumerFactory<T extends IngestionShardConsumer> {
+public interface IngestionConsumerFactory<T extends IngestionShardConsumer,P extends IngestionShardPointer> {
     void initialize(Map<String, Object> params);
 
     T createShardConsumer(String clientId, int shardId);
+
+    P parsePointerFromString(String pointer);
 }

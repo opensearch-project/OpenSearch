@@ -12,8 +12,8 @@ import org.opensearch.index.IngestionShardPointer;
 
 public interface StreamPoller {
 
-    public static final String BATCH_START = "batch_start";
-    public static final String BATCH_END = "batch_end";
+    String BATCH_START = "batch_start";
+    String BATCH_END = "batch_end";
 
     void start();;
 
@@ -25,7 +25,7 @@ public interface StreamPoller {
 
     IngestionShardPointer getCurrentPointer();
 
-    void resetPointer(IngestionShardPointer batchStartPointer, IngestionShardPointer batchEndPointer);
+    void resetPointer(IngestionShardPointer pointer);
 
     boolean isPaused();
 
@@ -33,13 +33,20 @@ public interface StreamPoller {
 
     String getBatchStartPointer();
 
-    String getBatchEndPointer();
-
     enum State {
         NONE,
         CLOSED,
         PAUSED,
         POLLING,
         PROCESSING,
+    }
+
+    /**
+     *  a reset state to indicate how to reset the pointer
+     */
+    enum ResetState {
+        EARLIEST,
+        LATEST,
+        NONE,
     }
 }

@@ -6,6 +6,7 @@ Content-Type: application/json
   "settings": {
     "ingestion_source": {
       "type": "kafka",
+      "pointer.init.reset": "earliest",
       "param": {
         "topic": "test1",
         "groupId": "test",
@@ -37,6 +38,20 @@ Content-Type: application/json
     "range": {
       "age": {
         "gt": 18
+      }
+    }
+  }
+}
+
+### query the index to see all
+GET http://localhost:9200/my-index/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "range": {
+      "age": {
+        "gt": 0
       }
     }
   }

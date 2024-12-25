@@ -10,7 +10,7 @@ package org.opensearch.index;
 
 import java.util.Map;
 
-public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaPartitionConsumer> {
+public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaPartitionConsumer, KafkaOffset> {
 
     public static final String TYPE = "kafka";
 
@@ -25,5 +25,10 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaParti
     public KafkaPartitionConsumer createShardConsumer(String clientId, int shardId) {
         assert config!=null;
         return new KafkaPartitionConsumer(clientId, config, shardId);
+    }
+
+    @Override
+    public KafkaOffset parsePointerFromString(String pointer) {
+        return new KafkaOffset(Long.valueOf(pointer));
     }
 }

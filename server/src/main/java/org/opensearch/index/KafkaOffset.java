@@ -15,6 +15,7 @@ public class KafkaOffset implements IngestionShardPointer {
     private final long offset;
 
     public KafkaOffset(long offset) {
+        assert offset >= 0;
         this.offset = offset;
     }
 
@@ -39,17 +40,47 @@ public class KafkaOffset implements IngestionShardPointer {
     }
 
     @Override
-    public KafkaOffset fromString(String pointer) {
-        return new KafkaOffset(Long.valueOf(pointer));
-    }
-
-    @Override
     public long toSequenceNumber() {
         return offset;
     }
 
-
     public long getOffset() {
         return offset;
+    }
+
+    @Override
+    public String toString() {
+        return "KafkaOffset{" +
+            "offset=" + offset +
+            '}';
+    }
+
+    @Override
+    public int compareTo(IngestionShardPointer o) {
+        if (o == null) {
+            throw new IllegalArgumentException("the pointer is null");
+        }
+        if (!(o instanceof KafkaOffset)) {
+            throw new IllegalArgumentException("the pointer is of type " + o.getClass() + " and not KafkaOffset");
+        }
+        KafkaOffset other = (KafkaOffset) o;
+        return Long.compare(offset, other.offset);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        KafkaOffset that = (KafkaOffset) o;
+        return offset == that.offset;
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(offset);
     }
 }
