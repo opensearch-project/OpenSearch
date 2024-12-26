@@ -56,7 +56,7 @@ public class HalfFloatComparator extends NumericComparator<Float> {
 
     @Override
     protected long missingValueAsComparableLong() {
-        return HalfFloatPoint.halfFloatToSortableShort(missingValue);
+        return NumericUtils.floatToSortableInt(missingValue);
     }
 
     @Override
