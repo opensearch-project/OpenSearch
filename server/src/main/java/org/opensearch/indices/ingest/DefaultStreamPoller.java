@@ -147,7 +147,7 @@ public class DefaultStreamPoller implements StreamPoller {
                         logger.info("Skipping message with pointer {} as it is already processed", result.getPointer().asString());
                         continue;
                     }
-                    processor.accept(result.getMessage());
+                    processor.process(result.getMessage(), result.getPointer());
                     currentPointer = result.getPointer();
                     logger.info("Processed message {} with pointer {}", result.getMessage().getPayload(), currentPointer.asString());
                 }

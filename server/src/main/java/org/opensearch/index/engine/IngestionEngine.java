@@ -72,6 +72,7 @@ public class IngestionEngine extends Engine {
     private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
     private final TranslogManager translogManager;
     private final DocumentMapperForType documentMapperForType;
+    private final IngestionConsumerFactory ingestionConsumerFactory;
     protected StreamPoller streamPoller;
 
     /**
@@ -79,24 +80,6 @@ public class IngestionEngine extends Engine {
      */
     @Nullable
     private volatile String forceMergeUUID;
-
-
-    // TODO: make this pluggable
-    IngestionConsumerFactory getIngestionConsumerFactory(IngestionSource ingestionSource) {
-        final IngestionConsumerFactory ingestionConsumerFactory;
-
-        switch (ingestionSource.getType().toLowerCase()) {
-            case KafkaConsumerFactory.TYPE:
-                ingestionConsumerFactory = new KafkaConsumerFactory();
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown ingestion source type: " + ingestionSource.getType());
-        }
-
-        ingestionConsumerFactory.initialize(ingestionSource.params());
-        return ingestionConsumerFactory;
-    }
-
 
     public IngestionEngine(EngineConfig engineConfig) {
         super(engineConfig);
@@ -127,9 +110,13 @@ public class IngestionEngine extends Engine {
                 }
             });
             documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
-            IngestionSource ingestionSource = indexMetadata.getIngestionSource();
-            IngestionConsumerFactory factory = getIngestionConsumerFactory(ingestionSource);
-            IngestionShardConsumer ingestionShardConsumer = factory.createShardConsumer("clientId", 0);
+
+            IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
+            ingestionConsumerFactory = Objects.requireNonNull(engineConfig.getIngestionConsumerFactory());
+            // initialize the ingestion consumer factory
+            ingestionConsumerFactory.initialize(ingestionSource.params());
+            IngestionShardConsumer ingestionShardConsumer = ingestionConsumerFactory.createShardConsumer("clientId", engineConfig.getShardId().getId());
+            logger.debug("created ingestion consumer for shard [{}]", engineConfig.getShardId());
 
             Map<String, String> commitData = commitDataAsMap();
             StreamPoller.ResetState resetState = StreamPoller.ResetState.valueOf(ingestionSource.getPointerInitReset().toUpperCase());
@@ -138,7 +125,7 @@ public class IngestionEngine extends Engine {
             if (commitData.containsKey(StreamPoller.BATCH_START)) {
                 // try recovering from commit data
                 String batchStartStr = commitData.get(StreamPoller.BATCH_START);
-                startPointer = factory.parsePointerFromString(batchStartStr);
+                startPointer = ingestionConsumerFactory.parsePointerFromString(batchStartStr);
                 try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
                     persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()), startPointer.toSequenceNumber());
                 } catch (IOException e) {
@@ -207,7 +194,8 @@ public class IngestionEngine extends Engine {
                     throw new IllegalStateException("DocValues for field _offset is not found");
                 }
                 long offset =  offsetDV.longValue();
-                result.add(new KafkaOffset(offset));
+                // TODO: support other types than long
+                result.add(ingestionConsumerFactory.parsePointerFromString(Long.toString(offset)));
             }
         }
         // is this needed?

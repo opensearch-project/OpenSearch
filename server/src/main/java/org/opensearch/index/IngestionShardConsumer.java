@@ -8,13 +8,15 @@
 
 package org.opensearch.index;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.io.Closeable;
 import java.util.List;
 
+@ExperimentalApi
 public interface IngestionShardConsumer<T extends IngestionShardPointer, M extends Message> extends Closeable {
 
-    public static int UNLIMITED = -1;
-
+    @ExperimentalApi
     class ReadResult<T, M> {
         T pointer;
         M message;

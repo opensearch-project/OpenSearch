@@ -8,9 +8,13 @@
 
 package org.opensearch.index;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.Map;
 
-public interface IngestionConsumerFactory<T extends IngestionShardConsumer,P extends IngestionShardPointer> {
+
+@ExperimentalApi
+public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P extends IngestionShardPointer> {
     void initialize(Map<String, Object> params);
 
     T createShardConsumer(String clientId, int shardId);

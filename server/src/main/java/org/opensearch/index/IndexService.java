@@ -197,6 +197,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
+    private final IngestionConsumerFactory ingestionConsumerFactory;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -235,7 +236,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         RemoteStoreSettings remoteStoreSettings,
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
-        Consumer<IndexShard> replicator
+        Consumer<IndexShard> replicator,
+        IngestionConsumerFactory ingestionConsumerFactory
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -300,6 +302,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.recoveryStateFactory = recoveryStateFactory;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
+        this.ingestionConsumerFactory = ingestionConsumerFactory;
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.readerWrapper = wrapperFactory.apply(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
@@ -359,7 +362,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         RecoverySettings recoverySettings,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        IngestionConsumerFactory ingestionConsumerFactory
     ) {
         this(
             indexSettings,
@@ -398,7 +402,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             remoteStoreSettings,
             null,
             null,
-            s -> {}
+            s -> {},
+            ingestionConsumerFactory
         );
     }
 
@@ -694,7 +699,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 recoverySettings,
                 remoteStoreSettings,
                 seedRemote,
-                discoveryNodes
+                discoveryNodes,
+                ingestionConsumerFactory
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

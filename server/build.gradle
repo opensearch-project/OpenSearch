@@ -111,26 +111,6 @@ dependencies {
   api libs.protobuf
   api libs.jakartaannotation
 
-  // kafka
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  implementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  api "org.apache.kafka:kafka-clients:2.8.2"
-
-  // test
-//  api "org.testcontainers:testcontainers:1.20.3"
-  // api "org.testcontainers:kafka-1.20.3"
-  api "com.github.docker-java:docker-java-api:3.3.6"
-  implementation "com.github.docker-java:docker-java-transport-httpclient5:3.3.6"
-  implementation "com.github.docker-java:docker-java-transport:3.3.6"
-  implementation "com.github.docker-java:docker-java-transport-zerodep:3.3.6"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:2.17.2"
-  testImplementation "org.testcontainers:testcontainers:1.19.7"
-  testImplementation 'org.testcontainers:kafka:1.19.7'
-  implementation 'org.rnorth.duct-tape:duct-tape:1.0.8'
-  implementation "org.apache.commons:commons-compress:1.26.1"
-  implementation "commons-io:commons-io:2.16.0"
-
-
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
 
@@ -397,8 +377,6 @@ tasks.named("licenseHeaders").configure {
 
 tasks.test {
     environment "node.roles.test", "[]"
-    systemProperty 'tests.security.manager', 'false'
-    jvmArgs += ["-Djava.security.manager=allow"]
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
         jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
     }

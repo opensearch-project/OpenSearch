@@ -8,6 +8,9 @@
 
 package org.opensearch.index;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
+@ExperimentalApi
 public interface IngestionShardPointer extends Comparable<IngestionShardPointer> {
 
     byte[] serialize();

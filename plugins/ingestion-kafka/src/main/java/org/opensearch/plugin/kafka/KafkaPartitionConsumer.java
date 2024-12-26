@@ -6,13 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.index;
-
+package org.opensearch.plugin.kafka;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
+import org.opensearch.index.IngestionShardConsumer;
+import org.opensearch.index.IngestionShardPointer;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -22,7 +24,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
 
-public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffset, KafkaMessage>  {
+public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffset, KafkaMessage> {
 
     protected final Consumer<String, String> consumer;
 
@@ -34,12 +36,13 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         // TODO: construct props from config
         Properties consumerProp = new Properties();
         consumerProp.put("bootstrap.servers", config.getBootstrapServers());
-        consumerProp.put("key.deserializer",
-            "org.apache.kafka.common.serialization.StringDeserializer");
-        consumerProp.put("value.deserializer",
-            "org.apache.kafka.common.serialization.StringDeserializer");
+        // TODO: why Class org.apache.kafka.common.serialization.StringDeserializer could not be found if set the deserializer as prop?
+        // consumerProp.put("key.deserializer",
+        //     "org.apache.kafka.common.serialization.StringDeserializer");
+        // consumerProp.put("value.deserializer",
+        //     "org.apache.kafka.common.serialization.StringDeserializer");
         this.clientId = clientId;
-        consumer = new KafkaConsumer<>(consumerProp);
+        consumer = new KafkaConsumer<>(consumerProp, new StringDeserializer(), new StringDeserializer());
         String topic = config.getTopic();
         topicPartition = new TopicPartition(topic, partitionId);
         consumer.assign(Collections.singletonList(topicPartition));
