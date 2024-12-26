@@ -33,12 +33,12 @@ import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GR
 /**
  * Main class for the gRPC plugin.
  */
-public final class GrpcModulePlugin extends Plugin implements NetworkPlugin {
+public final class GrpcPlugin extends Plugin implements NetworkPlugin {
 
     /**
-     * Creates a new GrpcModulePlugin instance.
+     * Creates a new GrpcPlugin instance.
      */
-    GrpcModulePlugin() {}
+    public GrpcPlugin() {}
 
     @Override
     public Map<String, Supplier<AuxTransport>> getAuxTransports(
