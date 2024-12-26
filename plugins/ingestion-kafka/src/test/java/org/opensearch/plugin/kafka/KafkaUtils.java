@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.ingest;
+package org.opensearch.plugin.kafka;
 
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.common.KafkaFuture;

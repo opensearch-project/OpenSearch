@@ -6,7 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.index;
+package org.opensearch.plugin.kafka;
+
+import org.opensearch.index.IngestionShardPointer;
 
 import java.nio.ByteBuffer;
 

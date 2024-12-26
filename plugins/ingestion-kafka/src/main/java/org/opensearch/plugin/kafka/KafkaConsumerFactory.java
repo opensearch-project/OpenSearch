@@ -6,13 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.index;
+package org.opensearch.plugin.kafka;
+
+import org.opensearch.index.IngestionConsumerFactory;
 
 import java.util.Map;
 
 public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaPartitionConsumer, KafkaOffset> {
-
-    public static final String TYPE = "kafka";
 
     private KafkaSourceConfig config;
 

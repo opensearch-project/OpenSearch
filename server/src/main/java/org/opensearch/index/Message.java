@@ -8,14 +8,12 @@
 
 package org.opensearch.index;
 
-import org.opensearch.index.engine.Engine;
-import org.opensearch.index.mapper.DocumentMapperForType;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  *  A message ingested from the ingestion source that contains an index operation
  */
+@ExperimentalApi
 public interface Message<T> {
     T getPayload();
-
-    Engine.Operation getOperation(DocumentMapperForType documentMapperForType);
 }

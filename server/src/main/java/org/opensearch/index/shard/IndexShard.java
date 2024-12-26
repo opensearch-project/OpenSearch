@@ -108,13 +108,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.gateway.WriteStateException;
-import org.opensearch.index.IndexModule;
-import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.IndexService;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.ReplicationStats;
-import org.opensearch.index.SegmentReplicationShardStats;
-import org.opensearch.index.VersionType;
+import org.opensearch.index.*;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
@@ -291,6 +285,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;
     final EngineConfigFactory engineConfigFactory;
+    final IngestionConsumerFactory ingestionConsumerFactory;
 
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
@@ -391,7 +386,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RecoverySettings recoverySettings,
         final RemoteStoreSettings remoteStoreSettings,
         boolean seedRemote,
-        final DiscoveryNodes discoveryNodes
+        final DiscoveryNodes discoveryNodes,
+        final IngestionConsumerFactory ingestionConsumerFactory
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -433,6 +429,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         state = IndexShardState.CREATED;
         this.path = path;
         this.circuitBreakerService = circuitBreakerService;
+        this.ingestionConsumerFactory = ingestionConsumerFactory;
         /* create engine config */
         logger.debug("state: [CREATED]");
 
@@ -4058,7 +4055,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
             // timeseries
-            () -> docMapper()
+            () -> docMapper(),
+            ingestionConsumerFactory
         );
     }
 

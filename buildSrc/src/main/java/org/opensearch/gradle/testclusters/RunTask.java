@@ -52,8 +52,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.gradle.internal.classpath.Instrumented.systemProperty;
-
 /**
  * Implementation of the "run" Gradle task used in run.gradle
  */
@@ -188,12 +186,10 @@ public class RunTask extends DefaultTestClustersTask {
                         node,
                         debugPort
                     );
-//                    node.systemProperty("java.security.manager", "");
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
                     debugPort += 1;
                 } else if (debugServer) {
                     logger.lifecycle("Running opensearch in debug mode (server), {} running server with debug port {}", node, debugPort);
-//                    node.systemProperty("java.security.manager", "");
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=" + debugPort);
                     debugPort += 1;
                 }

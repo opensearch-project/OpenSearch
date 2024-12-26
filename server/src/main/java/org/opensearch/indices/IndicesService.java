@@ -101,10 +101,7 @@ import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.opensearch.index.IndexModule;
-import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.IndexService;
-import org.opensearch.index.IndexSettings;
+import org.opensearch.index.*;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
@@ -343,6 +340,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
+    private final Map<String, IngestionConsumerFactory> ingestionConsumerFactories;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
@@ -395,6 +393,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
         RecoverySettings recoverySettings,
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings,
@@ -452,6 +451,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.ingestionConsumerFactories = ingestionConsumerFactories;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -540,6 +540,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
         RecoverySettings recoverySettings,
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings
@@ -569,6 +570,7 @@ public class IndicesService extends AbstractLifecycleComponent
             repositoriesServiceSupplier,
             searchRequestStats,
             remoteStoreStatsTrackerFactory,
+            ingestionConsumerFactories,
             recoverySettings,
             cacheService,
             remoteStoreSettings,
@@ -960,7 +962,8 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories,
             fileCache,
-            compositeIndexSettings
+            compositeIndexSettings,
+            getIngestionConsumerFactory(idxSettings)
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -997,6 +1000,21 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private EngineConfigFactory getEngineConfigFactory(final IndexSettings idxSettings) {
         return new EngineConfigFactory(this.pluginsService, idxSettings);
+    }
+
+    private IngestionConsumerFactory getIngestionConsumerFactory(final IndexSettings idxSettings) {
+        final IndexMetadata indexMetadata = idxSettings.getIndexMetadata();
+        if (indexMetadata == null) {
+            return null;
+        }
+        if (indexMetadata.useIngestionSource()) {
+            String type = indexMetadata.getIngestionSource().getType().toUpperCase();
+            if (!ingestionConsumerFactories.containsKey(type)) {
+                throw new IllegalArgumentException("No factory found for ingestion source type [" + type + "]");
+            }
+            return ingestionConsumerFactories.get(type);
+        }
+        return null;
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
@@ -1058,7 +1076,8 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories,
             fileCache,
-            compositeIndexSettings
+            compositeIndexSettings,
+            getIngestionConsumerFactory(idxSettings)
         );
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
