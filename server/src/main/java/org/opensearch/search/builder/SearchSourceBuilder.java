@@ -1167,7 +1167,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return this;
     }
 
-    public Boolean verbosePipeline() {
+    public boolean verbosePipeline() {
         return verbosePipeline;
     }
 

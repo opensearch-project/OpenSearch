@@ -47,10 +47,12 @@ public class PipelineProcessingContext {
      *
      * @param detail the ProcessorExecutionDetail to add
      */
-    @SuppressWarnings("unchecked")
     public void addProcessorExecutionDetail(ProcessorExecutionDetail detail) {
-        attributes.computeIfAbsent(PROCESSOR_EXECUTION_DETAILS_KEY, k -> new ArrayList<ProcessorExecutionDetail>());
-        List<ProcessorExecutionDetail> details = (List<ProcessorExecutionDetail>) attributes.get(PROCESSOR_EXECUTION_DETAILS_KEY);
+        @SuppressWarnings("unchecked")
+        List<ProcessorExecutionDetail> details = (List<ProcessorExecutionDetail>) attributes.computeIfAbsent(
+            PROCESSOR_EXECUTION_DETAILS_KEY,
+            k -> new ArrayList<>()
+        );
         details.add(detail);
     }
 
