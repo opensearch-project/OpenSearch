@@ -148,15 +148,17 @@ class Pipeline {
             SearchRequestProcessor processor = searchRequestProcessors.get(i);
             currentListener = ActionListener.wrap(r -> {
                 ProcessorExecutionDetail detail = new ProcessorExecutionDetail(processor.getType());
-                detail.addInput(r.source().shallowCopy());
+                if (r.source().verbosePipeline()) {
+                    detail.addInput(r.source().shallowCopy());
+                }
                 long start = relativeTimeSupplier.getAsLong();
                 beforeRequestProcessor(processor);
                 processor.processRequestAsync(r, requestContext, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterRequestProcessor(processor, took);
-                    detail.addOutput(rr.source().shallowCopy());
-                    detail.addTook(took);
                     if (rr.source().verbosePipeline()) {
+                        detail.addOutput(rr.source().shallowCopy());
+                        detail.addTook(took);
                         requestContext.addProcessorExecutionDetail(detail);
                     }
                     nextListener.onResponse(rr);
@@ -210,7 +212,7 @@ class Pipeline {
     ) {
         if (searchResponseProcessors.isEmpty()) {
             // No response transformation necessary
-            if (!requestContext.getProcessorExecutionDetails().isEmpty()) {
+            if (request.source() != null && request.source().verbosePipeline()) {
                 ActionListener<SearchResponse> finalResponseListener = responseListener;
                 return ActionListener.wrap(r -> {
                     List<ProcessorExecutionDetail> details = requestContext.getProcessorExecutionDetails();
@@ -242,15 +244,17 @@ class Pipeline {
 
             responseListener = ActionListener.wrap(r -> {
                 ProcessorExecutionDetail detail = new ProcessorExecutionDetail(processor.getType());
-                detail.addInput(Arrays.asList(r.getHits().deepCopy().getHits()));
+                if (request.source().verbosePipeline()) {
+                    detail.addInput(Arrays.asList(r.getHits().deepCopy().getHits()));
+                }
                 beforeResponseProcessor(processor);
                 final long start = relativeTimeSupplier.getAsLong();
                 processor.processResponseAsync(request, r, requestContext, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterResponseProcessor(processor, took);
-                    detail.addOutput(Arrays.asList(rr.getHits().deepCopy().getHits()));
-                    detail.addTook(took);
                     if (request.source().verbosePipeline()) {
+                        detail.addOutput(Arrays.asList(rr.getHits().deepCopy().getHits()));
+                        detail.addTook(took);
                         requestContext.addProcessorExecutionDetail(detail);
                         rr.getInternalResponse().getProcessorResult().add(detail);
                     }
