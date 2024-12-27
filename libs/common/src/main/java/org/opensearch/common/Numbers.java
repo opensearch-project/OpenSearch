@@ -47,8 +47,8 @@ public final class Numbers {
     public static final long MIN_UNSIGNED_LONG_VALUE_AS_LONG = MIN_UNSIGNED_LONG_VALUE.longValue();
     public static final long MAX_UNSIGNED_LONG_VALUE_AS_LONG = MAX_UNSIGNED_LONG_VALUE.longValue();
 
-    private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
-    private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
+    public static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
+    public static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
 
     private Numbers() {}
 

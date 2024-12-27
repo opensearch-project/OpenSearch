@@ -53,12 +53,12 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
 
     @Override
     protected long missingValueAsComparableLong() {
-        return missingValue.longValue();
+        return unsignedLongToSignedLong(missingValue);
     }
 
     @Override
     protected long sortableBytesToLong(byte[] bytes) {
-        return NumericUtils.sortableBytesToBigInt(bytes, 0, BigIntegerPoint.BYTES).longValue();
+        return unsignedLongToSignedLong(NumericUtils.sortableBytesToBigInt(bytes, 0, BigIntegerPoint.BYTES));
     }
 
     /** Leaf comparator for {@link UnsignedLongComparator} that provides skipping functionality */
@@ -100,12 +100,27 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
 
         @Override
         protected long bottomAsComparableLong() {
-            return bottom.longValue();
+            return unsignedLongToSignedLong(bottom);
         }
 
         @Override
         protected long topAsComparableLong() {
-            return topValue.longValue();
+            return unsignedLongToSignedLong(topValue);
+        }
+    }
+
+    /**
+     * Handles overflow in conversion.
+     * @param value : Unsigned long
+     * @return : Signed long representing value's position in number line as much as possible within bounds.
+     */
+    private static long unsignedLongToSignedLong(BigInteger value) {
+        if (value.compareTo(Numbers.MIN_LONG_VALUE) < 0) {
+            return Long.MIN_VALUE;
+        } else if (value.compareTo(Numbers.MAX_LONG_VALUE) > 0) {
+            return Long.MAX_VALUE;
+        } else {
+            return value.longValue();
         }
     }
 }

@@ -14,7 +14,6 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.comparators.NumericComparator;
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 
