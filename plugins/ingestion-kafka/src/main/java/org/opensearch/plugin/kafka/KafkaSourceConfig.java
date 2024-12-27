@@ -8,23 +8,29 @@
 
 package org.opensearch.plugin.kafka;
 
-import org.opensearch.index.IngestionSourceConfig;
 
 import java.util.Map;
+import java.util.Objects;
 
-public class KafkaSourceConfig implements IngestionSourceConfig {
+/**
+ * Class encapsulating the configuration of a Kafka source.
+ */
+public class KafkaSourceConfig {
     private final String topic;
     private final String groupId;
     private final String bootstrapServers;
 
     public KafkaSourceConfig(Map<String, Object> params) {
-        this.topic = (String) params.get("topic");
-        assert this.topic != null;
+        // TODO: better parsing and validation
+        this.topic = (String) Objects.requireNonNull(params.get("topic"));
         this.groupId = (String) params.get("groupId");
-        this.bootstrapServers = (String) params.get("bootstrapServers");
+        this.bootstrapServers = (String) Objects.requireNonNull(params.get("bootstrapServers"));
         assert this.bootstrapServers != null;
     }
 
+    /**
+     * @return the topic name
+     */
     public String getTopic() {
         return topic;
     }
@@ -33,12 +39,10 @@ public class KafkaSourceConfig implements IngestionSourceConfig {
         return groupId;
     }
 
+    /**
+     * @return the bootstrap servers
+     */
     public String getBootstrapServers() {
         return bootstrapServers;
-    }
-
-    @Override
-    public String getIngestionSourceType() {
-        return "kafka";
     }
 }

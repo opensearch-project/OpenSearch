@@ -30,7 +30,6 @@ public class DefaultStreamPoller implements StreamPoller {
     public static final long MAX_POLL_SIZE = 1000;
     public static final int POLL_TIMEOUT = 1000;
 
-
     private volatile State state = State.NONE;
 
     // goal state

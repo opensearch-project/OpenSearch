@@ -10,10 +10,12 @@ package org.opensearch.indices.ingest;
 
 import org.opensearch.index.IngestionShardPointer;
 
+/**
+ * A poller for reading messages from an ingestion shard. This is used in the ingestion engine.
+ */
 public interface StreamPoller {
 
     String BATCH_START = "batch_start";
-    String BATCH_END = "batch_end";
 
     void start();;
 
@@ -33,6 +35,9 @@ public interface StreamPoller {
 
     String getBatchStartPointer();
 
+    /**
+     * a state to indicate the current state of the poller
+     */
     enum State {
         NONE,
         CLOSED,

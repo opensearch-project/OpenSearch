@@ -10,14 +10,22 @@ package org.opensearch.index;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+/**
+ * An interface for the pointer to a shard in the ingestion engine, and it is used to track the message offset of
+ * ingestion.
+ */
 @ExperimentalApi
 public interface IngestionShardPointer extends Comparable<IngestionShardPointer> {
 
+    /**
+     * Serialize the pointer to a byte array.
+     * @return the serialized byte array
+     */
     byte[] serialize();
 
-    IngestionShardPointer deserialize(byte[] serialized);
-
+    /**
+     * Convert the pointer to a string.
+     * @return the string representation of the pointer
+     */
     String asString();
-
-    long toSequenceNumber();
 }
