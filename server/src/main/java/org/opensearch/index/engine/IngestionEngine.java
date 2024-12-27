@@ -129,7 +129,9 @@ public class IngestionEngine extends Engine {
                 String batchStartStr = commitData.get(StreamPoller.BATCH_START);
                 startPointer = ingestionConsumerFactory.parsePointerFromString(batchStartStr);
                 try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
-                    persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()), startPointer.toSequenceNumber());
+                    // TODO: support other types than long
+                    persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
+                        Long.getLong(startPointer.asString()));
                 } catch (IOException e) {
                     throw new EngineCreationFailureException(config().getShardId(), "failed to restore offset", e);
                 }

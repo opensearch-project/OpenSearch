@@ -23,7 +23,6 @@ public class KafkaMessage implements Message<byte[]> {
         this.payload = payload;
     }
 
-
     /**
      * Get the key of the message
      * @return the key of the message

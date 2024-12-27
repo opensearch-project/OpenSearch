@@ -15,7 +15,6 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IngestionShardConsumer;
@@ -29,6 +28,9 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * Kafka consumer to read messages from a Kafka partition
+ */
 public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffset, KafkaMessage> {
     private static final Logger logger = LogManager.getLogger(KafkaPartitionConsumer.class);
 

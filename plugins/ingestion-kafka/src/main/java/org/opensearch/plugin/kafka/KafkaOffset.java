@@ -29,21 +29,8 @@ public class KafkaOffset implements IngestionShardPointer {
     }
 
     @Override
-    public KafkaOffset deserialize(byte[] serialized) {
-        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-        buffer.put(serialized);
-        buffer.flip();
-        return new KafkaOffset(buffer.getLong());
-    }
-
-    @Override
     public String asString() {
         return String.valueOf(offset);
-    }
-
-    @Override
-    public long toSequenceNumber() {
-        return offset;
     }
 
     public long getOffset() {

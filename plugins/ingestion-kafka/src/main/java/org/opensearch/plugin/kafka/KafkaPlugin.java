@@ -14,6 +14,9 @@ import org.opensearch.plugins.Plugin;
 
 import java.util.Map;
 
+/**
+ * A plugin for ingestion source of Kafka.
+ */
 public class KafkaPlugin extends Plugin implements IngestionConsumerPlugin {
     public static final String TYPE = "KAFKA";
 
