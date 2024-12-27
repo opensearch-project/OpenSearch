@@ -91,21 +91,12 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.MapperTestUtils;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
-import org.opensearch.index.mapper.DocumentMapper;
-import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.Mapping;
-import org.opensearch.index.mapper.ParseContext;
-import org.opensearch.index.mapper.ParsedDocument;
-import org.opensearch.index.mapper.SeqNoFieldMapper;
-import org.opensearch.index.mapper.SourceFieldMapper;
-import org.opensearch.index.mapper.SourceToParse;
-import org.opensearch.index.mapper.Uid;
-import org.opensearch.index.mapper.VersionFieldMapper;
+import org.opensearch.index.mapper.*;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
@@ -987,6 +978,47 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .build();
     }
 
+    /**
+     * Override config with ingestion engine configs
+     */
+    protected EngineConfig config(
+        EngineConfig config,
+        Supplier<DocumentMapperForType> documentMapperForTypeSupplier,
+        IngestionConsumerFactory ingestionConsumerFactory
+    ) {
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(config.getIndexSettings().getSettings())
+                .build()
+        );
+        return new EngineConfig.Builder().shardId(config.getShardId())
+            .threadPool(config.getThreadPool())
+            .indexSettings(indexSettings)
+            .warmer(config.getWarmer())
+            .store(config.getStore())
+            .mergePolicy(config.getMergePolicy())
+            .analyzer(config.getAnalyzer())
+            .similarity(config.getSimilarity())
+            .codecService(new CodecService(null, indexSettings, logger))
+            .eventListener(config.getEventListener())
+            .queryCache(config.getQueryCache())
+            .queryCachingPolicy(config.getQueryCachingPolicy())
+            .translogConfig(config.getTranslogConfig())
+            .flushMergesAfter(config.getFlushMergesAfter())
+            .externalRefreshListener(config.getExternalRefreshListener())
+            .internalRefreshListener(config.getInternalRefreshListener())
+            .indexSort(config.getIndexSort())
+            .circuitBreakerService(config.getCircuitBreakerService())
+            .globalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .retentionLeasesSupplier(config.retentionLeasesSupplier())
+            .primaryTermSupplier(config.getPrimaryTermSupplier())
+            .tombstoneDocSupplier(config.getTombstoneDocSupplier())
+            .documentMapperForTypeSupplier(documentMapperForTypeSupplier)
+            .ingestionConsumerFactory(ingestionConsumerFactory)
+            .build();
+    }
+
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {
         return noOpConfig(indexSettings, store, translogPath, null);
     }
@@ -1541,6 +1573,10 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     public static MapperService createMapperService() throws IOException {
+        return createMapperService("{\"properties\": {}}");
+    }
+
+    public static MapperService createMapperService(String mapping) throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(
                 Settings.builder()

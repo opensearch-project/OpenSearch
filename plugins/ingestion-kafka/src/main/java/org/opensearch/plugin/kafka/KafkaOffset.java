@@ -8,6 +8,9 @@
 
 package org.opensearch.plugin.kafka;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.search.Query;
 import org.opensearch.index.IngestionShardPointer;
 
 import java.nio.ByteBuffer;
@@ -31,6 +34,16 @@ public class KafkaOffset implements IngestionShardPointer {
     @Override
     public String asString() {
         return String.valueOf(offset);
+    }
+
+    @Override
+    public Field asPointField(String fieldName) {
+        return new LongPoint(fieldName, offset);
+    }
+
+    @Override
+    public Query newRangeQueryGreaterThan(String fieldName) {
+        return LongPoint.newRangeQuery(fieldName, offset, Long.MAX_VALUE);
     }
 
     public long getOffset() {

@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.ingest;
 
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -28,6 +27,7 @@ import java.io.IOException;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class DocumentProcessor {
+
     private final IngestionEngine engine;
 
     public DocumentProcessor(IngestionEngine engine) {
@@ -71,8 +71,8 @@ public class DocumentProcessor {
         ParsedDocument doc = engine.getDocumentMapperForType().getDocumentMapper().parse(sourceToParse);
         for(ParseContext.Document document: doc.docs()){
             // set the offset as the offset field
-            // TODO: support other types of pointers than long
-            document.add(new NumericDocValuesField("_offset", Long.valueOf(pointer.asString())));
+            // TODO: make field name configurable?
+            document.add(pointer.asPointField(IngestionShardPointer.OFFSET_FIELD));
         }
         // todo: support other types of operations than index
         Engine.Index index = new Engine.Index(

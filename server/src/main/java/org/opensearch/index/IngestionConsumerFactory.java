@@ -22,7 +22,7 @@ import java.util.Map;
 public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P extends IngestionShardPointer> {
     /**
      * Initialize the factory with the configuration parameters. This method is called once when the factory is created,
-     * and the parameters are parsed from the {@@link org.opensearch.cluster.metadata.IngestionSource} in
+     * and the parameters are parsed from the {@link org.opensearch.cluster.metadata.IngestionSource} in
      * {@link  org.opensearch.cluster.metadata.IndexMetadata}.
      * @param params the configuration parameters to initialize the factory
      */
