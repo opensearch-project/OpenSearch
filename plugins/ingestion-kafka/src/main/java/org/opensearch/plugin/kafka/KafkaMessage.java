@@ -8,16 +8,17 @@
 
 package org.opensearch.plugin.kafka;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.index.Message;
 
 /**
  * Kafka message
  */
-public class KafkaMessage implements Message<String> {
-    private final String key;
-    private final String payload;
+public class KafkaMessage implements Message<byte[]> {
+    private final byte[] key;
+    private final byte[] payload;
 
-    public KafkaMessage(String key, String payload) {
+    public KafkaMessage(@Nullable byte[] key, byte[] payload) {
         this.key = key;
         this.payload = payload;
     }
@@ -27,12 +28,12 @@ public class KafkaMessage implements Message<String> {
      * Get the key of the message
      * @return the key of the message
      */
-    public String getKey() {
+    public byte[] getKey() {
         return key;
     }
 
     @Override
-    public String getPayload() {
+    public byte[] getPayload() {
         return payload;
     }
 }

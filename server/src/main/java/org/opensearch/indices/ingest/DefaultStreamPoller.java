@@ -149,7 +149,9 @@ public class DefaultStreamPoller implements StreamPoller {
                     }
                     processor.process(result.getMessage(), result.getPointer());
                     currentPointer = result.getPointer();
-                    logger.info("Processed message {} with pointer {}", result.getMessage().getPayload(), currentPointer.asString());
+                    // TODO: change to debug level
+                    logger.info("Processed message {} with pointer {}",
+                        String.valueOf(result.getMessage().getPayload()), currentPointer.asString());
                 }
                 // update the batch start pointer to the next batch
                 batchStartPointer = consumer.nextPointer();

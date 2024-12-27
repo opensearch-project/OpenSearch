@@ -37,7 +37,7 @@ public class DocumentProcessor {
 
     public void process(Message message, IngestionShardPointer pointer) {
         // todo: support other types of payload
-        String payload = (String) message.getPayload();
+        byte[] payload = (byte[]) message.getPayload();
 
         Engine.Operation operation = getOperation(payload, pointer);
         try {
@@ -57,7 +57,7 @@ public class DocumentProcessor {
         }
     }
 
-    private Engine.Operation getOperation(String payload, IngestionShardPointer pointer){
+    private Engine.Operation getOperation(byte[] payload, IngestionShardPointer pointer){
         // TODO: get id from the message
         String id = "null";
         BytesReference source = new BytesArray(payload);
