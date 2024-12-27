@@ -9,7 +9,6 @@
 * GitHub history for details.
 */
 
-
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
@@ -24,7 +23,6 @@ versions << [
 dependencies {
   // kafka
   api "org.slf4j:slf4j-api:${versions.slf4j}"
-  implementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
   api "org.apache.kafka:kafka-clients:${versions.kafka}"
 
   // test
@@ -38,4 +36,8 @@ dependencies {
   implementation 'org.rnorth.duct-tape:duct-tape:1.0.8'
   implementation "org.apache.commons:commons-compress:1.26.1"
   implementation "commons-io:commons-io:2.16.0"
+}
+
+internalClusterTest{
+  environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
 }

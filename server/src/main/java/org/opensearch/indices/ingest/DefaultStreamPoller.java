@@ -191,12 +191,13 @@ public class DefaultStreamPoller implements StreamPoller {
         closed = true;
         while (state != State.CLOSED) {
             try {
-                Thread.sleep(1000);
+                Thread.sleep(100);
             } catch (Throwable e) {
                 logger.error("Error in closing the poller of shard {}", consumer.getShardId(), e);
             }
         }
         consumerThread.shutdown();
+        logger.info("closed the poller of shard {}", consumer.getShardId());
     }
 
     @Override

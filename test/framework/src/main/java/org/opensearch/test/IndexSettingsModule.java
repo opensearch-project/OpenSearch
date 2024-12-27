@@ -39,7 +39,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.KafkaSourceConfig;
 
 import java.util.Arrays;
 import java.util.HashSet;
