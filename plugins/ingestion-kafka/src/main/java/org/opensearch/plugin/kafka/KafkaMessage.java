@@ -10,20 +10,23 @@ package org.opensearch.plugin.kafka;
 
 import org.opensearch.index.Message;
 
+/**
+ * Kafka message
+ */
 public class KafkaMessage implements Message<String> {
-    // TODO: support kafka header
     private final String key;
     private final String payload;
-    // FIXME: how to make this generic outside of kafka message?
-    private final KafkaOffset offset;
 
-    public KafkaMessage(String key, String payload, KafkaOffset offset) {
+    public KafkaMessage(String key, String payload) {
         this.key = key;
         this.payload = payload;
-        this.offset = offset;
     }
 
 
+    /**
+     * Get the key of the message
+     * @return the key of the message
+     */
     public String getKey() {
         return key;
     }

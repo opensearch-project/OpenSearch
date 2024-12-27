@@ -17,7 +17,10 @@ opensearchplugin {
 }
 
 versions << [
-  'kafka': '2.8.2'
+  'kafka': '2.8.2',
+  'docker': '3.3.6',
+  'testcontainers': '1.19.7',
+  'ducttape': '1.0.8',
 ]
 
 dependencies {
@@ -26,16 +29,15 @@ dependencies {
   api "org.apache.kafka:kafka-clients:${versions.kafka}"
 
   // test
-  api "com.github.docker-java:docker-java-api:3.3.6"
-  implementation "com.github.docker-java:docker-java-transport-httpclient5:3.3.6"
-  implementation "com.github.docker-java:docker-java-transport:3.3.6"
-  implementation "com.github.docker-java:docker-java-transport-zerodep:3.3.6"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:2.17.2"
-  testImplementation "org.testcontainers:testcontainers:1.19.7"
-  testImplementation 'org.testcontainers:kafka:1.19.7'
-  implementation 'org.rnorth.duct-tape:duct-tape:1.0.8'
-  implementation "org.apache.commons:commons-compress:1.26.1"
-  implementation "commons-io:commons-io:2.16.0"
+  api "com.github.docker-java:docker-java-api:${versions.docker}"
+  testImplementation "com.github.docker-java:docker-java-transport:${versions.docker}"
+  testImplementation "com.github.docker-java:docker-java-transport-zerodep:${versions.docker}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testImplementation "org.testcontainers:testcontainers:${versions.testcontainers}"
+  testImplementation "org.testcontainers:kafka:${versions.testcontainers}"
+  testImplementation "org.rnorth.duct-tape:duct-tape:${versions.ducttape}"
+  testImplementation "org.apache.commons:commons-compress:${versions.commonscompress}"
+  testImplementation "commons-io:commons-io:${versions.commonsio}"
 }
 
 internalClusterTest{

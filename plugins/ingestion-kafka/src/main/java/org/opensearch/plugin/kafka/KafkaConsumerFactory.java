@@ -12,6 +12,9 @@ import org.opensearch.index.IngestionConsumerFactory;
 
 import java.util.Map;
 
+/**
+ * Factory for creating Kafka consumers
+ */
 public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaPartitionConsumer, KafkaOffset> {
 
     private KafkaSourceConfig config;
