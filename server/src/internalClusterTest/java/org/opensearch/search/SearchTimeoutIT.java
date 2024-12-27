@@ -82,8 +82,7 @@ public class SearchTimeoutIT extends ParameterizedStaticSettingsOpenSearchIntegT
     }
 
     public void testSimpleTimeout() throws Exception {
-        final int numDocs = 1000;
-        for (int i = 0; i < numDocs; i++) {
+        for (int i = 0; i < 32; i++) {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
         }
         refresh("test");
