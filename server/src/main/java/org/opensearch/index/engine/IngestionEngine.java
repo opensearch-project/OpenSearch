@@ -131,9 +131,9 @@ public class IngestionEngine extends Engine {
                 String batchStartStr = commitData.get(StreamPoller.BATCH_START);
                 startPointer = ingestionConsumerFactory.parsePointerFromString(batchStartStr);
                 try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
-                    // TODO: support other types than long
                     persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
                         startPointer);
+                    logger.info("recovered persisted pointers: {}", persistedPointers);
                 } catch (IOException e) {
                     throw new EngineCreationFailureException(config().getShardId(), "failed to restore offset", e);
                 }
@@ -189,32 +189,6 @@ public class IngestionEngine extends Engine {
             result.add(value);
         }
 
-//        final Query query = new BooleanQuery.Builder().add(
-//            LongPoint.newRangeQuery("_offset", batchStart, Long.MAX_VALUE),
-//            BooleanClause.Occur.MUST
-//        )// exclude non-root nested documents
-//            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
-//            .build();
-//        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-//        Set<IngestionShardPointer> result = new HashSet<>();
-//        for (LeafReaderContext leaf : directoryReader.leaves()) {
-//            final Scorer scorer = weight.scorer(leaf);
-//            if (scorer == null) {
-//                continue;
-//            }
-//            NumericDocValues offsetDV =  Objects.requireNonNull(leaf.reader().getNumericDocValues("_offset"), "_offset is missing");
-//            final DocIdSetIterator iterator = scorer.iterator();
-//            int docId;
-//            while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-//                assert offsetDV.docID() < docId;
-//                if (offsetDV.advanceExact(docId) == false) {
-//                    throw new IllegalStateException("DocValues for field _offset is not found");
-//                }
-//                long offset =  offsetDV.longValue();
-//                // TODO: support other types than long
-//                result.add(ingestionConsumerFactory.parsePointerFromString(Long.toString(offset)));
-//            }
-//        }
         refresh("restore_offset", SearcherScope.INTERNAL, true);
         return result;
     }
@@ -656,7 +630,7 @@ public class IngestionEngine extends Engine {
                 /*
                  * The user data captured the min and max range of the stream poller
                  */
-                final Map<String, String> commitData = new HashMap<>(3);
+                final Map<String, String> commitData = new HashMap<>(2);
 
                 commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer());
                 final String currentForceMergeUUID = forceMergeUUID;
