@@ -103,7 +103,7 @@ public class HalfFloatComparator extends NumericComparator<Float> {
 
         @Override
         protected long bottomAsComparableLong() {
-            return NumericUtils.floatToSortableInt(bottom);
+            return HalfFloatPoint.halfFloatToSortableShort(bottom);
         }
 
         @Override

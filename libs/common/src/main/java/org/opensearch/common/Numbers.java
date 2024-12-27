@@ -41,9 +41,6 @@ import java.math.BigInteger;
  * @opensearch.internal
  */
 public final class Numbers {
-
-    public static final BigInteger MAX_SIGNED_LONG = BigInteger.valueOf(Long.MAX_VALUE);
-
     public static final BigInteger MAX_UNSIGNED_LONG_VALUE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
     public static final BigInteger MIN_UNSIGNED_LONG_VALUE = BigInteger.ZERO;
 

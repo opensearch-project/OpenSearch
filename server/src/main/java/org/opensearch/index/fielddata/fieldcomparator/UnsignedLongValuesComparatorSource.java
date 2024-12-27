@@ -78,7 +78,7 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
     public Object missingObject(Object missingValue, boolean reversed) {
         if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
             final boolean min = sortMissingFirst(missingValue) ^ reversed;
-            return min ? Numbers.MIN_UNSIGNED_LONG_VALUE : Numbers.MAX_SIGNED_LONG;
+            return min ? Numbers.MIN_UNSIGNED_LONG_VALUE : Numbers.MAX_UNSIGNED_LONG_VALUE;
         } else {
             if (missingValue instanceof Number) {
                 return Numbers.toUnsignedLongExact((Number) missingValue);
