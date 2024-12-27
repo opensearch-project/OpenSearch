@@ -14,7 +14,6 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.comparators.NumericComparator;
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 
@@ -103,12 +102,12 @@ public class HalfFloatComparator extends NumericComparator<Float> {
 
         @Override
         protected long bottomAsComparableLong() {
-            return NumericUtils.floatToSortableInt(bottom);
+            return HalfFloatPoint.halfFloatToSortableShort(bottom);
         }
 
         @Override
         protected long topAsComparableLong() {
-            return NumericUtils.floatToSortableInt(topValue);
+            return HalfFloatPoint.halfFloatToSortableShort(topValue);
         }
     }
 
