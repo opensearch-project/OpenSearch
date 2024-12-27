@@ -53,12 +53,12 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
 
     @Override
     protected long missingValueAsComparableLong() {
-        return unSignedToSignedLong(missingValue);
+        return missingValue.longValue();
     }
 
     @Override
     protected long sortableBytesToLong(byte[] bytes) {
-        return unSignedToSignedLong(NumericUtils.sortableBytesToBigInt(bytes, 0, BigIntegerPoint.BYTES));
+        return NumericUtils.sortableBytesToBigInt(bytes, 0, BigIntegerPoint.BYTES).longValue();
     }
 
     /** Leaf comparator for {@link UnsignedLongComparator} that provides skipping functionality */
@@ -100,19 +100,12 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
 
         @Override
         protected long bottomAsComparableLong() {
-            return unSignedToSignedLong(bottom);
+            return bottom.longValue();
         }
 
         @Override
         protected long topAsComparableLong() {
-            return unSignedToSignedLong(topValue);
+            return topValue.longValue();
         }
-    }
-
-    /**
-     * Converts unsigned long to signed the same as java.lang.{@link Long#compareUnsigned(long, long)}
-     */
-    private static long unSignedToSignedLong(BigInteger value) {
-        return value.longValue() + Long.MIN_VALUE;
     }
 }
