@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.ingest;
 
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.Term;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -73,6 +74,8 @@ public class DocumentProcessor {
             // set the offset as the offset field
             // TODO: make field name configurable?
             document.add(pointer.asPointField(IngestionShardPointer.OFFSET_FIELD));
+            // store the offset as string in stored field
+            document.add(new StoredField(IngestionShardPointer.OFFSET_FIELD,pointer.asString()));
         }
         // todo: support other types of operations than index
         Engine.Index index = new Engine.Index(

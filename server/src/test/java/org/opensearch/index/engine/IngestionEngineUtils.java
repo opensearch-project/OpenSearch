@@ -64,7 +64,7 @@ public class IngestionEngineUtils {
             lastFetchedOffset = pointer.offset-1;
             int numToFetch = Math.min(messages.size() - (int) pointer.offset, (int) maxMessages);
             List<ReadResult<FakeIngestionShardPointer, FakeIngestionMessage>> result = new ArrayList<>();
-            for (long i = pointer.offset; i < numToFetch; i++) {
+            for (long i = pointer.offset; i < pointer.offset + numToFetch; i++) {
                 result.add(new ReadResult<>(new FakeIngestionShardPointer(i), new FakeIngestionMessage(messages.get((int) i))));
                 lastFetchedOffset = i;
             }
@@ -108,6 +108,11 @@ public class IngestionEngineUtils {
         public byte[] getPayload() {
             return payload;
         }
+
+        @Override
+        public String toString() {
+            return new String(payload);
+        }
     }
 
     static class FakeIngestionShardPointer implements IngestionShardPointer {
@@ -127,6 +132,11 @@ public class IngestionEngineUtils {
         @Override
         public String asString() {
             return String.valueOf(offset);
+        }
+
+        @Override
+        public String toString() {
+            return asString();
         }
 
         @Override
