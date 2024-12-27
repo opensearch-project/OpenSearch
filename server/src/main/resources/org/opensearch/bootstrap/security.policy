@@ -196,5 +196,28 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
 
   // TODO: needed because Kafka Consumer needs the access to MBeans, move this to the plugin policy file
+  // TODO: need to disable security policy in kafka plugin test with -Dtests.security.manager=off
+    permission javax.management.MBeanServerPermission "createMBeanServer";
+    permission javax.management.MBeanTrustPermission "register";
+    permission javax.management.MBeanPermission "*", "*";
+    permission java.lang.management.ManagementPermission "monitor";
+    permission java.lang.management.ManagementPermission "control";
+
+    // Allow host/ip name service lookups
+    permission java.net.SocketPermission "*", "connect";
+    permission java.net.SocketPermission "*", "resolve";
+    permission java.lang.RuntimePermission "getClassLoader";
+    permission java.lang.RuntimePermission "getenv.*";
+
+    permission java.io.FilePermission "/-", "read";
+    permission java.io.FilePermission "${user.home}/.docker-java.properties", "read";
+    permission java.io.FilePermission "${user.home}/.docker/-", "read";
+    permission java.io.FilePermission "docker-machine", "read";
+    permission java.util.PropertyPermission "*", "read,write";
+    // Allow execution of Docker-related commands
+    permission java.lang.RuntimePermission "exec.*";
+
+    // Allow reading and writing to Docker configuration files
+    permission java.io.FilePermission "/var/run/docker.sock", "read,write";
 
 };

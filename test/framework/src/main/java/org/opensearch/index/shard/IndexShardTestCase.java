@@ -85,6 +85,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.MapperTestUtils;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
@@ -688,6 +689,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
                 return new InternalTranslogFactory();
             };
+            IngestionConsumerFactory ingestionConsumerFactory = null;
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -717,7 +719,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 DefaultRecoverySettings.INSTANCE,
                 DefaultRemoteStoreSettings.INSTANCE,
                 false,
-                discoveryNodes
+                discoveryNodes,
+                ingestionConsumerFactory
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

@@ -7,12 +7,16 @@
  */
 
 package org.opensearch.plugin.kafka;
-import org.apache.kafka.common.serialization.StringDeserializer;
+
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
@@ -25,6 +29,7 @@ import java.util.Properties;
 import java.util.concurrent.TimeoutException;
 
 public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffset, KafkaMessage> {
+    private static final Logger logger = LogManager.getLogger(KafkaPartitionConsumer.class);
 
     protected final Consumer<String, String> consumer;
 
@@ -44,8 +49,16 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         this.clientId = clientId;
         consumer = new KafkaConsumer<>(consumerProp, new StringDeserializer(), new StringDeserializer());
         String topic = config.getTopic();
+        List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
+        if (partitionInfos == null) {
+            throw new IllegalArgumentException("Topic " + topic + " does not exist");
+        }
+        if(partitionId>=partitionInfos.size()) {
+            throw new IllegalArgumentException("Partition " + partitionId + " does not exist in topic " + topic);
+        }
         topicPartition = new TopicPartition(topic, partitionId);
         consumer.assign(Collections.singletonList(topicPartition));
+        logger.info("Kafka consumer created for topic {} partition {}", topic, partitionId);
     }
 
     @Override
@@ -74,6 +87,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
 
     protected synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {
         if (lastFetchedOffset < 0 || lastFetchedOffset !=startOffset - 1) {
+            logger.info("Seeking to offset {}", startOffset);
             consumer.seek(topicPartition, startOffset);
             // update the last fetched offset so that we don't need to seek again if no more messages to fetch
             lastFetchedOffset = startOffset - 1;

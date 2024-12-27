@@ -115,8 +115,10 @@ public class IngestionEngine extends Engine {
             ingestionConsumerFactory = Objects.requireNonNull(engineConfig.getIngestionConsumerFactory());
             // initialize the ingestion consumer factory
             ingestionConsumerFactory.initialize(ingestionSource.params());
-            IngestionShardConsumer ingestionShardConsumer = ingestionConsumerFactory.createShardConsumer("clientId", engineConfig.getShardId().getId());
-            logger.debug("created ingestion consumer for shard [{}]", engineConfig.getShardId());
+            String clientId = engineConfig.getIndexSettings().getNodeName() + "-" +
+                engineConfig.getIndexSettings().getIndex().getName() + "-" + engineConfig.getShardId().getId();
+            IngestionShardConsumer ingestionShardConsumer = ingestionConsumerFactory.createShardConsumer(clientId, engineConfig.getShardId().getId());
+            logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
 
             Map<String, String> commitData = commitDataAsMap();
             StreamPoller.ResetState resetState = StreamPoller.ResetState.valueOf(ingestionSource.getPointerInitReset().toUpperCase());
@@ -971,7 +973,7 @@ public class IngestionEngine extends Engine {
 
     @Override
     public void close() throws IOException {
-        if(streamPoller!=null) {
+        if (streamPoller != null) {
             streamPoller.close();
         }
         super.close();

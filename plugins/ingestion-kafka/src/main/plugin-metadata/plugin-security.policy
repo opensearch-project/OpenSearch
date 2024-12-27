@@ -18,5 +18,7 @@ grant {
   permission java.net.SocketPermission "*", "connect";
   permission java.net.SocketPermission "*", "resolve";
   permission java.lang.RuntimePermission "getClassLoader";
-};
 
+  // allow reading .testcontainers.properties for test containers
+  permission java.io.FilePermission "${user.home}/.testcontainers.properties", "read";
+};
