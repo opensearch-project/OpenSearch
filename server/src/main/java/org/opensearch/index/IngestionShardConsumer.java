@@ -79,13 +79,11 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
     IngestionShardPointer earliestPointer();
 
     /**
-     * @return the latest pointer in the shard
+     * @return the latest pointer in the shard. The pointer points to the next offset of the last message in the stream.
      */
     IngestionShardPointer latestPointer();
 
     /**
-     * @return the shard id
-     *
      * @return the shard id
      */
     int getShardId();

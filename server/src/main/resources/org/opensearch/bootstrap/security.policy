@@ -220,4 +220,7 @@ grant {
     // Allow reading and writing to Docker configuration files
     permission java.io.FilePermission "/var/run/docker.sock", "read,write";
 
+    // TODO: needed by awaitility check of untilAsserted
+    permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
+
 };

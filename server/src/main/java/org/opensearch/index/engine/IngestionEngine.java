@@ -9,9 +9,9 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -25,14 +25,16 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.LoggerInfoStream;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.*;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionShardConsumer;
+import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
@@ -131,7 +133,7 @@ public class IngestionEngine extends Engine {
                 try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
                     // TODO: support other types than long
                     persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
-                        Long.getLong(startPointer.asString()));
+                        startPointer);
                 } catch (IOException e) {
                     throw new EngineCreationFailureException(config().getShardId(), "failed to restore offset", e);
                 }
@@ -172,37 +174,47 @@ public class IngestionEngine extends Engine {
         return documentMapperForType;
     }
 
-    // todo: support other types than long
-    private Set<IngestionShardPointer> fetchPersistedOffsets(DirectoryReader directoryReader, long batchStart) throws IOException {
+    protected Set<IngestionShardPointer> fetchPersistedOffsets(DirectoryReader directoryReader, IngestionShardPointer batchStart) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
-        final Query query = new BooleanQuery.Builder().add(
-            LongPoint.newRangeQuery("_offset", batchStart, Long.MAX_VALUE),
-            BooleanClause.Occur.MUST
-        )// exclude non-root nested documents
-            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
-            .build();
-        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        var query = batchStart.newRangeQueryGreaterThan(IngestionShardPointer.OFFSET_FIELD);
+
+        // Execute the search
+        var topDocs = searcher.search(query, Integer.MAX_VALUE);
         Set<IngestionShardPointer> result = new HashSet<>();
-        for (LeafReaderContext leaf : directoryReader.leaves()) {
-            final Scorer scorer = weight.scorer(leaf);
-            if (scorer == null) {
-                continue;
-            }
-            NumericDocValues offsetDV =  Objects.requireNonNull(leaf.reader().getNumericDocValues("_offset"), "_offset is missing");
-            final DocIdSetIterator iterator = scorer.iterator();
-            int docId;
-            while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                assert offsetDV.docID() < docId;
-                if (offsetDV.advanceExact(docId) == false) {
-                    throw new IllegalStateException("DocValues for field _offset is not found");
-                }
-                long offset =  offsetDV.longValue();
-                // TODO: support other types than long
-                result.add(ingestionConsumerFactory.parsePointerFromString(Long.toString(offset)));
-            }
+        for(var scoreDoc : topDocs.scoreDocs) {
+            var doc = searcher.doc(scoreDoc.doc);
+            String valueStr = doc.get(IngestionShardPointer.OFFSET_FIELD);
+            IngestionShardPointer value = ingestionConsumerFactory.parsePointerFromString(valueStr);
+            result.add(value);
         }
-        // is this needed?
+
+//        final Query query = new BooleanQuery.Builder().add(
+//            LongPoint.newRangeQuery("_offset", batchStart, Long.MAX_VALUE),
+//            BooleanClause.Occur.MUST
+//        )// exclude non-root nested documents
+//            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
+//            .build();
+//        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+//        Set<IngestionShardPointer> result = new HashSet<>();
+//        for (LeafReaderContext leaf : directoryReader.leaves()) {
+//            final Scorer scorer = weight.scorer(leaf);
+//            if (scorer == null) {
+//                continue;
+//            }
+//            NumericDocValues offsetDV =  Objects.requireNonNull(leaf.reader().getNumericDocValues("_offset"), "_offset is missing");
+//            final DocIdSetIterator iterator = scorer.iterator();
+//            int docId;
+//            while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+//                assert offsetDV.docID() < docId;
+//                if (offsetDV.advanceExact(docId) == false) {
+//                    throw new IllegalStateException("DocValues for field _offset is not found");
+//                }
+//                long offset =  offsetDV.longValue();
+//                // TODO: support other types than long
+//                result.add(ingestionConsumerFactory.parsePointerFromString(Long.toString(offset)));
+//            }
+//        }
         refresh("restore_offset", SearcherScope.INTERNAL, true);
         return result;
     }

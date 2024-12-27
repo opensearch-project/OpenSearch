@@ -8,6 +8,8 @@
 
 package org.opensearch.index;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
@@ -16,6 +18,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
  */
 @ExperimentalApi
 public interface IngestionShardPointer extends Comparable<IngestionShardPointer> {
+    String OFFSET_FIELD = "_offset";
 
     /**
      * Serialize the pointer to a byte array.
@@ -28,4 +31,15 @@ public interface IngestionShardPointer extends Comparable<IngestionShardPointer>
      * @return the string representation of the pointer
      */
     String asString();
+
+    Field asPointField(String fieldName);
+
+    /**
+     * Create a new range query for values greater than the pointer. This is used in recovering from the ingestion
+     * checkpoints.
+     *
+     * @param fieldName the field name to create the range query
+     * @return query for values greater than the pointer
+     */
+    Query newRangeQueryGreaterThan(String fieldName);
 }
