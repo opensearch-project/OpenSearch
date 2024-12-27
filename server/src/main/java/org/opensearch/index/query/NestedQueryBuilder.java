@@ -438,7 +438,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
      *
      * @opensearch.internal
      */
-    static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
+    public static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
 
         private final ObjectMapper parentObjectMapper;
         private final ObjectMapper childObjectMapper;
@@ -506,6 +506,10 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
                 return new TopDocsAndMaxScore(td, maxScore);
             }
+        }
+
+        public ObjectMapper getChildObjectMapper() {
+            return childObjectMapper;
         }
     }
 
