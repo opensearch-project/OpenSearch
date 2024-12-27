@@ -53,7 +53,9 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
 
     @Override
     protected long missingValueAsComparableLong() {
-        return missingValue.longValue();
+        // Apache Lucene will not use unsigned comparison for long values, so we have to convert to double
+        // first (with possible lost of precision) and than to sortable long.
+        return NumericUtils.doubleToSortableLong(Numbers.unsignedLongToDouble(missingValue.longValue()));
     }
 
     @Override
@@ -100,12 +102,16 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
 
         @Override
         protected long bottomAsComparableLong() {
-            return bottom.longValue();
+            // Apache Lucene will not use unsigned comparison for long values, so we have to convert to double
+            // first (with possible lost of precision) and than to sortable long.
+            return NumericUtils.doubleToSortableLong(Numbers.unsignedLongToDouble(missingValue.longValue()));
         }
 
         @Override
         protected long topAsComparableLong() {
-            return topValue.longValue();
+            // Apache Lucene will not use unsigned comparison for long values, so we have to convert to double
+            // first (with possible lost of precision) and than to sortable long.
+            return NumericUtils.doubleToSortableLong(Numbers.unsignedLongToDouble(missingValue.longValue()));
         }
     }
 }
