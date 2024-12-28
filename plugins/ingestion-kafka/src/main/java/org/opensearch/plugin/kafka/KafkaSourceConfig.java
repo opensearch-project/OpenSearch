@@ -17,13 +17,11 @@ import java.util.Objects;
  */
 public class KafkaSourceConfig {
     private final String topic;
-    private final String groupId;
     private final String bootstrapServers;
 
     public KafkaSourceConfig(Map<String, Object> params) {
         // TODO: better parsing and validation
         this.topic = (String) Objects.requireNonNull(params.get("topic"));
-        this.groupId = (String) params.get("groupId");
         this.bootstrapServers = (String) Objects.requireNonNull(params.get("bootstrapServers"));
         assert this.bootstrapServers != null;
     }
@@ -33,10 +31,6 @@ public class KafkaSourceConfig {
      */
     public String getTopic() {
         return topic;
-    }
-
-    public String getGroupId() {
-        return groupId;
     }
 
     /**

@@ -41,15 +41,12 @@ public class DefaultStreamPoller implements StreamPoller {
 
     private ExecutorService consumerThread;
 
-    private DocumentProcessor processor;
+    private MessageProcessor processor;
 
     // start of the batch, inclusive
     private IngestionShardPointer batchStartPointer;
 
     private ResetState resetState;
-
-    // todo: find the default value
-    private IngestionShardPointer currentPointer;
 
     private Set<IngestionShardPointer> persistedPointers;
 
@@ -60,7 +57,7 @@ public class DefaultStreamPoller implements StreamPoller {
     public DefaultStreamPoller(IngestionShardPointer startPointer,
                                Set<IngestionShardPointer> persistedPointers,
                                IngestionShardConsumer consumer,
-                               DocumentProcessor processor,
+                               MessageProcessor processor,
                                ResetState resetState) {
         this.consumer = consumer;
         this.processor = processor;
@@ -117,7 +114,8 @@ public class DefaultStreamPoller implements StreamPoller {
                 if (paused) {
                     state = State.PAUSED;
                     try {
-                        Thread.sleep(1000);
+                        // TODO: make sleep time configurable
+                        Thread.sleep(100);
                     } catch (Throwable e) {
                         logger.error(
                             "Error in pausing the poller of shard {}",
@@ -147,10 +145,9 @@ public class DefaultStreamPoller implements StreamPoller {
                         continue;
                     }
                     processor.process(result.getMessage(), result.getPointer());
-                    currentPointer = result.getPointer();
                     // TODO: change to debug level
                     logger.info("Processed message {} with pointer {}",
-                        String.valueOf(result.getMessage().getPayload()), currentPointer.asString());
+                        String.valueOf(result.getMessage().getPayload()), result.getPointer().asString());
                 }
                 // update the batch start pointer to the next batch
                 batchStartPointer = consumer.nextPointer();
@@ -199,16 +196,6 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         consumerThread.shutdown();
         logger.info("closed the poller of shard {}", consumer.getShardId());
-    }
-
-    @Override
-    public IngestionShardPointer getCurrentPointer() {
-        return currentPointer;
-    }
-
-    @Override
-    public void resetPointer(IngestionShardPointer batchStartPointer) {
-        this.batchStartPointer = batchStartPointer;
     }
 
     @Override
