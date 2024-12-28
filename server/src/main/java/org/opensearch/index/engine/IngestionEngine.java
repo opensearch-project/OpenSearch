@@ -9,7 +9,14 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -42,7 +49,11 @@ import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.OnGoingMerge;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
-import org.opensearch.index.translog.*;
+import org.opensearch.index.translog.NoOpTranslogManager;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogCorruptedException;
+import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.ingest.DefaultStreamPoller;
 import org.opensearch.indices.ingest.MessageProcessor;
 import org.opensearch.indices.ingest.StreamPoller;
@@ -51,7 +62,14 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -61,6 +79,9 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
 
+/**
+ * IngestionEngine is an engine that ingests data from a stream source.
+ */
 public class IngestionEngine extends Engine {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
@@ -96,30 +117,41 @@ public class IngestionEngine extends Engine {
             indexWriter = createWriter();
             externalReaderManager = createReaderManager(new InternalEngine.RefreshWarmerListener(logger, isClosed, engineConfig));
             internalReaderManager = externalReaderManager.internalReaderManager;
-            translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, new TranslogStats(0, 0, 0, 0, 0), new Translog.Snapshot() {
-                @Override
-                public void close() {
-                }
+            translogManager = new NoOpTranslogManager(
+                shardId,
+                readLock,
+                this::ensureOpen,
+                new TranslogStats(0, 0, 0, 0, 0),
+                new Translog.Snapshot() {
+                    @Override
+                    public void close() {}
 
-                @Override
-                public int totalOperations() {
-                    return 0;
-                }
+                    @Override
+                    public int totalOperations() {
+                        return 0;
+                    }
 
-                @Override
-                public Translog.Operation next() {
-                    return null;
+                    @Override
+                    public Translog.Operation next() {
+                        return null;
+                    }
                 }
-            });
+            );
             documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
 
             IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
             ingestionConsumerFactory = Objects.requireNonNull(engineConfig.getIngestionConsumerFactory());
             // initialize the ingestion consumer factory
             ingestionConsumerFactory.initialize(ingestionSource.params());
-            String clientId = engineConfig.getIndexSettings().getNodeName() + "-" +
-                engineConfig.getIndexSettings().getIndex().getName() + "-" + engineConfig.getShardId().getId();
-            IngestionShardConsumer ingestionShardConsumer = ingestionConsumerFactory.createShardConsumer(clientId, engineConfig.getShardId().getId());
+            String clientId = engineConfig.getIndexSettings().getNodeName()
+                + "-"
+                + engineConfig.getIndexSettings().getIndex().getName()
+                + "-"
+                + engineConfig.getShardId().getId();
+            IngestionShardConsumer ingestionShardConsumer = ingestionConsumerFactory.createShardConsumer(
+                clientId,
+                engineConfig.getShardId().getId()
+            );
             logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
 
             Map<String, String> commitData = commitDataAsMap();
@@ -131,8 +163,7 @@ public class IngestionEngine extends Engine {
                 String batchStartStr = commitData.get(StreamPoller.BATCH_START);
                 startPointer = ingestionConsumerFactory.parsePointerFromString(batchStartStr);
                 try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
-                    persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
-                        startPointer);
+                    persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()), startPointer);
                     logger.info("recovered persisted pointers: {}", persistedPointers);
                 } catch (IOException e) {
                     throw new EngineCreationFailureException(config().getShardId(), "failed to restore offset", e);
@@ -141,8 +172,13 @@ public class IngestionEngine extends Engine {
                 resetState = StreamPoller.ResetState.NONE;
             }
 
-            streamPoller = new DefaultStreamPoller(startPointer, persistedPointers, ingestionShardConsumer,
-                new MessageProcessor(this), resetState);
+            streamPoller = new DefaultStreamPoller(
+                startPointer,
+                persistedPointers,
+                ingestionShardConsumer,
+                new MessageProcessor(this),
+                resetState
+            );
             streamPoller.start();
             success = true;
         } catch (IOException | TranslogCorruptedException e) {
@@ -179,7 +215,8 @@ public class IngestionEngine extends Engine {
         return documentMapperForType;
     }
 
-    protected Set<IngestionShardPointer> fetchPersistedOffsets(DirectoryReader directoryReader, IngestionShardPointer batchStart) throws IOException {
+    protected Set<IngestionShardPointer> fetchPersistedOffsets(DirectoryReader directoryReader, IngestionShardPointer batchStart)
+        throws IOException {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
         var query = batchStart.newRangeQueryGreaterThan(IngestionShardPointer.OFFSET_FIELD);
@@ -187,7 +224,7 @@ public class IngestionEngine extends Engine {
         // Execute the search
         var topDocs = searcher.search(query, Integer.MAX_VALUE);
         Set<IngestionShardPointer> result = new HashSet<>();
-        for(var scoreDoc : topDocs.scoreDocs) {
+        for (var scoreDoc : topDocs.scoreDocs) {
             var doc = searcher.doc(scoreDoc.doc);
             String valueStr = doc.get(IngestionShardPointer.OFFSET_FIELD);
             IngestionShardPointer value = ingestionConsumerFactory.parsePointerFromString(valueStr);
@@ -437,7 +474,13 @@ public class IngestionEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange, boolean accurateCount) throws IOException {
+    public Translog.Snapshot newChangesSnapshot(
+        String source,
+        long fromSeqNo,
+        long toSeqNo,
+        boolean requiredFullRange,
+        boolean accurateCount
+    ) throws IOException {
         throw new UnsupportedOperationException("Not implemented");
     }
 
@@ -593,7 +636,7 @@ public class IngestionEngine extends Engine {
                 // (3) the newly created commit points to a different translog generation (can free translog),
                 // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
                 boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
-                if(hasUncommittedChanges || force) {
+                if (hasUncommittedChanges || force) {
                     logger.trace("starting commit for flush;");
 
                     // TODO: do we need to close the latest commit as done in InternalEngine?
@@ -602,9 +645,7 @@ public class IngestionEngine extends Engine {
                     logger.trace("finished commit for flush");
 
                     // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
-                    logger.debug(
-                        "new commit on flush, hasUncommittedChanges:{}, force:{}",
-                        hasUncommittedChanges, force);
+                    logger.debug("new commit on flush, hasUncommittedChanges:{}, force:{}", hasUncommittedChanges, force);
 
                     // we need to refresh in order to clear older version values
                     refresh("version_table_flush", SearcherScope.INTERNAL, true);
@@ -695,7 +736,14 @@ public class IngestionEngine extends Engine {
     }
 
     @Override
-    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) throws EngineException, IOException {
+    public void forceMerge(
+        boolean flush,
+        int maxNumSegments,
+        boolean onlyExpungeDeletes,
+        boolean upgrade,
+        boolean upgradeOnlyAncientSegments,
+        String forceMergeUUID
+    ) throws EngineException, IOException {
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException
@@ -768,7 +816,7 @@ public class IngestionEngine extends Engine {
         store.incRef();
         try {
             var reader = getReferenceManager(SearcherScope.INTERNAL).acquire();
-            return new GatedCloseable<>(reader.getIndexCommit(), ()->{
+            return new GatedCloseable<>(reader.getIndexCommit(), () -> {
                 store.decRef();
                 getReferenceManager(SearcherScope.INTERNAL).release(reader);
             });

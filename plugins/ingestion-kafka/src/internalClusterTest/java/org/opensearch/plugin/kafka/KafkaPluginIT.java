@@ -8,7 +8,6 @@
 
 package org.opensearch.plugin.kafka;
 
-import org.junit.Assert;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -16,8 +15,8 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Assert;
 
-import java.net.URL;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -25,7 +24,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class KafkaPluginIT extends OpenSearchIntegTestCase  {
+public class KafkaPluginIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(KafkaPlugin.class);
@@ -45,8 +44,7 @@ public class KafkaPluginIT extends OpenSearchIntegTestCase  {
             )
             .collect(Collectors.toList());
         Assert.assertTrue(
-            pluginInfos.stream()
-                .anyMatch(pluginInfo -> pluginInfo.getName().equals("org.opensearch.plugin.kafka.KafkaPlugin"))
+            pluginInfos.stream().anyMatch(pluginInfo -> pluginInfo.getName().equals("org.opensearch.plugin.kafka.KafkaPlugin"))
         );
     }
 }

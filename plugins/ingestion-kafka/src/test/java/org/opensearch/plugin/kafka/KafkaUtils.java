@@ -8,13 +8,16 @@
 
 package org.opensearch.plugin.kafka;
 
-import org.apache.kafka.clients.admin.*;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.KafkaAdminClient;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
-import org.testcontainers.shaded.com.google.common.collect.ImmutableMap;
 
 import java.util.List;
 import java.util.Map;
@@ -22,10 +25,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import org.testcontainers.shaded.com.google.common.collect.ImmutableMap;
+
 import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 public class KafkaUtils {
     private static final Logger LOGGER = LogManager.getLogger(KafkaUtils.class);
+
     /**
      * Creates kafka topic
      *
@@ -38,13 +44,11 @@ public class KafkaUtils {
 
     public static void createTopic(String topicName, int numOfPartitions, String bootstrapServers) {
         try {
-            getAdminClient(
-                bootstrapServers,
-                (client -> {
-                    NewTopic newTopic = new NewTopic(topicName, numOfPartitions, (short) 1);
-                    client.createTopics(List.of(newTopic));
-                    return true;
-                }));
+            getAdminClient(bootstrapServers, (client -> {
+                NewTopic newTopic = new NewTopic(topicName, numOfPartitions, (short) 1);
+                client.createTopics(List.of(newTopic));
+                return true;
+            }));
 
         } catch (TopicExistsException e) {
             // Catch TopicExistsException otherwise it will break maven-surefire-plugin
@@ -52,43 +56,29 @@ public class KafkaUtils {
         }
 
         // validates topic is created
-        await()
-            .atMost(3, TimeUnit.SECONDS)
-            .untilAsserted(
-                () -> {
-                    Assert.assertTrue(checkTopicExistence(topicName, bootstrapServers));
-                });
+        await().atMost(3, TimeUnit.SECONDS).untilAsserted(() -> { Assert.assertTrue(checkTopicExistence(topicName, bootstrapServers)); });
     }
 
     public static boolean checkTopicExistence(String topicName, String bootstrapServers) {
-        return getAdminClient(
-            bootstrapServers,
-            (client -> {
-                Map<String, KafkaFuture<TopicDescription>> topics =
-                    client.describeTopics(List.of(topicName)).values();
+        return getAdminClient(bootstrapServers, (client -> {
+            Map<String, KafkaFuture<TopicDescription>> topics = client.describeTopics(List.of(topicName)).values();
 
-                try {
-                    return topics.containsKey(topicName)
-                        && topics.get(topicName).get().name().equals(topicName);
-                } catch (InterruptedException e) {
-                    LOGGER.error("error on checkTopicExistence", e);
-                    return false;
-                } catch (ExecutionException e) {
-                    LOGGER.error("error on checkTopicExistence", e);
-                    return false;
-                }
-            }));
+            try {
+                return topics.containsKey(topicName) && topics.get(topicName).get().name().equals(topicName);
+            } catch (InterruptedException e) {
+                LOGGER.error("error on checkTopicExistence", e);
+                return false;
+            } catch (ExecutionException e) {
+                LOGGER.error("error on checkTopicExistence", e);
+                return false;
+            }
+        }));
     }
 
-    private static <Rep> Rep getAdminClient(
-        String bootstrapServer, Function<AdminClient, Rep> function) {
-        AdminClient adminClient =
-            KafkaAdminClient.create(
-                ImmutableMap.of(
-                    AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
-                    bootstrapServer,
-                    AdminClientConfig.CLIENT_ID_CONFIG,
-                    "test"));
+    private static <Rep> Rep getAdminClient(String bootstrapServer, Function<AdminClient, Rep> function) {
+        AdminClient adminClient = KafkaAdminClient.create(
+            ImmutableMap.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer, AdminClientConfig.CLIENT_ID_CONFIG, "test")
+        );
         try {
             return function.apply(adminClient);
         } finally {

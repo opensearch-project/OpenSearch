@@ -8,13 +8,16 @@
 
 package org.opensearch.plugin.kafka;
 
-import org.junit.Assert;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
     public void testInitialize() {
@@ -42,9 +45,9 @@ public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
         KafkaPartitionConsumer mockConsumer = mock(KafkaPartitionConsumer.class);
         when(mockConsumer.getClientId()).thenReturn("client1");
         when(mockConsumer.getShardId()).thenReturn(1);
-        
+
         factory = spy(factory);
-        doReturn(mockConsumer).when(factory).createShardConsumer("client1", 1);
+        doReturn(mockConsumer).when(factory).createShardConsumer("cliKafkaUtilsent1", 1);
 
         KafkaPartitionConsumer consumer = factory.createShardConsumer("client1", 1);
 

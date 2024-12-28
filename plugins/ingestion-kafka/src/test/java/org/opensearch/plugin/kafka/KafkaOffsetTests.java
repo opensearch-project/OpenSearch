@@ -12,8 +12,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.junit.Assert;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
 
 import java.nio.ByteBuffer;
 

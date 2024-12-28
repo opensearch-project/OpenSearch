@@ -18,6 +18,11 @@ public class KafkaMessage implements Message<byte[]> {
     private final byte[] key;
     private final byte[] payload;
 
+    /**
+     * Constructor
+     * @param key the key of the message
+     * @param payload the payload of the message
+     */
     public KafkaMessage(@Nullable byte[] key, byte[] payload) {
         this.key = key;
         this.payload = payload;

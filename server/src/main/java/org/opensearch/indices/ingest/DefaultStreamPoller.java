@@ -36,7 +36,6 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile boolean closed;
     private volatile boolean paused;
 
-
     private IngestionShardConsumer consumer;
 
     private ExecutorService consumerThread;
@@ -54,25 +53,24 @@ public class DefaultStreamPoller implements StreamPoller {
     @Nullable
     private IngestionShardPointer maxPersistedPointer;
 
-    public DefaultStreamPoller(IngestionShardPointer startPointer,
-                               Set<IngestionShardPointer> persistedPointers,
-                               IngestionShardConsumer consumer,
-                               MessageProcessor processor,
-                               ResetState resetState) {
+    public DefaultStreamPoller(
+        IngestionShardPointer startPointer,
+        Set<IngestionShardPointer> persistedPointers,
+        IngestionShardConsumer consumer,
+        MessageProcessor processor,
+        ResetState resetState
+    ) {
         this.consumer = consumer;
         this.processor = processor;
         this.resetState = resetState;
         batchStartPointer = startPointer;
         this.persistedPointers = persistedPointers;
-        if(!this.persistedPointers.isEmpty()) {
+        if (!this.persistedPointers.isEmpty()) {
             maxPersistedPointer = this.persistedPointers.stream().max(IngestionShardPointer::compareTo).get();
         }
-        this.consumerThread =
-            Executors.newSingleThreadExecutor(
-                r ->
-                    new Thread(
-                        r,
-                        String.format("stream-poller-%d-%d", consumer.getShardId(), System.currentTimeMillis())));
+        this.consumerThread = Executors.newSingleThreadExecutor(
+            r -> new Thread(r, String.format("stream-poller-%d-%d", consumer.getShardId(), System.currentTimeMillis()))
+        );
     }
 
     @Override
@@ -97,7 +95,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 }
 
                 // reset the offset
-                if (resetState!= ResetState.NONE) {
+                if (resetState != ResetState.NONE) {
                     switch (resetState) {
                         case EARLIEST:
                             batchStartPointer = consumer.earliestPointer();
@@ -117,20 +115,20 @@ public class DefaultStreamPoller implements StreamPoller {
                         // TODO: make sleep time configurable
                         Thread.sleep(100);
                     } catch (Throwable e) {
-                        logger.error(
-                            "Error in pausing the poller of shard {}",
-                            consumer.getShardId(),
-                            e);
+                        logger.error("Error in pausing the poller of shard {}", consumer.getShardId(), e);
                     }
                     continue;
                 }
 
                 state = State.POLLING;
 
-                List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results
-                    = consumer.readNext(batchStartPointer, MAX_POLL_SIZE, POLL_TIMEOUT);
+                List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results = consumer.readNext(
+                    batchStartPointer,
+                    MAX_POLL_SIZE,
+                    POLL_TIMEOUT
+                );
 
-                if(results.isEmpty()) {
+                if (results.isEmpty()) {
                     // no new records
                     continue;
                 }
@@ -146,12 +144,15 @@ public class DefaultStreamPoller implements StreamPoller {
                     }
                     processor.process(result.getMessage(), result.getPointer());
                     // TODO: change to debug level
-                    logger.info("Processed message {} with pointer {}",
-                        String.valueOf(result.getMessage().getPayload()), result.getPointer().asString());
+                    logger.info(
+                        "Processed message {} with pointer {}",
+                        String.valueOf(result.getMessage().getPayload()),
+                        result.getPointer().asString()
+                    );
                 }
                 // update the batch start pointer to the next batch
                 batchStartPointer = consumer.nextPointer();
-            }  catch (Throwable e) {
+            } catch (Throwable e) {
                 // TODO better error handling
                 logger.error("Error in polling the shard {}", consumer.getShardId(), e);
             }
@@ -162,7 +163,7 @@ public class DefaultStreamPoller implements StreamPoller {
         if (maxPersistedPointer == null) {
             return false;
         }
-        if(pointer.compareTo(maxPersistedPointer) > 0) {
+        if (pointer.compareTo(maxPersistedPointer) > 0) {
             return false;
         }
         return persistedPointers.contains(pointer);
@@ -215,13 +216,5 @@ public class DefaultStreamPoller implements StreamPoller {
 
     public State getState() {
         return state;
-    }
-
-    public enum State {
-        NONE,
-        CLOSED,
-        PAUSED,
-        POLLING,
-        PROCESSING,
     }
 }

@@ -96,7 +96,18 @@ import org.opensearch.index.MapperTestUtils;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
-import org.opensearch.index.mapper.*;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.DocumentMapperForType;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.Mapping;
+import org.opensearch.index.mapper.ParseContext;
+import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.SourceFieldMapper;
+import org.opensearch.index.mapper.SourceToParse;
+import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
@@ -988,9 +999,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     ) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test",
-            Settings.builder()
-                .put(config.getIndexSettings().getSettings())
-                .build()
+            Settings.builder().put(config.getIndexSettings().getSettings()).build()
         );
         return new EngineConfig.Builder().shardId(config.getShardId())
             .threadPool(config.getThreadPool())
@@ -1584,7 +1593,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             )
-            .putMapping("{\"properties\": {}}")
+            .putMapping(mapping)
             .build();
         MapperService mapperService = MapperTestUtils.newMapperService(
             new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),

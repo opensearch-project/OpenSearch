@@ -18,13 +18,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.testcontainers.containers.KafkaContainer;
-import org.testcontainers.utility.DockerImageName;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
+
+import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import static org.hamcrest.Matchers.is;
 import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
@@ -45,7 +46,8 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
     public void testKafkaIngestion() {
         setupKafka();
         // create an index with ingestion source from kafka
-        createIndex("test",
+        createIndex(
+            "test",
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -54,17 +56,15 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
                 .put("ingestion_source.param.topic", "test")
                 .put("ingestion_source.param.bootstrapServers", kafka.getBootstrapServers())
                 .build(),
-            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}");
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
 
         RangeQueryBuilder query = new RangeQueryBuilder("age").gte(21);
-        await()
-            .atMost(10, TimeUnit.SECONDS)
-            .untilAsserted(
-                () -> {
-                    refresh("test");
-                    SearchResponse response = client().prepareSearch("test").setQuery(query).get();
-                    assertThat(response.getHits().getTotalHits().value, is(1L));
-                });
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh("test");
+            SearchResponse response = client().prepareSearch("test").setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value, is(1L));
+        });
 
         stopKafka();
     }

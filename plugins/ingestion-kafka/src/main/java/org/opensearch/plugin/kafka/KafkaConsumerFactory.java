@@ -17,7 +17,15 @@ import java.util.Map;
  */
 public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaPartitionConsumer, KafkaOffset> {
 
+    /**
+     * Configuration for the Kafka source
+     */
     protected KafkaSourceConfig config;
+
+    /**
+     * Constructor.
+     */
+    public KafkaConsumerFactory() {}
 
     @Override
     public void initialize(Map<String, Object> params) {
@@ -26,7 +34,7 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaParti
 
     @Override
     public KafkaPartitionConsumer createShardConsumer(String clientId, int shardId) {
-        assert config!=null;
+        assert config != null;
         return new KafkaPartitionConsumer(clientId, config, shardId);
     }
 
