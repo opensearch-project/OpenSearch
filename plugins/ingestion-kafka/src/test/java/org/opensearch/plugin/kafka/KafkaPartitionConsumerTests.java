@@ -17,8 +17,8 @@ import org.apache.kafka.common.TopicPartition;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,9 +33,10 @@ import static org.mockito.Mockito.when;
 public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
 
     private KafkaSourceConfig config;
-    private Consumer<byte[], byte[]> mockConsumer;
+    private KafkaConsumer<byte[], byte[]> mockConsumer;
     private KafkaPartitionConsumer consumer;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -53,7 +54,7 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
 
     public void testReadNext() throws Exception {
         TopicPartition topicPartition = new TopicPartition("test-topic", 0);
-        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("test-topic", 0, 0, null, "message".getBytes());
+        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("test-topic", 0, 0, null, "message".getBytes(StandardCharsets.UTF_8));
         ConsumerRecords<byte[], byte[]> records = new ConsumerRecords<>(
             Collections.singletonMap(topicPartition, Collections.singletonList(record))
         );
@@ -63,13 +64,12 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         List<IngestionShardConsumer.ReadResult<KafkaOffset, KafkaMessage>> result = consumer.readNext(new KafkaOffset(0), 10, 1000);
 
         assertEquals(1, result.size());
-        assertEquals("message", new String(result.get(0).getMessage().getPayload()));
+        assertEquals("message", new String(result.get(0).getMessage().getPayload(), StandardCharsets.UTF_8));
         assertEquals(1, consumer.nextPointer().getOffset());
         assertEquals(0, consumer.getShardId());
         assertEquals("client1", consumer.getClientId());
     }
 
-    @Test
     public void testEarliestPointer() {
         TopicPartition topicPartition = new TopicPartition("test-topic", 0);
         when(mockConsumer.beginningOffsets(Collections.singletonList(topicPartition))).thenReturn(
@@ -81,7 +81,6 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         assertEquals(0L, offset.getOffset());
     }
 
-    @Test
     public void testLatestPointer() {
         TopicPartition topicPartition = new TopicPartition("test-topic", 0);
         when(mockConsumer.endOffsets(Collections.singletonList(topicPartition))).thenReturn(Collections.singletonMap(topicPartition, 10L));
@@ -91,21 +90,29 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         assertEquals(10L, offset.getOffset());
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testTopicDoesNotExist() {
         Map<String, Object> params = new HashMap<>();
         params.put("topic", "non-existent-topic");
         params.put("bootstrapServers", "localhost:9092");
         var kafkaSourceConfig = new KafkaSourceConfig(params);
         when(mockConsumer.partitionsFor(eq("non-existent-topic"), any(Duration.class))).thenReturn(null);
-        new KafkaPartitionConsumer("client1", kafkaSourceConfig, 0, mockConsumer);
+        try {
+            new KafkaPartitionConsumer("client1", kafkaSourceConfig, 0, mockConsumer);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Topic non-existent-topic does not exist", e.getMessage());
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testPartitionDoesNotExist() {
         PartitionInfo partitionInfo = new PartitionInfo("test-topic", 0, null, null, null);
         when(mockConsumer.partitionsFor(eq("test-topic"), any(Duration.class))).thenReturn(Collections.singletonList(partitionInfo));
-        new KafkaPartitionConsumer("client1", config, 1, mockConsumer);
+        try {
+            new KafkaPartitionConsumer("client1", config, 1, mockConsumer);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertEquals("Partition 1 does not exist in topic test-topic", e.getMessage());
+        }
     }
 
     public void testCreateConsumer() {

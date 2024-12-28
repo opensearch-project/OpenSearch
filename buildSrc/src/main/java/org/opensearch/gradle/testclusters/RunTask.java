@@ -179,7 +179,6 @@ public class RunTask extends DefaultTestClustersTask {
                 if (dataDir != null) {
                     node.setDataPath(getDataPath.apply(node));
                 }
-
                 if (debug) {
                     logger.lifecycle(
                         "Running opensearch in debug mode (client), {} expecting running debug server on port {}",
