@@ -15,10 +15,17 @@ import org.opensearch.index.IngestionShardPointer;
 
 import java.nio.ByteBuffer;
 
+/**
+ * Kafka offset.
+ */
 public class KafkaOffset implements IngestionShardPointer {
 
     private final long offset;
 
+    /**
+     * Constructor
+     * @param offset the offset
+     */
     public KafkaOffset(long offset) {
         assert offset >= 0;
         this.offset = offset;
@@ -46,15 +53,17 @@ public class KafkaOffset implements IngestionShardPointer {
         return LongPoint.newRangeQuery(fieldName, offset, Long.MAX_VALUE);
     }
 
+    /**
+     * Get the offset
+     * @return the offset
+     */
     public long getOffset() {
         return offset;
     }
 
     @Override
     public String toString() {
-        return "KafkaOffset{" +
-            "offset=" + offset +
-            '}';
+        return "KafkaOffset{" + "offset=" + offset + '}';
     }
 
     @Override

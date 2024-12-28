@@ -8,13 +8,13 @@
 
 package org.opensearch.plugin.kafka;
 
-import org.junit.Assert;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
 
 public class KafkaMessageTests extends OpenSearchTestCase {
     public void testConstructorAndGetters() {
-        byte[] key = {1, 2, 3};
-        byte[] payload = {4, 5, 6};
+        byte[] key = { 1, 2, 3 };
+        byte[] payload = { 4, 5, 6 };
 
         KafkaMessage message = new KafkaMessage(key, payload);
 
@@ -23,7 +23,7 @@ public class KafkaMessageTests extends OpenSearchTestCase {
     }
 
     public void testConstructorWithNullKey() {
-        byte[] payload = {4, 5, 6};
+        byte[] payload = { 4, 5, 6 };
 
         KafkaMessage message = new KafkaMessage(null, payload);
 

@@ -8,7 +8,6 @@
 
 package org.opensearch.plugin.kafka;
 
-
 import java.util.Map;
 import java.util.Objects;
 
@@ -19,6 +18,10 @@ public class KafkaSourceConfig {
     private final String topic;
     private final String bootstrapServers;
 
+    /**
+     * Constructor
+     * @param params the configuration parameters
+     */
     public KafkaSourceConfig(Map<String, Object> params) {
         // TODO: better parsing and validation
         this.topic = (String) Objects.requireNonNull(params.get("topic"));
@@ -27,6 +30,7 @@ public class KafkaSourceConfig {
     }
 
     /**
+     * Get the topic name
      * @return the topic name
      */
     public String getTopic() {
@@ -34,6 +38,8 @@ public class KafkaSourceConfig {
     }
 
     /**
+     * Get the bootstrap servers
+     *
      * @return the bootstrap servers
      */
     public String getBootstrapServers() {

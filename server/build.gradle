@@ -327,7 +327,7 @@ tasks.named("thirdPartyAudit").configure {
             'jdk.incubator.vector.ShortVector',
             'jdk.incubator.vector.Vector',
             'jdk.incubator.vector.VectorOperators',
-            'jdk.incubator.vector.VectorSpecies',
+            'jdk.incubator.vector.VectorSpecies'
         ]
     )
     ignoreViolations(

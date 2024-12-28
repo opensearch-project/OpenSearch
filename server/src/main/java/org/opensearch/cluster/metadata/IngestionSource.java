@@ -21,12 +21,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-
 /**
  * Class encapsulating the configuration of an ingestion source.
  */
 @ExperimentalApi
-public class IngestionSource implements ToXContentObject  {
+public class IngestionSource implements ToXContentObject {
     private static final ParseField TYPE = new ParseField("type");
     private static final ParseField POINTER_INIT_RESET = new ParseField("pointer_init_reset");
     private static final ParseField PARAMS = new ParseField("params");
@@ -38,7 +37,7 @@ public class IngestionSource implements ToXContentObject  {
     public static final ConstructingObjectParser<IngestionSource, Void> PARSER = new ConstructingObjectParser<>(
         "ingestion_source_template",
         false,
-        a -> new IngestionSource((String) a[0],(String)a[1], (Map<String, Object>) a[2])
+        a -> new IngestionSource((String) a[0], (String) a[1], (Map<String, Object>) a[2])
     );
 
     static {
@@ -99,7 +98,9 @@ public class IngestionSource implements ToXContentObject  {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IngestionSource ingestionSource = (IngestionSource) o;
-        return Objects.equals(type, ingestionSource.type) && Objects.equals(pointerInitReset, ingestionSource.pointerInitReset) && Objects.equals(params, ingestionSource.params);
+        return Objects.equals(type, ingestionSource.type)
+            && Objects.equals(pointerInitReset, ingestionSource.pointerInitReset)
+            && Objects.equals(params, ingestionSource.params);
     }
 
     @Override

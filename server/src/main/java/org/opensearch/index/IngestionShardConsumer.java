@@ -72,7 +72,6 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      */
     T nextPointer();
 
-
     /**
      * @return the earliest pointer in the shard
      */

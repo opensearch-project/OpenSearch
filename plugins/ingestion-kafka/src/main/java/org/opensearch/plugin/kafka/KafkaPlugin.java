@@ -18,7 +18,15 @@ import java.util.Map;
  * A plugin for ingestion source of Kafka.
  */
 public class KafkaPlugin extends Plugin implements IngestionConsumerPlugin {
+    /**
+     * The type of the ingestion source.
+     */
     public static final String TYPE = "KAFKA";
+
+    /**
+     * Constructor.
+     */
+    public KafkaPlugin() {}
 
     @SuppressWarnings("rawtypes")
     @Override

@@ -54,11 +54,19 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.io.stream.*;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.*;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.mapper.MapperService;
@@ -71,7 +79,19 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -672,15 +692,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public void validate(final String value) {
-                if (!(value.equalsIgnoreCase(StreamPoller.ResetState.LATEST.name()) ||
-                    value.equalsIgnoreCase(StreamPoller.ResetState.EARLIEST.name()))) {
-                    throw new IllegalArgumentException("Invalid value for " + SETTING_INGESTION_SOURCE_POINTER_INIT_RESET + " [" + value + "]");
+                if (!(value.equalsIgnoreCase(StreamPoller.ResetState.LATEST.name())
+                    || value.equalsIgnoreCase(StreamPoller.ResetState.EARLIEST.name()))) {
+                    throw new IllegalArgumentException(
+                        "Invalid value for " + SETTING_INGESTION_SOURCE_POINTER_INIT_RESET + " [" + value + "]"
+                    );
                 }
             }
 
             @Override
-            public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            }
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {}
         },
         Property.IndexScope,
         Property.Dynamic
@@ -691,13 +712,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         key -> new Setting<>(key, "", (value) -> {
             // TODO: add ingestion source params validation
             return value;
-        },Property.IndexScope));
+        }, Property.IndexScope)
+    );
 
     /**
      * Used to specify the params for the ingestion index.
      */
     public static final String SETTING_INGESTION_SOURCE_PARAMS = "index.ingestion_source.params";
-
 
     /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
@@ -911,7 +932,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return indexCreatedVersion;
     }
 
-    public IngestionSource getIngestionSource(){
+    public IngestionSource getIngestionSource() {
         return ingestionSource;
     }
 
@@ -1977,7 +1998,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexMetadata.context.toXContent(builder, params);
             }
 
-            if(indexMetadata.ingestionSource !=null) {
+            if (indexMetadata.ingestionSource != null) {
                 builder.field(INGESTION_SOURCE_KEY);
                 indexMetadata.ingestionSource.toXContent(builder, params);
             }

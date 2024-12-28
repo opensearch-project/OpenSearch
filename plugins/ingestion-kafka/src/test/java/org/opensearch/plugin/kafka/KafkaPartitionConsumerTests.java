@@ -14,10 +14,10 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
-import org.junit.Before;
-import org.junit.Test;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -54,7 +54,9 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
     public void testReadNext() throws Exception {
         TopicPartition topicPartition = new TopicPartition("test-topic", 0);
         ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("test-topic", 0, 0, null, "message".getBytes());
-        ConsumerRecords<byte[], byte[]> records = new ConsumerRecords<>(Collections.singletonMap(topicPartition, Collections.singletonList(record)));
+        ConsumerRecords<byte[], byte[]> records = new ConsumerRecords<>(
+            Collections.singletonMap(topicPartition, Collections.singletonList(record))
+        );
 
         when(mockConsumer.poll(any(Duration.class))).thenReturn(records);
 
@@ -70,7 +72,9 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
     @Test
     public void testEarliestPointer() {
         TopicPartition topicPartition = new TopicPartition("test-topic", 0);
-        when(mockConsumer.beginningOffsets(Collections.singletonList(topicPartition))).thenReturn(Collections.singletonMap(topicPartition, 0L));
+        when(mockConsumer.beginningOffsets(Collections.singletonList(topicPartition))).thenReturn(
+            Collections.singletonMap(topicPartition, 0L)
+        );
 
         KafkaOffset offset = (KafkaOffset) consumer.earliestPointer();
 

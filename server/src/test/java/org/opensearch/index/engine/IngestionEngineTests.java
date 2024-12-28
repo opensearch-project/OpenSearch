@@ -9,9 +9,6 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
@@ -25,6 +22,9 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.ingest.StreamPoller;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,7 +99,10 @@ public class IngestionEngineTests extends EngineTestCase {
         var offset = new IngestionEngineUtils.FakeIngestionShardPointer(0);
         ingestionEngine.refresh("read_offset");
         try (Engine.Searcher searcher = ingestionEngine.acquireSearcher("read_offset")) {
-            Set<IngestionShardPointer> persistedPointers = ingestionEngine.fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()), offset);
+            Set<IngestionShardPointer> persistedPointers = ingestionEngine.fetchPersistedOffsets(
+                Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
+                offset
+            );
             Assert.assertEquals(2, persistedPointers.size());
         }
     }
@@ -139,12 +142,7 @@ public class IngestionEngineTests extends EngineTestCase {
     }
 
     private void waitForResults(Engine engine, int numDocs) {
-        await()
-            .atMost(3, TimeUnit.SECONDS)
-            .untilAsserted(
-                () -> {
-                    Assert.assertTrue(resultsFound(engine, numDocs));
-                });
+        await().atMost(3, TimeUnit.SECONDS).untilAsserted(() -> { Assert.assertTrue(resultsFound(engine, numDocs)); });
     }
 
     private boolean resultsFound(Engine engine, int numDocs) {

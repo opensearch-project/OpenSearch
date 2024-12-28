@@ -8,8 +8,8 @@
 
 package org.opensearch.plugin.kafka;
 
-import org.junit.Assert;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,6 +24,10 @@ public class KafkaSourceConfigTests extends OpenSearchTestCase {
         KafkaSourceConfig config = new KafkaSourceConfig(params);
 
         Assert.assertEquals("The topic should be correctly initialized and returned", "topic", config.getTopic());
-        Assert.assertEquals("The bootstrap servers should be correctly initialized and returned", "bootstrap", config.getBootstrapServers());
+        Assert.assertEquals(
+            "The bootstrap servers should be correctly initialized and returned",
+            "bootstrap",
+            config.getBootstrapServers()
+        );
     }
 }

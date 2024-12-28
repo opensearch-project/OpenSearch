@@ -108,7 +108,14 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.gateway.WriteStateException;
-import org.opensearch.index.*;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.ReplicationStats;
+import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
@@ -2513,7 +2520,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
 
         // Do not load the global checkpoint if this is a remote snapshot index or using ingestion source
-        if (indexSettings.isRemoteSnapshot() == false && indexSettings.isRemoteTranslogStoreEnabled() == false
+        if (indexSettings.isRemoteSnapshot() == false
+            && indexSettings.isRemoteTranslogStoreEnabled() == false
             && !indexSettings.getIndexMetadata().useIngestionSource()) {
             loadGlobalCheckpointToReplicationTracker();
         }

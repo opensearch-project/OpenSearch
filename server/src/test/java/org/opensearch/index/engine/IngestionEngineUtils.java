@@ -33,8 +33,7 @@ public class IngestionEngineUtils {
         }
 
         @Override
-        public void initialize(Map params) {
-        }
+        public void initialize(Map params) {}
 
         @Override
         public FakeIngestionConsumer createShardConsumer(String clientId, int shardId) {
@@ -60,8 +59,12 @@ public class IngestionEngineUtils {
         }
 
         @Override
-        public List<ReadResult<FakeIngestionShardPointer, FakeIngestionMessage>> readNext(FakeIngestionShardPointer pointer, long maxMessages, int timeoutMillis) throws TimeoutException {
-            lastFetchedOffset = pointer.offset-1;
+        public List<ReadResult<FakeIngestionShardPointer, FakeIngestionMessage>> readNext(
+            FakeIngestionShardPointer pointer,
+            long maxMessages,
+            int timeoutMillis
+        ) throws TimeoutException {
+            lastFetchedOffset = pointer.offset - 1;
             int numToFetch = Math.min(messages.size() - (int) pointer.offset, (int) maxMessages);
             List<ReadResult<FakeIngestionShardPointer, FakeIngestionMessage>> result = new ArrayList<>();
             for (long i = pointer.offset; i < pointer.offset + numToFetch; i++) {

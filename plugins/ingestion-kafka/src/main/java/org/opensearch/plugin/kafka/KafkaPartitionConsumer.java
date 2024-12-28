@@ -34,6 +34,9 @@ import java.util.concurrent.TimeoutException;
 public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffset, KafkaMessage> {
     private static final Logger logger = LogManager.getLogger(KafkaPartitionConsumer.class);
 
+    /**
+     * The Kafka consumer
+     */
     protected final Consumer<byte[], byte[]> consumer;
     // TODO: make this configurable
     private final int timeoutMillis = 1000;
@@ -42,11 +45,23 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     final String clientId;
     final TopicPartition topicPartition;
 
+    /**
+     * Constructor
+     * @param clientId the client id
+     * @param config   the Kafka source config
+     * @param partitionId the partition id
+     */
     public KafkaPartitionConsumer(String clientId, KafkaSourceConfig config, int partitionId) {
         this(clientId, config, partitionId, createConsumer(clientId, config));
     }
 
-    // visible for testing
+    /**
+     * Constructor, visible for testing
+     * @param clientId the client id
+     * @param config the Kafka source config
+     * @param partitionId the partition id
+     * @param consumer the created Kafka consumer
+     */
     protected KafkaPartitionConsumer(String clientId, KafkaSourceConfig config, int partitionId, Consumer<byte[], byte[]> consumer) {
         this.clientId = clientId;
         this.consumer = consumer;
@@ -63,21 +78,27 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         logger.info("Kafka consumer created for topic {} partition {}", topic, partitionId);
     }
 
-    // visible for testing
+    /**
+     * Create a Kafka consumer. visible for testing
+     * @param clientId the client id
+     * @param config the Kafka source config
+     * @return the Kafka consumer
+     */
     protected static Consumer<byte[], byte[]> createConsumer(String clientId, KafkaSourceConfig config) {
         Properties consumerProp = new Properties();
         consumerProp.put("bootstrap.servers", config.getBootstrapServers());
         consumerProp.put("client.id", clientId);
         // TODO: why Class org.apache.kafka.common.serialization.StringDeserializer could not be found if set the deserializer as prop?
         // consumerProp.put("key.deserializer",
-        //     "org.apache.kafka.common.serialization.StringDeserializer");
+        // "org.apache.kafka.common.serialization.StringDeserializer");
         // consumerProp.put("value.deserializer",
-        //     "org.apache.kafka.common.serialization.StringDeserializer");
+        // "org.apache.kafka.common.serialization.StringDeserializer");
         return new KafkaConsumer<>(consumerProp, new ByteArrayDeserializer(), new ByteArrayDeserializer());
     }
 
     @Override
-    public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(KafkaOffset offset, long maxMessages, int timeoutMillis) throws TimeoutException {
+    public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(KafkaOffset offset, long maxMessages, int timeoutMillis)
+        throws TimeoutException {
 
         List<ReadResult<KafkaOffset, KafkaMessage>> records = fetch(offset.getOffset(), maxMessages, timeoutMillis);
         return records;
@@ -100,7 +121,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         return new KafkaOffset(endOffset);
     }
 
-    protected synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {
+    private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {
         if (lastFetchedOffset < 0 || lastFetchedOffset != startOffset - 1) {
             logger.info("Seeking to offset {}", startOffset);
             consumer.seek(topicPartition, startOffset);
@@ -133,12 +154,15 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         return topicPartition.partition();
     }
 
-
     @Override
     public void close() throws IOException {
         consumer.close();
     }
 
+    /**
+     * Get the client id
+     * @return the client id
+     */
     public String getClientId() {
         return clientId;
     }

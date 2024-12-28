@@ -36,7 +36,6 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class MessageProcessor {
     private static final Logger logger = LogManager.getLogger(MessageProcessor.class);
 
-
     private final IngestionEngine engine;
 
     /**
@@ -47,7 +46,6 @@ public class MessageProcessor {
     public MessageProcessor(IngestionEngine engine) {
         this.engine = engine;
     }
-
 
     /**
      * Process the message and create an engine operation. It also records the offset in the document as (1) a point
@@ -77,23 +75,17 @@ public class MessageProcessor {
         }
     }
 
-    private Engine.Operation getOperation(byte[] payload, IngestionShardPointer pointer){
+    private Engine.Operation getOperation(byte[] payload, IngestionShardPointer pointer) {
         // TODO: get id from the message
         String id = "null";
         BytesReference source = new BytesArray(payload);
-        SourceToParse sourceToParse = new SourceToParse(
-            "index",
-            id,
-            source,
-            MediaTypeRegistry.xContentType(source),
-            null
-        );
+        SourceToParse sourceToParse = new SourceToParse("index", id, source, MediaTypeRegistry.xContentType(source), null);
         ParsedDocument doc = engine.getDocumentMapperForType().getDocumentMapper().parse(sourceToParse);
-        for(ParseContext.Document document: doc.docs()){
+        for (ParseContext.Document document : doc.docs()) {
             // set the offset as the offset field
             document.add(pointer.asPointField(IngestionShardPointer.OFFSET_FIELD));
             // store the offset as string in stored field
-            document.add(new StoredField(IngestionShardPointer.OFFSET_FIELD,pointer.asString()));
+            document.add(new StoredField(IngestionShardPointer.OFFSET_FIELD, pointer.asString()));
         }
         // TODO: support delete
         Engine.Index index = new Engine.Index(
