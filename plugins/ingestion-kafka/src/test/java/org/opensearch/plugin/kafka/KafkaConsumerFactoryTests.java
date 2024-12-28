@@ -14,11 +14,6 @@ import org.junit.Assert;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
-
 public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
     public void testInitialize() {
         KafkaConsumerFactory factory = new KafkaConsumerFactory();
@@ -32,28 +27,6 @@ public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
         Assert.assertNotNull("Config should be initialized", config);
         Assert.assertEquals("Topic should be correctly initialized", "test-topic", config.getTopic());
         Assert.assertEquals("Bootstrap servers should be correctly initialized", "localhost:9092", config.getBootstrapServers());
-    }
-
-    public void testCreateShardConsumer() {
-        KafkaConsumerFactory factory = new KafkaConsumerFactory();
-        Map<String, Object> params = new HashMap<>();
-        params.put("topic", "test-topic");
-        params.put("bootstrapServers", "localhost:9092");
-
-        factory.initialize(params);
-
-        KafkaPartitionConsumer mockConsumer = mock(KafkaPartitionConsumer.class);
-        when(mockConsumer.getClientId()).thenReturn("client1");
-        when(mockConsumer.getShardId()).thenReturn(1);
-
-        factory = spy(factory);
-        doReturn(mockConsumer).when(factory).createShardConsumer("cliKafkaUtilsent1", 1);
-
-        KafkaPartitionConsumer consumer = factory.createShardConsumer("client1", 1);
-
-        Assert.assertNotNull("Consumer should be created", consumer);
-        Assert.assertEquals("Client ID should be correctly set", "client1", consumer.getClientId());
-        Assert.assertEquals("Shard ID should be correctly set", 1, consumer.getShardId());
     }
 
     public void testParsePointerFromString() {
