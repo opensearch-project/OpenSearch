@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaPartitionConsumer, KafkaOffset> {
 
-    private KafkaSourceConfig config;
+    protected KafkaSourceConfig config;
 
     @Override
     public void initialize(Map<String, Object> params) {

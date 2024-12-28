@@ -8,31 +8,43 @@
 
 package org.opensearch.indices.ingest;
 
-import org.opensearch.index.IngestionShardPointer;
+import java.io.Closeable;
 
 /**
  * A poller for reading messages from an ingestion shard. This is used in the ingestion engine.
  */
-public interface StreamPoller {
+public interface StreamPoller extends Closeable {
 
     String BATCH_START = "batch_start";
 
+    /**
+     * Start the poller
+     */
     void start();;
 
+    /**
+     * Pause the poller
+     */
     void pause();
 
+    /**
+     * Resume the poller polling
+     */
     void resume();
 
-    void close();
-
-    IngestionShardPointer getCurrentPointer();
-
-    void resetPointer(IngestionShardPointer pointer);
-
+    /**
+     * @return if the poller is paused
+     */
     boolean isPaused();
 
+    /**
+     * check if the poller is closed
+     */
     boolean isClosed();
 
+    /**
+     * get the pointer to the start of the current batch of messages.
+     */
     String getBatchStartPointer();
 
     /**

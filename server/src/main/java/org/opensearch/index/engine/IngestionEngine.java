@@ -44,7 +44,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.translog.*;
 import org.opensearch.indices.ingest.DefaultStreamPoller;
-import org.opensearch.indices.ingest.DocumentProcessor;
+import org.opensearch.indices.ingest.MessageProcessor;
 import org.opensearch.indices.ingest.StreamPoller;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
@@ -142,7 +142,7 @@ public class IngestionEngine extends Engine {
             }
 
             streamPoller = new DefaultStreamPoller(startPointer, persistedPointers, ingestionShardConsumer,
-                new DocumentProcessor(this), resetState);
+                new MessageProcessor(this), resetState);
             streamPoller.start();
             success = true;
         } catch (IOException | TranslogCorruptedException e) {
@@ -150,7 +150,12 @@ public class IngestionEngine extends Engine {
         } finally {
             if (!success) {
                 if (streamPoller != null) {
-                    streamPoller.close();
+                    try {
+                        streamPoller.close();
+                    } catch (IOException e) {
+                        logger.error("failed to close stream poller", e);
+                        throw new RuntimeException(e);
+                    }
                 }
                 if (!isClosed.get()) {
                     // failure, we need to dec the store reference
@@ -338,10 +343,6 @@ public class IngestionEngine extends Engine {
         }
 
         return new IndexWriterConfig(new StandardAnalyzer());
-    }
-
-    protected IngestionShardPointer getPointer() {
-        return streamPoller.getCurrentPointer();
     }
 
     @Override

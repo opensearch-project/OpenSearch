@@ -35,33 +35,45 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     private static final Logger logger = LogManager.getLogger(KafkaPartitionConsumer.class);
 
     protected final Consumer<byte[], byte[]> consumer;
+    // TODO: make this configurable
+    private final int timeoutMillis = 1000;
 
     private long lastFetchedOffset = -1;
     final String clientId;
     final TopicPartition topicPartition;
 
     public KafkaPartitionConsumer(String clientId, KafkaSourceConfig config, int partitionId) {
-        // TODO: construct props from config
-        Properties consumerProp = new Properties();
-        consumerProp.put("bootstrap.servers", config.getBootstrapServers());
-        // TODO: why Class org.apache.kafka.common.serialization.StringDeserializer could not be found if set the deserializer as prop?
-        // consumerProp.put("key.deserializer",
-        //     "org.apache.kafka.common.serialization.StringDeserializer");
-        // consumerProp.put("value.deserializer",
-        //     "org.apache.kafka.common.serialization.StringDeserializer");
+        this(clientId, config, partitionId, createConsumer(clientId, config));
+    }
+
+    // visible for testing
+    protected KafkaPartitionConsumer(String clientId, KafkaSourceConfig config, int partitionId, Consumer<byte[], byte[]> consumer) {
         this.clientId = clientId;
-        consumer = new KafkaConsumer<>(consumerProp, new ByteArrayDeserializer(), new ByteArrayDeserializer());
+        this.consumer = consumer;
         String topic = config.getTopic();
-        List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
+        List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic, Duration.ofMillis(timeoutMillis));
         if (partitionInfos == null) {
             throw new IllegalArgumentException("Topic " + topic + " does not exist");
         }
-        if(partitionId>=partitionInfos.size()) {
+        if (partitionId >= partitionInfos.size()) {
             throw new IllegalArgumentException("Partition " + partitionId + " does not exist in topic " + topic);
         }
         topicPartition = new TopicPartition(topic, partitionId);
         consumer.assign(Collections.singletonList(topicPartition));
         logger.info("Kafka consumer created for topic {} partition {}", topic, partitionId);
+    }
+
+    // visible for testing
+    protected static Consumer<byte[], byte[]> createConsumer(String clientId, KafkaSourceConfig config) {
+        Properties consumerProp = new Properties();
+        consumerProp.put("bootstrap.servers", config.getBootstrapServers());
+        consumerProp.put("client.id", clientId);
+        // TODO: why Class org.apache.kafka.common.serialization.StringDeserializer could not be found if set the deserializer as prop?
+        // consumerProp.put("key.deserializer",
+        //     "org.apache.kafka.common.serialization.StringDeserializer");
+        // consumerProp.put("value.deserializer",
+        //     "org.apache.kafka.common.serialization.StringDeserializer");
+        return new KafkaConsumer<>(consumerProp, new ByteArrayDeserializer(), new ByteArrayDeserializer());
     }
 
     @Override
@@ -89,7 +101,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     protected synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {
-        if (lastFetchedOffset < 0 || lastFetchedOffset !=startOffset - 1) {
+        if (lastFetchedOffset < 0 || lastFetchedOffset != startOffset - 1) {
             logger.info("Seeking to offset {}", startOffset);
             consumer.seek(topicPartition, startOffset);
             // update the last fetched offset so that we don't need to seek again if no more messages to fetch
@@ -104,7 +116,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
 
         for (ConsumerRecord<byte[], byte[]> messageAndOffset : messageAndOffsets) {
             long currentOffset = messageAndOffset.offset();
-            if(currentOffset >= endOffset) {
+            if (currentOffset >= endOffset) {
                 // fetched more message than max
                 break;
             }
@@ -125,5 +137,9 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     @Override
     public void close() throws IOException {
         consumer.close();
+    }
+
+    public String getClientId() {
+        return clientId;
     }
 }

@@ -8,6 +8,8 @@
 
 package org.opensearch.indices.ingest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.Term;
 import org.opensearch.common.lucene.uid.Versions;
@@ -27,17 +29,34 @@ import java.io.IOException;
 
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public class DocumentProcessor {
+/**
+ *  A class to process messages from the ingestion stream. It extracts the payload from the message and creates an
+ *  engine operation.
+ */
+public class MessageProcessor {
+    private static final Logger logger = LogManager.getLogger(MessageProcessor.class);
+
 
     private final IngestionEngine engine;
 
-    public DocumentProcessor(IngestionEngine engine) {
+    /**
+     * Constructor.
+     *
+     * @param engine the ingestion engine
+     */
+    public MessageProcessor(IngestionEngine engine) {
         this.engine = engine;
     }
 
 
+    /**
+     * Process the message and create an engine operation. It also records the offset in the document as (1) a point
+     * field used for range search, (2) a stored field for retrieval.
+     *
+     * @param message the message to process
+     * @param pointer the pointer to the message
+     */
     public void process(Message message, IngestionShardPointer pointer) {
-        // todo: support other types of payload
         byte[] payload = (byte[]) message.getPayload();
 
         Engine.Operation operation = getOperation(payload, pointer);
@@ -53,7 +72,7 @@ public class DocumentProcessor {
                     throw new IllegalArgumentException("Invalid operation: " + operation);
             }
         } catch (IOException e) {
-            // better error handling
+            logger.error("Failed to process operation {} from message {}", operation, message, e);
             throw new RuntimeException(e);
         }
     }
@@ -72,12 +91,11 @@ public class DocumentProcessor {
         ParsedDocument doc = engine.getDocumentMapperForType().getDocumentMapper().parse(sourceToParse);
         for(ParseContext.Document document: doc.docs()){
             // set the offset as the offset field
-            // TODO: make field name configurable?
             document.add(pointer.asPointField(IngestionShardPointer.OFFSET_FIELD));
             // store the offset as string in stored field
             document.add(new StoredField(IngestionShardPointer.OFFSET_FIELD,pointer.asString()));
         }
-        // todo: support other types of operations than index
+        // TODO: support delete
         Engine.Index index = new Engine.Index(
             new Term("_id", id),
             doc,
