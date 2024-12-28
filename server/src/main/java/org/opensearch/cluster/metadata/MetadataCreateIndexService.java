@@ -1469,6 +1469,7 @@ public class MetadataCreateIndexService {
         throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
         validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
+        validateAutoExpandReplicaConflictInRequest(settings).ifPresent(validationErrors::add);
         validateErrors(indexName, validationErrors);
     }
 
@@ -1736,6 +1737,63 @@ public class MetadataCreateIndexService {
         int numSplits = log2MaxNumShards - log2NumShards;
         numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
         return numShards * 1 << numSplits;
+    }
+
+    /**
+     * Validates that the settings do not conflict with each other.
+     *
+     * @param requestSettings settings passed in during index create request
+     * @return the validation error if there is one, otherwise {@code Optional.empty()}
+     */
+    public static Optional<String> validateAutoExpandReplicaConflictInRequest(Settings requestSettings) {
+        boolean hasRequestAutoExpand = AutoExpandReplicas.SETTING.get(requestSettings).isEnabled();
+        boolean hasRequestSearchReplica = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0;
+        if (hasRequestAutoExpand && hasRequestSearchReplica) {
+            return Optional.of(
+                "Cannot set both ["
+                    + SETTING_AUTO_EXPAND_REPLICAS
+                    + "] and ["
+                    + SETTING_NUMBER_OF_SEARCH_REPLICAS
+                    + "]. These settings are mutually exclusive."
+            );
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Validates that the settings do not conflict with each other.
+     * Check conflicts between request and existing settings
+     * @param requestSettings
+     * @param indexSettings
+     * @return
+     */
+    public static Optional<String> validateAutoExpandReplicaConflictWithIndex(Settings requestSettings, Settings indexSettings) {
+        boolean hasRequestAutoExpand = AutoExpandReplicas.SETTING.get(requestSettings).isEnabled();
+        boolean hasRequestSearchReplica = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0;
+        boolean hasIndexAutoExpand = AutoExpandReplicas.SETTING.get(indexSettings).isEnabled();
+        boolean hasIndexSearchReplica = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(indexSettings) > 0;
+
+        if (hasRequestAutoExpand && hasIndexSearchReplica) {
+            return Optional.of(
+                "Cannot set ["
+                    + AutoExpandReplicas.SETTING.getKey()
+                    + "] because ["
+                    + INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.getKey()
+                    + "] is set"
+                    + ". These settings are mutually exclusive."
+            );
+        }
+
+        if (hasRequestSearchReplica && hasIndexAutoExpand) {
+            return Optional.of(
+                "Cannot set ["
+                    + INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.getKey()
+                    + "] because ["
+                    + AutoExpandReplicas.SETTING.getKey()
+                    + "] is configured. These settings are mutually exclusive."
+            );
+        }
+        return Optional.empty();
     }
 
     public static void validateTranslogRetentionSettings(Settings indexSettings) {
