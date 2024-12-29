@@ -96,7 +96,7 @@ public class IngestionEngineTests extends EngineTestCase {
         Assert.assertEquals("2", commitData.get(StreamPoller.BATCH_START));
 
         // verify the stored offsets
-        var offset = new IngestionEngineUtils.FakeIngestionShardPointer(0);
+        var offset = new FakeIngestionSource.FakeIngestionShardPointer(0);
         ingestionEngine.refresh("read_offset");
         try (Engine.Searcher searcher = ingestionEngine.acquireSearcher("read_offset")) {
             Set<IngestionShardPointer> persistedPointers = ingestionEngine.fetchPersistedOffsets(
@@ -122,7 +122,7 @@ public class IngestionEngineTests extends EngineTestCase {
     }
 
     private IngestionEngine buildIngestionEngine(AtomicLong globalCheckpoint, Store store, IndexSettings settings) throws IOException {
-        IngestionEngineUtils.FakeIngestionConsumerFactory consumerFactory = new IngestionEngineUtils.FakeIngestionConsumerFactory(messages);
+        FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
         EngineConfig engineConfig = config(settings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
         // overwrite the config with ingestion engine settings
         String mapping = "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}";

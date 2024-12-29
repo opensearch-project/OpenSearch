@@ -674,7 +674,7 @@ public class IngestionEngine extends Engine {
                  */
                 final Map<String, String> commitData = new HashMap<>(2);
 
-                commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer());
+                commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer().asString());
                 final String currentForceMergeUUID = forceMergeUUID;
                 if (currentForceMergeUUID != null) {
                     commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);

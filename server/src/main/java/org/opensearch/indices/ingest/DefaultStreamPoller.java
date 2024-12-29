@@ -33,6 +33,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile State state = State.NONE;
 
     // goal state
+    private volatile boolean started;
     private volatile boolean closed;
     private volatile boolean paused;
 
@@ -78,12 +79,19 @@ public class DefaultStreamPoller implements StreamPoller {
         if (closed) {
             throw new RuntimeException("poller is closed!");
         }
+        started = true;
         consumerThread.submit(this::startPoll).isDone();
     }
 
-    private void startPoll() {
+    /**
+     * Start the poller. visibile for testing
+     */
+    protected void startPoll() {
+        if (!started) {
+            throw new IllegalStateException("poller is not started!");
+        }
         if (closed) {
-            throw new RuntimeException("poller is closed!");
+            throw new IllegalStateException("poller is closed!");
         }
         logger.info("Starting poller for shard {}", consumer.getShardId());
 
@@ -135,7 +143,7 @@ public class DefaultStreamPoller implements StreamPoller {
 
                 state = State.PROCESSING;
                 // process the records
-                // TODO: consider a separate thread to decoupling the polling and processing
+                // TODO: separate threads for processing the messages in parallel
                 for (IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> result : results) {
                     // check if the message is already processed
                     if (isProcessed(result.getPointer())) {
@@ -143,8 +151,7 @@ public class DefaultStreamPoller implements StreamPoller {
                         continue;
                     }
                     processor.process(result.getMessage(), result.getPointer());
-                    // TODO: change to debug level
-                    logger.info(
+                    logger.debug(
                         "Processed message {} with pointer {}",
                         String.valueOf(result.getMessage().getPayload()),
                         result.getPointer().asString()
@@ -169,6 +176,14 @@ public class DefaultStreamPoller implements StreamPoller {
         return persistedPointers.contains(pointer);
     }
 
+    /**
+     * Visible for testing. Get the max persisted pointer
+     * @return the max persisted pointer
+     */
+    protected IngestionShardPointer getMaxPersistedPointer() {
+        return maxPersistedPointer;
+    }
+
     @Override
     public void pause() {
         if (closed) {
@@ -188,7 +203,22 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public void close() {
         closed = true;
+        if (!started) {
+            logger.info("consumer thread not started");
+            return;
+        }
+        if (consumerThread.isShutdown()) {
+            logger.info("consumer thread already closed");
+            return;
+        }
+        long startTime = System.currentTimeMillis(); // Record the start time
+        long timeout = 5000;
         while (state != State.CLOSED) {
+            // Check if the timeout has been reached
+            if (System.currentTimeMillis() - startTime > timeout) {
+                logger.error("Timeout reached while waiting for shard {} to close", consumer.getShardId());
+                break; // Exit the loop if the timeout is reached
+            }
             try {
                 Thread.sleep(100);
             } catch (Throwable e) {
@@ -210,8 +240,8 @@ public class DefaultStreamPoller implements StreamPoller {
     }
 
     @Override
-    public String getBatchStartPointer() {
-        return batchStartPointer.asString();
+    public IngestionShardPointer getBatchStartPointer() {
+        return batchStartPointer;
     }
 
     public State getState() {

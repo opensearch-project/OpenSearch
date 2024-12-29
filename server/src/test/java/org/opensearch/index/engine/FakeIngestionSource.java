@@ -23,9 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
-public class IngestionEngineUtils {
+/**
+ * A fake ingestion source for testing purposes.
+ */
+public class FakeIngestionSource {
 
-    static class FakeIngestionConsumerFactory implements IngestionConsumerFactory<FakeIngestionConsumer, FakeIngestionShardPointer> {
+    public static class FakeIngestionConsumerFactory implements IngestionConsumerFactory<FakeIngestionConsumer, FakeIngestionShardPointer> {
         private List<byte[]> messages;
 
         public FakeIngestionConsumerFactory(List<byte[]> messages) {
@@ -46,13 +49,13 @@ public class IngestionEngineUtils {
         }
     }
 
-    static class FakeIngestionConsumer implements IngestionShardConsumer<FakeIngestionShardPointer, FakeIngestionMessage> {
+    public static class FakeIngestionConsumer implements IngestionShardConsumer<FakeIngestionShardPointer, FakeIngestionMessage> {
         // FakeIngestionConsumer uses a list of byte arrays to simulate streams
         private List<byte[]> messages;
         private int shardId;
         private long lastFetchedOffset;
 
-        FakeIngestionConsumer(List<byte[]> messages, int shardId) {
+        public FakeIngestionConsumer(List<byte[]> messages, int shardId) {
             this.messages = messages;
             this.shardId = shardId;
             this.lastFetchedOffset = -1;
@@ -100,7 +103,7 @@ public class IngestionEngineUtils {
         }
     }
 
-    static class FakeIngestionMessage implements Message<byte[]> {
+    public static class FakeIngestionMessage implements Message<byte[]> {
         private final byte[] payload;
 
         public FakeIngestionMessage(byte[] payload) {
@@ -118,7 +121,7 @@ public class IngestionEngineUtils {
         }
     }
 
-    static class FakeIngestionShardPointer implements IngestionShardPointer {
+    public static class FakeIngestionShardPointer implements IngestionShardPointer {
         private final long offset;
 
         public FakeIngestionShardPointer(long offset) {
@@ -156,6 +159,23 @@ public class IngestionEngineUtils {
         public int compareTo(IngestionShardPointer o) {
             FakeIngestionShardPointer other = (FakeIngestionShardPointer) o;
             return Long.compare(offset, other.offset);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            FakeIngestionShardPointer that = (FakeIngestionShardPointer) o;
+            return offset == that.offset;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(offset);
         }
     }
 
