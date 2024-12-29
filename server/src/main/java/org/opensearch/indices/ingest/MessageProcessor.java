@@ -75,7 +75,13 @@ public class MessageProcessor {
         }
     }
 
-    private Engine.Operation getOperation(byte[] payload, IngestionShardPointer pointer) {
+    /**
+     * Visible for testing. Get the engine operation from the message.
+     * @param payload the payload of the message
+     * @param pointer the pointer to the message
+     * @return the engine operation
+     */
+    protected Engine.Operation getOperation(byte[] payload, IngestionShardPointer pointer) {
         // TODO: get id from the message
         String id = "null";
         BytesReference source = new BytesArray(payload);

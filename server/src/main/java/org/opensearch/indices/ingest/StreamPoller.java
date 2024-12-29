@@ -8,6 +8,8 @@
 
 package org.opensearch.indices.ingest;
 
+import org.opensearch.index.IngestionShardPointer;
+
 import java.io.Closeable;
 
 /**
@@ -45,7 +47,7 @@ public interface StreamPoller extends Closeable {
     /**
      * get the pointer to the start of the current batch of messages.
      */
-    String getBatchStartPointer();
+    IngestionShardPointer getBatchStartPointer();
 
     /**
      * a state to indicate the current state of the poller
