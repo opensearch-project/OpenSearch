@@ -28,6 +28,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.LoggerInfoStream;
 import org.opensearch.common.lucene.Lucene;
@@ -62,14 +63,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -155,7 +149,8 @@ public class IngestionEngine extends Engine {
             logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
 
             Map<String, String> commitData = commitDataAsMap();
-            StreamPoller.ResetState resetState = StreamPoller.ResetState.valueOf(ingestionSource.getPointerInitReset().toUpperCase());
+            StreamPoller.ResetState resetState =
+                StreamPoller.ResetState.valueOf(ingestionSource.getPointerInitReset().toUpperCase(Locale.ROOT));
             IngestionShardPointer startPointer = null;
             Set<IngestionShardPointer> persistedPointers = new HashSet<>();
             if (commitData.containsKey(StreamPoller.BATCH_START)) {
@@ -238,6 +233,7 @@ public class IngestionEngine extends Engine {
     /**
      * a copy of ExternalReaderManager from InternalEngine
      */
+    @SuppressForbidden(reason = "reference counting is required here")
     static final class ExternalReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
         private final BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> refreshListener;
         private final OpenSearchReaderManager internalReaderManager;

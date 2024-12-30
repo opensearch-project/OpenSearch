@@ -16,6 +16,7 @@ import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -69,8 +70,10 @@ public class DefaultStreamPoller implements StreamPoller {
         if (!this.persistedPointers.isEmpty()) {
             maxPersistedPointer = this.persistedPointers.stream().max(IngestionShardPointer::compareTo).get();
         }
-        this.consumerThread = Executors.newSingleThreadExecutor(
-            r -> new Thread(r, String.format("stream-poller-%d-%d", consumer.getShardId(), System.currentTimeMillis()))
+        this.consumerThread = Executors.newSingleThreadExecutor(r -> new Thread(
+                r,
+                String.format(Locale.ROOT, "stream-poller-%d-%d", consumer.getShardId(), System.currentTimeMillis())
+            )
         );
     }
 

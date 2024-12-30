@@ -1013,7 +1013,7 @@ public class IndicesService extends AbstractLifecycleComponent
             return null;
         }
         if (indexMetadata.useIngestionSource()) {
-            String type = indexMetadata.getIngestionSource().getType().toUpperCase();
+            String type = indexMetadata.getIngestionSource().getType().toUpperCase(Locale.ROOT);
             if (!ingestionConsumerFactories.containsKey(type)) {
                 throw new IllegalArgumentException("No factory found for ingestion source type [" + type + "]");
             }
