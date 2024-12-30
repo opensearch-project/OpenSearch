@@ -62,6 +62,7 @@ import org.opensearch.telemetry.tracing.channels.TraceableHttpChannel;
 import org.opensearch.telemetry.tracing.channels.TraceableRestChannel;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BindTransportException;
+import org.opensearch.transport.Transport;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -83,7 +84,6 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
-import static org.opensearch.transport.TcpTransport.resolveTransportPublishPort;
 
 /**
  * Base HttpServer class
@@ -192,7 +192,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             throw new BindTransportException("Failed to resolve publish address", e);
         }
 
-        final int publishPort = resolveTransportPublishPort(SETTING_HTTP_PUBLISH_PORT.get(settings), boundAddresses, publishInetAddress);
+        final int publishPort = Transport.resolveTransportPublishPort(
+            SETTING_HTTP_PUBLISH_PORT.get(settings),
+            boundAddresses,
+            publishInetAddress
+        );
         if (publishPort < 0) {
             throw new BindHttpException(
                 "Failed to auto-resolve http publish port, multiple bound addresses "

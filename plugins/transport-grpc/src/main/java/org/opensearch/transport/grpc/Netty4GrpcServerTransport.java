@@ -47,7 +47,7 @@ import static java.util.Collections.emptyList;
 import static org.opensearch.common.settings.Setting.intSetting;
 import static org.opensearch.common.settings.Setting.listSetting;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
-import static org.opensearch.transport.TcpTransport.resolveTransportPublishPort;
+import static org.opensearch.transport.Transport.resolveTransportPublishPort;
 
 /**
  * Netty4 gRPC server implemented as a LifecycleComponent.
