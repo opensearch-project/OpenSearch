@@ -8,7 +8,7 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.accesscontrol.resources.EntityType;
+import org.opensearch.accesscontrol.resources.RecipientType;
 import org.opensearch.accesscontrol.resources.Resource;
 import org.opensearch.accesscontrol.resources.ResourceSharing;
 import org.opensearch.accesscontrol.resources.ShareWith;
@@ -71,7 +71,7 @@ public interface ResourceAccessControlPlugin {
     default ResourceSharing revokeAccess(
         String resourceId,
         String resourceIndex,
-        Map<EntityType, Set<String>> revokeAccess,
+        Map<RecipientType, Set<String>> revokeAccess,
         Set<String> scopes
     ) {
         return null;

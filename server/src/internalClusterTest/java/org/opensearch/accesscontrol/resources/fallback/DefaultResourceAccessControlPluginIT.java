@@ -8,10 +8,8 @@
 
 package org.opensearch.accesscontrol.resources.fallback;
 
-import org.opensearch.accesscontrol.resources.EntityType;
 import org.opensearch.accesscontrol.resources.ResourceSharing;
 import org.opensearch.accesscontrol.resources.ShareWith;
-import org.opensearch.accesscontrol.resources.SharedWithScope;
 import org.opensearch.accesscontrol.resources.testplugins.TestResourcePlugin;
 import org.opensearch.client.Client;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -98,9 +96,7 @@ public class DefaultResourceAccessControlPluginIT extends OpenSearchIntegTestCas
         ResourceAccessControlPlugin racPlugin = TestResourcePlugin.GuiceHolder.getResourceService().getResourceAccessControlPlugin();
         MatcherAssert.assertThat(racPlugin.getClass(), is(DefaultResourceAccessControlPlugin.class));
 
-        SharedWithScope.ScopeRecipients scopeRecipients = new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of());
-        SharedWithScope sharedWithScope = new SharedWithScope("some_scope", scopeRecipients);
-        ResourceSharing sharingInfo = racPlugin.shareWith("1", SAMPLE_TEST_INDEX, new ShareWith(Set.of(sharedWithScope)));
+        ResourceSharing sharingInfo = racPlugin.shareWith("1", SAMPLE_TEST_INDEX, new ShareWith(Set.of()));
 
         MatcherAssert.assertThat(sharingInfo, is(nullValue()));
     }
@@ -110,8 +106,7 @@ public class DefaultResourceAccessControlPluginIT extends OpenSearchIntegTestCas
         ResourceAccessControlPlugin racPlugin = TestResourcePlugin.GuiceHolder.getResourceService().getResourceAccessControlPlugin();
         MatcherAssert.assertThat(racPlugin.getClass(), is(DefaultResourceAccessControlPlugin.class));
 
-        Map<EntityType, Set<String>> entityTypes = Map.of(EntityType.USERS, Set.of("some_user"));
-        ResourceSharing sharingInfo = racPlugin.revokeAccess("1", SAMPLE_TEST_INDEX, entityTypes, Set.of("some_scope"));
+        ResourceSharing sharingInfo = racPlugin.revokeAccess("1", SAMPLE_TEST_INDEX, Map.of(), Set.of("some_scope"));
 
         MatcherAssert.assertThat(sharingInfo, is(nullValue()));
     }

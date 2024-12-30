@@ -16,14 +16,17 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import org.mockito.Mockito;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -35,6 +38,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ShareWithTests extends OpenSearchTestCase {
+
+    @Before
+    public void setupResourceRecipientTypes() {
+        initializeRecipientTypes();
+    }
 
     public void testFromXContentWhenCurrentTokenIsNotStartObject() throws IOException {
         String json = "{\"read_only\": {\"users\": [\"user1\"], \"roles\": [], \"backend_roles\": []}}";
@@ -54,10 +62,14 @@ public class ShareWithTests extends OpenSearchTestCase {
 
         SharedWithScope.ScopeRecipients scopeRecipients = scope.getSharedWithPerScope();
         assertNotNull(scopeRecipients);
-        MatcherAssert.assertThat(1, equalTo(scopeRecipients.getUsers().size()));
-        MatcherAssert.assertThat("user1", equalTo(scopeRecipients.getUsers().iterator().next()));
-        MatcherAssert.assertThat(0, equalTo(scopeRecipients.getRoles().size()));
-        MatcherAssert.assertThat(0, equalTo(scopeRecipients.getBackendRoles().size()));
+        Map<RecipientType, Set<String>> recipients = scopeRecipients.getRecipients();
+        MatcherAssert.assertThat(recipients.get(RecipientTypeRegistry.fromValue(DefaultRecipientType.USERS.getName())).size(), is(1));
+        MatcherAssert.assertThat(recipients.get(RecipientTypeRegistry.fromValue(DefaultRecipientType.USERS.getName())), contains("user1"));
+        MatcherAssert.assertThat(recipients.get(RecipientTypeRegistry.fromValue(DefaultRecipientType.ROLES.getName())).size(), is(0));
+        MatcherAssert.assertThat(
+            recipients.get(RecipientTypeRegistry.fromValue(DefaultRecipientType.BACKEND_ROLES.getName())).size(),
+            is(0)
+        );
     }
 
     public void testFromXContentWithEmptyInput() throws IOException {
@@ -99,14 +111,33 @@ public class ShareWithTests extends OpenSearchTestCase {
 
         for (SharedWithScope scope : scopes) {
             SharedWithScope.ScopeRecipients perScope = scope.getSharedWithPerScope();
+            Map<RecipientType, Set<String>> recipients = perScope.getRecipients();
             if (scope.getScope().equals(ResourceAccessScope.READ_ONLY)) {
-                MatcherAssert.assertThat(perScope.getUsers().size(), equalTo(2));
-                MatcherAssert.assertThat(perScope.getRoles().size(), equalTo(1));
-                MatcherAssert.assertThat(perScope.getBackendRoles().size(), equalTo(1));
+                MatcherAssert.assertThat(
+                    recipients.get(RecipientTypeRegistry.fromValue(DefaultRecipientType.USERS.getName())).size(),
+                    is(2)
+                );
+                MatcherAssert.assertThat(
+                    recipients.get(RecipientTypeRegistry.fromValue(DefaultRecipientType.ROLES.getName())).size(),
+                    is(1)
+                );
+                MatcherAssert.assertThat(
+                    recipients.get(RecipientTypeRegistry.fromValue(DefaultRecipientType.BACKEND_ROLES.getName())).size(),
+                    is(1)
+                );
             } else if (scope.getScope().equals(ResourceAccessScope.READ_WRITE)) {
-                MatcherAssert.assertThat(perScope.getUsers().size(), equalTo(1));
-                MatcherAssert.assertThat(perScope.getRoles().size(), equalTo(2));
-                MatcherAssert.assertThat(perScope.getBackendRoles().size(), equalTo(0));
+                MatcherAssert.assertThat(
+                    recipients.get(RecipientTypeRegistry.fromValue(DefaultRecipientType.USERS.getName())).size(),
+                    is(1)
+                );
+                MatcherAssert.assertThat(
+                    recipients.get(RecipientTypeRegistry.fromValue(DefaultRecipientType.ROLES.getName())).size(),
+                    is(2)
+                );
+                MatcherAssert.assertThat(
+                    recipients.get(RecipientTypeRegistry.fromValue(DefaultRecipientType.BACKEND_ROLES.getName())).size(),
+                    is(0)
+                );
             }
         }
     }
@@ -123,7 +154,7 @@ public class ShareWithTests extends OpenSearchTestCase {
     }
 
     public void testToXContentBuildsCorrectly() throws IOException {
-        SharedWithScope scope = new SharedWithScope("scope1", new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of()));
+        SharedWithScope scope = new SharedWithScope("scope1", new SharedWithScope.ScopeRecipients(Map.of()));
 
         Set<SharedWithScope> scopes = new HashSet<>();
         scopes.add(scope);
@@ -136,7 +167,7 @@ public class ShareWithTests extends OpenSearchTestCase {
 
         String result = builder.toString();
 
-        String expected = "{\"scope1\":{\"users\":[],\"roles\":[],\"backend_roles\":[]}}";
+        String expected = "{\"scope1\":{}}";
 
         MatcherAssert.assertThat(expected.length(), equalTo(result.length()));
         MatcherAssert.assertThat(expected, equalTo(result));
@@ -154,7 +185,7 @@ public class ShareWithTests extends OpenSearchTestCase {
 
     public void testWriteToWithIOException() throws IOException {
         Set<SharedWithScope> set = new HashSet<>();
-        set.add(new SharedWithScope("test", new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of())));
+        set.add(new SharedWithScope("test", new SharedWithScope.ScopeRecipients(Map.of())));
         ShareWith shareWith = new ShareWith(set);
         StreamOutput mockOutput = Mockito.mock(StreamOutput.class);
 
@@ -166,7 +197,7 @@ public class ShareWithTests extends OpenSearchTestCase {
     public void testWriteToWithLargeSet() throws IOException {
         Set<SharedWithScope> largeSet = new HashSet<>();
         for (int i = 0; i < 10000; i++) {
-            largeSet.add(new SharedWithScope("scope" + i, new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of())));
+            largeSet.add(new SharedWithScope("scope" + i, new SharedWithScope.ScopeRecipients(Map.of())));
         }
         ShareWith shareWith = new ShareWith(largeSet);
         StreamOutput mockOutput = Mockito.mock(StreamOutput.class);
@@ -192,12 +223,8 @@ public class ShareWithTests extends OpenSearchTestCase {
         StreamOutput mockStreamOutput = Mockito.mock(StreamOutput.class);
 
         Set<SharedWithScope> sharedWithScopes = new HashSet<>();
-        sharedWithScopes.add(
-            new SharedWithScope(ResourceAccessScope.READ_ONLY, new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of()))
-        );
-        sharedWithScopes.add(
-            new SharedWithScope(ResourceAccessScope.READ_WRITE, new SharedWithScope.ScopeRecipients(Set.of(), Set.of(), Set.of()))
-        );
+        sharedWithScopes.add(new SharedWithScope(ResourceAccessScope.READ_ONLY, new SharedWithScope.ScopeRecipients(Map.of())));
+        sharedWithScopes.add(new SharedWithScope(ResourceAccessScope.READ_WRITE, new SharedWithScope.ScopeRecipients(Map.of())));
 
         ShareWith shareWith = new ShareWith(sharedWithScopes);
 
@@ -206,4 +233,25 @@ public class ShareWithTests extends OpenSearchTestCase {
         verify(mockStreamOutput, times(1)).writeCollection(eq(sharedWithScopes));
     }
 
+    private void initializeRecipientTypes() {
+        RecipientTypeRegistry.registerRecipientType("users", new RecipientType("users"));
+        RecipientTypeRegistry.registerRecipientType("roles", new RecipientType("roles"));
+        RecipientTypeRegistry.registerRecipientType("backend_roles", new RecipientType("backend_roles"));
+    }
+}
+
+enum DefaultRecipientType {
+    USERS("users"),
+    ROLES("roles"),
+    BACKEND_ROLES("backend_roles");
+
+    private final String name;
+
+    DefaultRecipientType(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
 }
