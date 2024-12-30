@@ -42,6 +42,8 @@ dependencies {
 
 internalClusterTest{
   environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
+  // TODO: Adding permission in plugin-security.policy doesn't seem to work.
+  systemProperty 'tests.security.manager', 'false'
 }
 
 thirdPartyAudit {

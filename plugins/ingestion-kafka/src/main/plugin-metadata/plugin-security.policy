@@ -17,17 +17,5 @@ grant {
   // Allow host/ip name service lookups
   permission java.net.SocketPermission "*", "connect";
   permission java.net.SocketPermission "*", "resolve";
-  permission java.lang.RuntimePermission "getClassLoader";
-  permission java.lang.RuntimePermission "getenv.*";
-
-  permission java.io.FilePermission "/-", "read";
-  permission java.io.FilePermission "${user.home}/.docker-java.properties", "read";
-  permission java.io.FilePermission "${user.home}/.docker/-", "read";
-  permission java.io.FilePermission "docker-machine", "read";
-  permission java.util.PropertyPermission "*", "read,write";
-  // Allow execution of Docker-related commands
-  permission java.lang.RuntimePermission "exec.*";
-
-  // Allow reading and writing to Docker configuration files
-  permission java.io.FilePermission "/var/run/docker.sock", "read,write";
 };
+
