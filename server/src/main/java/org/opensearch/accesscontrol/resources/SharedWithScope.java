@@ -103,6 +103,9 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
         private final Map<RecipientType, Set<String>> recipients;
 
         public ScopeRecipients(Map<RecipientType, Set<String>> recipients) {
+            if (recipients == null) {
+                throw new IllegalArgumentException("Recipients map cannot be null");
+            }
             this.recipients = recipients;
         }
 
@@ -129,7 +132,7 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
-                    RecipientType recipientType = RecipientTypeRegistry.fromValue(fieldName.toUpperCase());
+                    RecipientType recipientType = RecipientTypeRegistry.fromValue(fieldName);
 
                     parser.nextToken();
                     Set<String> values = new HashSet<>();

@@ -20,11 +20,11 @@ public class RecipientTypeRegistry {
     private static final Map<String, RecipientType> REGISTRY = new HashMap<>();
 
     public static void registerRecipientType(String key, RecipientType recipientType) {
-        REGISTRY.put(key.toUpperCase(), recipientType);
+        REGISTRY.put(key, recipientType);
     }
 
     public static RecipientType fromValue(String value) {
-        RecipientType type = REGISTRY.get(value.toUpperCase());
+        RecipientType type = REGISTRY.get(value);
         if (type == null) {
             throw new IllegalArgumentException("Unknown RecipientType: " + value);
         }
