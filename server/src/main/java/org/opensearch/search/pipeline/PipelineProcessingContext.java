@@ -14,14 +14,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.search.pipeline.ProcessorExecutionDetail.PROCESSOR_EXECUTION_DETAILS_KEY;
+
 /**
  * A holder for state that is passed through each processor in the pipeline.
  */
 public class PipelineProcessingContext {
     private final Map<String, Object> attributes = new HashMap<>();
-
-    // Key for processor execution details
-    private static final String PROCESSOR_EXECUTION_DETAILS_KEY = "processorExecutionDetails";
 
     /**
      * Set a generic attribute in the state for this request. Overwrites any existing value.

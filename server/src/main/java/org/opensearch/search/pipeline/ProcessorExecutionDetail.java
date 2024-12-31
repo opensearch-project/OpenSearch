@@ -9,6 +9,7 @@
 package org.opensearch.search.pipeline;
 
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.xcontent.XContentUtils;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -18,7 +19,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -29,7 +29,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  *
  * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "2.19.0")
 public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
 
     private final String processorName;
@@ -40,6 +40,8 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
     public static final ParseField DURATION_MILLIS_FIELD = new ParseField("duration_millis");
     public static final ParseField INPUT_DATA_FIELD = new ParseField("input_data");
     public static final ParseField OUTPUT_DATA_FIELD = new ParseField("output_data");
+    // Key for processor execution details
+    public static final String PROCESSOR_EXECUTION_DETAILS_KEY = "processorExecutionDetails";
 
     /**
      * Constructor for ProcessorExecutionDetail
@@ -182,9 +184,9 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
             } else if (DURATION_MILLIS_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                 durationMillis = parser.longValue();
             } else if (INPUT_DATA_FIELD.match(fieldName, parser.getDeprecationHandler())) {
-                inputData = parseFieldFromXContent(parser);
+                inputData = XContentUtils.readValue(parser, parser.currentToken());
             } else if (OUTPUT_DATA_FIELD.match(fieldName, parser.getDeprecationHandler())) {
-                outputData = parseFieldFromXContent(parser);
+                outputData = XContentUtils.readValue(parser, parser.currentToken());
             } else {
                 parser.skipChildren();
             }
@@ -195,33 +197,6 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         }
 
         return new ProcessorExecutionDetail(processorName, durationMillis, inputData, outputData);
-    }
-
-    private static Object parseFieldFromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.VALUE_NULL) {
-            return null;
-        } else if (token == XContentParser.Token.START_ARRAY) {
-            return parseArrayFromXContent(parser);
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            return parser.map();
-        } else {
-            return parser.textOrNull();
-        }
-    }
-
-    private static List<Object> parseArrayFromXContent(XContentParser parser) throws IOException {
-        List<Object> list = new ArrayList<>();
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                list.add(parser.map());
-            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                list.add(parseArrayFromXContent(parser));
-            } else {
-                list.add(parser.textOrNull());
-            }
-        }
-        return list;
     }
 
     @Override

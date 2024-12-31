@@ -117,6 +117,7 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
             assertEquals("testProcessor", detail.getProcessorName());
             assertEquals(123L, detail.getDurationMillis());
             assertEquals(Map.of("key1", "value1"), detail.getInputData());
+            assertEquals(List.of(1, 2, 3), detail.getOutputData());
         }
     }
 }
