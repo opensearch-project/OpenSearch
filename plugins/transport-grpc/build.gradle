@@ -1,0 +1,168 @@
+import org.gradle.api.attributes.java.TargetJvmEnvironment
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description 'gRPC based transport implementation'
+  classname 'org.opensearch.transport.grpc.GrpcPlugin'
+}
+
+dependencies {
+  compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+  implementation "com.google.errorprone:error_prone_annotations:2.24.1"
+  implementation "com.google.guava:failureaccess:1.0.1"
+  implementation "io.grpc:grpc-api:${versions.grpc}"
+  implementation "io.grpc:grpc-core:${versions.grpc}"
+  implementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
+  implementation "io.grpc:grpc-protobuf-lite:${versions.grpc}"
+  implementation "io.grpc:grpc-protobuf:${versions.grpc}"
+  implementation "io.grpc:grpc-services:${versions.grpc}"
+  implementation "io.grpc:grpc-stub:${versions.grpc}"
+  implementation "io.grpc:grpc-util:${versions.grpc}"
+  implementation "io.perfmark:perfmark-api:0.26.0"
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /grpc-.*/, to: 'grpc'
+}
+
+thirdPartyAudit {
+  ignoreMissingClasses(
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+    // classes are missing
+
+    // from io.netty.logging.CommonsLoggerFactory (netty)
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
+
+    // from Log4j (deliberate, Netty will fallback to Log4j 2)
+    'org.apache.log4j.Level',
+    'org.apache.log4j.Logger',
+
+    // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
+
+    // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
+    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
+    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
+    'org.eclipse.jetty.npn.NextProtoNego',
+
+    // from io.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
+    'org.jboss.marshalling.ByteInput',
+
+    // from io.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
+    'org.jboss.marshalling.ByteOutput',
+
+    // from io.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
+    'org.jboss.marshalling.Marshaller',
+
+    // from io.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
+    'org.jboss.marshalling.MarshallerFactory',
+    'org.jboss.marshalling.MarshallingConfiguration',
+    'org.jboss.marshalling.Unmarshaller',
+
+    // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
+    'org.slf4j.helpers.FormattingTuple',
+    'org.slf4j.helpers.MessageFormatter',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.spi.LocationAwareLogger',
+
+    'com.google.gson.stream.JsonReader',
+    'com.google.gson.stream.JsonToken',
+    'com.google.protobuf.util.Durations',
+    'com.google.protobuf.util.Timestamps',
+    'com.google.protobuf.nano.CodedOutputByteBufferNano',
+    'com.google.protobuf.nano.MessageNano',
+    'com.google.rpc.Status',
+    'com.google.rpc.Status$Builder',
+    'com.ning.compress.BufferRecycler',
+    'com.ning.compress.lzf.ChunkDecoder',
+    'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
+    'com.ning.compress.lzf.LZFEncoder',
+    'com.ning.compress.lzf.util.ChunkDecoderFactory',
+    'com.ning.compress.lzf.util.ChunkEncoderFactory',
+    'lzma.sdk.lzma.Encoder',
+    'net.jpountz.lz4.LZ4Compressor',
+    'net.jpountz.lz4.LZ4Factory',
+    'net.jpountz.lz4.LZ4FastDecompressor',
+    'net.jpountz.xxhash.XXHash32',
+    'net.jpountz.xxhash.XXHashFactory',
+    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
+    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
+    'org.eclipse.jetty.alpn.ALPN',
+
+    'org.conscrypt.AllocatedBuffer',
+    'org.conscrypt.BufferAllocator',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.HandshakeListener',
+
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
+  )
+
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0$1',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0$2',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0$3',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0$4',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0$6',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
+  )
+}
