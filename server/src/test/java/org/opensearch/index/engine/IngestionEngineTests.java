@@ -27,6 +27,7 @@ import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +60,7 @@ public class IngestionEngineTests extends EngineTestCase {
     }
 
     private void publishData(String message) {
-        messages.add(message.getBytes());
+        messages.add(message.getBytes(StandardCharsets.UTF_8));
     }
 
     protected IndexSettings newIndexSettings() {

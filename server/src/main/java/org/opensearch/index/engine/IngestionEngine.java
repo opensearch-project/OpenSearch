@@ -56,14 +56,21 @@ import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.ingest.DefaultStreamPoller;
-import org.opensearch.indices.ingest.MessageProcessor;
 import org.opensearch.indices.ingest.StreamPoller;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -149,8 +156,9 @@ public class IngestionEngine extends Engine {
             logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
 
             Map<String, String> commitData = commitDataAsMap();
-            StreamPoller.ResetState resetState =
-                StreamPoller.ResetState.valueOf(ingestionSource.getPointerInitReset().toUpperCase(Locale.ROOT));
+            StreamPoller.ResetState resetState = StreamPoller.ResetState.valueOf(
+                ingestionSource.getPointerInitReset().toUpperCase(Locale.ROOT)
+            );
             IngestionShardPointer startPointer = null;
             Set<IngestionShardPointer> persistedPointers = new HashSet<>();
             if (commitData.containsKey(StreamPoller.BATCH_START)) {
@@ -167,13 +175,7 @@ public class IngestionEngine extends Engine {
                 resetState = StreamPoller.ResetState.NONE;
             }
 
-            streamPoller = new DefaultStreamPoller(
-                startPointer,
-                persistedPointers,
-                ingestionShardConsumer,
-                new MessageProcessor(this),
-                resetState
-            );
+            streamPoller = new DefaultStreamPoller(startPointer, persistedPointers, ingestionShardConsumer, this, resetState);
             streamPoller.start();
             success = true;
         } catch (IOException | TranslogCorruptedException e) {

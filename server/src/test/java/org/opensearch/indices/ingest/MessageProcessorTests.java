@@ -8,9 +8,6 @@
 
 package org.opensearch.indices.ingest;
 
-import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-import org.opensearch.index.Message;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
@@ -20,8 +17,12 @@ import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -32,7 +33,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
     private IngestionEngine ingestionEngine;
     private DocumentMapper documentMapper;
     private DocumentMapperForType documentMapperForType;
-    private MessageProcessor processor;
+    private MessageProcessorRunnable.MessageProcessor processor;
 
     @Before
     public void setUp() throws Exception {
@@ -42,16 +43,16 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         when(ingestionEngine.getDocumentMapperForType()).thenReturn(documentMapperForType);
         documentMapper = mock(DocumentMapper.class);
         when(documentMapperForType.getDocumentMapper()).thenReturn(documentMapper);
-        processor = new MessageProcessor(ingestionEngine);
+        processor = new MessageProcessorRunnable.MessageProcessor(ingestionEngine);
     }
 
     public void testGetOperation() {
-        byte[] payload = "{\"name\":\"bob\", \"age\": 24}".getBytes();
+        byte[] payload = "{\"name\":\"bob\", \"age\": 24}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
         ParsedDocument parsedDocument = mock(ParsedDocument.class);
         when(documentMapper.parse(any())).thenReturn(parsedDocument);
-        when(parsedDocument.docs()).thenReturn(List.of(new ParseContext.Document[]{new ParseContext.Document()}));
+        when(parsedDocument.docs()).thenReturn(List.of(new ParseContext.Document[] { new ParseContext.Document() }));
 
         Engine.Operation operation = processor.getOperation(payload, pointer);
 
