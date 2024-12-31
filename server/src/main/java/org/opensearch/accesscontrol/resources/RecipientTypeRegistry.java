@@ -26,7 +26,7 @@ public class RecipientTypeRegistry {
     public static RecipientType fromValue(String value) {
         RecipientType type = REGISTRY.get(value);
         if (type == null) {
-            throw new IllegalArgumentException("Unknown RecipientType: " + value);
+            throw new IllegalArgumentException("Unknown RecipientType: " + value + ". Must be 1 of these: " + REGISTRY.values());
         }
         return type;
     }
