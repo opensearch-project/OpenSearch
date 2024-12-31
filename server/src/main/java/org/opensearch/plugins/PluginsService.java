@@ -525,6 +525,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Bundle depBundle = bundles.get(dependency);
             if (depBundle == null) {
                 logger.warn("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                logger.warn("Some features of this plugin may not function without the dependencies being installed.\n");
                 continue;
             }
             addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
