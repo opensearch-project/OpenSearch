@@ -1469,7 +1469,9 @@ public class MetadataCreateIndexService {
         throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
         validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
-        validateAutoExpandReplicaConflictInRequest(settings).ifPresent(validationErrors::add);
+        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
+            validateAutoExpandReplicaConflictInRequest(settings).ifPresent(validationErrors::add);
+        }
         validateErrors(indexName, validationErrors);
     }
 

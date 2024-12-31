@@ -231,10 +231,12 @@ public class MetadataUpdateSettingsService {
                             metadata.getSettings()
                         ).ifPresent(validationErrors::add);
 
-                        validateAutoExpandReplicaConflictInRequest(normalizedSettings).ifPresent(validationErrors::add);
-                        validateAutoExpandReplicaConflictWithIndex(normalizedSettings, metadata.getSettings()).ifPresent(
-                            validationErrors::add
-                        );
+                        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
+                            validateAutoExpandReplicaConflictInRequest(normalizedSettings).ifPresent(validationErrors::add);
+                            validateAutoExpandReplicaConflictWithIndex(normalizedSettings, metadata.getSettings()).ifPresent(
+                                validationErrors::add
+                            );
+                        }
                     }
 
                     if (validationErrors.size() > 0) {

@@ -52,6 +52,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -68,6 +69,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -159,6 +161,11 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 copyTo.build(),
                 this
             );
+        }
+
+        @Override
+        public Optional<DimensionType> getSupportedDataCubeDimensionType() {
+            return Optional.of(DimensionType.IP);
         }
 
     }
