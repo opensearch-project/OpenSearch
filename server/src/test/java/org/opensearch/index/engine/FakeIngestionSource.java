@@ -18,6 +18,7 @@ import org.opensearch.index.Message;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -117,7 +118,7 @@ public class FakeIngestionSource {
 
         @Override
         public String toString() {
-            return new String(payload);
+            return new String(payload, StandardCharsets.UTF_8);
         }
     }
 

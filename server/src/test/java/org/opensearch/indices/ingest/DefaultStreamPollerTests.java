@@ -8,16 +8,18 @@
 
 package org.opensearch.indices.ingest;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
+import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -28,24 +30,27 @@ import static org.mockito.Mockito.verify;
 public class DefaultStreamPollerTests extends OpenSearchTestCase {
     private DefaultStreamPoller poller;
     private FakeIngestionSource.FakeIngestionConsumer fakeConsumer;
-    private MessageProcessor mockProcessor;
+    private MessageProcessorRunnable processorRunnable;
+    private MessageProcessorRunnable.MessageProcessor processor;
     private List<byte[]> messages;
     private Set<IngestionShardPointer> persistedPointers;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        messages = new ArrayList<>();;
-        messages.add("{\"name\":\"bob\", \"age\": 24}".getBytes());
-        messages.add("{\"name\":\"alice\", \"age\": 21}".getBytes());
+        messages = new ArrayList<>();
+        ;
+        messages.add("{\"name\":\"bob\", \"age\": 24}".getBytes(StandardCharsets.UTF_8));
+        messages.add("{\"name\":\"alice\", \"age\": 21}".getBytes(StandardCharsets.UTF_8));
         fakeConsumer = new FakeIngestionSource.FakeIngestionConsumer(messages, 0);
-        mockProcessor = mock(MessageProcessor.class);
+        processor = mock(MessageProcessorRunnable.MessageProcessor.class);
+        processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(5), processor);
         persistedPointers = new HashSet<>();
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             persistedPointers,
             fakeConsumer,
-            mockProcessor,
+            processorRunnable,
             StreamPoller.ResetState.NONE
         );
     }
@@ -65,31 +70,31 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         assertEquals(DefaultStreamPoller.State.PAUSED, poller.getState());
         assertTrue(poller.isPaused());
         // no messages are processed
-        verify(mockProcessor, never()).process(any(),any());
+        verify(processor, never()).process(any(), any());
 
         poller.resume();
         Thread.sleep(100); // Allow some time for the poller to run
         assertFalse(poller.isPaused());
         // 2 messages are processed
-        verify(mockProcessor, times(2)).process(any(),any());
+        verify(processor, times(2)).process(any(), any());
     }
 
-    public void testSkipProcessed()  throws InterruptedException {
-        messages.add("{\"name\":\"cathy\", \"age\": 21}".getBytes());
-        messages.add("{\"name\":\"danny\", \"age\": 31}".getBytes());
+    public void testSkipProcessed() throws InterruptedException {
+        messages.add("{\"name\":\"cathy\", \"age\": 21}".getBytes(StandardCharsets.UTF_8));
+        messages.add("{\"name\":\"danny\", \"age\": 31}".getBytes(StandardCharsets.UTF_8));
         persistedPointers.add(new FakeIngestionSource.FakeIngestionShardPointer(1));
         persistedPointers.add(new FakeIngestionSource.FakeIngestionShardPointer(2));
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             persistedPointers,
             fakeConsumer,
-            mockProcessor,
+            processorRunnable,
             StreamPoller.ResetState.NONE
         );
         poller.start();
         Thread.sleep(200); // Allow some time for the poller to run
         // 2 messages are processed, 2 messages are skipped
-        verify(mockProcessor, times(2)).process(any(),any());
+        verify(processor, times(2)).process(any(), any());
         assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(2), poller.getMaxPersistedPointer());
     }
 
@@ -106,13 +111,12 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         assertEquals(DefaultStreamPoller.State.CLOSED, poller.getState());
     }
 
-
     public void testResetStateEarliest() throws InterruptedException {
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(1),
             persistedPointers,
             fakeConsumer,
-            mockProcessor,
+            processorRunnable,
             StreamPoller.ResetState.EARLIEST
         );
 
@@ -120,7 +124,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         Thread.sleep(100); // Allow some time for the poller to run
 
         // 2 messages are processed
-        verify(mockProcessor, times(2)).process(any(),any());
+        verify(processor, times(2)).process(any(), any());
     }
 
     public void testResetStateLatest() throws InterruptedException {
@@ -128,14 +132,14 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             persistedPointers,
             fakeConsumer,
-            mockProcessor,
+            processorRunnable,
             StreamPoller.ResetState.LATEST
         );
 
         poller.start();
         Thread.sleep(100); // Allow some time for the poller to run
         // no messages processed
-        verify(mockProcessor, never()).process(any(),any());
+        verify(processor, never()).process(any(), any());
         // reset to the latest
         assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(2), poller.getBatchStartPointer());
     }
