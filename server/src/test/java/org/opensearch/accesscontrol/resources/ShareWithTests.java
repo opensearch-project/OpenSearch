@@ -12,6 +12,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
@@ -154,7 +155,10 @@ public class ShareWithTests extends OpenSearchTestCase {
     }
 
     public void testToXContentBuildsCorrectly() throws IOException {
-        SharedWithScope scope = new SharedWithScope("scope1", new SharedWithScope.ScopeRecipients(Map.of()));
+        SharedWithScope scope = new SharedWithScope(
+            "scope1",
+            new SharedWithScope.ScopeRecipients(Map.of(new RecipientType("users"), Set.of("bleh")))
+        );
 
         Set<SharedWithScope> scopes = new HashSet<>();
         scopes.add(scope);
@@ -163,11 +167,11 @@ public class ShareWithTests extends OpenSearchTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder();
 
-        shareWith.toXContent(builder, null);
+        shareWith.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         String result = builder.toString();
 
-        String expected = "{\"scope1\":{}}";
+        String expected = "{\"scope1\":{\"users\":[\"bleh\"]}}";
 
         MatcherAssert.assertThat(expected.length(), equalTo(result.length()));
         MatcherAssert.assertThat(expected, equalTo(result));

@@ -160,11 +160,9 @@ public class SharedWithScope implements ToXContentFragment, NamedWriteable {
             if (recipients.isEmpty()) {
                 return builder;
             }
-            builder.startObject();
             for (Map.Entry<RecipientType, Set<String>> entry : recipients.entrySet()) {
                 builder.array(entry.getKey().getType(), entry.getValue().toArray());
             }
-            builder.endObject();
             return builder;
         }
     }
