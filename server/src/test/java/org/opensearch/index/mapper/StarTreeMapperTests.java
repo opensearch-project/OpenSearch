@@ -1162,6 +1162,9 @@ public class StarTreeMapperTests extends MapperTestCase {
                 b.startObject();
                 b.field("name", "keyword1");
                 b.endObject();
+                b.startObject();
+                b.field("name", "ip1");
+                b.endObject();
             }
             b.endArray();
             b.startArray("metrics");
@@ -1194,7 +1197,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             if (!invalidDimType) {
                 b.field("type", "integer");
             } else {
-                b.field("type", "ip");
+                b.field("type", "wildcard");
             }
             b.endObject();
             b.startObject("metric_field");
@@ -1206,6 +1209,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.startObject("keyword1");
             b.field("type", "keyword");
+            b.endObject();
+            b.startObject("ip1");
+            b.field("type", "ip");
             b.endObject();
             b.endObject();
         });
