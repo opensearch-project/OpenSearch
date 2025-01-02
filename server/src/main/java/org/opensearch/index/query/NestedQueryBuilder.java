@@ -413,6 +413,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             try {
                 queryShardContext.setParentFilter(parentFilter);
                 queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
+                queryShardContext.setInnerHitQuery(true);
                 try {
                     NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
                         name,
@@ -427,6 +428,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
             } finally {
                 queryShardContext.setParentFilter(previousParentFilter);
+                queryShardContext.setInnerHitQuery(false);
             }
         }
     }

@@ -149,6 +149,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.decider.EnableAssignmentDecider;
+import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
@@ -276,6 +277,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BalancedShardsAllocator.THRESHOLD_SETTING,
                 BalancedShardsAllocator.IGNORE_THROTTLE_FOR_REMOTE_RESTORE,
                 BalancedShardsAllocator.ALLOCATOR_TIMEOUT_SETTING,
+                BalancedShardsAllocator.PRIMARY_CONSTRAINT_THRESHOLD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_TYPE,
@@ -361,6 +363,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED,
                 NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION,
                 NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME,
+                NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_SETTING,
                 HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS,
                 HttpTransportSettings.SETTING_CORS_ENABLED,
                 HttpTransportSettings.SETTING_CORS_MAX_AGE,
@@ -518,6 +521,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING,
+                IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING,
                 HunspellService.HUNSPELL_LAZY_LOAD,
                 HunspellService.HUNSPELL_IGNORE_CASE,
                 HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
@@ -736,6 +740,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteClusterStateService.REMOTE_PUBLICATION_SETTING,
+                RemoteClusterStateService.REMOTE_STATE_DOWNLOAD_TO_SERVE_READ_API,
+
                 INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
                 GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
                 METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
@@ -784,6 +790,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Snapshot related Settings
                 BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING,
                 BlobStoreRepository.SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING,
+                BlobStoreRepository.SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD,
 
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
 

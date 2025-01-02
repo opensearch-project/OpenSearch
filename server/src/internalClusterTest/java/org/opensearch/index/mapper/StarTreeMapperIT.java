@@ -56,7 +56,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
         .build();
 
-    private static XContentBuilder createMinimalTestMapping(boolean invalidDim, boolean invalidMetric, boolean keywordDim) {
+    private static XContentBuilder createMinimalTestMapping(boolean invalidDim, boolean invalidMetric, boolean wildcard) {
         try {
             return jsonBuilder().startObject()
                 .startObject("composite")
@@ -68,12 +68,15 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .startArray("ordered_dimensions")
                 .startObject()
-                .field("name", getDim(invalidDim, keywordDim))
+                .field("name", getDim(invalidDim, wildcard))
+                .endObject()
+                .startObject()
+                .field("name", "keyword_dv")
                 .endObject()
                 .endArray()
                 .startArray("metrics")
                 .startObject()
-                .field("name", getDim(invalidMetric, false))
+                .field("name", getMetric(invalidMetric, false))
                 .endObject()
                 .endArray()
                 .endObject()
@@ -97,6 +100,18 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .endObject()
                 .startObject("keyword")
                 .field("type", "keyword")
+                .field("doc_values", false)
+                .endObject()
+                .startObject("ip_no_dv")
+                .field("type", "ip")
+                .field("doc_values", false)
+                .endObject()
+                .startObject("ip")
+                .field("type", "ip")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("wildcard")
+                .field("type", "wildcard")
                 .field("doc_values", false)
                 .endObject()
                 .endObject()
@@ -355,11 +370,20 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         return mapping;
     }
 
-    private static String getDim(boolean hasDocValues, boolean isKeyword) {
+    private static String getDim(boolean hasDocValues, boolean isWildCard) {
+        if (hasDocValues) {
+            return random().nextBoolean() ? "numeric" : random().nextBoolean() ? "keyword" : "ip_no_dv";
+        } else if (isWildCard) {
+            return "wildcard";
+        }
+        return "numeric_dv";
+    }
+
+    private static String getMetric(boolean hasDocValues, boolean isKeyword) {
         if (hasDocValues) {
             return "numeric";
         } else if (isKeyword) {
-            return "keyword";
+            return "ip";
         }
         return "numeric_dv";
     }
@@ -398,6 +422,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                         assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getSortedCalendarIntervals().get(i).shortName());
                     }
                     assertEquals("numeric_dv", starTreeFieldType.getDimensions().get(1).getField());
+                    assertEquals("keyword_dv", starTreeFieldType.getDimensions().get(2).getField());
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
                     List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.VALUE_COUNT, MetricStat.SUM, MetricStat.AVG);
                     assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
@@ -665,10 +690,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             IllegalArgumentException.class,
             () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(true, false, false)).get()
         );
-        assertEquals(
-            "Aggregations not supported for the dimension field [numeric] with field type [integer] as part of star tree field",
-            ex.getMessage()
-        );
+        assertTrue(ex.getMessage().startsWith("Aggregations not supported for the dimension field "));
     }
 
     public void testMaxDimsCompositeIndex() {
@@ -734,7 +756,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, true)).get()
         );
         assertEquals(
-            "Failed to parse mapping [_doc]: unsupported field type associated with dimension [keyword] as part of star tree field [startree-1]",
+            "Failed to parse mapping [_doc]: unsupported field type associated with dimension [wildcard] as part of star tree field [startree-1]",
             ex.getMessage()
         );
     }

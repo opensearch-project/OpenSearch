@@ -47,10 +47,6 @@ opensearchplugin {
   classname 'org.opensearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
-versions << [
-  'google_auth': '1.7.0'
-]
-
 dependencies {
   api 'com.google.api:api-common:1.8.1'
   api 'com.google.api:gax:2.35.0'
@@ -67,7 +63,7 @@ dependencies {
   api "com.google.auth:google-auth-library-oauth2-http:${versions.google_auth}"
 
   api 'com.google.cloud:google-cloud-core:2.30.0'
-  api 'com.google.cloud:google-cloud-core-http:2.23.0'
+  api 'com.google.cloud:google-cloud-core-http:2.47.0'
   api 'com.google.cloud:google-cloud-storage:1.113.1'
 
   api 'com.google.code.gson:gson:2.11.0'
@@ -148,7 +144,6 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
-    'com.google.auth.oauth2.GdchCredentials',
     'com.google.protobuf.util.JsonFormat',
     'com.google.protobuf.util.JsonFormat$Parser',
     'com.google.protobuf.util.JsonFormat$Printer',
@@ -302,6 +297,13 @@ yamlRestTest {
 
 testClusters {
   all testClustersConfiguration
+}
+
+/**
+ * Used for testing getting credentials from GCE
+ */
+test {
+  environment 'NO_GCE_CHECK', 'true'
 }
 
 /*

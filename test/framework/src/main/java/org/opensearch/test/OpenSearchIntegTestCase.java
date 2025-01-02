@@ -214,6 +214,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import reactor.util.annotation.NonNull;
+
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
@@ -2838,7 +2840,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         );
     }
 
-    private static Settings buildRemoteStoreNodeAttributes(
+    protected static Settings buildRemoteStoreNodeAttributes(
         String segmentRepoName,
         Path segmentRepoPath,
         String segmentRepoType,
@@ -2913,6 +2915,43 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.getKey(), segmentsPathFixedPrefix ? "b" : "");
         settings.put(BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING.getKey(), snapshotShardPathFixedPrefix ? "c" : "");
         return settings.build();
+    }
+
+    protected Settings buildRemotePublicationNodeAttributes(
+        @NonNull String remoteStateRepoName,
+        @NonNull String remoteStateRepoType,
+        @NonNull String routingTableRepoName,
+        @NonNull String routingTableRepoType
+    ) {
+        String remoteStateRepositoryTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            remoteStateRepoName
+        );
+        String routingTableRepositoryTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            routingTableRepoName
+        );
+        String remoteStateRepositorySettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            remoteStateRepoName
+        );
+        String routingTableRepositorySettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            routingTableRepoName
+        );
+
+        return Settings.builder()
+            .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, remoteStateRepoName)
+            .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
+            .put(remoteStateRepositoryTypeAttributeKey, remoteStateRepoType)
+            .put(routingTableRepositoryTypeAttributeKey, routingTableRepoType)
+            .put(remoteStateRepositorySettingsAttributeKeyPrefix + "location", randomRepoPath().toAbsolutePath())
+            .put(routingTableRepositorySettingsAttributeKeyPrefix + "location", randomRepoPath().toAbsolutePath())
+            .build();
     }
 
     public static String resolvePath(IndexId indexId, String shardId) {

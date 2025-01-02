@@ -47,13 +47,18 @@ import org.opensearch.core.transport.TransportResponse;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * OpenSearch Transport Interface
@@ -110,6 +115,51 @@ public interface Transport extends LifecycleComponent {
     ResponseHandlers getResponseHandlers();
 
     RequestHandlers getRequestHandlers();
+
+    /**
+     * Resolve the publishPort for a server provided a list of boundAddresses and a publishInetAddress.
+     * Resolution strategy is as follows:
+     * If a configured port exists resolve to that port.
+     * If a bound address matches the publishInetAddress resolve to that port.
+     * If a bound address is a wildcard address resolve to that port.
+     * If all bound addresses share the same port resolve to that port.
+     *
+     * @param publishPort -1 if no configured publish port exists
+     * @param boundAddresses addresses bound by the server
+     * @param publishInetAddress address published for the server
+     * @return Resolved port. If publishPort is negative and no port can be resolved return publishPort.
+     */
+    static int resolvePublishPort(int publishPort, List<InetSocketAddress> boundAddresses, InetAddress publishInetAddress) {
+        if (publishPort < 0) {
+            for (InetSocketAddress boundAddress : boundAddresses) {
+                InetAddress boundInetAddress = boundAddress.getAddress();
+                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
+                    publishPort = boundAddress.getPort();
+                    break;
+                }
+            }
+        }
+
+        if (publishPort < 0) {
+            final Set<Integer> ports = new HashSet<>();
+            for (InetSocketAddress boundAddress : boundAddresses) {
+                ports.add(boundAddress.getPort());
+            }
+            if (ports.size() == 1) {
+                publishPort = ports.iterator().next();
+            }
+        }
+
+        return publishPort;
+    }
+
+    static int resolveTransportPublishPort(int publishPort, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
+        return Transport.resolvePublishPort(
+            publishPort,
+            boundAddresses.stream().map(TransportAddress::address).collect(Collectors.toList()),
+            publishInetAddress
+        );
+    }
 
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
