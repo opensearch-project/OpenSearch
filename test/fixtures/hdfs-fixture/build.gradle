@@ -72,12 +72,12 @@ dependencies {
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
   api 'org.apache.zookeeper:zookeeper:3.9.3'
-  api "org.apache.commons:commons-text:1.12.0"
+  api "org.apache.commons:commons-text:1.13.0"
   api "commons-net:commons-net:3.11.1"
   api "ch.qos.logback:logback-core:1.5.12"
-  api "ch.qos.logback:logback-classic:1.5.12"
+  api "ch.qos.logback:logback-classic:1.5.15"
   api "org.jboss.xnio:xnio-nio:3.8.16.Final"
-  api 'org.jline:jline:3.27.1'
+  api 'org.jline:jline:3.28.0'
   api 'org.apache.commons:commons-configuration2:2.11.0'
   api 'com.nimbusds:nimbus-jose-jwt:9.47'
   api ('org.apache.kerby:kerb-admin:2.1.0') {

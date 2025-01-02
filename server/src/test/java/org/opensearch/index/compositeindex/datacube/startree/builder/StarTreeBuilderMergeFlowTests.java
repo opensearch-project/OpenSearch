@@ -1831,7 +1831,7 @@ public class StarTreeBuilderMergeFlowTests extends StarTreeBuilderTestCase {
         List<Long> metricsList2 = List.of(0L, 1L, 2L, 3L, 4L);
         List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
 
-        compositeField = getStarTreeFieldWithKeywords();
+        compositeField = getStarTreeFieldWithKeywords(random().nextBoolean());
         StarTreeValues starTreeValues = getStarTreeValuesWithKeywords(
             getSortedSetMock(dimList, docsWithField),
             getSortedSetMock(dimList2, docsWithField2),
