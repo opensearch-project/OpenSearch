@@ -751,6 +751,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         int maxBucket,
         boolean hasNested,
         AggregatorFactory aggregatorFactory,
+        boolean assertCollectorEarlyTermination,
         MappedFieldType... fieldTypes
     ) throws IOException {
         query = query.rewrite(searcher);
@@ -782,7 +783,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         searcher.search(query, countingAggregator);
         countingAggregator.postCollection();
         aggs.add(countingAggregator.buildTopLevel());
-        if (compositeIndexFieldInfo != null) {
+        if (compositeIndexFieldInfo != null && assertCollectorEarlyTermination) {
             assertEquals(0, countingAggregator.collectCounter.get());
         }
 

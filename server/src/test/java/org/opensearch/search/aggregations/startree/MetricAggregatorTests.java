@@ -41,7 +41,6 @@ import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
-import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -285,8 +284,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         );
 
         // Test that feature parity is maintained for unmapped field names.
-        sumAggregationBuilder = new SumAggregationBuilder("sumaggs").field("hello");
-        queryBuilder = new MatchAllQueryBuilder();
+        sumAggregationBuilder = sum("sumaggs").field("hello");
         testCase(
             indexSearcher,
             query,
@@ -295,7 +293,8 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             starTree,
             supportedDimensions,
             verifyAggregation(InternalSum::getValue),
-            sumAggregationBuilder.build(queryShardContext, null)
+            sumAggregationBuilder.build(queryShardContext, null),
+            false // Invalid fields will return null Star Query Context which will not cause early termination for leaf collector
         );
 
         ir.close();
@@ -319,7 +318,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         List<Dimension> supportedDimensions,
         BiConsumer<V, V> verify
     ) throws IOException {
-        testCase(searcher, query, queryBuilder, aggBuilder, starTree, supportedDimensions, verify, null);
+        testCase(searcher, query, queryBuilder, aggBuilder, starTree, supportedDimensions, verify, null, true);
     }
 
     private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
@@ -330,7 +329,8 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         CompositeIndexFieldInfo starTree,
         List<Dimension> supportedDimensions,
         BiConsumer<V, V> verify,
-        AggregatorFactory aggregatorFactory
+        AggregatorFactory aggregatorFactory,
+        boolean assertCollectorEarlyTermination
     ) throws IOException {
         V starTreeAggregation = searchAndReduceStarTree(
             createIndexSettings(),
@@ -343,6 +343,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             DEFAULT_MAX_BUCKETS,
             false,
             aggregatorFactory,
+            assertCollectorEarlyTermination,
             DEFAULT_MAPPED_FIELD
         );
         V expectedAggregation = searchAndReduceStarTree(
@@ -356,6 +357,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             DEFAULT_MAX_BUCKETS,
             false,
             aggregatorFactory,
+            assertCollectorEarlyTermination,
             DEFAULT_MAPPED_FIELD
         );
         verify.accept(expectedAggregation, starTreeAggregation);
