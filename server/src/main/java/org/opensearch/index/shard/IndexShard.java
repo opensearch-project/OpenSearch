@@ -1635,6 +1635,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalStateException("Index is not assigned on Remote Node");
         }
         RemoteSegmentMetadata lastUploadedMetadata = getRemoteDirectory().readLatestMetadataFile();
+        if (lastUploadedMetadata == null) {
+            throw new IllegalStateException("No metadata file found in remote store");
+        }
         final Map<String, Long> indexFilesToFileLengthMap = lastUploadedMetadata.getMetadata()
             .entrySet()
             .stream()
