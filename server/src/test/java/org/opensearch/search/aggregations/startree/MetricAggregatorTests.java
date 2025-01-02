@@ -41,6 +41,7 @@ import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -285,6 +286,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
 
         // Test that feature parity is maintained for unmapped field names.
         sumAggregationBuilder = new SumAggregationBuilder("sumaggs").field("hello");
+        queryBuilder = new MatchAllQueryBuilder();
         testCase(
             indexSearcher,
             query,
