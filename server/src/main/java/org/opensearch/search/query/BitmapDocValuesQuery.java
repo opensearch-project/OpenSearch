@@ -111,8 +111,7 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
 
     @Override
     public String toString(String field) {
-        // bitmap may contain high cardinality, so choose to not show the actual values in it
-        return field + " cardinality: " + bitmap.getLongCardinality();
+        return "BitmapDocValuesQuery(field=" + field + ")";
     }
 
     @Override

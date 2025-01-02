@@ -97,6 +97,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import org.opensearch.search.query.BitmapIndexQuery;
 import org.roaringbitmap.RoaringBitmap;
 
 /**
@@ -895,10 +896,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
 
                 if (isSearchable && hasDocValues) {
-                    return new IndexOrDocValuesQuery(bitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
+                    return new IndexOrDocValuesQuery(new BitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
                 }
                 if (isSearchable) {
-                    return bitmapIndexQuery(field, bitmap);
+                    return new BitmapIndexQuery(field, bitmap);
                 }
                 return new BitmapDocValuesQuery(field, bitmap);
             }
@@ -1551,12 +1552,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                             return new ScorerSupplier() {
                                 @Override
                                 public Scorer get(long leadCost) throws IOException {
-
                                     final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
                                     Query query = new PointInSetQuery(field, 1, Integer.BYTES, new PointInSetQuery.Stream() {
-
                                         final Iterator<Integer> iterator = bitmap.iterator();
-
                                         @Override
                                         public BytesRef next() {
                                             int value;
@@ -1583,6 +1581,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                                             return Integer.toString(IntPoint.decodeDimension(value, 0));
                                         }
                                     };
+
                                     return query.createWeight(searcher, scoreMode, boost).scorer(context);
                                 }
 
