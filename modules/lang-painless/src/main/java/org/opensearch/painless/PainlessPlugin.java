@@ -111,8 +111,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         map.put(IngestScript.CONTEXT, ingest);
 
         // Functions available to update scripts
-        List<Allowlist> update = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
-        update.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.update.txt"));
+        List<Allowlist> update = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        update.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.update.txt"));
         map.put(UpdateScript.CONTEXT, update);
 
         // Functions available to derived fields
