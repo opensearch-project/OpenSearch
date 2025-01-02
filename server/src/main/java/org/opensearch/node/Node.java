@@ -1216,6 +1216,9 @@ public class Node implements Closeable {
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
             );
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
+
+            pluginComponents.addAll(newAuxTransports(networkModule));
+
             final IndexingPressureService indexingPressureService = new IndexingPressureService(settings, clusterService);
             // Going forward, IndexingPressureService will have required constructs for exposing listeners/interfaces for plugin
             // development. Then we can deprecate Getter and Setter for IndexingPressureService in ClusterService (#478).
@@ -2111,6 +2114,10 @@ public class Node implements Closeable {
     /** Constructs a {@link org.opensearch.http.HttpServerTransport} which may be mocked for tests. */
     protected HttpServerTransport newHttpTransport(NetworkModule networkModule) {
         return networkModule.getHttpServerTransportSupplier().get();
+    }
+
+    protected List<NetworkPlugin.AuxTransport> newAuxTransports(NetworkModule networkModule) {
+        return networkModule.getAuxServerTransportList();
     }
 
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {
