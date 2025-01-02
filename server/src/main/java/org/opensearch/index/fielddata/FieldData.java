@@ -295,13 +295,6 @@ public enum FieldData {
     /**
      * Returns a multi-valued view over the provided {@link NumericDoubleValues}.
      */
-    public static SortedNumericUnsignedLongValues singleton(SortedNumericDocValues values) {
-        return new SingletonSortedNumericUnsignedLongValues(values);
-    }
-
-    /**
-     * Returns a multi-valued view over the provided {@link NumericDoubleValues}.
-     */
     public static SortedNumericDoubleValues singleton(NumericDoubleValues values) {
         return new SingletonSortedNumericDoubleValues(values);
     }
@@ -314,18 +307,6 @@ public enum FieldData {
     public static NumericDoubleValues unwrapSingleton(SortedNumericDoubleValues values) {
         if (values instanceof SingletonSortedNumericDoubleValues) {
             return ((SingletonSortedNumericDoubleValues) values).getNumericDoubleValues();
-        }
-        return null;
-    }
-
-    /**
-     * Returns a single-valued view of the {@link SortedNumericDoubleValues},
-     * if it was previously wrapped with {@link DocValues#singleton(NumericDocValues)},
-     * or null.
-     */
-    public static SortedNumericDocValues unwrapSingleton(SortedNumericUnsignedLongValues values) {
-        if (values instanceof SingletonSortedNumericUnsignedLongValues) {
-            return ((SingletonSortedNumericUnsignedLongValues) values).getNumericUnsignedLongValues();
         }
         return null;
     }

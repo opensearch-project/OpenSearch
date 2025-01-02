@@ -51,6 +51,7 @@ import org.opensearch.index.fielddata.AbstractBinaryDocValues;
 import org.opensearch.index.fielddata.AbstractNumericDocValues;
 import org.opensearch.index.fielddata.AbstractSortedDocValues;
 import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.LongToSortedNumericUnsignedLongValues;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
@@ -1240,7 +1241,11 @@ public enum MultiValueMode implements Writeable {
      * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
     public NumericDocValues select(final SortedNumericUnsignedLongValues values) {
-        final SortedNumericDocValues sortedNumericDocValues = FieldData.unwrapSingleton(values);
+        SortedNumericDocValues sortedNumericDocValues = null;
+        if (values instanceof LongToSortedNumericUnsignedLongValues) {
+            sortedNumericDocValues = ((LongToSortedNumericUnsignedLongValues) values).getNumericUnsignedLongValues();
+        }
+
         final NumericDocValues singleton = DocValues.unwrapSingleton(sortedNumericDocValues);
         if (singleton != null) {
             return singleton;
