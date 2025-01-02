@@ -146,7 +146,10 @@ public class ScriptScoreQuery extends Query {
                                 );
                             }
                         } else {
-                            bulkScorer = super.bulkScorer();
+                            final Scorer scorer = get(Long.MAX_VALUE);
+                            if (scorer != null) {
+                                bulkScorer = new Weight.DefaultBulkScorer(scorer);
+                            }
                         }
 
                         return bulkScorer;
