@@ -64,6 +64,7 @@ import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,8 +75,8 @@ import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import org.mockito.Mockito;
-
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
@@ -290,10 +291,10 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
         );
 
-        MetricAggregatorFactory aggregatorFactory = Mockito.mock(MetricAggregatorFactory.class);
-        Mockito.when(aggregatorFactory.getSubFactories()).thenReturn(AggregatorFactories.EMPTY);
-        Mockito.when(aggregatorFactory.getField()).thenReturn(FIELD_NAME);
-        Mockito.when(aggregatorFactory.getMetricStat()).thenReturn(MetricStat.SUM);
+        MetricAggregatorFactory aggregatorFactory = mock(MetricAggregatorFactory.class);
+        when(aggregatorFactory.getSubFactories()).thenReturn(AggregatorFactories.EMPTY);
+        when(aggregatorFactory.getField()).thenReturn(FIELD_NAME);
+        when(aggregatorFactory.getMetricStat()).thenReturn(MetricStat.SUM);
 
         // Case when field and metric type in aggregation are fully supported by star tree.
         testCase(
@@ -335,6 +336,52 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             List.of(new Metric(FIELD_NAME, List.of(MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
             verifyAggregation(InternalSum::getValue),
             aggregatorFactory,
+            false
+        );
+
+        // Case when field is not present in supported metrics
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric("hello", List.of(MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            aggregatorFactory,
+            false
+        );
+
+        AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
+        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[]{mock(MetricAggregatorFactory.class)});
+        when(aggregatorFactory.getSubFactories()).thenReturn(aggregatorFactories);
+
+        // Case when sub aggregations are present
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric("hello", List.of(MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            aggregatorFactory,
+            false
+        );
+
+        // Case when aggregation factory is not metric aggregation
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric("hello", List.of(MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            mock(ValuesSourceAggregatorFactory.class),
             false
         );
 
