@@ -497,6 +497,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return new ArrayList<>(sortedBundles);
     }
 
+    static boolean isExtendedPluginOptional(String extendedPlugin) {
+        String[] dependency = extendedPlugin.split(";");
+        return dependency.length > 1 && "optional=true".equals(dependency[1]);
+    }
+
     // add the given bundle to the sorted bundles, first adding dependencies
     private static void addSortedBundle(
         Bundle bundle,
@@ -522,11 +527,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         dependencyStack.add(name);
         for (String dependency : bundle.plugin.getExtendedPlugins()) {
-            Bundle depBundle = bundles.get(dependency);
+            String dependencyName = dependency.split(";")[0];
+            Bundle depBundle = bundles.get(dependencyName);
             if (depBundle == null) {
-                logger.warn("Missing plugin [" + dependency + "], dependency of [" + name + "]");
-                logger.warn("Some features of this plugin may not function without the dependencies being installed.\n");
-                continue;
+                if (isExtendedPluginOptional(dependency)) {
+                    logger.warn("Missing plugin [" + dependencyName + "], dependency of [" + name + "]");
+                    logger.warn("Some features of this plugin may not function without the dependencies being installed.\n");
+                    continue;
+                } else {
+                    throw new IllegalArgumentException("Missing plugin [" + dependencyName + "], dependency of [" + name + "]");
+                }
             }
             addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
             assert sortedBundles.contains(depBundle);
@@ -655,9 +665,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Set<URL> urls = new HashSet<>();
             for (String extendedPlugin : exts) {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
-                if (pluginUrls == null) {
+                if (pluginUrls == null && isExtendedPluginOptional(extendedPlugin)) {
                     continue;
                 }
+                assert pluginUrls != null : "transitive urls should have already been set for " + extendedPlugin;
 
                 Set<URL> intersection = new HashSet<>(urls);
                 intersection.retainAll(pluginUrls);

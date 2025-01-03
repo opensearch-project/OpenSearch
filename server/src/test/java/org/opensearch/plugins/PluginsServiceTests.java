@@ -75,6 +75,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -361,7 +362,24 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(sortedBundles, Matchers.contains(bundle1, bundle2, bundle3));
     }
 
-    public void testSortBundlesMissingDep() throws Exception {
+    public void testIsOptionalExtendedPlugin() {
+        assertThat(PluginsService.isExtendedPluginOptional("plugin-dep"), is(false));
+        assertThat(PluginsService.isExtendedPluginOptional("plugin-dep;optional=true"), is(true));
+        assertThat(PluginsService.isExtendedPluginOptional("plugin-dep;optional=false"), is(false));
+    }
+
+    public void testSortBundlesMissingRequiredDep() throws Exception {
+        Path pluginDir = createTempDir();
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.singletonList("dne"), false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PluginsService.sortBundles(Collections.singleton(bundle))
+        );
+        assertEquals("Missing plugin [dne], dependency of [foo]", e.getMessage());
+    }
+
+    public void testSortBundlesMissingOptionalDep() throws Exception {
         try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(PluginsService.class))) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
@@ -379,7 +397,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
                 Version.CURRENT,
                 "1.8",
                 "MyPlugin",
-                Collections.singletonList("dne"),
+                Collections.singletonList("dne;optional=true"),
                 false
             );
             PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
