@@ -62,9 +62,9 @@ import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,14 +75,14 @@ import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.min;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MetricAggregatorTests extends AggregatorTestCase {
 
@@ -354,7 +354,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         );
 
         AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
-        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[]{mock(MetricAggregatorFactory.class)});
+        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] { mock(MetricAggregatorFactory.class) });
         when(aggregatorFactory.getSubFactories()).thenReturn(aggregatorFactories);
 
         // Case when sub aggregations are present
