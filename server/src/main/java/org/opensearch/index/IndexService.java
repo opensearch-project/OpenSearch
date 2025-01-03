@@ -40,6 +40,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -87,6 +88,7 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.shard.ShardNotFoundException;
@@ -782,16 +784,102 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 
+    /**
+     * Closes a shard and its associated resources in a controlled manner.
+     * For scaled-down indices (with remove_indexing_shards enabled), performs a final sync
+     * to remote store before closing to ensure data persistence.
+     * <p>
+     * The closing process follows these steps:
+     * 1. Final sync to remote store (if applicable)
+     * 2. Notify listeners of imminent closure
+     * 3. Close the index shard
+     * 4. Close local and remote stores
+     *
+     * @param reason Reason for closing the shard
+     * @param sId ShardId identifying the shard
+     * @param indexShard The IndexShard instance to be closed
+     * @param store The local Store instance
+     * @param listener IndexEventListener for closure notifications
+     */
     private void closeShard(String reason, ShardId sId, IndexShard indexShard, Store store, IndexEventListener listener) {
         final int shardId = sId.id();
         final Settings indexSettings = this.getIndexSettings().getSettings();
         Store remoteStore = null;
+
         if (indexShard != null) {
             remoteStore = indexShard.remoteStore();
         }
         if (store != null) {
             store.beforeClose();
         }
+        // Check if final sync needed
+        if (indexShard != null
+            && !indexShard.state().equals(IndexShardState.CLOSED)
+            && indexShard.indexSettings().getIndexMetadata().getSettings().getAsBoolean(IndexMetadata.SETTING_REMOVE_INDEXING_SHARDS, false)
+            && indexShard.isPrimaryMode()) {
+            try {
+                if (remoteStore != null) {
+                    try {
+                        if (indexShard.translogStats().getUncommittedOperations() > 0) {
+                            logger.info(
+                                "Translog has {} uncommitted operations before closing shard [{}]",
+                                indexShard.translogStats().getUncommittedOperations(),
+                                indexShard.shardId()
+                            );
+                        } else {
+                            logger.info("Translog is empty before closing shard [{}]", indexShard.shardId());
+                        }
+
+                        logger.info("The 1st indexShard.isSyncNeeded() is {}", indexShard.isSyncNeeded());
+
+                        logger.info("Doing final flush before closing shard");
+                        indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+
+                        logger.info("The indexShard.isSyncNeeded() is {}", indexShard.isSyncNeeded());
+
+                        logger.info(
+                            "[{}][{}] Primary shard starting final sync. Current segments: {}",
+                            indexShard.shardId().getIndex().getName(),
+                            indexShard.shardId().id(),
+                            String.join(",", indexShard.store().directory().listAll())
+                        );
+                        logger.info("Doing final sync before closing shard, remove_indexing_shards is enabled");
+                        indexShard.sync();
+
+                        if (indexShard.translogStats().getUncommittedOperations() > 0) {
+                            logger.info(
+                                "Translog has {} uncommitted operations before closing shard [{}]",
+                                indexShard.translogStats().getUncommittedOperations(),
+                                indexShard.shardId()
+                            );
+                        } else {
+                            logger.info("Translog is empty before closing shard [{}]", indexShard.shardId());
+                        }
+
+                        logger.info(
+                            "[{}][{}] Primary shard sync completed, waiting for remote store sync",
+                            indexShard.shardId().getIndex().getName(),
+                            indexShard.shardId().id()
+                        );
+
+                        logger.info("Waiting for final sync to complete");
+                        indexShard.waitForRemoteStoreSync();
+                        logger.info(
+                            "[{}][{}] Primary shard final sync completed. Final segments: {}",
+                            indexShard.shardId().getIndex().getName(),
+                            indexShard.shardId().id(),
+                            String.join(",", indexShard.store().directory().listAll())
+                        );
+
+                    } catch (IOException e) {
+                        logger.warn("Failed to perform final sync to remote store before closing shard", e);
+                    }
+                }
+            } catch (AlreadyClosedException e) {
+                logger.warn("Failed to perform final sync - shard already closed", e);
+            }
+        }
+
         try {
             try {
                 listener.beforeIndexShardClosed(sId, indexShard, indexSettings);
@@ -1566,5 +1654,4 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
         return clearedAtLeastOne;
     }
-
 }
