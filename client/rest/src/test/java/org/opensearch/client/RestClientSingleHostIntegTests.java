@@ -382,6 +382,10 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             if (method.equals("HEAD") == false) {
                 standardHeaders.add("Content-length");
             }
+            if (method.equals("HEAD") == true || method.equals("GET") == true || method.equals("OPTIONS") == true) {
+                standardHeaders.add("Upgrade");
+            }
+
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
             Request request = new Request(method, "/" + statusCode);
@@ -400,11 +404,15 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             assertEquals(method, esResponse.getRequestLine().getMethod());
             assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
             assertEquals(pathPrefix + "/" + statusCode, esResponse.getRequestLine().getUri());
+
             assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), standardHeaders);
+            final Set<String> removedHeaders = new HashSet<>();
             for (final Header responseHeader : esResponse.getHeaders()) {
                 String name = responseHeader.getName();
-                if (name.startsWith("Header") == false) {
+                // Some headers could be returned multiple times in response, like Connection fe.
+                if (name.startsWith("Header") == false && removedHeaders.contains(name) == false) {
                     assertTrue("unknown header was returned " + name, standardHeaders.remove(name));
+                    removedHeaders.add(name);
                 }
             }
             assertTrue("some expected standard headers weren't returned: " + standardHeaders, standardHeaders.isEmpty());
