@@ -62,6 +62,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -93,7 +94,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
             "bla",
-            new String[] { Metadata.ALL },
+            Set.of(Metadata.ALL),
             clusterState,
             pendingTasks,
             inFlight,
@@ -121,7 +122,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
             "bla",
-            new String[] { Metadata.ALL },
+            Set.of(Metadata.ALL),
             clusterState,
             pendingTasks,
             inFlight,
