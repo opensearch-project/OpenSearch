@@ -37,6 +37,8 @@ import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.codec.composite.composite912.Composite912Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.Metric;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -45,6 +47,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -55,6 +58,7 @@ import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.aggregations.metrics.InternalValueCount;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -63,11 +67,14 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
@@ -283,8 +290,12 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
         );
 
-        // Test that feature parity is maintained for unmapped field names.
-        sumAggregationBuilder = sum("sumaggs").field("hello");
+        MetricAggregatorFactory aggregatorFactory = Mockito.mock(MetricAggregatorFactory.class);
+        Mockito.when(aggregatorFactory.getSubFactories()).thenReturn(AggregatorFactories.EMPTY);
+        Mockito.when(aggregatorFactory.getField()).thenReturn(FIELD_NAME);
+        Mockito.when(aggregatorFactory.getMetricStat()).thenReturn(MetricStat.SUM);
+
+        // Case when field and metric type in aggregation are fully supported by star tree.
         testCase(
             indexSearcher,
             query,
@@ -292,9 +303,39 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
+            List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
             verifyAggregation(InternalSum::getValue),
-            sumAggregationBuilder.build(queryShardContext, null),
-            false // Invalid fields will return null Star Query Context which will not cause early termination for leaf collector
+            aggregatorFactory,
+            true
+        );
+
+        // Case when the field is not supported by star tree
+        SumAggregationBuilder invalidFieldSumAggBuilder = sum("_name").field("hello");
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            invalidFieldSumAggBuilder,
+            starTree,
+            supportedDimensions,
+            Collections.emptyList(),
+            verifyAggregation(InternalSum::getValue),
+            invalidFieldSumAggBuilder.build(queryShardContext, null),
+            false // Invalid fields will return null StarTreeQueryContext which will not cause early termination by leaf collector
+        );
+
+        // Case when metric type in aggregation is not supported by star tree but the field is supported.
+        testCase(
+            indexSearcher,
+            query,
+            queryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric(FIELD_NAME, List.of(MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            aggregatorFactory,
+            false
         );
 
         ir.close();
@@ -318,7 +359,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         List<Dimension> supportedDimensions,
         BiConsumer<V, V> verify
     ) throws IOException {
-        testCase(searcher, query, queryBuilder, aggBuilder, starTree, supportedDimensions, verify, null, true);
+        testCase(searcher, query, queryBuilder, aggBuilder, starTree, supportedDimensions, Collections.emptyList(), verify, null, true);
     }
 
     private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
@@ -328,6 +369,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         T aggBuilder,
         CompositeIndexFieldInfo starTree,
         List<Dimension> supportedDimensions,
+        List<Metric> supportedMetrics,
         BiConsumer<V, V> verify,
         AggregatorFactory aggregatorFactory,
         boolean assertCollectorEarlyTermination
@@ -340,6 +382,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             aggBuilder,
             starTree,
             supportedDimensions,
+            supportedMetrics,
             DEFAULT_MAX_BUCKETS,
             false,
             aggregatorFactory,
@@ -352,6 +395,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             query,
             queryBuilder,
             aggBuilder,
+            null,
             null,
             null,
             DEFAULT_MAX_BUCKETS,
