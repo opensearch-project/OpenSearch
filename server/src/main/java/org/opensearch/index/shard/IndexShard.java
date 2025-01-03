@@ -1629,7 +1629,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return Tuple(Tuple(primaryTerm, commitGeneration), indexFilesToFileLengthMap)
      * @throws IOException
      */
-
     public Tuple<Tuple<Long, Long>, Map<String, Long>> acquireLastRemoteUploadedIndexCommit() throws IOException {
         if (!indexSettings.isAssignedOnRemoteNode()) {
             throw new IllegalStateException("Index is not assigned on Remote Node");
