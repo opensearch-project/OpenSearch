@@ -232,7 +232,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         } else {
             out.writeString(name);
         }
-        out.writeStringCollection(extendedPlugins);
+        out.writeStringCollection(getExtendedPluginNames());
         out.writeBoolean(hasNativeController);
     }
 
@@ -416,6 +416,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * Other plugins this plugin extends through SPI.
      *
      * @return the names of the plugins extended
+     */
+    public List<String> getExtendedPluginNames() {
+        return extendedPlugins.stream().map(s -> s.split(";")[0]).collect(Collectors.toUnmodifiableList());
+    }
+
+    /**
+     * Other plugins this plugin extends through SPI including information about optionality.
+     *
+     * @return the names of the plugins extended including optionality. i.e. opensearch-job-scheduler;optional=true
      */
     public List<String> getExtendedPlugins() {
         return extendedPlugins;
