@@ -713,6 +713,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<ClassLoader> extendedLoaders = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
             Plugin extendedPlugin = loaded.get(extendedPluginName);
+            if (extendedPlugin == null && bundle.plugin.isExtendedPluginOptional(extendedPluginName)) {
+                // extended plugin is optional and is not installed
+                continue;
+            }
             assert extendedPlugin != null;
             if (ExtensiblePlugin.class.isInstance(extendedPlugin) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
