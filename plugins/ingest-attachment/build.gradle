@@ -81,9 +81,6 @@ dependencies {
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
   api "org.apache.pdfbox:jempbox:1.8.17"
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.bouncycastle:bcmail-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
@@ -144,13 +141,4 @@ thirdPartyAudit {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
-}
-
-if (BuildParams.inFipsJvm) {
-  // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
-  // rather than provide a long list of exclusions, disable the check on FIPS.
-  jarHell.enabled = false
-  test.enabled = false
-  yamlRestTest.enabled = false;
-  testingConventions.enabled = false;
 }

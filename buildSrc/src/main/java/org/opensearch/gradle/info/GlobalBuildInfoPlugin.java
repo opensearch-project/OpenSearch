@@ -77,6 +77,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_LEGACY_VERSION_JAVA_FILE_PATH = "libs/core/src/main/java/org/opensearch/LegacyESVersion.java";
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "libs/core/src/main/java/org/opensearch/Version.java";
+    protected static final String OPENSEARCH_CRYPTO_STANDARD = "OPENSEARCH_CRYPTO_STANDARD";
     private static Integer _defaultParallel = null;
 
     private final JvmMetadataDetector jvmMetadataDetector;
@@ -112,6 +113,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         BuildParams.init(params -> {
             // Initialize global build parameters
             boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
+            var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
+            var inFipsJvm = cryptoStandard != null && cryptoStandard.equals("FIPS-140-3");
 
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
@@ -129,7 +132,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setIsCi(System.getenv("JENKINS_URL") != null);
             params.setIsInternal(isInternal);
             params.setDefaultParallel(findDefaultParallel(project));
-            params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
+            params.setInFipsJvm(inFipsJvm);
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
             if (isInternal) {
                 params.setBwcVersions(resolveBwcVersions(rootDir));
@@ -163,6 +166,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         final String osArch = System.getProperty("os.arch");
         final Jvm gradleJvm = Jvm.current();
         final String gradleJvmDetails = getJavaInstallation(gradleJvm.getJavaHome()).getDisplayName();
+        final String cryptStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
 
         LOGGER.quiet("=======================================");
         LOGGER.quiet("OpenSearch Build Hamster says Hello!");
@@ -179,7 +183,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             LOGGER.quiet("  JAVA_HOME             : " + gradleJvm.getJavaHome());
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
-        LOGGER.quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());
+        if (cryptStandard != null && cryptStandard.equals("FIPS-140-3")) {
+            LOGGER.quiet("  Crypto Standard       : FIPS-140-3");
+        } else {
+            LOGGER.quiet("  Crypto Standard       : any-supported");
+        }
         LOGGER.quiet("=======================================");
     }
 
