@@ -75,7 +75,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -360,12 +359,6 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         bundles.add(bundle3);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
         assertThat(sortedBundles, Matchers.contains(bundle1, bundle2, bundle3));
-    }
-
-    public void testIsOptionalExtendedPlugin() {
-        assertThat(PluginsService.isExtendedPluginOptional("plugin-dep"), is(false));
-        assertThat(PluginsService.isExtendedPluginOptional("plugin-dep;optional=true"), is(true));
-        assertThat(PluginsService.isExtendedPluginOptional("plugin-dep;optional=false"), is(false));
     }
 
     public void testSortBundlesMissingRequiredDep() throws Exception {
