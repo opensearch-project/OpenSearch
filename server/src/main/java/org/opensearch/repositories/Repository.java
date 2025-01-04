@@ -406,11 +406,13 @@ public interface Repository extends LifecycleComponent {
         Store store,
         SnapshotId snapshotId,
         IndexId indexId,
-        IndexCommit snapshotIndexCommit,
+        @Nullable IndexCommit snapshotIndexCommit,
         @Nullable String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         long primaryTerm,
+        long commitGeneration,
         long startTime,
+        @Nullable Map<String, Long> indexFilesToFileLengthMap,
         ActionListener<String> listener
     ) {
         throw new UnsupportedOperationException();
