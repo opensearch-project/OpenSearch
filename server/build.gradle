@@ -70,6 +70,9 @@ dependencies {
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
 
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
 
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
