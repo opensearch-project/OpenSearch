@@ -217,7 +217,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
         } else {
             this.customFolderName = this.name;
         }
-        this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_2_19_0)) {
