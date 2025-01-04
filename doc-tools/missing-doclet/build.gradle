@@ -2,8 +2,8 @@ plugins {
   id 'java-library'
 }
 
-group 'org.opensearch'
-version '1.0.0-SNAPSHOT'
+group = 'org.opensearch'
+version = '1.0.0-SNAPSHOT'
 
 tasks.withType(JavaCompile) {
   options.compilerArgs += ["--release", targetCompatibility.toString()]

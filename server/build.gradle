@@ -42,7 +42,7 @@ plugins {
 publishing {
   publications {
     nebula(MavenPublication) {
-      artifactId 'opensearch'
+      artifactId = 'opensearch'
     }
   }
 }

@@ -31,12 +31,12 @@ apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
-  name 'painless-allowlist'
-  description 'An example allowlisting additional classes and methods in painless'
-  classname 'org.opensearch.example.painlessallowlist.MyAllowlistPlugin'
+  name = 'painless-allowlist'
+  description = 'An example allowlisting additional classes and methods in painless'
+  classname = 'org.opensearch.example.painlessallowlist.MyAllowlistPlugin'
   extendedPlugins = ['lang-painless']
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+  licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile = rootProject.file('NOTICE.txt')
 }
 
 dependencies {

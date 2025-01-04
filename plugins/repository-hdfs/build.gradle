@@ -43,8 +43,8 @@ apply plugin: 'opensearch.rest-resources'
 apply plugin: 'opensearch.rest-test'
 
 opensearchplugin {
-  description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
-  classname 'org.opensearch.repositories.hdfs.HdfsPlugin'
+  description = 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
+  classname = 'org.opensearch.repositories.hdfs.HdfsPlugin'
 }
 
 versions << [
@@ -137,7 +137,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
-    maxWaitInSeconds 60
+    maxWaitInSeconds = 60
     onlyIf { BuildParams.inFipsJvm == false }
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when

@@ -30,8 +30,8 @@
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
-  description 'Ingest processor that extracts information from a user agent'
-  classname 'org.opensearch.ingest.useragent.IngestUserAgentModulePlugin'
+  description = 'Ingest processor that extracts information from a user agent'
+  classname = 'org.opensearch.ingest.useragent.IngestUserAgentModulePlugin'
 }
 
 restResources {

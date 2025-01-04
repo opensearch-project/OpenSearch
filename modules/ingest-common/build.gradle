@@ -31,8 +31,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
-  classname 'org.opensearch.ingest.common.IngestCommonModulePlugin'
+  description = 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
+  classname = 'org.opensearch.ingest.common.IngestCommonModulePlugin'
   extendedPlugins = ['lang-painless']
 }
 

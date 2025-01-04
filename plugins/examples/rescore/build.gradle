@@ -31,9 +31,9 @@ apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
-  name 'example-rescore'
-  description 'An example plugin implementing rescore and verifying that plugins *can* implement rescore'
-  classname 'org.opensearch.example.rescore.ExampleRescorePlugin'
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+  name = 'example-rescore'
+  description = 'An example plugin implementing rescore and verifying that plugins *can* implement rescore'
+  classname = 'org.opensearch.example.rescore.ExampleRescorePlugin'
+  licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile = rootProject.file('NOTICE.txt')
 }
