@@ -7,6 +7,8 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.fileformats.node;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
@@ -14,6 +16,7 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeTy
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * Fixed Length implementation of {@link StarTreeNode}.
@@ -35,6 +38,8 @@ import java.util.Iterator;
  * @opensearch.experimental
  */
 public class FixedLengthStarTreeNode implements StarTreeNode {
+
+    private static final Logger logger = LogManager.getLogger(FixedLengthStarTreeNode.class);
 
     /**
      * Number of integer fields in the serializable data
@@ -200,7 +205,10 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
 
         StarTreeNode resultStarTreeNode = null;
         if (null != dimensionValue) {
-            resultStarTreeNode = binarySearchChild(dimensionValue);
+            int resultStarTreeNodeId = binarySearchForDimension(dimensionValue, false);
+            if (resultStarTreeNodeId != INVALID_ID) {
+                resultStarTreeNode = new FixedLengthStarTreeNode(in, resultStarTreeNodeId);
+            }
         }
         return resultStarTreeNode;
     }
@@ -219,7 +227,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
     /**
      * Checks if the given node matches the specified StarTreeNodeType.
      *
-     * @param firstNode The FixedLengthStarTreeNode to check.
+     * @param firstNode        The FixedLengthStarTreeNode to check.
      * @param starTreeNodeType The StarTreeNodeType to match against.
      * @return The firstNode if its type matches the targetType, null otherwise.
      * @throws IOException If an I/O error occurs during the operation.
@@ -231,44 +239,6 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
         } else {
             return null;
         }
-    }
-
-    /**
-     * Performs a binary search to find a child node with the given dimension value.
-     *
-     * @param dimensionValue The dimension value to search for
-     * @return The child node if found, null otherwise
-     * @throws IOException If there's an error reading from the input
-     */
-    private FixedLengthStarTreeNode binarySearchChild(long dimensionValue) throws IOException {
-
-        int low = firstChildId;
-
-        // if the current node is star node, increment the low to reduce the search space
-        if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, firstChildId), StarTreeNodeType.STAR) != null) {
-            low++;
-        }
-
-        int high = getInt(LAST_CHILD_ID_OFFSET);
-        // if the current node is null node, decrement the high to reduce the search space
-        if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, high), StarTreeNodeType.NULL) != null) {
-            high--;
-        }
-
-        while (low <= high) {
-            int mid = low + (high - low) / 2;
-            FixedLengthStarTreeNode midNode = new FixedLengthStarTreeNode(in, mid);
-            long midDimensionValue = midNode.getDimensionValue();
-
-            if (midDimensionValue == dimensionValue) {
-                return midNode;
-            } else if (midDimensionValue < dimensionValue) {
-                low = mid + 1;
-            } else {
-                high = mid - 1;
-            }
-        }
-        return null;
     }
 
     @Override
@@ -286,8 +256,8 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
             public FixedLengthStarTreeNode next() {
                 try {
                     return new FixedLengthStarTreeNode(in, currentChildId++);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                } catch (IOException | RuntimeException e) {
+                    throw new IllegalStateException(e);
                 }
             }
 
@@ -297,4 +267,129 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
             }
         };
     }
+
+    /**
+     * Finds and returns all children with dimension values between the given start and end values.
+     *
+     * @param startDimensionValue The start of the range (inclusive)
+     * @param endDimensionValue   The end of the range (inclusive)
+     * @return A list of child nodes whose dimension values lie between the specified range
+     * @throws IOException If there's an error reading from the input
+     */
+    public Iterator<FixedLengthStarTreeNode> range(long startDimensionValue, long endDimensionValue) throws IOException {
+        return new Iterator<>() {
+            int currentChildId = binarySearchForDimension(startDimensionValue, true);
+            final int lastChildId = getInt(LAST_CHILD_ID_OFFSET);
+            FixedLengthStarTreeNode nextNode = null;
+
+            @Override
+            public boolean hasNext() {
+                try {
+                    // Continue iterating while we have valid children
+                    while (currentChildId != INVALID_ID && currentChildId <= lastChildId) {
+                        FixedLengthStarTreeNode currentNode = new FixedLengthStarTreeNode(in, currentChildId);
+                        long currentDimensionValue = currentNode.getDimensionValue();
+
+                        // If node exceeds endDimensionValue, we are out of the range
+                        if (currentDimensionValue > endDimensionValue) {
+                            return false;
+                        }
+
+                        // If node is within the range, we prepare it as the next node
+                        if (currentDimensionValue >= startDimensionValue) {
+                            nextNode = currentNode;
+                            currentChildId++; // Move to the next child for future iterations
+                            return true;
+                        }
+
+                        // Otherwise, move to the next child
+                        currentChildId++;
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                return false; // No more children in range
+            }
+
+            @Override
+            public FixedLengthStarTreeNode next() {
+                if (nextNode == null && !hasNext()) {
+                    throw new NoSuchElementException();
+                }
+
+                FixedLengthStarTreeNode returnNode = nextNode;
+                nextNode = null; // Reset nextNode for the next call
+                return returnNode;
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    /**
+     * Performs a binary search to find a node with a dimension value.
+     *
+     * @param dimensionValue   The dimension value to search for
+     * @param findFirstInRange If true, find the first node >= dimensionValue; otherwise, find exact matches
+     * @return The node ID if found, INVALID_ID otherwise
+     * @throws IOException If there's an error reading from the input
+     */
+    private int binarySearchForDimension(long dimensionValue, boolean findFirstInRange) throws IOException {
+
+        int low = firstChildId;
+        // if the current node is star node, increment the low to reduce the search space
+        if (isStarNode(low)) {
+            low++;
+        }
+
+        int high = getInt(LAST_CHILD_ID_OFFSET);
+        // if the current node is null node, decrement the high to reduce the search space
+        if (isNullNode(high)) {
+            high--;
+        }
+
+        int resultId = INVALID_ID;
+        while (low <= high) {
+            int mid = low + (high - low) / 2;
+            FixedLengthStarTreeNode midNode = new FixedLengthStarTreeNode(in, mid);
+            long midDimensionValue = midNode.getDimensionValue();
+
+            if (midDimensionValue == dimensionValue) {
+                return mid; // Exact match found
+            } else if (midDimensionValue < dimensionValue) {
+                low = mid + 1;
+            } else {
+                resultId = mid; // Possible candidate for start of range
+                high = mid - 1;
+            }
+        }
+
+        return findFirstInRange ? resultId : INVALID_ID;
+    }
+
+    /**
+     * Checks if the node at the given ID is a star node.
+     *
+     * @param nodeId The ID of the node to check
+     * @return true if it's a star node, false otherwise
+     * @throws IOException If there's an error reading from the input
+     */
+    private boolean isStarNode(int nodeId) throws IOException {
+        return matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, nodeId), StarTreeNodeType.STAR) != null;
+    }
+
+    /**
+     * Checks if the node at the given ID is a null node.
+     *
+     * @param nodeId The ID of the node to check
+     * @return true if it's a null node, false otherwise
+     * @throws IOException If there's an error reading from the input
+     */
+    private boolean isNullNode(int nodeId) throws IOException {
+        return matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, nodeId), StarTreeNodeType.NULL) != null;
+    }
+
 }
