@@ -87,7 +87,8 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         testStarTreeFilter(10, false);
     }
 
-    private void testStarTreeFilter(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension) throws IOException {
+    private Directory createStarTreeIndex(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension, List<Document> docs)
+        throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
         conf.setCodec(getCodec(maxLeafDoc, skipStarNodeCreationForSDVDimension));
@@ -95,7 +96,6 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
         int totalDocs = 100;
 
-        List<Document> docs = new ArrayList<>();
         for (int i = 0; i < totalDocs; i++) {
             Document doc = new Document();
             doc.add(new SortedNumericDocValuesField(SNDV, i));
@@ -110,6 +110,15 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         }
         iw.forceMerge(1);
         iw.close();
+        return directory;
+    }
+
+    private void testStarTreeFilter(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension) throws IOException {
+        List<Document> docs = new ArrayList<>();
+
+        Directory directory = createStarTreeIndex(maxLeafDoc, skipStarNodeCreationForSDVDimension, docs);
+
+        int totalDocs = docs.size();
 
         DirectoryReader ir = DirectoryReader.open(directory);
         initValuesSourceRegistry();

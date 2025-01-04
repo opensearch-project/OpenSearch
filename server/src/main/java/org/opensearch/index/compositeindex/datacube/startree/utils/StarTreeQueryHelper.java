@@ -152,7 +152,7 @@ public class StarTreeQueryHelper {
             MetricStat metricStat = ((MetricAggregatorFactory) aggregatorFactory).getMetricStat();
             field = ((MetricAggregatorFactory) aggregatorFactory).getField();
 
-            if (supportedMetrics.containsKey(field) && supportedMetrics.get(field).contains(metricStat)) {
+            if (field != null && supportedMetrics.containsKey(field) && supportedMetrics.get(field).contains(metricStat)) {
                 return metricStat;
             }
         }
