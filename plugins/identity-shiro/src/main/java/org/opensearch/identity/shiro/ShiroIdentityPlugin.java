@@ -39,6 +39,8 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Supplier;
@@ -136,6 +138,16 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
                 channel.sendResponse(bytesRestResponse);
             }
         }
+    }
+
+    /**
+     * Deliberately introducing the network access attempt to trigger SecurityException
+     */
+    public ServerSocket getSocket(Client client) throws IOException {
+        System.out.println("Client? " + client);
+        System.out.println("AdminClient? " + client.admin());
+        client.admin().cluster().prepareState().execute().actionGet();
+        return new ServerSocket(0);
     }
 
     public PluginSubject getPluginSubject(Plugin plugin) {
