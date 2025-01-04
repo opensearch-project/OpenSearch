@@ -167,6 +167,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
+            org.apache.lucene.search.MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
             throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");

@@ -69,7 +69,7 @@ public final class TraceableSearchRequestOperationsListener extends SearchReques
         // add response-related attributes on request end
         requestSpan.addAttribute(
             AttributeNames.TOTAL_HITS,
-            searchRequestContext.totalHits() == null ? 0 : searchRequestContext.totalHits().value
+            searchRequestContext.totalHits() == null ? 0 : searchRequestContext.totalHits().value()
         );
     }
 }

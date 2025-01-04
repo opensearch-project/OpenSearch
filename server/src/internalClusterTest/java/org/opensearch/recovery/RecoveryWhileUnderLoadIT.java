@@ -406,7 +406,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
                 .get();
             logSearchResponse(numberOfShards, numberOfDocs, i, searchResponse);
             iterationResults[i] = searchResponse;
-            if (searchResponse.getHits().getTotalHits().value != numberOfDocs) {
+            if (searchResponse.getHits().getTotalHits().value() != numberOfDocs) {
                 error = true;
             }
         }
@@ -452,7 +452,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
                         .setSize(0)
                         .setQuery(matchAllQuery())
                         .get();
-                    if (searchResponse.getHits().getTotalHits().value != numberOfDocs) {
+                    if (searchResponse.getHits().getTotalHits().value() != numberOfDocs) {
                         errorOccurred = true;
                     }
                 }
@@ -481,7 +481,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         logger.info(
             "iteration [{}] - returned documents: {} (expected {})",
             iteration,
-            searchResponse.getHits().getTotalHits().value,
+            searchResponse.getHits().getTotalHits().value(),
             numberOfDocs
         );
     }

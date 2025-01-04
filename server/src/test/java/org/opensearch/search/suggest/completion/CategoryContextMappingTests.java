@@ -799,7 +799,9 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
         ParseContext.Document document = new ParseContext.Document();
 
         KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType("category");
-        document.add(new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), new FieldType()));
+        FieldType keywordFieldType = new FieldType();
+        keywordFieldType.setStored(true);
+        document.add(new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), keywordFieldType));
         // Ignore doc values
         document.add(new SortedSetDocValuesField(keyword.name(), new BytesRef("category1")));
         Set<String> context = mapping.parseContext(document);

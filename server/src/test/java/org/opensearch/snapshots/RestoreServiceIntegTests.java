@@ -284,9 +284,9 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
 
             isSearchDone.await(waitInSeconds, TimeUnit.SECONDS);
 
-            assertEquals(documents, Objects.requireNonNull(searchIndexResponseListener.result().getHits().getTotalHits()).value);
+            assertEquals(documents, Objects.requireNonNull(searchIndexResponseListener.result().getHits().getTotalHits()).value());
             if (this.includeAlias) {
-                assertEquals(documents, Objects.requireNonNull(searchAliasResponseListener.result().getHits().getTotalHits()).value);
+                assertEquals(documents, Objects.requireNonNull(searchAliasResponseListener.result().getHits().getTotalHits()).value());
             }
         }
     }

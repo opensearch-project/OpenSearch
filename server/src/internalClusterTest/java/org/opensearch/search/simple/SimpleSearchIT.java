@@ -375,8 +375,8 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             .setTrackTotalHitsUpTo(5)
             .get();
         assertTrue(searchResponse.isTerminatedEarly());
-        assertEquals(5, searchResponse.getHits().getTotalHits().value);
-        assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+        assertEquals(5, searchResponse.getHits().getTotalHits().value());
+        assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
 
         // For size = 0, the following queries terminate early, but hits and relation can vary.
         if (size > 0) {
@@ -387,8 +387,8 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 .setTrackTotalHitsUpTo(10)
                 .get();
             assertTrue(searchResponse.isTerminatedEarly());
-            assertEquals(5, searchResponse.getHits().getTotalHits().value);
-            assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+            assertEquals(5, searchResponse.getHits().getTotalHits().value());
+            assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
 
             searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
@@ -397,8 +397,8 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 .setTrackTotalHitsUpTo(5)
                 .get();
             assertTrue(searchResponse.isTerminatedEarly());
-            assertEquals(5, searchResponse.getHits().getTotalHits().value);
-            assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+            assertEquals(5, searchResponse.getHits().getTotalHits().value());
+            assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
         }
 
         searchResponse = client().prepareSearch("test")
@@ -412,9 +412,9 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             // Since terminate_after < track_total_hits, we need to do a range check.
             assertHitCount(searchResponse, 5, numDocs);
         } else {
-            assertEquals(5, searchResponse.getHits().getTotalHits().value);
+            assertEquals(5, searchResponse.getHits().getTotalHits().value());
         }
-        assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+        assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
 
         searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
@@ -423,16 +423,16 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             .setTrackTotalHits(true)
             .get();
         assertFalse(searchResponse.isTerminatedEarly());
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
-        assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value());
+        assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
 
         searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
             .setSize(size)
             .setTrackTotalHitsUpTo(5)
             .get();
-        assertEquals(5, searchResponse.getHits().getTotalHits().value);
-        assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+        assertEquals(5, searchResponse.getHits().getTotalHits().value());
+        assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
     }
 
     public void testSimpleTerminateAfterTrackTotalHitsUpToRandomSize0() throws Exception {
@@ -675,7 +675,7 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         parser.nextToken();
         TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(query).get();
-        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        assertEquals(1, searchResponse.getHits().getTotalHits().value());
     }
 
     public void testIndexOnlyFloatField() throws IOException {
@@ -692,7 +692,7 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         parser.nextToken();
         ConstantScoreQueryBuilder query = ConstantScoreQueryBuilder.fromXContent(parser);
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(query).get();
-        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        assertEquals(1, searchResponse.getHits().getTotalHits().value());
     }
 
     public void testTooLongRegexInRegexpQuery() throws Exception {

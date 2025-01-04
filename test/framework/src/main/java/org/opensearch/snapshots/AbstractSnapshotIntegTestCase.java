@@ -566,7 +566,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     protected long getCountForIndex(String indexName) {
         return client().search(
             new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
-        ).actionGet().getHits().getTotalHits().value;
+        ).actionGet().getHits().getTotalHits().value();
     }
 
     protected void assertDocCount(String index, long count) {

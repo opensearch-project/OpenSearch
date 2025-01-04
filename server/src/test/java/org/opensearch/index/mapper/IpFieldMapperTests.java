@@ -84,16 +84,13 @@ public class IpFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertEquals(16, pointField.fieldType().pointNumBytes());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointField.binaryValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
-        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), dvField.binaryValue());
-        assertFalse(dvField.fieldType().stored());
+        assertEquals(1, fields.length);
+        IndexableField pointFieldAndDVField = fields[0];
+        assertEquals(1, pointFieldAndDVField.fieldType().pointIndexDimensionCount());
+        assertEquals(16, pointFieldAndDVField.fieldType().pointNumBytes());
+        assertFalse(pointFieldAndDVField.fieldType().stored());
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointFieldAndDVField.binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, pointFieldAndDVField.fieldType().docValuesType());
     }
 
     public void testNotIndexed() throws Exception {
@@ -145,12 +142,11 @@ public class IpFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
-        IndexableField storedField = fields[2];
+        assertEquals(2, fields.length);
+        IndexableField pointFieldAndDVField = fields[0];
+        assertEquals(1, pointFieldAndDVField.fieldType().pointIndexDimensionCount());
+        assertEquals(DocValuesType.SORTED_SET, pointFieldAndDVField.fieldType().docValuesType());
+        IndexableField storedField = fields[1];
         assertTrue(storedField.fieldType().stored());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddress.getByName("::1"))), storedField.binaryValue());
     }
@@ -190,16 +186,13 @@ public class IpFieldMapperTests extends MapperTestCase {
         doc = mapper.parse(source(b -> b.nullField("field")));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertEquals(16, pointField.fieldType().pointNumBytes());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointField.binaryValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
-        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), dvField.binaryValue());
-        assertFalse(dvField.fieldType().stored());
+        assertEquals(1, fields.length);
+        IndexableField pointFieldAndDVField = fields[0];
+        assertEquals(1, pointFieldAndDVField.fieldType().pointIndexDimensionCount());
+        assertEquals(16, pointFieldAndDVField.fieldType().pointNumBytes());
+        assertFalse(pointFieldAndDVField.fieldType().stored());
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointFieldAndDVField.binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, pointFieldAndDVField.fieldType().docValuesType());
 
         mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip");
