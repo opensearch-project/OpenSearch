@@ -8,9 +8,26 @@
 
 package org.opensearch.search.aggregations;
 
-import java.io.IOException;
+import org.apache.lucene.util.FixedBitSet;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 
-public abstract class StarTreeBucketCollector extends LeafBucketCollector {
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+public abstract class StarTreeBucketCollector {
+
+    protected StarTreeValues starTreeValues;
+    protected FixedBitSet matchingDocsBitSet;
+    protected final List<StarTreeBucketCollector> subCollectors = new ArrayList<>();
+
+    public List<StarTreeBucketCollector> getSubCollectors() {
+        return subCollectors;
+    }
+
+    public FixedBitSet getMatchingDocsBitSet() {
+        return matchingDocsBitSet;
+    }
 
     public abstract void collectStarEntry(int starTreeEntry, long bucket) throws IOException;
 }
