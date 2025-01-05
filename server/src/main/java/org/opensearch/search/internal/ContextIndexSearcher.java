@@ -337,11 +337,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             searchContext.setSearchTimedOut(true);
             return;
         }
-        // Resolve via star-tree
-        // if (queryStarTree(ctx, leafCollector)) {
-        // return;
-        // }
-
         // catch early terminated exception and rethrow?
         Bits liveDocs = ctx.reader().getLiveDocs();
         BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
@@ -385,30 +380,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // CollectionTerminatedException and TimeExceededException, but no other exception.
         leafCollector.finish();
     }
-
-    // private boolean queryStarTree(LeafReaderContext ctx, LeafCollector leafCollector) throws IOException {
-    // if(!(leafCollector instanceof StarTreeBucketCollector)) {
-    // return false;
-    // }
-    // CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(searchContext);
-    // if (supportedStarTree != null) {
-    // StarTreeValues starTreeValues = getStarTreeValues(ctx, supportedStarTree);
-    // assert starTreeValues != null;
-    //
-    // FixedBitSet matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, "@timestamp_month");
-    // int numBits = matchingDocsBitSet.length();
-    //
-    // if (numBits > 0) {
-    // for (int bit = matchingDocsBitSet.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
-    // ? matchingDocsBitSet.nextSetBit(bit + 1)
-    // : DocIdSetIterator.NO_MORE_DOCS) {
-    // ((StarTreeBucketCollector) leafCollector).collectStarEntry(bit, 0);
-    // }
-    // }
-    // return true;
-    // }
-    // return false;
-    // }
 
     private Weight wrapWeight(Weight weight) {
         if (cancellable.isEnabled()) {
