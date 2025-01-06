@@ -82,7 +82,7 @@ opentelemetry         = "1.46.0"
 opentelemetrysemconv  = "1.29.0-alpha"
 
 # arrow dependencies
-arrow                 = "17.0.0"
+arrow                 = "18.1.0"
 flatbuffers           = "2.0.0"
 
 [libraries]
