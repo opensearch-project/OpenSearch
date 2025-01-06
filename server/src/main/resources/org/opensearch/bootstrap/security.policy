@@ -96,6 +96,7 @@ grant codeBase "${codebase.reactor-core}" {
 //// Everything else:
 
 grant {
+
   // needed by vendored Guice
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.vm.annotation";
 
@@ -195,4 +196,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
+  // Needed for netty based arrow flight server for netty configs related to buffer allocator
+  permission java.security.AllPermission "modifyThreadGroup";
 };
