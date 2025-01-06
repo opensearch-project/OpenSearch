@@ -97,7 +97,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
+        if (valuesSource == null || (parent != null && subAggregators.length == 0)) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
