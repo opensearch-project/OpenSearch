@@ -643,10 +643,8 @@ public final class SearchPhaseController {
     }
 
     private static SortField.Type getSortType(SortField sortField) {
-        if (sortField.getComparatorSource() != null) {
-            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField
-                .getComparatorSource();
-            return comparatorSource.reducedType();
+        if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
+            return ((IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource()).reducedType();
         } else {
             return sortField instanceof SortedNumericSortField
                 ? ((SortedNumericSortField) sortField).getNumericType()

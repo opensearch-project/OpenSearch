@@ -43,8 +43,15 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
      */
     public SortedWiderNumericSortField(String field, Type type, boolean reverse) {
         super(field, type, reverse);
-        byteCounts = type == Type.LONG ? Long.BYTES : Double.BYTES;
-        comparator = type == Type.LONG ? Comparator.comparingLong(Number::longValue) : Comparator.comparingDouble(Number::doubleValue);
+        if (type == Type.LONG) {
+            byteCounts = Long.BYTES;
+            comparator = Comparator.comparingLong(Number::longValue);
+        } else if (type == Type.DOUBLE) {
+            byteCounts = Double.BYTES;
+            comparator = Comparator.comparingDouble(Number::doubleValue);
+        } else {
+            throw new IllegalArgumentException("Unsupported numeric type: " + type);
+        }
     }
 
     /**
