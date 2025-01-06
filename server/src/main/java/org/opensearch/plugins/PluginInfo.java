@@ -86,6 +86,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String classname;
     private final String customFolderName;
     private final List<String> extendedPlugins;
+    // Optional extended plugins are a subset of extendedPlugins that only contains the optional extended plugins
+    private final List<String> optionalExtendedPlugins;
     private final boolean hasNativeController;
 
     /**
@@ -149,7 +151,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.javaVersion = javaVersion;
         this.classname = classname;
         this.customFolderName = customFolderName;
-        this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
+        this.extendedPlugins = extendedPlugins.stream().map(s -> s.split(";")[0]).collect(Collectors.toUnmodifiableList());
+        this.optionalExtendedPlugins = extendedPlugins.stream()
+            .filter(PluginInfo::isOptionalExtension)
+            .map(s -> s.split(";")[0])
+            .collect(Collectors.toUnmodifiableList());
         this.hasNativeController = hasNativeController;
     }
 
@@ -209,6 +215,16 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_19_0)) {
+            this.optionalExtendedPlugins = in.readStringList();
+        } else {
+            this.optionalExtendedPlugins = new ArrayList<>();
+        }
+    }
+
+    static boolean isOptionalExtension(String extendedPlugin) {
+        String[] dependency = extendedPlugin.split(";");
+        return dependency.length > 1 && "optional=true".equals(dependency[1]);
     }
 
     @Override
@@ -234,6 +250,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
+        if (out.getVersion().onOrAfter(Version.V_2_19_0)) {
+            out.writeStringCollection(optionalExtendedPlugins);
+        }
     }
 
     /**
@@ -417,8 +436,17 @@ public class PluginInfo implements Writeable, ToXContentObject {
      *
      * @return the names of the plugins extended
      */
+    public boolean isExtendedPluginOptional(String extendedPlugin) {
+        return optionalExtendedPlugins.contains(extendedPlugin);
+    }
+
+    /**
+     * Other plugins this plugin extends through SPI
+     *
+     * @return the names of the plugins extended
+     */
     public List<String> getExtendedPlugins() {
-        return extendedPlugins;
+        return extendedPlugins.stream().map(s -> s.split(";")[0]).collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -493,6 +521,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("custom_foldername", customFolderName);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
+            builder.field("optional_extended_plugins", optionalExtendedPlugins);
         }
         builder.endObject();
 
