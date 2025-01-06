@@ -60,7 +60,7 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
 
     @Override
     protected long sortableBytesToLong(byte[] bytes) {
-        return NumericUtils.sortableBytesToBigInt(bytes, 0, BigIntegerPoint.BYTES).longValue();
+        return NumericUtils.sortableBytesToLong(bytes, 0);
     }
 
     /** Leaf comparator for {@link UnsignedLongComparator} that provides skipping functionality */
@@ -104,14 +104,14 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
         protected long bottomAsComparableLong() {
             // Apache Lucene will not use unsigned comparison for long values, so we have to convert to double
             // first (with possible lost of precision) and than to sortable long.
-            return NumericUtils.doubleToSortableLong(Numbers.unsignedLongToDouble(missingValue.longValue()));
+            return NumericUtils.doubleToSortableLong(Numbers.unsignedLongToDouble(bottom.longValue()));
         }
 
         @Override
         protected long topAsComparableLong() {
             // Apache Lucene will not use unsigned comparison for long values, so we have to convert to double
             // first (with possible lost of precision) and than to sortable long.
-            return NumericUtils.doubleToSortableLong(Numbers.unsignedLongToDouble(missingValue.longValue()));
+            return NumericUtils.doubleToSortableLong(Numbers.unsignedLongToDouble(topValue.longValue()));
         }
     }
 }
