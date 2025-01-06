@@ -256,5 +256,21 @@
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
     },
     "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+  },
+  "id_16": {
+    "description": "Benchmarking config for NESTED workload, benchmarks nested queries with inner-hits",
+    "supported_major_versions": ["2", "3"],
+    "cluster-benchmark-configs": {
+      "SINGLE_NODE_CLUSTER": "true",
+      "MIN_DISTRIBUTION": "true",
+      "TEST_WORKLOAD": "nested",
+      "WORKLOAD_PARAMS": "{\"number_of_replicas\":\"0\",\"number_of_shards\":\"1\"}",
+      "CAPTURE_NODE_STAT": "true"
+    },
+    "cluster_configuration": {
+      "size": "Single-Node",
+      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-single-node-1-shard-0-replica-baseline"
   }
-}
+  }
