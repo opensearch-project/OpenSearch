@@ -120,6 +120,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_KNN_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -171,7 +172,8 @@ public class RestoreService implements ClusterStateApplier {
             SETTING_HISTORY_UUID,
             SETTING_REMOTE_STORE_ENABLED,
             SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-            SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
+            SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
+            SETTING_KNN_ENABLED
         )
     );
 
