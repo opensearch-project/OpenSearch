@@ -48,10 +48,10 @@ import org.opensearch.transport.client.node.NodeClient;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
@@ -63,9 +63,20 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSnapshotAction.class);
 
+    private static final String DEPRECATED_MESSAGE_CAT_SNAPSHOTS = String.format(
+        Locale.ROOT,
+        "[%s] is a deprecated endpoint. Please use [/_cat/snapshots/{repository}] instead.",
+        "/_cat/snapshots"
+    );
+
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(GET, "/_cat/snapshots"), new Route(GET, "/_cat/snapshots/{repository}")));
+        return singletonList(new Route(GET, "/_cat/snapshots/{repository}"));
+    }
+
+    @Override
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return singletonList(new DeprecatedRoute(GET, "/_cat/snapshots", DEPRECATED_MESSAGE_CAT_SNAPSHOTS));
     }
 
     @Override
@@ -77,7 +88,6 @@ public class RestSnapshotAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest().repository(request.param("repository"))
             .snapshots(new String[] { GetSnapshotsRequest.ALL_SNAPSHOTS });
-
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
 
         getSnapshotsRequest.clusterManagerNodeTimeout(
