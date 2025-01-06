@@ -61,6 +61,7 @@ public class RunTask extends DefaultTestClustersTask {
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.opensearch.";
     private static final int DEFAULT_HTTP_PORT = 9200;
     private static final int DEFAULT_TRANSPORT_PORT = 9300;
+    private static final int DEFAULT_STREAM_PORT = 9880;
     private static final int DEFAULT_DEBUG_PORT = 5005;
     public static final String LOCALHOST_ADDRESS_PREFIX = "127.0.0.1:";
 
@@ -140,6 +141,8 @@ public class RunTask extends DefaultTestClustersTask {
         int debugPort = DEFAULT_DEBUG_PORT;
         int httpPort = DEFAULT_HTTP_PORT;
         int transportPort = DEFAULT_TRANSPORT_PORT;
+        int streamPort = DEFAULT_STREAM_PORT;
+
         Map<String, String> additionalSettings = System.getProperties()
             .entrySet()
             .stream()
@@ -164,7 +167,9 @@ public class RunTask extends DefaultTestClustersTask {
             firstNode.setHttpPort(String.valueOf(httpPort));
             httpPort++;
             firstNode.setTransportPort(String.valueOf(transportPort));
+            firstNode.setStreamPort(String.valueOf(streamPort));
             transportPort++;
+            streamPort++;
             firstNode.setting("discovery.seed_hosts", LOCALHOST_ADDRESS_PREFIX + DEFAULT_TRANSPORT_PORT);
             cluster.setPreserveDataDir(preserveData);
             for (OpenSearchNode node : cluster.getNodes()) {
@@ -172,7 +177,9 @@ public class RunTask extends DefaultTestClustersTask {
                     node.setHttpPort(String.valueOf(httpPort));
                     httpPort++;
                     node.setTransportPort(String.valueOf(transportPort));
+                    node.setStreamPort(String.valueOf(streamPort));
                     transportPort++;
+                    streamPort++;
                     node.setting("discovery.seed_hosts", LOCALHOST_ADDRESS_PREFIX + DEFAULT_TRANSPORT_PORT);
                 }
                 additionalSettings.forEach(node::setting);

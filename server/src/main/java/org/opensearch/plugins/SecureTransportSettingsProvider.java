@@ -13,8 +13,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportAdapterProvider;
 
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManagerFactory;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -52,6 +54,18 @@ public interface SecureTransportSettingsProvider {
     @ExperimentalApi
     interface SecureTransportParameters {
         boolean dualModeEnabled();
+
+        KeyManagerFactory keyManagerFactory();
+
+        String sslProvider();
+
+        String clientAuth();
+
+        Iterable<String> protocols();
+
+        Iterable<String> cipherSuites();
+
+        TrustManagerFactory trustManagerFactory();
     }
 
     /**

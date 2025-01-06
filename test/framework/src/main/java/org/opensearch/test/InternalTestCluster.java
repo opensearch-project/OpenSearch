@@ -165,6 +165,7 @@ import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.NodeRoles.onlyRoles;
 import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.opensearch.test.OpenSearchTestCase.assertBusy;
+import static org.opensearch.test.OpenSearchTestCase.getBaseStreamPort;
 import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.hamcrest.Matchers.equalTo;
@@ -236,6 +237,8 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_NUM_CLIENT_NODES = -1;
     static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
+
+    private static final AtomicInteger FLIGHT_PORT_COUNTER = new AtomicInteger(0);
 
     /* Sorted map to make traverse order reproducible.
      * The map of nodes is never mutated so individual reads are safe without synchronization.
@@ -755,7 +758,7 @@ public final class InternalTestCluster extends TestCluster {
         final Settings.Builder updatedSettings = Settings.builder();
 
         updatedSettings.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
-
+        updatedSettings.put("node.attr.transport.stream.port", getBaseStreamPort() + FLIGHT_PORT_COUNTER.getAndIncrement());
         if (numDataPaths > 1) {
             updatedSettings.putList(
                 Environment.PATH_DATA_SETTING.getKey(),
