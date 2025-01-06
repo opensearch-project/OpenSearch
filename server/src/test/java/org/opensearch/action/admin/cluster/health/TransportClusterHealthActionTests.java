@@ -50,6 +50,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -57,7 +58,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class TransportClusterHealthActionTests extends OpenSearchTestCase {
 
     public void testWaitForInitializingShards() throws Exception {
-        final String[] indices = { "test" };
+        final Set<String> indices = Set.of("test");
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForNoInitializingShards(true);
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 0);
@@ -76,7 +77,7 @@ public class TransportClusterHealthActionTests extends OpenSearchTestCase {
     }
 
     public void testWaitForAllShards() {
-        final String[] indices = { "test" };
+        final Set<String> indices = Set.of("test");
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForActiveShards(ActiveShardCount.ALL);
 
