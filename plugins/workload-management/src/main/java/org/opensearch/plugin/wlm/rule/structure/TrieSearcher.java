@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Handles the search operation for the Augmented Trie.
+ * Handles the search operation for the Trie.
  */
 class TrieSearcher {
     private TrieNode root;

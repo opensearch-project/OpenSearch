@@ -9,7 +9,7 @@
 package org.opensearch.plugin.wlm.rule.structure;
 
 /**
- * Handles the insertion operation for the Augmented Trie.
+ * Handles the insertion operation for the Trie.
  */
 class TrieInserter {
     private TrieNode root;
