@@ -76,6 +76,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.query.BitmapDocValuesQuery;
+import org.opensearch.search.query.BitmapIndexQuery;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -962,7 +963,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
         assertEquals(
-            new IndexOrDocValuesQuery(NumberType.bitmapIndexQuery("field", r), new BitmapDocValuesQuery("field", r)),
+            new IndexOrDocValuesQuery(new BitmapIndexQuery("field", r), new BitmapDocValuesQuery("field", r)),
             ft.bitmapQuery(bitmap)
         );
 
