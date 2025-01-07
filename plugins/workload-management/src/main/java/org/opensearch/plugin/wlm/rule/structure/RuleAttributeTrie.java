@@ -28,7 +28,7 @@ public class RuleAttributeTrie implements FastPrefixMatchingStructure {
      * @param value The value associated with the key.
      */
     public void insert(String key, String value) {
-        if (!IsvalidValue(value)) {
+        if (!isValidValue(value)) {
             throw new IllegalArgumentException(
                 "Invalid attribute value: " + value + " it should match the regex " + ALLOWED_ATTRIBUTE_VALUES
             );
@@ -37,7 +37,7 @@ public class RuleAttributeTrie implements FastPrefixMatchingStructure {
         root = inserter.insert();
     }
 
-    private boolean IsvalidValue(String value) {
+    private boolean isValidValue(String value) {
         return ALLOWED_ATTRIBUTE_VALUES.matches(value);
     }
 
