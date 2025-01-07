@@ -157,11 +157,6 @@ public class FastPrefixMatchingStructureTests {
             assertEquals(Collections.singletonList("empty"), trie.search(""));
         }
 
-        @Test
-        public void testInsertEmptyValue() {
-            trie.insert("emptyvalue", "");
-            assertEquals(Collections.singletonList(""), trie.search("emptyvalue"));
-        }
 
         @Test
         public void testDeleteEmptyString() {

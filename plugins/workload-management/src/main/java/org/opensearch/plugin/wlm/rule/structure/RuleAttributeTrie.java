@@ -38,7 +38,7 @@ public class RuleAttributeTrie implements FastPrefixMatchingStructure {
     }
 
     private boolean isValidValue(String value) {
-        return ALLOWED_ATTRIBUTE_VALUES.matches(value);
+        return value.matches(ALLOWED_ATTRIBUTE_VALUES);
     }
 
     /**
