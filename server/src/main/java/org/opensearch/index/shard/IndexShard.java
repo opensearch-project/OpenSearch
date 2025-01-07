@@ -1625,25 +1625,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * reads the last metadata file from remote store and fetches files present in commit and their sizes.
-     * @return Tuple(Tuple(primaryTerm, commitGeneration), indexFilesToFileLengthMap)
+     * Fetches the last remote uploaded segment metadata file
+     * @return {@link RemoteSegmentMetadata}
      * @throws IOException
      */
-    public Tuple<Tuple<Long, Long>, Map<String, Long>> acquireLastRemoteUploadedIndexCommit() throws IOException {
+    public RemoteSegmentMetadata fetchLastRemoteUploadedSegmentMetadata() throws IOException {
         if (!indexSettings.isAssignedOnRemoteNode()) {
             throw new IllegalStateException("Index is not assigned on Remote Node");
         }
         RemoteSegmentMetadata lastUploadedMetadata = getRemoteDirectory().readLatestMetadataFile();
         if (lastUploadedMetadata == null) {
-            throw new IllegalStateException("No metadata file found in remote store");
+            throw new FileNotFoundException("No metadata file found in remote store");
         }
-        final Map<String, Long> indexFilesToFileLengthMap = lastUploadedMetadata.getMetadata()
-            .entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getLength()));
-        long primaryTerm = lastUploadedMetadata.getPrimaryTerm();
-        long commitGeneration = lastUploadedMetadata.getGeneration();
-        return new Tuple<>(new Tuple<>(primaryTerm, commitGeneration), indexFilesToFileLengthMap);
+        return lastUploadedMetadata;
     }
 
     /**

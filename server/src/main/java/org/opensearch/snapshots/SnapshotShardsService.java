@@ -48,7 +48,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
@@ -65,6 +64,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus.Stage;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -407,10 +407,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
                     try {
                         if (closedIndex) {
-                            final Tuple<Tuple<Long, Long>, Map<String, Long>> tuple = indexShard.acquireLastRemoteUploadedIndexCommit();
-                            primaryTerm = tuple.v1().v1();
-                            commitGeneration = tuple.v1().v2();
-                            indexFilesToFileLengthMap = tuple.v2();
+                            RemoteSegmentMetadata lastRemoteUploadedIndexCommit = indexShard.fetchLastRemoteUploadedSegmentMetadata();
+                            indexFilesToFileLengthMap = lastRemoteUploadedIndexCommit.getMetadata()
+                                .entrySet()
+                                .stream()
+                                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getLength()));
+                            primaryTerm = lastRemoteUploadedIndexCommit.getPrimaryTerm();
+                            commitGeneration = lastRemoteUploadedIndexCommit.getGeneration();
                         } else {
                             wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
                             snapshotIndexCommit = wrappedSnapshot.get();
@@ -420,7 +423,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     } catch (IOException e) {
                         if (closedIndex) {
                             logger.warn("Exception while reading latest metadata file from remote store");
-                            throw e;
+                            listener.onFailure(e);
                         } else {
                             wrappedSnapshot.close();
                             logger.warn(

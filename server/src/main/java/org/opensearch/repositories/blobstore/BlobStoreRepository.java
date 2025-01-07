@@ -3750,6 +3750,33 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotId snapshotId,
         IndexId indexId,
         IndexCommit snapshotIndexCommit,
+        @Nullable String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        long primaryTerm,
+        long startTime,
+        ActionListener<String> listener
+    ) {
+        snapshotRemoteStoreIndexShard(
+            store,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            primaryTerm,
+            snapshotIndexCommit.getGeneration(),
+            startTime,
+            null,
+            listener
+        );
+    }
+
+    @Override
+    public void snapshotRemoteStoreIndexShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
         String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         long primaryTerm,
@@ -3760,10 +3787,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
-            return;
-        }
-        if (snapshotIndexCommit == null && indexFilesToFileLengthMap == null) {
-            listener.onFailure(new RepositoryException(metadata.name(), "both snapshot index commit and index files map cannot be null"));
             return;
         }
 
