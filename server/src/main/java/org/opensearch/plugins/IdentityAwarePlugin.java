@@ -8,8 +8,8 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.client.Client;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
 
 /**
@@ -27,8 +27,8 @@ public interface IdentityAwarePlugin {
     /**
      * Passes necessary classes for this plugin to operate as an IdentityAwarePlugin
      *
-     * @param pluginSubject A subject for running transport actions in the plugin context for system index
+     * @param pluginClient A subject for running transport actions in the plugin context for system index
      *                      interaction
      */
-    default void assignSubject(PluginSubject pluginSubject) {}
+    default void assignRunAsClient(Client pluginClient) {}
 }

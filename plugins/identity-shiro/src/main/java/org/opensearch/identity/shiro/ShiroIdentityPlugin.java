@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.mgt.SecurityManager;
 import org.opensearch.client.Client;
+import org.opensearch.client.FilterClient;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -23,8 +24,8 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
+import org.opensearch.identity.noop.RunAsSystemClient;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.ActionPlugin;
@@ -54,6 +55,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
     private final ShiroTokenManager authTokenHandler;
 
     private ThreadPool threadPool;
+    private Client client;
 
     /**
      * Create a new instance of the Shiro Identity Plugin
@@ -83,6 +85,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.threadPool = threadPool;
+        this.client = client;
         return Collections.emptyList();
     }
 
@@ -138,7 +141,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
         }
     }
 
-    public PluginSubject getPluginSubject(Plugin plugin) {
-        return new ShiroPluginSubject(threadPool);
+    public FilterClient getRunAsClient(Plugin plugin) {
+        return new RunAsSystemClient(client);
     }
 }

@@ -8,12 +8,12 @@
 
 package org.opensearch.identity.noop;
 
-import org.opensearch.identity.PluginSubject;
+import org.opensearch.client.Client;
+import org.opensearch.client.FilterClient;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.threadpool.ThreadPool;
 
 /**
  * Implementation of identity plugin that does not enforce authentication or authorization
@@ -24,10 +24,10 @@ import org.opensearch.threadpool.ThreadPool;
  */
 public class NoopIdentityPlugin implements IdentityPlugin {
 
-    private final ThreadPool threadPool;
+    private final Client client;
 
-    public NoopIdentityPlugin(ThreadPool threadPool) {
-        this.threadPool = threadPool;
+    public NoopIdentityPlugin(Client client) {
+        this.client = client;
     }
 
     /**
@@ -49,7 +49,7 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     }
 
     @Override
-    public PluginSubject getPluginSubject(Plugin plugin) {
-        return new NoopPluginSubject(threadPool);
+    public FilterClient getRunAsClient(Plugin plugin) {
+        return new RunAsSystemClient(client);
     }
 }
