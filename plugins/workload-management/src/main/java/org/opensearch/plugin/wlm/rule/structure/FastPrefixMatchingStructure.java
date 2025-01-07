@@ -8,6 +8,12 @@
 
 package org.opensearch.plugin.wlm.rule.structure;
 
+import java.util.List;
+
 public interface FastPrefixMatchingStructure {
-    void add(String s);
+    void insert(String key, String value);
+
+    List<String> search(String key);
+
+    boolean delete(String key);
 }

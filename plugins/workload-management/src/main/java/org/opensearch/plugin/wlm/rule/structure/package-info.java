@@ -7,10 +7,3 @@
  */
 
 package org.opensearch.plugin.wlm.rule.structure;
-
-import java.util.List;
-import java.util.Map;
-
-public class Rule {
-    Map<String, List<String>> attributes;
-}
