@@ -10,8 +10,12 @@ package org.opensearch.plugin.wlm.rule.structure;
 
 import java.util.List;
 
+/**
+ * Per attribute in memory storage structure for Rules
+ */
 public class RuleAttributeTrie implements FastPrefixMatchingStructure {
     private static final String ALLOWED_ATTRIBUTE_VALUES = "^[a-zA-Z0-9-_]+\\*?$";
+    private static final int ATTRIBUTE_MAX_LENGTH = 100;
     private TrieNode root;
 
     /**
@@ -38,7 +42,7 @@ public class RuleAttributeTrie implements FastPrefixMatchingStructure {
     }
 
     private boolean isValidValue(String value) {
-        return value.matches(ALLOWED_ATTRIBUTE_VALUES);
+        return value.length() <= ATTRIBUTE_MAX_LENGTH && value.matches(ALLOWED_ATTRIBUTE_VALUES);
     }
 
     /**

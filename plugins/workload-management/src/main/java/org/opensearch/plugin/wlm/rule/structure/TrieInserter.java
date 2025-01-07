@@ -31,7 +31,8 @@ class TrieInserter {
 
     /**
      * Performs the insertion operation.
-     * <ol>Method should handle 3 cases
+     * Method should handle 3 cases
+     * <ol>
      * <li>Simple addition of new child </li>
      * <li>insert splits a node</li>
      * <li>inserted key is a prefix to existing key|s, this could either mark a node as endOfWord or it could also split the node</li>
