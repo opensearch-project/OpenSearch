@@ -19,7 +19,7 @@ public class RuleAttributeTrie implements FastPrefixMatchingStructure {
     private TrieNode root;
 
     /**
-     * Constructs an empty AugmentedTrie.
+     * Constructs an empty Trie.
      */
     public RuleAttributeTrie() {
         root = new TrieNode("");

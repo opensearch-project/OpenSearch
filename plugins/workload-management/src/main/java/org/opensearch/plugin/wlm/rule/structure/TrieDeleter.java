@@ -9,7 +9,7 @@
 package org.opensearch.plugin.wlm.rule.structure;
 
 /**
- * Handles the deletion operation for the Augmented Trie.
+ * Handles the deletion operation for the Trie.
  */
 class TrieDeleter {
     private TrieNode root;

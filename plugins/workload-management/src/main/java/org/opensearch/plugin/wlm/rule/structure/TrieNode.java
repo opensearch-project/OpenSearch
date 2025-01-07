@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Queue;
 
 /**
- * Represents a node in the Augmented Trie.
+ * Represents a node in the Trie.
  * Each node contains a key, an optional value, and references to child nodes.
  */
 class TrieNode {
