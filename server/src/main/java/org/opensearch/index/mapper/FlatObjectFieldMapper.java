@@ -396,8 +396,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             return valueFieldType().rangeQuery(
-                rewriteSearchValue(lowerTerm),
-                rewriteSearchValue(upperTerm),
+                lowerTerm == null ? null : rewriteSearchValue(lowerTerm),
+                upperTerm == null ? null : rewriteSearchValue(upperTerm),
                 includeLower,
                 includeUpper,
                 context
