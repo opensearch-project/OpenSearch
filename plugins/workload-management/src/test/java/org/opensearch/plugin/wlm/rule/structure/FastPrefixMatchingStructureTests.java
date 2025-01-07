@@ -9,6 +9,7 @@
 package org.opensearch.plugin.wlm.rule.structure;
 
 import org.opensearch.test.OpenSearchTestCase;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
