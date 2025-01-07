@@ -94,6 +94,7 @@ import org.opensearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -349,7 +350,9 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         IndexSettings indexSettings,
         CompositeIndexFieldInfo starTree,
         List<Dimension> supportedDimensions,
+        List<Metric> supportedMetrics,
         MultiBucketConsumer bucketConsumer,
+        AggregatorFactory aggregatorFactory,
         MappedFieldType... fieldTypes
     ) throws IOException {
         SearchContext searchContext;
@@ -361,7 +364,9 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                 queryBuilder,
                 starTree,
                 supportedDimensions,
+                supportedMetrics,
                 bucketConsumer,
+                aggregatorFactory,
                 fieldTypes
             );
         } else {
@@ -390,7 +395,9 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         QueryBuilder queryBuilder,
         CompositeIndexFieldInfo starTree,
         List<Dimension> supportedDimensions,
+        List<Metric> supportedMetrics,
         MultiBucketConsumer bucketConsumer,
+        AggregatorFactory aggregatorFactory,
         MappedFieldType... fieldTypes
     ) throws IOException {
         SearchContext searchContext = createSearchContext(
@@ -407,7 +414,12 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
         when(searchContext.aggregations()).thenReturn(searchContextAggregations);
         when(searchContextAggregations.factories()).thenReturn(aggregatorFactories);
-        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] {});
+
+        if (aggregatorFactory != null) {
+            when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] { aggregatorFactory });
+        } else {
+            when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] {});
+        }
 
         CompositeDataCubeFieldType compositeMappedFieldType = mock(CompositeDataCubeFieldType.class);
         when(compositeMappedFieldType.name()).thenReturn(starTree.getField());
@@ -415,6 +427,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         Set<CompositeMappedFieldType> compositeFieldTypes = Set.of(compositeMappedFieldType);
 
         when((compositeMappedFieldType).getDimensions()).thenReturn(supportedDimensions);
+        when((compositeMappedFieldType).getMetrics()).thenReturn(supportedMetrics);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getCompositeFieldTypes()).thenReturn(compositeFieldTypes);
         when(searchContext.mapperService()).thenReturn(mapperService);
@@ -743,8 +756,11 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregationBuilder builder,
         CompositeIndexFieldInfo compositeIndexFieldInfo,
         List<Dimension> supportedDimensions,
+        List<Metric> supportedMetrics,
         int maxBucket,
         boolean hasNested,
+        AggregatorFactory aggregatorFactory,
+        boolean assertCollectorEarlyTermination,
         MappedFieldType... fieldTypes
     ) throws IOException {
         query = query.rewrite(searcher);
@@ -767,7 +783,9 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             indexSettings,
             compositeIndexFieldInfo,
             supportedDimensions,
+            supportedMetrics,
             bucketConsumer,
+            aggregatorFactory,
             fieldTypes
         );
 
@@ -775,7 +793,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         searcher.search(query, countingAggregator);
         countingAggregator.postCollection();
         aggs.add(countingAggregator.buildTopLevel());
-        if (compositeIndexFieldInfo != null) {
+        if (compositeIndexFieldInfo != null && assertCollectorEarlyTermination) {
             assertEquals(0, countingAggregator.collectCounter.get());
         }
 
