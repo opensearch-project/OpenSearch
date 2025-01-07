@@ -77,3 +77,28 @@
                /^   snap1\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
                     snap2\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
                $/
+
+---
+"Test deprecated _cat/snapshots endpoint":
+  - skip:
+      version: " - 2.18.99"
+      reason: "Deprecation added in 2.19"
+      features: [ "warnings" ]
+
+  - do:
+      snapshot.create_repository:
+        repository: dep_test_repo
+        body:
+          type: fs
+          settings:
+            location: "dep_test_repo_loc"
+
+  - do:
+      warnings:
+        - "[/_cat/snapshots] is a deprecated endpoint. Please use [/_cat/snapshots/{repository}] instead."
+      cat.snapshots:
+        q: "repository:dep_test_repo"
+
+  - match:
+      $body: |
+               /^$/
