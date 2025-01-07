@@ -8,47 +8,59 @@
 
 package org.opensearch.plugin.wlm.rule.structure;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.List;
 
 public class RuleAttributeTrie implements FastPrefixMatchingStructure {
-    private static final Pattern ALLOWED_ATTRIBUTE_VALUES = Pattern.compile("^[a-zA-Z0-9-_]+\\*?$");
-    @Override
-    public void add(String s) {
+    private static final String ALLOWED_ATTRIBUTE_VALUES = "^[a-zA-Z0-9-_]+\\*?$";
+    private TrieNode root;
 
+    /**
+     * Constructs an empty AugmentedTrie.
+     */
+    public RuleAttributeTrie() {
+        root = new TrieNode("");
     }
 
-    public enum RuleAttributeName {
-        USERNAME("username"),
-        INDEX_PATTERN("index_pattern");
-        private final String name;
-
-        RuleAttributeName(String name) {
-            this.name = name;
+    /**
+     * Inserts a key-value pair into the trie.
+     *
+     * @param key   The key to be inserted.
+     * @param value The value associated with the key.
+     */
+    public void insert(String key, String value) {
+        if (!IsvalidValue(value)) {
+            throw new IllegalArgumentException(
+                "Invalid attribute value: " + value + " it should match the regex " + ALLOWED_ATTRIBUTE_VALUES
+            );
         }
-
-        public String getName() { return name; }
-
-        public static RuleAttributeName fromString(String name) {
-            for (RuleAttributeName attributeName : RuleAttributeName.values()) {
-                if (attributeName.getName().equals(name)) {
-                    return attributeName;
-                }
-            }
-            throw new IllegalArgumentException("Invalid rule attribute name [" + name + "]");
-        }
-
+        TrieInserter inserter = new TrieInserter(root, key, value);
+        root = inserter.insert();
     }
 
-    public static class LabeledNode {
-        private String label;
-        private Map<String, LabeledNode> children = new HashMap<>();
+    private boolean IsvalidValue(String value) {
+        return ALLOWED_ATTRIBUTE_VALUES.matches(value);
+    }
 
-        public LabeledNode() {}
+    /**
+     * Searches for a key in the trie.
+     *
+     * @param key The key to search for.
+     * @return A list of string values associated with the key or its prefixes.
+     *         Returns an empty list if no matches are found.
+     */
+    public List<String> search(String key) {
+        TrieSearcher searcher = new TrieSearcher(root, key);
+        return searcher.search();
+    }
 
-        public LabeledNode(String label) {
-            this.label = label;
-        }
+    /**
+     * Deletes a key from the trie.
+     *
+     * @param key The key to be deleted.
+     * @return true if the key was successfully deleted, false otherwise.
+     */
+    public boolean delete(String key) {
+        TrieDeleter deleter = new TrieDeleter(root, key);
+        return deleter.delete();
     }
 }
