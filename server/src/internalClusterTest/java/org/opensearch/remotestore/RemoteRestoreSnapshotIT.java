@@ -740,6 +740,23 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         );
         assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.segment.repository]" + " on restore"));
 
+        // try index restore with index.knn setting modified
+        Settings indexKnnSettings = Settings.builder().put(IndexMetadata.SETTING_KNN_ENABLED, false).build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(indexKnnSettings)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify setting [index.knn]" + " on restore"));
+
         // try index restore with remote store repository and translog store repository disabled
         exception = expectThrows(
             SnapshotRestoreException.class,
