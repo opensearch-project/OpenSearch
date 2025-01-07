@@ -80,6 +80,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.query.BitmapDocValuesQuery;
+import org.opensearch.search.query.BitmapIndexQuery;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -97,7 +98,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import org.opensearch.search.query.BitmapIndexQuery;
 import org.roaringbitmap.RoaringBitmap;
 
 /**
@@ -1555,6 +1555,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                                     final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
                                     Query query = new PointInSetQuery(field, 1, Integer.BYTES, new PointInSetQuery.Stream() {
                                         final Iterator<Integer> iterator = bitmap.iterator();
+
                                         @Override
                                         public BytesRef next() {
                                             int value;

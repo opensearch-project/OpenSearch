@@ -29,11 +29,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Objects;
+
+import org.roaringbitmap.PeekableIntIterator;
+import org.roaringbitmap.RoaringBitmap;
 
 /**
  * A query that matches all documents that contain a set of integer numbers represented by bitmap
@@ -50,12 +51,19 @@ public class BitmapIndexQuery extends Query implements Accountable {
         this.field = field;
     }
 
-    private static BytesRefIterator bitmapEncodedIterator(RoaringBitmap bitmap) {
-        return new BytesRefIterator() {
-            private final Iterator<Integer> iterator = bitmap.iterator();
+    interface BitmapIterator extends BytesRefIterator {
+        // wrap IntIterator.next()
+        BytesRef next();
+
+        // expose PeekableIntIterator.advanceIfNeeded, advance as long as the next value is smaller than target
+        void advance(byte[] target);
+    }
+
+    private static BitmapIterator bitmapEncodedIterator(RoaringBitmap bitmap) {
+        return new BitmapIterator() {
+            private final PeekableIntIterator iterator = bitmap.getIntIterator();
             private final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
 
-            @Override
             public BytesRef next() {
                 int value;
                 if (iterator.hasNext()) {
@@ -65,6 +73,10 @@ public class BitmapIndexQuery extends Query implements Accountable {
                 }
                 IntPoint.encodeDimension(value, encoded.bytes, 0);
                 return encoded;
+            }
+
+            public void advance(byte[] target) {
+                iterator.advanceIfNeeded(IntPoint.decodeDimension(target, 0));
             }
         };
     }
@@ -85,8 +97,7 @@ public class BitmapIndexQuery extends Query implements Accountable {
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final Weight weight = this;
                 LeafReader reader = context.reader();
-                // get point value
-                // only works for one dimension
+                // get the point value which should be one dimension, since bitmap saves integers
                 PointValues values = reader.getPointValues(field);
                 if (values == null) {
                     return null;
@@ -118,7 +129,7 @@ public class BitmapIndexQuery extends Query implements Accountable {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                // This query depend only on segment-immutable structure points
+                // This query depend only on segment-immutable structure — points
                 return true;
             }
         };
@@ -126,13 +137,12 @@ public class BitmapIndexQuery extends Query implements Accountable {
 
     private class MergePointVisitor implements PointValues.IntersectVisitor {
         private final DocIdSetBuilder result;
-        private final BytesRefIterator iterator;
+        private final BitmapIterator iterator;
         private BytesRef nextQueryPoint;
         private final ArrayUtil.ByteArrayComparator comparator;
         private DocIdSetBuilder.BulkAdder adder;
 
-        public MergePointVisitor(DocIdSetBuilder result)
-            throws IOException {
+        public MergePointVisitor(DocIdSetBuilder result) throws IOException {
             this.result = result;
             this.comparator = ArrayUtil.getUnsignedComparator(Integer.BYTES);
             this.iterator = bitmapEncodedIterator(bitmap);
@@ -175,11 +185,8 @@ public class BitmapIndexQuery extends Query implements Accountable {
                     return true;
                 } else if (cmp < 0) {
                     // Query point is before index point, so we move to next query point
-                    try {
-                        nextQueryPoint = iterator.next();
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                    iterator.advance(packedValue);
+                    nextQueryPoint = iterator.next();
                 } else {
                     // Query point is after index point, so we don't collect and we return:
                     break;
@@ -191,19 +198,14 @@ public class BitmapIndexQuery extends Query implements Accountable {
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
             while (nextQueryPoint != null) {
-                int cmpMin =
-                    comparator.compare(nextQueryPoint.bytes, nextQueryPoint.offset, minPackedValue, 0);
+                int cmpMin = comparator.compare(nextQueryPoint.bytes, nextQueryPoint.offset, minPackedValue, 0);
                 if (cmpMin < 0) {
                     // query point is before the start of this cell
-                    try {
-                        nextQueryPoint = iterator.next();
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                    iterator.advance(minPackedValue);
+                    nextQueryPoint = iterator.next();
                     continue;
                 }
-                int cmpMax =
-                    comparator.compare(nextQueryPoint.bytes, nextQueryPoint.offset, maxPackedValue, 0);
+                int cmpMax = comparator.compare(nextQueryPoint.bytes, nextQueryPoint.offset, maxPackedValue, 0);
                 if (cmpMax > 0) {
                     // query point is after the end of this cell
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
@@ -260,7 +262,7 @@ public class BitmapIndexQuery extends Query implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOfInstance(BitmapIndexQuery.class) + RamUsageEstimator.sizeOfObject(field)
-            + RamUsageEstimator.sizeOfObject(bitmap);
+        return RamUsageEstimator.shallowSizeOfInstance(BitmapIndexQuery.class) + RamUsageEstimator.sizeOfObject(field) + RamUsageEstimator
+            .sizeOfObject(bitmap);
     }
 }
