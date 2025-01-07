@@ -31,13 +31,12 @@ import org.opensearch.index.analysis.NamedAnalyzer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.common.xcontent.JsonToStringXContentParser.VALUE_AND_PATH_SUFFIX;
-import static org.opensearch.common.xcontent.JsonToStringXContentParser.VALUE_SUFFIX;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_AND_PATH_SUFFIX;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_SUFFIX;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.apache.lucene.search.MultiTermQuery.DOC_VALUES_REWRITE;
 
@@ -54,9 +53,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             fieldName,
             mappedFieldTypeName,
             isSearchable,
-            hasDocValues,
-            null,
-            Collections.emptyMap()
+            hasDocValues
         );
         FieldType fieldtype = new FieldType(FlatObjectFieldMapper.Defaults.FIELD_TYPE);
         FieldType vft = new FieldType(fieldtype);
@@ -87,29 +84,29 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
 
     }
 
-    public void testDirectSubfield() {
+    public void testGetSearchField() {
         {
             FlatObjectFieldMapper.FlatObjectFieldType flatParentFieldType =
                 (FlatObjectFieldMapper.FlatObjectFieldType) (getFlatParentFieldType("field", null, true, true));
 
             // when searching for "foo" in "field", the directSubfield is field._value field
-            String searchFieldName = (flatParentFieldType).directSubfield();
+            String searchFieldName = (flatParentFieldType).getSearchField();
             assertEquals("field._value", searchFieldName);
 
             MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType(
-                "bar",
+                flatParentFieldType.name() + ".bar",
                 flatParentFieldType.name(),
                 flatParentFieldType.getValueFieldType(),
                 flatParentFieldType.getValueAndPathFieldType()
             );
             // when searching for "foo" in "field.bar", the directSubfield is field._valueAndPath field
-            String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).directSubfield();
+            String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).getSearchField();
             assertEquals("field._valueAndPath", searchFieldNameDocPath);
         }
         {
             NamedAnalyzer analyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, null);
-            MappedFieldType ft = new FlatObjectFieldMapper.FlatObjectFieldType("field", null, true, true, analyzer, Collections.emptyMap());
-            assertEquals("field._value", ((FlatObjectFieldMapper.FlatObjectFieldType) ft).directSubfield());
+            MappedFieldType ft = new FlatObjectFieldMapper.FlatObjectFieldType("field", null, true, true);
+            assertEquals("field._value", ((FlatObjectFieldMapper.FlatObjectFieldType) ft).getSearchField());
         }
     }
 
@@ -122,7 +119,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when searching for "foo" in "field", the rewrite value is "foo"
-        String searchValues = (flatParentFieldType).rewriteValue("foo");
+        String searchValues = (flatParentFieldType).rewriteSearchValue("foo");
         assertEquals("foo", searchValues);
 
         MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType(
@@ -133,8 +130,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when searching for "foo" in "field.bar", the rewrite value is "field.bar=foo"
-        String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).directSubfield();
-        String searchValuesDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).rewriteValue("foo");
+        String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).getSearchField();
+        String searchValuesDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).rewriteSearchValue("foo");
         assertEquals("field.bar=foo", searchValuesDocPath);
     }
 
@@ -148,8 +145,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when searching for "foo" in "field", the term query is directed to search "foo" in field._value field
-        String searchFieldName = (flatParentFieldType).directSubfield();
-        String searchValues = (flatParentFieldType).rewriteValue("foo");
+        String searchFieldName = (flatParentFieldType).getSearchField();
+        String searchValues = (flatParentFieldType).rewriteSearchValue("foo");
         assertEquals("foo", searchValues);
         assertEquals(new TermQuery(new Term(searchFieldName, searchValues)), flatParentFieldType.termQuery(searchValues, null));
 
@@ -161,19 +158,12 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when searching for "foo" in "field.bar", the term query is directed to search in field._valueAndPath field
-        String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).directSubfield();
-        String searchValuesDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).rewriteValue("foo");
+        String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).getSearchField();
+        String searchValuesDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).rewriteSearchValue("foo");
         assertEquals("field.bar=foo", searchValuesDocPath);
         assertEquals(new TermQuery(new Term(searchFieldNameDocPath, searchValuesDocPath)), dynamicMappedFieldType.termQuery("foo", null));
 
-        MappedFieldType unsearchable = new FlatObjectFieldMapper.FlatObjectFieldType(
-            "field",
-            null,
-            false,
-            true,
-            null,
-            Collections.emptyMap()
-        );
+        MappedFieldType unsearchable = new FlatObjectFieldMapper.FlatObjectFieldType("field", null, false, true);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.termQuery("bar", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
@@ -204,14 +194,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         }
 
         {
-            FlatObjectFieldMapper.FlatObjectFieldType ft = new FlatObjectFieldMapper.FlatObjectFieldType(
-                "field",
-                null,
-                true,
-                false,
-                null,
-                Collections.emptyMap()
-            );
+            FlatObjectFieldMapper.FlatObjectFieldType ft = new FlatObjectFieldMapper.FlatObjectFieldType("field", null, true, false);
             assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
     }
@@ -243,18 +226,18 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 true
             );
 
             List<BytesRef> indexTerms = new ArrayList<>();
-            indexTerms.add(new BytesRef("foo"));
-            indexTerms.add(new BytesRef("bar"));
+            indexTerms.add(new BytesRef("field.field1=foo"));
+            indexTerms.add(new BytesRef("field.field1=bar"));
             List<BytesRef> docValueterms = new ArrayList<>();
-            docValueterms.add(new BytesRef("field.foo"));
-            docValueterms.add(new BytesRef("field.bar"));
+            docValueterms.add(new BytesRef("field.field.field1=foo"));
+            docValueterms.add(new BytesRef("field.field.field1=bar"));
             Query expected = new IndexOrDocValuesQuery(
                 new TermInSetQuery("field" + VALUE_AND_PATH_SUFFIX, indexTerms),
                 new TermInSetQuery(DOC_VALUES_REWRITE, "field" + VALUE_AND_PATH_SUFFIX, docValueterms)
@@ -282,14 +265,14 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 false
             );
             List<BytesRef> indexTerms = new ArrayList<>();
-            indexTerms.add(new BytesRef("foo"));
-            indexTerms.add(new BytesRef("bar"));
+            indexTerms.add(new BytesRef("field.field1=foo"));
+            indexTerms.add(new BytesRef("field.field1=bar"));
             Query expected = new TermInSetQuery("field" + VALUE_AND_PATH_SUFFIX, indexTerms);
 
             assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), null));
@@ -318,19 +301,16 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 true
             );
 
-            List<BytesRef> indexTerms = new ArrayList<>();
-            indexTerms.add(new BytesRef("foo"));
-            indexTerms.add(new BytesRef("bar"));
-            List<BytesRef> docValueterms = new ArrayList<>();
-            docValueterms.add(new BytesRef("field.foo"));
-            docValueterms.add(new BytesRef("field.bar"));
-            Query expected = new TermInSetQuery(DOC_VALUES_REWRITE, "field" + VALUE_AND_PATH_SUFFIX, docValueterms);
+            List<BytesRef> docValueTerms = new ArrayList<>();
+            docValueTerms.add(new BytesRef("field.field.field1=foo"));
+            docValueTerms.add(new BytesRef("field.field.field1=bar"));
+            Query expected = new TermInSetQuery(DOC_VALUES_REWRITE, "field" + VALUE_AND_PATH_SUFFIX, docValueTerms);
 
             assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
@@ -356,7 +336,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 false
@@ -391,14 +371,14 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 true
             );
             Query expected = new IndexOrDocValuesQuery(
-                new PrefixQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "foo"), CONSTANT_SCORE_REWRITE),
-                new PrefixQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.foo"), DOC_VALUES_REWRITE)
+                new PrefixQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field1=foo"), CONSTANT_SCORE_REWRITE),
+                new PrefixQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field.field1=foo"), DOC_VALUES_REWRITE)
             );
             assertEquals(expected, ft.prefixQuery("foo", CONSTANT_SCORE_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
@@ -418,12 +398,12 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 false
             );
-            Query expected = new PrefixQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "foo"), CONSTANT_SCORE_REWRITE);
+            Query expected = new PrefixQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field1=foo"), CONSTANT_SCORE_REWRITE);
             assertEquals(expected, ft.prefixQuery("foo", CONSTANT_SCORE_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
@@ -442,12 +422,12 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 true
             );
-            Query expected = new PrefixQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.foo"), DOC_VALUES_REWRITE);
+            Query expected = new PrefixQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field.field1=foo"), DOC_VALUES_REWRITE);
             assertEquals(expected, ft.prefixQuery("foo", CONSTANT_SCORE_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
@@ -472,7 +452,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 false
@@ -521,14 +501,14 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 true
             );
             Query expected = new IndexOrDocValuesQuery(
                 new RegexpQuery(
-                    new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("foo")),
+                    new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field1=foo")),
                     0,
                     0,
                     RegexpQuery.DEFAULT_PROVIDER,
@@ -536,7 +516,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                     CONSTANT_SCORE_REWRITE
                 ),
                 new RegexpQuery(
-                    new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.foo")),
+                    new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field.field1=foo")),
                     0,
                     0,
                     RegexpQuery.DEFAULT_PROVIDER,
@@ -569,13 +549,13 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 false
             );
             Query expected = new RegexpQuery(
-                new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("foo")),
+                new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field1=foo")),
                 0,
                 0,
                 RegexpQuery.DEFAULT_PROVIDER,
@@ -607,13 +587,13 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 true
             );
             Query expected = new RegexpQuery(
-                new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.foo")),
+                new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field.field1=foo")),
                 0,
                 0,
                 RegexpQuery.DEFAULT_PROVIDER,
@@ -644,7 +624,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 false
@@ -679,14 +659,21 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 true
             );
             Query expected = new IndexOrDocValuesQuery(
-                new FuzzyQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "foo"), 2, 1, 50, true),
-                new FuzzyQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.foo"), 2, 1, 50, true, MultiTermQuery.DOC_VALUES_REWRITE)
+                new FuzzyQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field1=foo"), 2, 1, 50, true),
+                new FuzzyQuery(
+                    new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field.field1=foo"),
+                    2,
+                    1,
+                    50,
+                    true,
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                )
             );
             assertEquals(expected, ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
@@ -706,12 +693,12 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 false
             );
-            Query expected = new FuzzyQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "foo"), 2, 1, 50, true);
+            Query expected = new FuzzyQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field1=foo"), 2, 1, 50, true);
             assertEquals(expected, ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
@@ -737,13 +724,13 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 true
             );
             Query expected = new FuzzyQuery(
-                new Term("field" + VALUE_AND_PATH_SUFFIX, "field.foo"),
+                new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field.field1=foo"),
                 2,
                 1,
                 50,
@@ -774,7 +761,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 false
@@ -816,17 +803,23 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 true
             );
             Query expected = new IndexOrDocValuesQuery(
-                new TermRangeQuery("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("2"), new BytesRef("10"), true, true),
                 new TermRangeQuery(
                     "field" + VALUE_AND_PATH_SUFFIX,
-                    new BytesRef("field.2"),
-                    new BytesRef("field.10"),
+                    new BytesRef("field.field1=2"),
+                    new BytesRef("field.field1=10"),
+                    true,
+                    true
+                ),
+                new TermRangeQuery(
+                    "field" + VALUE_AND_PATH_SUFFIX,
+                    new BytesRef("field.field.field1=2"),
+                    new BytesRef("field.field.field1=10"),
                     true,
                     true,
                     DOC_VALUES_REWRITE
@@ -850,12 +843,18 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 false
             );
-            Query expected = new TermRangeQuery("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("2"), new BytesRef("10"), true, true);
+            Query expected = new TermRangeQuery(
+                "field" + VALUE_AND_PATH_SUFFIX,
+                new BytesRef("field.field1=2"),
+                new BytesRef("field.field1=10"),
+                true,
+                true
+            );
             assertEquals(expected, ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
@@ -881,15 +880,15 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 true
             );
             Query expected = new TermRangeQuery(
                 "field" + VALUE_AND_PATH_SUFFIX,
-                new BytesRef("field.2"),
-                new BytesRef("field.10"),
+                new BytesRef("field.field.field1=2"),
+                new BytesRef("field.field.field1=10"),
                 true,
                 true,
                 DOC_VALUES_REWRITE
@@ -918,7 +917,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 false
@@ -961,19 +960,19 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 true
             );
             Query expected = new IndexOrDocValuesQuery(
                 new WildcardQuery(
-                    new Term("field" + VALUE_AND_PATH_SUFFIX, "foo*"),
+                    new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field1=foo*"),
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                     MultiTermQuery.CONSTANT_SCORE_REWRITE
                 ),
                 new WildcardQuery(
-                    new Term("field" + VALUE_AND_PATH_SUFFIX, "field.foo*"),
+                    new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field.field1=foo*"),
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                     MultiTermQuery.DOC_VALUES_REWRITE
                 )
@@ -1000,13 +999,13 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 true,
                 false
             );
             Query expected = new WildcardQuery(
-                new Term("field" + VALUE_AND_PATH_SUFFIX, "foo*"),
+                new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field1=foo*"),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                 MultiTermQuery.CONSTANT_SCORE_REWRITE
             );
@@ -1032,13 +1031,13 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 true
             );
             Query expected = new WildcardQuery(
-                new Term("field" + VALUE_AND_PATH_SUFFIX, "field.foo*"),
+                new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field.field1=foo*"),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                 MultiTermQuery.DOC_VALUES_REWRITE
             );
@@ -1066,7 +1065,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         // test isSearchable=false, hasDocValues=false, mappedFieldTypeName!=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
+                "field.field1",
                 "field",
                 false,
                 false
