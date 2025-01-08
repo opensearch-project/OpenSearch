@@ -754,7 +754,9 @@ final class StoreRecovery {
                 // not primary eligible. This will skip any checkpoint tracking and ensure
                 // that the shards are sync'd with remote store before opening.
                 //
-                indexShard.openEngineAndSkipTranslogRecovery(true);
+                // first bootstrap new history / translog so that the TranslogUUID matches the UUID from the latest commit.
+                bootstrapForSnapshot(indexShard, store);
+                indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
             }
             if (indexShard.shouldSeedRemoteStore()) {
                 indexShard.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(() -> {
@@ -886,6 +888,7 @@ final class StoreRecovery {
         store.bootstrapNewHistory();
         final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
         final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+
         final String translogUUID = Translog.createEmptyTranslog(
             indexShard.shardPath().resolveTranslog(),
             localCheckpoint,

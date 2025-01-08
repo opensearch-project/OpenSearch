@@ -136,7 +136,7 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
             }
             if (shard.isSearchOnly()) {
                 // mark search only shards as initializing or assigned, but do not add to
-                // the allAllocationId set. Cluster Manager will filter out search replica aIds in
+                // the allAllocationId set. Cluster Manager will filter out search replica allocationIds in
                 // the in-sync set that is sent to primaries, but they are still included in the routing table.
                 // This ensures the primaries do not validate these ids exist in tracking nor are included
                 // in the unavailableInSyncShards set.

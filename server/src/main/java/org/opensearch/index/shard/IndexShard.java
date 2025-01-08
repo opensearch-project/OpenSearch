@@ -2524,23 +2524,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
-        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
-        loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker);
-        getEngine().translogManager().skipTranslogRecovery();
+        openEngineAndSkipTranslogRecovery(true);
     }
 
     public void openEngineAndSkipTranslogRecoveryFromSnapshot() throws IOException {
-        assert routingEntry().recoverySource().getType() == RecoverySource.Type.SNAPSHOT : "not a snapshot recovery ["
-            + routingEntry()
-            + "]";
-        openEngineAndSkipTranslogRecovery(false);
-    }
-
-    void openEngineAndSkipTranslogRecovery(boolean syncFromRemote) throws IOException {
+        assert routingEntry().isSearchOnly() || routingEntry().recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            : "not a snapshot recovery [" + routingEntry() + "]";
         recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
         maybeCheckIndex();
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+        openEngineAndSkipTranslogRecovery(routingEntry().isSearchOnly());
+    }
+
+    void openEngineAndSkipTranslogRecovery(boolean syncFromRemote) throws IOException {
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
         innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
