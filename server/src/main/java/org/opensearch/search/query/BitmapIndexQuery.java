@@ -47,8 +47,18 @@ public class BitmapIndexQuery extends Query implements Accountable {
     private final String field;
 
     public BitmapIndexQuery(String field, RoaringBitmap bitmap) {
+        checkArgs(field, bitmap);
         this.bitmap = bitmap;
         this.field = field;
+    }
+
+    static void checkArgs(String field, RoaringBitmap bitmap) {
+        if (field == null) {
+            throw new IllegalArgumentException("field must not be null");
+        }
+        if (bitmap == null) {
+            throw new IllegalArgumentException("bitmap must not be null");
+        }
     }
 
     interface BitmapIterator extends BytesRefIterator {

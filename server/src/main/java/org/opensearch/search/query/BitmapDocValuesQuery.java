@@ -30,6 +30,8 @@ import java.util.Objects;
 
 import org.roaringbitmap.RoaringBitmap;
 
+import static org.opensearch.search.query.BitmapIndexQuery.checkArgs;
+
 /**
  * Filter with bitmap
  * <p>
@@ -43,6 +45,7 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
     final long max;
 
     public BitmapDocValuesQuery(String field, RoaringBitmap bitmap) {
+        checkArgs(field, bitmap);
         this.field = field;
         this.bitmap = bitmap;
         if (!bitmap.isEmpty()) {
