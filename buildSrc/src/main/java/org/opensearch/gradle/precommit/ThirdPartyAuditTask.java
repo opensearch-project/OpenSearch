@@ -229,8 +229,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
         Set<File> jars = getJarsToScan();
-
-        extractJars(jars);
+        Set<File> extractedJars = extractJars(jars);
 
         final String forbiddenApisOutput = runForbiddenAPIsCli();
 
@@ -248,7 +247,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
         Set<String> jdkJarHellClasses = null;
         if (this.jarHellEnabled) {
-            jdkJarHellClasses = runJdkJarHellCheck();
+            jdkJarHellClasses = runJdkJarHellCheck(extractedJars);
         }
 
         if (missingClassExcludes != null) {
@@ -301,16 +300,26 @@ public class ThirdPartyAuditTask extends DefaultTask {
         getLogger().error("Forbidden APIs output:\n{}==end of forbidden APIs==", forbiddenApisOutput);
     }
 
-    private void extractJars(Set<File> jars) {
+    /**
+     * Extract project jars to build directory as specified by getJarExpandDir.
+     * Handle multi release jars by keeping versions closest to `targetCompatibility` version.
+     * @param jars to extract to build dir
+     * @return File set of extracted jars
+     */
+    private Set<File> extractJars(Set<File> jars) {
+        Set<File> extractedJars = new TreeSet<>();
         File jarExpandDir = getJarExpandDir();
         // We need to clean up to make sure old dependencies don't linger
         getProject().delete(jarExpandDir);
 
         jars.forEach(jar -> {
+            String jarPrefix = jar.getName().replace(".jar", "");
+            File jarSubDir = new File(jarExpandDir, jarPrefix);
+            extractedJars.add(jarSubDir);
             FileTree jarFiles = getProject().zipTree(jar);
             getProject().copy(spec -> {
                 spec.from(jarFiles);
-                spec.into(jarExpandDir);
+                spec.into(jarSubDir);
                 // exclude classes from multi release jars
                 spec.exclude("META-INF/versions/**");
             });
@@ -329,7 +338,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 Integer.parseInt(targetCompatibility.get().getMajorVersion())
             ).forEach(majorVersion -> getProject().copy(spec -> {
                 spec.from(getProject().zipTree(jar));
-                spec.into(jarExpandDir);
+                spec.into(jarSubDir);
                 String metaInfPrefix = "META-INF/versions/" + majorVersion;
                 spec.include(metaInfPrefix + "/**");
                 // Drop the version specific prefix
@@ -337,6 +346,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 spec.setIncludeEmptyDirs(false);
             }));
         });
+
+        return extractedJars;
     }
 
     private void assertNoJarHell(Set<String> jdkJarHellClasses) {
@@ -398,7 +409,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
         return forbiddenApisOutput;
     }
 
-    private Set<String> runJdkJarHellCheck() throws IOException {
+    /**
+     * Execute java with JDK_JAR_HELL_MAIN_CLASS against provided jars with OpenSearch core in the classpath.
+     * @param jars to scan for jarHell violations.
+     * @return standard out of jarHell process.
+     */
+    private Set<String> runJdkJarHellCheck(Set<File> jars) throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         InjectedExecOps execOps = getProject().getObjects().newInstance(InjectedExecOps.class);
         ExecResult execResult = execOps.getExecOps().javaexec(spec -> {
@@ -407,9 +423,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 getRuntimeConfiguration(),
                 getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
             );
-
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
-            spec.args(getJarExpandDir());
+            spec.args(jars);
             spec.setIgnoreExitValue(true);
             if (javaHome != null) {
                 spec.setExecutable(javaHome + "/bin/java");

@@ -129,10 +129,18 @@ public class RemoteClusterStateService implements Closeable {
      * Gates the functionality of remote publication.
      */
     public static final String REMOTE_PUBLICATION_SETTING_KEY = "cluster.remote_store.publication.enabled";
+    public static final String REMOTE_STATE_DOWNLOAD_TO_SERVE_READ_API_KEY = "cluster.remote_state.download.serve_read_api.enabled";
 
     public static final Setting<Boolean> REMOTE_PUBLICATION_SETTING = Setting.boolSetting(
         REMOTE_PUBLICATION_SETTING_KEY,
         false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<Boolean> REMOTE_STATE_DOWNLOAD_TO_SERVE_READ_API = Setting.boolSetting(
+        REMOTE_STATE_DOWNLOAD_TO_SERVE_READ_API_KEY,
+        true,
         Property.NodeScope,
         Property.Dynamic
     );
@@ -235,6 +243,9 @@ public class RemoteClusterStateService implements Closeable {
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}], indices routing updated : [{}]";
     private volatile AtomicBoolean isPublicationEnabled;
+
+    private volatile AtomicBoolean downloadFromRemoteForReadAPI;
+
     private final String remotePathPrefix;
 
     private final RemoteClusterStateCache remoteClusterStateCache;
@@ -281,6 +292,8 @@ public class RemoteClusterStateService implements Closeable {
                 && RemoteStoreNodeAttribute.isRemoteRoutingTableConfigured(settings)
         );
         clusterSettings.addSettingsUpdateConsumer(REMOTE_PUBLICATION_SETTING, this::setRemotePublicationSetting);
+        this.downloadFromRemoteForReadAPI = new AtomicBoolean(clusterSettings.get(REMOTE_STATE_DOWNLOAD_TO_SERVE_READ_API));
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_STATE_DOWNLOAD_TO_SERVE_READ_API, this::setRemoteDownloadForReadAPISetting);
         this.remotePathPrefix = CLUSTER_REMOTE_STORE_STATE_PATH_PREFIX.get(settings);
         this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
             repositoriesService,
@@ -1124,6 +1137,14 @@ public class RemoteClusterStateService implements Closeable {
         }
     }
 
+    private void setRemoteDownloadForReadAPISetting(boolean remoteDownloadForReadAPISetting) {
+        this.downloadFromRemoteForReadAPI.set(remoteDownloadForReadAPISetting);
+    }
+
+    public boolean canDownloadFromRemoteForReadAPI() {
+        return this.downloadFromRemoteForReadAPI.get();
+    }
+
     // Package private for unit test
     RemoteRoutingTableService getRemoteRoutingTableService() {
         return this.remoteRoutingTableService;
@@ -1473,8 +1494,22 @@ public class RemoteClusterStateService implements Closeable {
         try {
             ClusterState stateFromCache = remoteClusterStateCache.getState(clusterName, manifest);
             if (stateFromCache != null) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "Found cluster state in cache for term {} and version {}",
+                        manifest.getClusterTerm(),
+                        manifest.getStateVersion()
+                    )
+                );
                 return stateFromCache;
             }
+            logger.info(
+                () -> new ParameterizedMessage(
+                    "Cluster state not found in cache for term {} and version {}",
+                    manifest.getClusterTerm(),
+                    manifest.getStateVersion()
+                )
+            );
 
             final ClusterState clusterState;
             final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();

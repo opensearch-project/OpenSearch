@@ -524,7 +524,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (String dependency : bundle.plugin.getExtendedPlugins()) {
             Bundle depBundle = bundles.get(dependency);
             if (depBundle == null) {
-                throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                if (bundle.plugin.isExtendedPluginOptional(dependency)) {
+                    logger.warn("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                    logger.warn("Some features of this plugin may not function without the dependencies being installed.\n");
+                    continue;
+                } else {
+                    throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                }
             }
             addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
             assert sortedBundles.contains(depBundle);
@@ -653,6 +659,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Set<URL> urls = new HashSet<>();
             for (String extendedPlugin : exts) {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
+                if (pluginUrls == null && bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
+                    continue;
+                }
                 assert pluginUrls != null : "transitive urls should have already been set for " + extendedPlugin;
 
                 Set<URL> intersection = new HashSet<>(urls);
@@ -704,6 +713,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<ClassLoader> extendedLoaders = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
             Plugin extendedPlugin = loaded.get(extendedPluginName);
+            if (extendedPlugin == null && bundle.plugin.isExtendedPluginOptional(extendedPluginName)) {
+                // extended plugin is optional and is not installed
+                continue;
+            }
             assert extendedPlugin != null;
             if (ExtensiblePlugin.class.isInstance(extendedPlugin) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");

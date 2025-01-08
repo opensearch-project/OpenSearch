@@ -1061,7 +1061,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      *
      * @opensearch.internal
      */
-    private static class IndexMetadataDiff implements Diff<IndexMetadata> {
+    static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
         private final String index;
         private final int routingNumShards;
@@ -1178,7 +1178,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.customMetadata.putAll(customData.apply(part.customData));
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
-            builder.system(part.isSystem);
+            builder.system(isSystem);
             builder.context(context);
             return builder.build();
         }

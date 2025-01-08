@@ -1906,4 +1906,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
         return false;
     }
+
+    public boolean canDownloadFullStateFromRemote() {
+        if (remoteClusterStateService != null) {
+            return remoteClusterStateService.isRemotePublicationEnabled() && remoteClusterStateService.canDownloadFromRemoteForReadAPI();
+        }
+        return false;
+    }
+
 }

@@ -8,7 +8,11 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.AutomatonQueries;
 
 public class MatchOnlyTextFieldTypeTests extends TextFieldTypeTests {
 
@@ -27,5 +31,19 @@ public class MatchOnlyTextFieldTypeTests extends TextFieldTypeTests {
             tsi,
             ParametrizedFieldMapper.Parameter.metaParam().get()
         );
+    }
+
+    @Override
+    public void testTermQuery() {
+        MappedFieldType ft = createFieldType(true);
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", null));
+        assertEquals(
+            new ConstantScoreQuery(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo"))),
+            ft.termQueryCaseInsensitive("fOo", null)
+        );
+
+        MappedFieldType unsearchable = createFieldType(false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", null));
+        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

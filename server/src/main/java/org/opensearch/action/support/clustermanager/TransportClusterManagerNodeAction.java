@@ -430,6 +430,13 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
             if (remoteClusterStateService != null && termVersionResponse.isStatePresentInRemote()) {
                 try {
+                    logger.info(
+                        () -> new ParameterizedMessage(
+                            "Term version checker downloading full cluster state for term {}, version {}",
+                            termVersion.getTerm(),
+                            termVersion.getVersion()
+                        )
+                    );
                     ClusterStateTermVersion clusterStateTermVersion = termVersionResponse.getClusterStateTermVersion();
                     Optional<ClusterMetadataManifest> clusterMetadataManifest = remoteClusterStateService
                         .getClusterMetadataManifestByTermVersion(
@@ -454,7 +461,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                         return clusterStateFromRemote;
                     }
                 } catch (Exception e) {
-                    logger.trace("Error while fetching from remote cluster state", e);
+                    logger.error("Error while fetching from remote cluster state", e);
                 }
             }
             return null;

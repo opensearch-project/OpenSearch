@@ -31,20 +31,32 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -71,8 +83,12 @@ import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.apache.lucene.document.LongPoint.pack;
@@ -489,5 +505,188 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         String nullValueDate = "2020-05-15T21:33:02.123456789Z";
         MappedFieldType nullValueMapper = fieldType(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", nullValueDate);
         assertEquals(Collections.singletonList(nullValueDate), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testDateResolutionForOverflow() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+
+        DateFieldType ft = new DateFieldType(
+            "test_date",
+            true,
+            true,
+            true,
+            DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis||strict_date_optional_time"),
+            Resolution.MILLISECONDS,
+            null,
+            Collections.emptyMap()
+        );
+
+        List<String> dates = Arrays.asList(
+            null,
+            "2020-01-01T00:00:00Z",
+            null,
+            "2021-01-01T00:00:00Z",
+            "+292278994-08-17T07:12:55.807Z",
+            null,
+            "-292275055-05-16T16:47:04.192Z"
+        );
+
+        int numNullDates = 0;
+        long minDateValue = Long.MAX_VALUE;
+        long maxDateValue = Long.MIN_VALUE;
+
+        for (int i = 0; i < dates.size(); i++) {
+            ParseContext.Document doc = new ParseContext.Document();
+            String dateStr = dates.get(i);
+
+            if (dateStr != null) {
+                long timestamp = Resolution.MILLISECONDS.convert(DateFormatters.from(ft.dateTimeFormatter().parse(dateStr)).toInstant());
+                doc.add(new LongPoint(ft.name(), timestamp));
+                doc.add(new SortedNumericDocValuesField(ft.name(), timestamp));
+                doc.add(new StoredField(ft.name(), timestamp));
+                doc.add(new StoredField("id", i));
+                minDateValue = Math.min(minDateValue, timestamp);
+                maxDateValue = Math.max(maxDateValue, timestamp);
+            } else {
+                numNullDates++;
+                doc.add(new StoredField("id", i));
+            }
+            w.addDocument(doc);
+        }
+
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        QueryShardContext context = new QueryShardContext(
+            0,
+            new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null
+        );
+
+        Query rangeQuery = ft.rangeQuery(
+            "-292275055-05-16T16:47:04.192Z",
+            "+292278994-08-17T07:12:55.807Z",
+            true,
+            true,
+            null,
+            null,
+            null,
+            context
+        );
+
+        TopDocs topDocs = searcher.search(rangeQuery, dates.size());
+        assertEquals("Number of non-null date documents", dates.size() - numNullDates, topDocs.totalHits.value);
+
+        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+            org.apache.lucene.document.Document doc = reader.document(scoreDoc.doc);
+            IndexableField dateField = doc.getField(ft.name());
+            if (dateField != null) {
+                long dateValue = dateField.numericValue().longValue();
+                assertTrue(
+                    "Date value " + dateValue + " should be within valid range",
+                    dateValue >= minDateValue && dateValue <= maxDateValue
+                );
+            }
+        }
+
+        DateFieldType ftWithNullValue = new DateFieldType(
+            "test_date",
+            true,
+            true,
+            true,
+            DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis||strict_date_optional_time"),
+            Resolution.MILLISECONDS,
+            "2020-01-01T00:00:00Z",
+            Collections.emptyMap()
+        );
+
+        Query nullValueQuery = ftWithNullValue.termQuery("2020-01-01T00:00:00Z", context);
+        topDocs = searcher.search(nullValueQuery, dates.size());
+        assertEquals("Documents matching the 2020-01-01 date", 1, topDocs.totalHits.value);
+
+        IOUtils.close(reader, w, dir);
+    }
+
+    public void testDateFieldTypeWithNulls() throws IOException {
+        DateFieldType ft = new DateFieldType(
+            "domainAttributes.dueDate",
+            true,
+            true,
+            true,
+            DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis||date_optional_time"),
+            Resolution.MILLISECONDS,
+            null,
+            Collections.emptyMap()
+        );
+
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+
+        int nullDocs = 3500;
+        int datedDocs = 50;
+
+        for (int i = 0; i < nullDocs; i++) {
+            ParseContext.Document doc = new ParseContext.Document();
+            doc.add(new StringField("domainAttributes.firmId", "12345678910111213", Field.Store.YES));
+            w.addDocument(doc);
+        }
+
+        for (int i = 1; i <= datedDocs; i++) {
+            ParseContext.Document doc = new ParseContext.Document();
+            String dateStr = String.format(Locale.ROOT, "2022-03-%02dT15:40:58.324", (i % 30) + 1);
+            long timestamp = Resolution.MILLISECONDS.convert(DateFormatters.from(ft.dateTimeFormatter().parse(dateStr)).toInstant());
+            doc.add(new StringField("domainAttributes.firmId", "12345678910111213", Field.Store.YES));
+            doc.add(new LongPoint(ft.name(), timestamp));
+            doc.add(new SortedNumericDocValuesField(ft.name(), timestamp));
+            doc.add(new StoredField(ft.name(), timestamp));
+            w.addDocument(doc);
+        }
+
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+        queryBuilder.add(new TermQuery(new Term("domainAttributes.firmId", "12345678910111213")), BooleanClause.Occur.MUST);
+
+        Sort sort = new Sort(new SortField(ft.name(), SortField.Type.DOC, false));
+
+        for (int i = 0; i < 100; i++) {
+            TopDocs topDocs = searcher.search(queryBuilder.build(), nullDocs + datedDocs, sort);
+            assertEquals("Total hits should match total documents", nullDocs + datedDocs, topDocs.totalHits.value);
+            for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                org.apache.lucene.document.Document doc = reader.document(scoreDoc.doc);
+                IndexableField dateField = doc.getField(ft.name());
+                if (dateField != null) {
+                    long dateValue = dateField.numericValue().longValue();
+                    Instant dateInstant = Instant.ofEpochMilli(dateValue);
+                    assertTrue(
+                        "Date should be in March 2022",
+                        dateInstant.isAfter(Instant.parse("2022-03-01T00:00:00Z"))
+                            && dateInstant.isBefore(Instant.parse("2022-04-01T00:00:00Z"))
+                    );
+                }
+            }
+        }
+        IOUtils.close(reader, w, dir);
     }
 }

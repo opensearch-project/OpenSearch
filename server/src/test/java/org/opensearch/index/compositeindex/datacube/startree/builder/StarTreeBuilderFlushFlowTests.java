@@ -26,6 +26,8 @@ import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.UnsignedLongDimension;
+import org.opensearch.index.compositeindex.datacube.IpDimension;
+import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
@@ -542,7 +544,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         );
         List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5);
 
-        compositeField = getStarTreeFieldWithKeywordField();
+        compositeField = getStarTreeFieldWithKeywordField(random().nextBoolean());
         SortedSetStarTreeValuesIterator d1sndv = new SortedSetStarTreeValuesIterator(getSortedSetMock(dimList, docsWithField));
         SortedSetStarTreeValuesIterator d2sndv = new SortedSetStarTreeValuesIterator(getSortedSetMock(dimList2, docsWithField2));
         SortedNumericStarTreeValuesIterator m1sndv = new SortedNumericStarTreeValuesIterator(
@@ -659,9 +661,9 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         return new StarTreeField("sf", dims, metrics, c);
     }
 
-    private StarTreeField getStarTreeFieldWithKeywordField() {
-        Dimension d1 = new KeywordDimension("field1");
-        Dimension d2 = new KeywordDimension("field3");
+    private StarTreeField getStarTreeFieldWithKeywordField(boolean isIp) {
+        Dimension d1 = isIp ? new IpDimension("field1") : new OrdinalDimension("field1");
+        Dimension d2 = isIp ? new IpDimension("field3") : new OrdinalDimension("field3");
         Metric m1 = new Metric("field2", List.of(MetricStat.SUM));
         Metric m2 = new Metric("field2", List.of(MetricStat.VALUE_COUNT));
         Metric m3 = new Metric("field2", List.of(MetricStat.AVG));
