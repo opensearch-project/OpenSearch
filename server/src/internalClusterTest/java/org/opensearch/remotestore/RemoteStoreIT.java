@@ -1084,7 +1084,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testSuccessfulShallowV1SnapshotPostIndexClose() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(1);
+        String dataNode = internalCluster().startDataOnlyNodes(1).get(0);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));
         ensureGreen(INDEX_NAME);
 
@@ -1143,5 +1143,17 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(SnapshotState.SUCCESS, snapshotInfo2.state());
         assertTrue(snapshotInfo2.successfulShards() > 0);
         assertEquals(0, snapshotInfo2.failedShards());
+
+        // delete the index
+        cluster().wipeIndices(INDEX_NAME);
+        // try restoring the snapshot
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(shallowSnapshotRepoName, snapshot2)
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        ensureGreen(INDEX_NAME);
+        flushAndRefresh(INDEX_NAME);
+        assertBusy(() -> { assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), 20); });
     }
 }
