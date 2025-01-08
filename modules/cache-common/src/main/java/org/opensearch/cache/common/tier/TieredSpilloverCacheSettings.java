@@ -99,7 +99,9 @@ public class TieredSpilloverCacheSettings {
 
     /**
      * Setting which defines the disk cache size to be used within tiered cache.
-     * Similarly, this setting overrides the size setting from the disk tier implementation.
+     * This setting overrides the size setting from the disk tier implementation.
+     * For example, if EhcacheDiskCache is the disk tier in the request cache, and
+     * indices.requests.cache.ehcache_disk.max_size_in_bytes is set, that value will be ignored in favor of this setting.
      */
     public static final Setting.AffixSetting<Long> TIERED_SPILLOVER_DISK_STORE_SIZE = Setting.suffixKeySetting(
         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.store.size",

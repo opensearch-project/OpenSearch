@@ -526,6 +526,14 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             statsHolder.incrementSizeInBytes(dimensionValues, weigher.applyAsLong(key, value));
         }
 
+        @Override
+        public long getMaximumWeight() {
+            if (caches.get(diskCache).isEnabled()) {
+                return onHeapCache.getMaximumWeight() + diskCache.getMaximumWeight();
+            }
+            return onHeapCache.getMaximumWeight();
+        }
+
         /**
          * A class which receives removal events from the heap tier.
          */
@@ -690,6 +698,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             diskCacheEntries += tieredSpilloverCacheSegments[iter].diskCache.count();
         }
         return diskCacheEntries;
+    }
+
+    @Override
+    public long getMaximumWeight() {
+        return tieredSpilloverCacheSegments[0].getMaximumWeight() * numberOfSegments;
     }
 
     /**

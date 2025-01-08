@@ -81,7 +81,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         this.weigher = builder.getWeigher();
     }
 
-    // public for testing
+    @Override
     public long getMaximumWeight() {
         return this.maximumWeight;
     }

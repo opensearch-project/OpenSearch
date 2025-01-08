@@ -1209,10 +1209,10 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         long maxSizeFromConfig = between(MINIMUM_MAX_SIZE_IN_BYTES + 3000, MINIMUM_MAX_SIZE_IN_BYTES + 4000);
 
         EhcacheDiskCache<String, String> cache = setupMaxSizeTest(maxSizeFromSetting, maxSizeFromConfig, false);
-        assertEquals(maxSizeFromSetting, cache.getMaxWeightInBytes());
+        assertEquals(maxSizeFromSetting, cache.getMaximumWeight());
 
         cache = setupMaxSizeTest(maxSizeFromSetting, maxSizeFromConfig, true);
-        assertEquals(maxSizeFromConfig, cache.getMaxWeightInBytes());
+        assertEquals(maxSizeFromConfig, cache.getMaximumWeight());
     }
 
     // Modified from OpenSearchOnHeapCacheTests. Can't reuse, as we can't add a dependency on the server.test module.

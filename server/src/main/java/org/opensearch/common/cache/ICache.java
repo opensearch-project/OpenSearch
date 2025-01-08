@@ -53,6 +53,8 @@ public interface ICache<K, V> extends Closeable {
     // Return stats aggregated by the provided levels. If levels is null or an empty array, return total stats only.
     ImmutableCacheStatsHolder stats(String[] levels);
 
+    long getMaximumWeight();
+
     /**
      * Factory to create objects.
      */
