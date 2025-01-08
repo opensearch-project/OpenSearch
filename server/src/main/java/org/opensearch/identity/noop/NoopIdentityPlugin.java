@@ -9,7 +9,6 @@
 package org.opensearch.identity.noop;
 
 import org.opensearch.client.Client;
-import org.opensearch.client.FilterClient;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
@@ -49,7 +48,7 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     }
 
     @Override
-    public FilterClient getRunAsClient(Plugin plugin) {
+    public Client getRunAsClient(Plugin plugin) {
         return new RunAsSystemClient(client);
     }
 }

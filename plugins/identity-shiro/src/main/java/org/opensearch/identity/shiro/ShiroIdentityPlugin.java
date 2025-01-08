@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.mgt.SecurityManager;
 import org.opensearch.client.Client;
-import org.opensearch.client.FilterClient;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -141,7 +140,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
         }
     }
 
-    public FilterClient getRunAsClient(Plugin plugin) {
+    public Client getRunAsClient(Plugin plugin) {
         return new RunAsSystemClient(client);
     }
 }
