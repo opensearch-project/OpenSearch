@@ -24,8 +24,8 @@ import java.io.IOException;
 import java.util.Comparator;
 
 /**
- * Sorted numeric field for wider sort types,
- * to help sorting two different numeric types.
+ * Sorted numeric field for wider sort types, to help sorting two different numeric types.
+ * NOTE: the unsigned_long is not supported by widening sort since the unsigned_long could not be used with other types
  *
  * @opensearch.internal
  */
