@@ -12,6 +12,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -44,6 +45,11 @@ public class ClasspathPluginIT extends OpenSearchIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(SampleExtensiblePlugin.class, SampleExtendingPlugin.class))
             .collect(Collectors.toList());
+    }
+
+    @Override
+    protected Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins() {
+        return Map.of(SampleExtendingPlugin.class, SampleExtensiblePlugin.class);
     }
 
     public void testPluginExtensionWithClasspathPlugins() throws IOException {

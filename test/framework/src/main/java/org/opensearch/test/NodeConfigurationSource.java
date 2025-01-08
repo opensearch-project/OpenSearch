@@ -37,6 +37,7 @@ import org.opensearch.plugins.Plugin;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 public abstract class NodeConfigurationSource {
 
@@ -62,5 +63,10 @@ public abstract class NodeConfigurationSource {
     /** Returns plugins that should be loaded on the node */
     public Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.emptyList();
+    }
+
+    /** Returns a map corresponding to plugin dependencies to other classpath plugins */
+    public Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins() {
+        return Collections.emptyMap();
     }
 }

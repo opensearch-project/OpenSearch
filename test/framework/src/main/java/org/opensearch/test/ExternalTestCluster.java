@@ -59,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -98,6 +99,7 @@ public final class ExternalTestCluster extends TestCluster {
         Function<Client, Client> clientWrapper,
         String clusterName,
         Collection<Class<? extends Plugin>> pluginClasses,
+        Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins,
         TransportAddress... transportAddresses
     ) {
         super(0);
@@ -129,7 +131,7 @@ public final class ExternalTestCluster extends TestCluster {
         pluginClasses = new ArrayList<>(pluginClasses);
         pluginClasses.add(MockHttpTransport.TestPlugin.class);
         Settings clientSettings = clientSettingsBuilder.build();
-        MockNode node = new MockNode(clientSettings, pluginClasses);
+        MockNode node = new MockNode(clientSettings, pluginClasses, extendedPlugins);
         Client client = clientWrapper.apply(node.client());
         try {
             node.start();

@@ -125,12 +125,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
+    @SuppressWarnings("unchecked")
     public PluginsService(
         Settings settings,
         Path configPath,
         Path modulesDirectory,
         Path pluginsDirectory,
-        Collection<Class<? extends Plugin>> classpathPlugins
+        Collection<PluginInfo> classpathPlugins
     ) {
         this.settings = settings;
         this.configPath = configPath;
@@ -140,25 +141,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
         // first we load plugins that are on the classpath. this is for tests
-        for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(
-                pluginClass.getName(),
-                "classpath plugin",
-                "NA",
-                Version.CURRENT,
-                "1.8",
-                pluginClass.getName(),
-                null,
-                classpathPlugins.stream().map(Class::getName).filter(cp -> !pluginClass.getName().equals(cp)).collect(Collectors.toList()),
-                false
-            );
-            if (logger.isTraceEnabled()) {
-                logger.trace("plugin loaded from classpath [{}]", pluginInfo);
+        for (PluginInfo pluginInfo : classpathPlugins) {
+            try {
+                Class<? extends Plugin> pluginClazz = (Class<? extends Plugin>) Class.forName(pluginInfo.getClassname());
+                Plugin plugin = loadPlugin(pluginClazz, settings, configPath);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("plugin loaded from classpath [{}]", pluginInfo);
+                }
+                pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
+                pluginsList.add(pluginInfo);
+                pluginsNames.add(pluginInfo.getName());
+            } catch (ClassNotFoundException e) {
+                logger.error("Failed to load classpath plugin: " + pluginInfo.getClassname());
             }
-            pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
-            pluginsList.add(pluginInfo);
-            pluginsNames.add(pluginInfo.getName());
         }
         loadExtensions(pluginsLoaded);
 
@@ -576,17 +571,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         ExtensiblePlugin.ExtensionLoader extensionLoader = new ExtensiblePlugin.ExtensionLoader() {
             @Override
             public <T> List<T> loadExtensions(Class<T> extensionPointType) {
-                Set<Class<?>> seenClasses = new LinkedHashSet<>();
                 List<T> result = new ArrayList<>();
-
                 for (Plugin extendingPlugin : extendingPlugins) {
-                    List<? extends T> extensions = createExtensions(extensionPointType, extendingPlugin);
-                    for (T extension : extensions) {
-                        // Only add if we haven't seen this class before, needed for classpath extensions for testing
-                        if (seenClasses.add(extension.getClass())) {
-                            result.add(extension);
-                        }
-                    }
+                    result.addAll(createExtensions(extensionPointType, extendingPlugin));
                 }
                 return Collections.unmodifiableList(result);
             }
