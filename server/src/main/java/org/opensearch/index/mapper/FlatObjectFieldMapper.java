@@ -417,7 +417,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             }
             failIfNotIndexedAndNoDocValues();
 
-            if (lowerTerm != null && upperTerm != null) {
+            if ((lowerTerm != null && upperTerm != null)) {
                 return valueFieldType().rangeQuery(
                     rewriteSearchValue(lowerTerm),
                     rewriteSearchValue(upperTerm),

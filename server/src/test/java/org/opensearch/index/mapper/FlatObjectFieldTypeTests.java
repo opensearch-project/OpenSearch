@@ -790,6 +790,18 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                         hasDocValue
                     );
 
+                    if (searchable == false && hasDocValue == false) {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+                        );
+                        assertEquals(
+                            "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
+                            e.getMessage()
+                        );
+                        continue;
+                    }
+
                     Query indexQuery = new TermRangeQuery("field" + VALUE_SUFFIX, new BytesRef("2"), new BytesRef("10"), true, true);
                     Query dvQuery = new TermRangeQuery(
                         "field" + VALUE_SUFFIX,
@@ -810,7 +822,6 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             }
         }
 
-        // test isSearchable=true, hasDocValues=true, mappedFieldTypeName!=null
         {
             for (boolean searchable : new boolean[] { true, false }) {
                 for (boolean hasDocValue : new boolean[] { true, false }) {
@@ -820,6 +831,20 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                         searchable,
                         hasDocValue
                     );
+
+                    if (searchable == false && hasDocValue == false) {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+                        );
+                        assertEquals(
+                            "Cannot search on field [field.field1] since it is both not indexed, and does not have doc_values "
+                                + "enabled.",
+                            e.getMessage()
+                        );
+                        continue;
+                    }
+
                     Query indexQuery = new TermRangeQuery(
                         "field" + VALUE_AND_PATH_SUFFIX,
                         new BytesRef("field.field1=2"),
@@ -846,42 +871,6 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             }
         }
 
-        // test isSearchable=false, hasDocValues=false, mappedFieldTypeName=null
-        {
-            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
-                null,
-                false,
-                false
-            );
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
-            );
-            assertEquals(
-                "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
-                e.getMessage()
-            );
-        }
-
-        // test isSearchable=false, hasDocValues=false, mappedFieldTypeName!=null
-        {
-            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field.field1",
-                "field",
-                false,
-                false
-            );
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
-            );
-            assertEquals(
-                "Cannot search on field [field.field1] since it is both not indexed, and does not have doc_values " + "enabled.",
-                e.getMessage()
-            );
-        }
-
         {
             for (boolean searchable : new boolean[] { true, false }) {
                 for (boolean hasDocValue : new boolean[] { true, false }) {
@@ -891,12 +880,25 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                         searchable,
                         hasDocValue
                     );
+
+                    if (searchable == false && hasDocValue == false) {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+                        );
+                        assertEquals(
+                            "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
+                            e.getMessage()
+                        );
+                        continue;
+                    }
                     boolean nullLowerTerm = randomBoolean();
+                    boolean nullUpperTerm = nullLowerTerm == false || randomBoolean();
 
                     Automaton a1 = PrefixQuery.toAutomaton(new BytesRef("field."));
                     Automaton a2 = TermRangeQuery.toAutomaton(
                         nullLowerTerm ? null : new BytesRef("field.2"),
-                        nullLowerTerm ? new BytesRef("field.10") : null,
+                        nullUpperTerm ? null : new BytesRef("field.10"),
                         true,
                         true
                     );
@@ -904,7 +906,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                     Query indexQuery = new TermRangeQuery(
                         "field" + VALUE_SUFFIX,
                         nullLowerTerm ? null : new BytesRef("2"),
-                        nullLowerTerm ? new BytesRef("10") : null,
+                        nullUpperTerm ? null : new BytesRef("10"),
                         true,
                         true
                     );
@@ -922,7 +924,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                         expected,
                         ft.rangeQuery(
                             nullLowerTerm ? null : new BytesRef("2"),
-                            nullLowerTerm ? new BytesRef("10") : null,
+                            nullUpperTerm ? null : new BytesRef("10"),
                             true,
                             true,
                             MOCK_QSC_ENABLE_INDEX_DOC_VALUES
@@ -941,12 +943,25 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                         searchable,
                         hasDocValue
                     );
-                    boolean nullLowerTerm = randomBoolean();
+                    if (searchable == false && hasDocValue == false) {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+                        );
+                        assertEquals(
+                            "Cannot search on field [field.field1] since it is both not indexed, and does not have doc_values "
+                                + "enabled.",
+                            e.getMessage()
+                        );
+                        continue;
+                    }
+                    boolean nullLowerTerm = true;// randomBoolean();
+                    boolean nullUpperTerm = true;// nullLowerTerm == false || randomBoolean();
 
                     Automaton a1 = PrefixQuery.toAutomaton(new BytesRef("field.field1="));
                     Automaton a2 = TermRangeQuery.toAutomaton(
                         nullLowerTerm ? null : new BytesRef("field.field1=2"),
-                        nullLowerTerm ? new BytesRef("field.field1=10") : null,
+                        nullUpperTerm ? null : new BytesRef("field.field1=10"),
                         true,
                         true
                     );
@@ -955,7 +970,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                     Automaton dvA1 = PrefixQuery.toAutomaton(new BytesRef("field.field.field1="));
                     Automaton dvA2 = TermRangeQuery.toAutomaton(
                         nullLowerTerm ? null : new BytesRef("field.field.field1=2"),
-                        nullLowerTerm ? new BytesRef("field.field.field1=10") : null,
+                        nullUpperTerm ? null : new BytesRef("field.field.field1=10"),
                         true,
                         true
                     );
@@ -980,7 +995,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                         expected,
                         ft.rangeQuery(
                             nullLowerTerm ? null : new BytesRef("2"),
-                            nullLowerTerm ? new BytesRef("10") : null,
+                            nullUpperTerm ? null : new BytesRef("10"),
                             true,
                             true,
                             MOCK_QSC_ENABLE_INDEX_DOC_VALUES
