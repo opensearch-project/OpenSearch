@@ -39,7 +39,9 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.wlm.QueryGroupTask;
 
 /**
  * Perform the search scroll
@@ -51,6 +53,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportSearchScrollAction(
@@ -58,17 +61,24 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         ClusterService clusterService,
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
-        SearchPhaseController searchPhaseController
+        SearchPhaseController searchPhaseController,
+        ThreadPool threadPool
     ) {
         super(SearchScrollAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;
+        this.threadPool = threadPool;
     }
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
+
+            if (task instanceof QueryGroupTask) {
+                ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
+            }
+
             ParsedScrollId scrollId = TransportSearchHelper.parseScrollId(request.scrollId());
             Runnable action;
             switch (scrollId.getType()) {
