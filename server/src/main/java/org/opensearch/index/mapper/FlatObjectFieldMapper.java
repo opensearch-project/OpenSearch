@@ -13,12 +13,19 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.Fuzziness;
@@ -51,6 +58,8 @@ import java.util.function.Supplier;
 
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.FlatObjectFieldType.getKeywordFieldType;
 import static org.opensearch.index.mapper.KeywordFieldMapper.normalizeValue;
+import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.apache.lucene.search.MultiTermQuery.DOC_VALUES_REWRITE;
 
 /**
  * A field mapper for flat_objects.
@@ -177,12 +186,12 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             this.valueAndPathFieldType = valueAndPathFieldType;
         }
 
-        static KeywordFieldType getKeywordFieldType(String fullName, String valueType, boolean isSearchable, boolean hasDocValue) {
-            return new KeywordFieldType(fullName + valueType, isSearchable, hasDocValue, Collections.emptyMap()) {
+        static KeywordFieldType getKeywordFieldType(String rootField, String suffix, boolean isSearchable, boolean hasDocValue) {
+            return new KeywordFieldType(rootField + suffix, isSearchable, hasDocValue, Collections.emptyMap()) {
                 @Override
                 protected String rewriteForDocValue(Object value) {
                     assert value instanceof String;
-                    return fullName + DOT_SYMBOL + value;
+                    return getDVPrefix(rootField) + value;
                 }
             };
         }
@@ -257,7 +266,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 );
             }
             if (rootFieldName != null) {
-                return new FlatObjectDocValueFormat(rootFieldName + DOT_SYMBOL + name() + EQUAL_SYMBOL);
+                return new FlatObjectDocValueFormat(getDVPrefix(rootFieldName) + getPathPrefix(name()));
             } else {
                 throw new IllegalArgumentException(
                     "Field [" + name() + "] of type [" + typeName() + "] does not support doc_value in root field"
@@ -320,6 +329,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
             List<String> parsedValues = new ArrayList<>(values.size());
             for (Object value : values) {
                 parsedValues.add(rewriteSearchValue(value));
@@ -348,7 +358,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (value instanceof BytesRef) {
                 value = ((BytesRef) value).utf8ToString();
             }
-            return isSubField() ? name() + EQUAL_SYMBOL + value : value.toString();
+            return isSubField() ? getPathPrefix(name()) + value : value.toString();
         }
 
         boolean isSubField() {
@@ -357,6 +367,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
             return valueFieldType().prefixQuery(rewriteSearchValue(value), method, caseInsensitive, context);
         }
 
@@ -369,6 +380,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             @Nullable MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
+            failIfNotIndexedAndNoDocValues();
             return valueFieldType().regexpQuery(rewriteSearchValue(value), syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
         }
 
@@ -382,6 +394,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             @Nullable MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
+            failIfNotIndexedAndNoDocValues();
             return valueFieldType().fuzzyQuery(
                 rewriteSearchValue(value),
                 fuzziness,
@@ -395,13 +408,69 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            return valueFieldType().rangeQuery(
-                lowerTerm == null ? null : rewriteSearchValue(lowerTerm),
-                upperTerm == null ? null : rewriteSearchValue(upperTerm),
-                includeLower,
-                includeUpper,
-                context
-            );
+            if (context.allowExpensiveQueries() == false) {
+                throw new OpenSearchException(
+                    "[range] queries on [text] or [keyword] fields cannot be executed when '"
+                        + ALLOW_EXPENSIVE_QUERIES.getKey()
+                        + "' is set to false."
+                );
+            }
+            failIfNotIndexedAndNoDocValues();
+
+            if (lowerTerm != null && upperTerm != null) {
+                return valueFieldType().rangeQuery(
+                    rewriteSearchValue(lowerTerm),
+                    rewriteSearchValue(upperTerm),
+                    includeLower,
+                    includeUpper,
+                    context
+                );
+            }
+
+            Query indexQuery = null;
+            Query dvQuery = null;
+            if (isSearchable()) {
+                if (isSubField() == false) {
+                    indexQuery = new TermRangeQuery(
+                        getSearchField(),
+                        lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                        upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                        includeLower,
+                        includeUpper
+                    );
+                } else {
+                    Automaton a1 = PrefixQuery.toAutomaton(indexedValueForSearch(getPathPrefix(name())));
+                    BytesRef lowerTermBytes = lowerTerm == null ? null : indexedValueForSearch(rewriteSearchValue(lowerTerm));
+                    BytesRef upperTermBytes = upperTerm == null ? null : indexedValueForSearch(rewriteSearchValue(upperTerm));
+                    Automaton a2 = TermRangeQuery.toAutomaton(lowerTermBytes, upperTermBytes, includeLower, includeUpper);
+                    Automaton termAutomaton = Operations.intersection(a1, a2);
+                    indexQuery = new AutomatonQuery(
+                        new Term(getSearchField()),
+                        termAutomaton,
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                        true
+                    );
+                }
+            }
+            if (hasDocValues()) {
+                String dvPrefix = isSubField() ? getDVPrefix(rootFieldName) : getDVPrefix(name());
+                String prefix = dvPrefix + (isSubField() ? getPathPrefix(name()) : "");
+                Automaton a1 = PrefixQuery.toAutomaton(indexedValueForSearch(prefix));
+                BytesRef lowerDvBytes = lowerTerm == null ? null : indexedValueForSearch(dvPrefix + rewriteSearchValue(lowerTerm));
+                BytesRef upperDvBytes = upperTerm == null ? null : indexedValueForSearch(dvPrefix + rewriteSearchValue(upperTerm));
+                Automaton a2 = TermRangeQuery.toAutomaton(lowerDvBytes, upperDvBytes, includeLower, includeUpper);
+                Automaton dvAutomaton = Operations.intersection(a1, a2);
+                dvQuery = new AutomatonQuery(
+                    new Term(getSearchField()),
+                    dvAutomaton,
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                    true,
+                    DOC_VALUES_REWRITE
+                );
+            }
+
+            assert indexQuery != null || dvQuery != null;
+            return indexQuery == null ? dvQuery : (dvQuery == null ? indexQuery : new IndexOrDocValuesQuery(indexQuery, dvQuery));
         }
 
         /**
@@ -433,6 +502,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             boolean caseInsensitve,
             QueryShardContext context
         ) {
+            failIfNotIndexedAndNoDocValues();
             return valueFieldType().wildcardQuery(rewriteSearchValue(value), method, caseInsensitve, context);
         }
 
@@ -543,6 +613,14 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
     }
 
+    private static String getDVPrefix(String rootFieldName) {
+        return rootFieldName + DOT_SYMBOL;
+    }
+
+    private static String getPathPrefix(String path) {
+        return path + EQUAL_SYMBOL;
+    }
+
     private void parseToken(XContentParser parser, ParseContext context, Deque<String> path, HashSet<String> pathParts) throws IOException {
         if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
             final String currentFieldName = parser.currentName();
@@ -576,16 +654,16 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 value = normalizeValue(normalizer, name(), value);
             }
             final String leafPath = Strings.collectionToDelimitedString(path, ".");
-            final String valueAndPath = leafPath + EQUAL_SYMBOL + value;
+            final String valueAndPath = getPathPrefix(leafPath) + value;
             if (fieldType().isSearchable() || fieldType().isStored()) {
                 context.doc().add(new Field(valueFieldType.name(), new BytesRef(value), fieldType));
                 context.doc().add(new Field(valueAndPathFieldType.name(), new BytesRef(valueAndPath), fieldType));
             }
 
             if (fieldType().hasDocValues()) {
-                context.doc().add(new SortedSetDocValuesField(valueFieldType.name(), new BytesRef(name() + DOT_SYMBOL + value)));
+                context.doc().add(new SortedSetDocValuesField(valueFieldType.name(), new BytesRef(getDVPrefix(name()) + value)));
                 context.doc()
-                    .add(new SortedSetDocValuesField(valueAndPathFieldType.name(), new BytesRef(name() + DOT_SYMBOL + valueAndPath)));
+                    .add(new SortedSetDocValuesField(valueAndPathFieldType.name(), new BytesRef(getDVPrefix(name()) + valueAndPath)));
             }
 
             pathParts.addAll(Arrays.asList(leafPath.substring(name().length() + 1).split("\\.")));

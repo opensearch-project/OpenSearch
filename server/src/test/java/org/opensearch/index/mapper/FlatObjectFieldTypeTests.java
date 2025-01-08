@@ -11,6 +11,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -23,6 +24,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -328,7 +330,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._value] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
@@ -346,7 +348,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._valueAndPath] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field.field1] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
@@ -444,7 +446,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.prefixQuery("foo", CONSTANT_SCORE_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._value] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
@@ -462,7 +464,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.prefixQuery("foo", CONSTANT_SCORE_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._valueAndPath] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field.field1] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
@@ -616,7 +618,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.regexpQuery("foo", 0, 0, 10, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._value] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
@@ -634,7 +636,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.regexpQuery("foo", 0, 0, 10, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._valueAndPath] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field.field1] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
@@ -753,7 +755,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._value] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
@@ -771,132 +773,80 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._valueAndPath] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field.field1] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
     }
 
     public void testRangeQuery() {
-        // 1.test isSearchable=true, hasDocValues=true, mappedFieldTypeName=null
         {
-            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
-                null,
-                true,
-                true
-            );
-            Query expected = new IndexOrDocValuesQuery(
-                new TermRangeQuery("field" + VALUE_SUFFIX, new BytesRef("2"), new BytesRef("10"), true, true),
-                new TermRangeQuery(
-                    "field" + VALUE_SUFFIX,
-                    new BytesRef("field.2"),
-                    new BytesRef("field.10"),
-                    true,
-                    true,
-                    DOC_VALUES_REWRITE
-                )
-            );
-            assertEquals(expected, ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            for (boolean searchable : new boolean[] { true, false }) {
+                for (boolean hasDocValue : new boolean[] { true, false }) {
+                    FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                        "field",
+                        null,
+                        searchable,
+                        hasDocValue
+                    );
+
+                    Query indexQuery = new TermRangeQuery("field" + VALUE_SUFFIX, new BytesRef("2"), new BytesRef("10"), true, true);
+                    Query dvQuery = new TermRangeQuery(
+                        "field" + VALUE_SUFFIX,
+                        new BytesRef("field.2"),
+                        new BytesRef("field.10"),
+                        true,
+                        true,
+                        DOC_VALUES_REWRITE
+                    );
+                    Query expected = searchable == false
+                        ? dvQuery
+                        : (hasDocValue ? new IndexOrDocValuesQuery(indexQuery, dvQuery) : indexQuery);
+                    assertEquals(
+                        expected,
+                        ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+                    );
+                }
+            }
         }
 
         // test isSearchable=true, hasDocValues=true, mappedFieldTypeName!=null
         {
-            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field.field1",
-                "field",
-                true,
-                true
-            );
-            Query expected = new IndexOrDocValuesQuery(
-                new TermRangeQuery(
-                    "field" + VALUE_AND_PATH_SUFFIX,
-                    new BytesRef("field.field1=2"),
-                    new BytesRef("field.field1=10"),
-                    true,
-                    true
-                ),
-                new TermRangeQuery(
-                    "field" + VALUE_AND_PATH_SUFFIX,
-                    new BytesRef("field.field.field1=2"),
-                    new BytesRef("field.field.field1=10"),
-                    true,
-                    true,
-                    DOC_VALUES_REWRITE
-                )
-            );
-            assertEquals(expected, ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            for (boolean searchable : new boolean[] { true, false }) {
+                for (boolean hasDocValue : new boolean[] { true, false }) {
+                    FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                        "field.field1",
+                        "field",
+                        searchable,
+                        hasDocValue
+                    );
+                    Query indexQuery = new TermRangeQuery(
+                        "field" + VALUE_AND_PATH_SUFFIX,
+                        new BytesRef("field.field1=2"),
+                        new BytesRef("field.field1=10"),
+                        true,
+                        true
+                    );
+                    Query dvQuery = new TermRangeQuery(
+                        "field" + VALUE_AND_PATH_SUFFIX,
+                        new BytesRef("field.field.field1=2"),
+                        new BytesRef("field.field.field1=10"),
+                        true,
+                        true,
+                        DOC_VALUES_REWRITE
+                    );
+                    Query expected = searchable == false
+                        ? dvQuery
+                        : (hasDocValue ? new IndexOrDocValuesQuery(indexQuery, dvQuery) : indexQuery);
+                    assertEquals(
+                        expected,
+                        ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+                    );
+                }
+            }
         }
 
-        // 2.test isSearchable=true, hasDocValues=false, mappedFieldTypeName=null
-        {
-            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
-                null,
-                true,
-                false
-            );
-            Query expected = new TermRangeQuery("field" + VALUE_SUFFIX, new BytesRef("2"), new BytesRef("10"), true, true);
-            assertEquals(expected, ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
-        }
-
-        // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
-        {
-            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field.field1",
-                "field",
-                true,
-                false
-            );
-            Query expected = new TermRangeQuery(
-                "field" + VALUE_AND_PATH_SUFFIX,
-                new BytesRef("field.field1=2"),
-                new BytesRef("field.field1=10"),
-                true,
-                true
-            );
-            assertEquals(expected, ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
-        }
-
-        // 3.test isSearchable=false, hasDocValues=true, mappedFieldTypeName=null
-        {
-            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field",
-                null,
-                false,
-                true
-            );
-            Query expected = new TermRangeQuery(
-                "field" + VALUE_SUFFIX,
-                new BytesRef("field.2"),
-                new BytesRef("field.10"),
-                true,
-                true,
-                DOC_VALUES_REWRITE
-            );
-            assertEquals(expected, ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
-        }
-
-        // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
-        {
-            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-                "field.field1",
-                "field",
-                false,
-                true
-            );
-            Query expected = new TermRangeQuery(
-                "field" + VALUE_AND_PATH_SUFFIX,
-                new BytesRef("field.field.field1=2"),
-                new BytesRef("field.field.field1=10"),
-                true,
-                true,
-                DOC_VALUES_REWRITE
-            );
-            assertEquals(expected, ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
-        }
-
-        // 4.test isSearchable=false, hasDocValues=false, mappedFieldTypeName=null
+        // test isSearchable=false, hasDocValues=false, mappedFieldTypeName=null
         {
             FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
                 "field",
@@ -909,7 +859,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._value] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
@@ -927,9 +877,117 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.rangeQuery(new BytesRef("2"), new BytesRef("10"), true, true, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._valueAndPath] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field.field1] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
+        }
+
+        {
+            for (boolean searchable : new boolean[] { true, false }) {
+                for (boolean hasDocValue : new boolean[] { true, false }) {
+                    FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                        "field",
+                        null,
+                        searchable,
+                        hasDocValue
+                    );
+                    boolean nullLowerTerm = randomBoolean();
+
+                    Automaton a1 = PrefixQuery.toAutomaton(new BytesRef("field."));
+                    Automaton a2 = TermRangeQuery.toAutomaton(
+                        nullLowerTerm ? null : new BytesRef("field.2"),
+                        nullLowerTerm ? new BytesRef("field.10") : null,
+                        true,
+                        true
+                    );
+                    Automaton dvAutomaton = Operations.intersection(a1, a2);
+                    Query indexQuery = new TermRangeQuery(
+                        "field" + VALUE_SUFFIX,
+                        nullLowerTerm ? null : new BytesRef("2"),
+                        nullLowerTerm ? new BytesRef("10") : null,
+                        true,
+                        true
+                    );
+                    Query dvQuery = new AutomatonQuery(
+                        new Term("field" + VALUE_SUFFIX),
+                        dvAutomaton,
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                        true,
+                        DOC_VALUES_REWRITE
+                    );
+                    Query expected = searchable == false
+                        ? dvQuery
+                        : (hasDocValue ? new IndexOrDocValuesQuery(indexQuery, dvQuery) : indexQuery);
+                    assertEquals(
+                        expected,
+                        ft.rangeQuery(
+                            nullLowerTerm ? null : new BytesRef("2"),
+                            nullLowerTerm ? new BytesRef("10") : null,
+                            true,
+                            true,
+                            MOCK_QSC_ENABLE_INDEX_DOC_VALUES
+                        )
+                    );
+                }
+            }
+        }
+
+        {
+            for (boolean searchable : new boolean[] { true, false }) {
+                for (boolean hasDocValue : new boolean[] { true, false }) {
+                    FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                        "field.field1",
+                        "field",
+                        searchable,
+                        hasDocValue
+                    );
+                    boolean nullLowerTerm = randomBoolean();
+
+                    Automaton a1 = PrefixQuery.toAutomaton(new BytesRef("field.field1="));
+                    Automaton a2 = TermRangeQuery.toAutomaton(
+                        nullLowerTerm ? null : new BytesRef("field.field1=2"),
+                        nullLowerTerm ? new BytesRef("field.field1=10") : null,
+                        true,
+                        true
+                    );
+                    Automaton termAutomaton = Operations.intersection(a1, a2);
+
+                    Automaton dvA1 = PrefixQuery.toAutomaton(new BytesRef("field.field.field1="));
+                    Automaton dvA2 = TermRangeQuery.toAutomaton(
+                        nullLowerTerm ? null : new BytesRef("field.field.field1=2"),
+                        nullLowerTerm ? new BytesRef("field.field.field1=10") : null,
+                        true,
+                        true
+                    );
+                    Automaton dvAutomaton = Operations.intersection(dvA1, dvA2);
+                    Query indexQuery = new AutomatonQuery(
+                        new Term("field" + VALUE_AND_PATH_SUFFIX),
+                        termAutomaton,
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                        true
+                    );
+                    Query dvQuery = new AutomatonQuery(
+                        new Term("field" + VALUE_AND_PATH_SUFFIX),
+                        dvAutomaton,
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                        true,
+                        DOC_VALUES_REWRITE
+                    );
+                    Query expected = searchable == false
+                        ? dvQuery
+                        : (hasDocValue ? new IndexOrDocValuesQuery(indexQuery, dvQuery) : indexQuery);
+                    assertEquals(
+                        expected,
+                        ft.rangeQuery(
+                            nullLowerTerm ? null : new BytesRef("2"),
+                            nullLowerTerm ? new BytesRef("10") : null,
+                            true,
+                            true,
+                            MOCK_QSC_ENABLE_INDEX_DOC_VALUES
+                        )
+                    );
+                }
+            }
         }
     }
 
@@ -1057,7 +1115,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.wildcardQuery("foo*", null, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._value] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
@@ -1075,7 +1133,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.wildcardQuery("foo*", null, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
             );
             assertEquals(
-                "Cannot search on field [field._valueAndPath] since it is both not indexed, and does not have doc_values " + "enabled.",
+                "Cannot search on field [field.field1] since it is both not indexed, and does not have doc_values " + "enabled.",
                 e.getMessage()
             );
         }
