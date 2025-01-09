@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.replication;
 
-import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -139,6 +138,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             assertNotNull(replicaStat.getCurrentReplicationState());
         }
     }
+
     public void testSearchReplicaRecovery() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String primary = internalCluster().startDataOnlyNode();
