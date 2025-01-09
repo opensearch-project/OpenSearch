@@ -37,7 +37,7 @@ java.nio.file.Path#toFile()
 java.nio.file.Files#createTempDirectory(java.lang.String,java.nio.file.attribute.FileAttribute[])
 java.nio.file.Files#createTempFile(java.lang.String,java.lang.String,java.nio.file.attribute.FileAttribute[])
 
-@defaultMessage Use org.opensearch.common.crypto.KeyStoreFactory instead of java.security.KeyStore
+@defaultMessage Use org.opensearch.common.ssl.KeyStoreFactory instead of java.security.KeyStore
 java.security.KeyStore#getInstance(java.lang.String)
 java.security.KeyStore#getInstance(java.lang.String,java.lang.String)
 java.security.KeyStore#getInstance(java.lang.String,java.security.Provider)

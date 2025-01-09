@@ -48,8 +48,8 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.crypto.KeyStoreFactory;
-import org.opensearch.common.crypto.KeyStoreType;
+import org.opensearch.common.ssl.KeyStoreFactory;
+import org.opensearch.common.ssl.KeyStoreType;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;

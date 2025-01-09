@@ -32,8 +32,6 @@
 
 package org.opensearch.common;
 
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
-
 import java.security.SecureRandom;
 
 /**
@@ -43,5 +41,5 @@ import java.security.SecureRandom;
  */
 class SecureRandomHolder {
     // class loading is atomic - this is a lazy & safe singleton to be used by this package
-    public static final SecureRandom INSTANCE = CryptoServicesRegistrar.getSecureRandom();
+    public static final SecureRandom INSTANCE = new SecureRandom();
 }

@@ -32,8 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import org.opensearch.common.crypto.KeyStoreFactory;
-import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Files;

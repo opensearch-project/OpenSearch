@@ -49,9 +49,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.common.crypto.KeyStoreType.BCFKS;
-import static org.opensearch.common.crypto.KeyStoreType.JKS;
-import static org.opensearch.common.crypto.KeyStoreType.PKCS_12;
+import static org.opensearch.common.ssl.KeyStoreType.BCFKS;
+import static org.opensearch.common.ssl.KeyStoreType.JKS;
+import static org.opensearch.common.ssl.KeyStoreType.PKCS_12;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 
