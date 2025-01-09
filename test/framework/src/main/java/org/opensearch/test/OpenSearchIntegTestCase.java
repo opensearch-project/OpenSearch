@@ -1993,6 +1993,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return Collections.emptyList();
     }
 
+    /**
+     * Returns a collection of plugins that should be loaded on each node.
+     */
+    protected Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins() {
+        return Collections.emptyMap();
+    }
+
     private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
@@ -2008,6 +2015,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             getClientWrapper(),
             clusterName,
             nodePlugins(),
+            extendedPlugins(),
             transportAddresses
         );
     }
@@ -2113,6 +2121,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 return OpenSearchIntegTestCase.this.nodePlugins();
+            }
+
+            @Override
+            public Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins() {
+                return OpenSearchIntegTestCase.this.extendedPlugins();
             }
         };
     }

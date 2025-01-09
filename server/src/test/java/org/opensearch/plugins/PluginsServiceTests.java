@@ -57,6 +57,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -100,13 +101,23 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
-        return new PluginsService(
-            settings,
-            null,
-            null,
-            TestEnvironment.newEnvironment(settings).pluginsDir(),
-            Arrays.asList(classpathPlugins)
-        );
+        Collection<PluginInfo> pluginInfos = new ArrayList<>();
+        for (Class<? extends Plugin> plugin : classpathPlugins) {
+            pluginInfos.add(
+                new PluginInfo(
+                    plugin.getName(),
+                    "classpath plugin",
+                    "NA",
+                    Version.CURRENT,
+                    "1.8",
+                    plugin.getName(),
+                    null,
+                    Collections.emptyList(),
+                    false
+                )
+            );
+        }
+        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsDir(), pluginInfos);
     }
 
     public void testAdditionalSettings() {

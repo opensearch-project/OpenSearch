@@ -518,6 +518,10 @@ public final class InternalTestCluster extends TestCluster {
         return plugins;
     }
 
+    public Map<Class<? extends Plugin>, Class<? extends Plugin>> getExtendedPlugins() {
+        return nodeConfigurationSource.extendedPlugins();
+    }
+
     private static Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.builder();
@@ -803,6 +807,7 @@ public final class InternalTestCluster extends TestCluster {
         assert Thread.holdsLock(this);
         ensureOpen();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
+        Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins = getExtendedPlugins();
         String name = settings.get("node.name");
 
         final NodeAndClient nodeAndClient = nodes.get(name);
@@ -817,7 +822,13 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        MockNode node = new MockNode(settings, plugins, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
+        MockNode node = new MockNode(
+            settings,
+            plugins,
+            nodeConfigurationSource.nodeConfigPath(nodeId),
+            forbidPrivateIndexSettings,
+            extendedPlugins
+        );
         node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {

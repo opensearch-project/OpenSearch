@@ -32,6 +32,7 @@
 
 package org.opensearch.node;
 
+import org.opensearch.Version;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.MockInternalClusterInfoService;
@@ -51,6 +52,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -72,10 +74,12 @@ import org.opensearch.transport.TransportService;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A node for testing which allows:
@@ -87,10 +91,6 @@ import java.util.function.Function;
 public class MockNode extends Node {
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
-
-    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, true);
-    }
 
     public MockNode(
         final Settings settings,
@@ -104,22 +104,76 @@ public class MockNode extends Node {
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final Path configPath,
+        final boolean forbidPrivateIndexSettings,
+        final Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins
+    ) {
+        this(
+            InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
+            classpathPlugins,
+            forbidPrivateIndexSettings,
+            extendedPlugins
+        );
+    }
+
+    public MockNode(
+        final Settings settings,
+        final Collection<Class<? extends Plugin>> classpathPlugins,
+        final Path configPath,
         final boolean forbidPrivateIndexSettings
     ) {
         this(
             InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
             classpathPlugins,
-            forbidPrivateIndexSettings
+            forbidPrivateIndexSettings,
+            Collections.emptyMap()
         );
     }
 
     private MockNode(
         final Environment environment,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins
     ) {
-        super(environment, classpathPlugins, forbidPrivateIndexSettings);
+        super(
+            environment,
+            classpathPlugins.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        (extendedPlugins != null && extendedPlugins.containsKey(p))
+                            ? List.of(extendedPlugins.get(p).getName())
+                            : Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList()),
+            forbidPrivateIndexSettings
+        );
         this.classpathPlugins = classpathPlugins;
+    }
+
+    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
+        this(settings, classpathPlugins, true);
+    }
+
+    public MockNode(
+        final Settings settings,
+        final Collection<Class<? extends Plugin>> classpathPlugins,
+        final Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins
+    ) {
+        this(
+            InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), null, () -> "mock_ node"),
+            classpathPlugins,
+            true,
+            extendedPlugins
+        );
     }
 
     /**
