@@ -26,16 +26,20 @@ import org.opensearch.arrow.spi.StreamProducer;
 import org.opensearch.arrow.spi.StreamReader;
 import org.opensearch.arrow.spi.StreamTicket;
 import org.opensearch.arrow.spi.StreamTicketFactory;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 import java.util.Objects;
@@ -59,10 +63,11 @@ public class FlightService extends AbstractLifecycleComponent {
     private static final String GRPC_WORKER_ELG = "os-grpc-worker-ELG";
     private static final String GRPC_BOSS_ELG = "os-grpc-boss-ELG";
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 5;
-    private static final String TRANSPORT_STREAM_PORT = "transport.stream.port";
+    private FlightServerTransport flightTransport;
 
     private final ServerComponents serverComponents;
     private final NetworkResources networkResources;
+    Client client;
 
     /**
      * Constructor for FlightService.
@@ -89,12 +94,15 @@ public class FlightService extends AbstractLifecycleComponent {
     /**
      * Initializes the FlightService with the provided ClusterService and ThreadPool.
      * It sets up the SSL context provider, client manager, and stream manager.
+     *
      * @param clusterService The ClusterService instance.
-     * @param threadPool The ThreadPool instance.
+     * @param threadPool     The ThreadPool instance.
+     * @param client
      */
-    public void initialize(ClusterService clusterService, ThreadPool threadPool) {
+    public void initialize(ClusterService clusterService, ThreadPool threadPool, Client client) {
         serverComponents.setClusterService(Objects.requireNonNull(clusterService, "ClusterService cannot be null"));
         serverComponents.setThreadPool(Objects.requireNonNull(threadPool, "ThreadPool cannot be null"));
+        this.client = client;
     }
 
     /**
@@ -107,12 +115,25 @@ public class FlightService extends AbstractLifecycleComponent {
         );
     }
 
+    public void setFlightTransport(FlightServerTransport flightTransport) {
+        this.flightTransport = flightTransport;
+    }
+
     /**
      * Starts the FlightService by initializing the stream manager.
      */
     @Override
     protected void doStart() {
-        serverComponents.initializeStreamManager();
+        try {
+            serverComponents.initialize();
+            networkResources.initialize(serverComponents);
+            flightTransport.doStart();
+            serverComponents.initializeStreamManager();
+        } catch (Exception e) {
+            logger.error("Failed to start Flight server", e);
+            cleanup();
+            throw new RuntimeException("Failed to start Flight server", e);
+        }
     }
 
     /**
@@ -120,6 +141,7 @@ public class FlightService extends AbstractLifecycleComponent {
      */
     @Override
     protected void doStop() {
+        flightTransport.doStop();
         serverComponents.close();
         networkResources.close();
     }
@@ -130,7 +152,7 @@ public class FlightService extends AbstractLifecycleComponent {
      */
     @Override
     protected void doClose() {
-
+        flightTransport.doClose();
     }
 
     /**
@@ -145,18 +167,11 @@ public class FlightService extends AbstractLifecycleComponent {
 
         if (isDedicatedClusterManagerNode(localNode)) {
             doClose();
-            return;
         }
+    }
 
-        try {
-            serverComponents.initialize();
-            networkResources.initialize(serverComponents);
-            startFlightServer(localNode);
-        } catch (Exception e) {
-            logger.error("Failed to start Flight server", e);
-            cleanup();
-            throw new RuntimeException("Failed to start Flight server", e);
-        }
+    public BoundTransportAddress getBoundAddress() {
+        return flightTransport.boundAddress();
     }
 
     private void cleanup() {
@@ -167,25 +182,25 @@ public class FlightService extends AbstractLifecycleComponent {
         }
     }
 
-    private void startFlightServer(DiscoveryNode localNode) {
-        Location serverLocation = createServerLocation(localNode);
+    public boolean startFlightServer(TransportAddress transportAddress) {
+
+        InetSocketAddress address = transportAddress.address();
+        Location serverLocation = getSslContextProvider().isSslEnabled()
+            ? Location.forGrpcTls(address.getHostString(), address.getPort())
+            : Location.forGrpcInsecure(address.getHostString(), address.getPort());
+
         FlightProducer producer = serverComponents.createFlightProducer();
 
         try {
             OSFlightServer server = buildAndStartServer(serverLocation, producer);
             serverComponents.setServer(server);
             logger.info("Arrow Flight server started. Listening at {}", serverLocation);
+            return true;
         } catch (Exception e) {
             String errorMsg = "Failed to start Arrow Flight server at " + serverLocation;
             logger.error(errorMsg, e);
-            throw new RuntimeException(errorMsg, e);
+            return false;
         }
-    }
-
-    private Location createServerLocation(DiscoveryNode localNode) {
-        String host = localNode.getAddress().getAddress();
-        int port = Integer.parseInt(localNode.getAttributes().get(TRANSPORT_STREAM_PORT));
-        return ServerConfig.getLocation(host, port);
     }
 
     private OSFlightServer buildAndStartServer(Location location, FlightProducer producer) throws IOException {
@@ -347,8 +362,8 @@ public class FlightService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class NetworkResources implements AutoCloseable {
-        private static final Logger logger = LogManager.getLogger(NetworkResources.class);
+    private class NetworkResources implements AutoCloseable {
+        private final Logger logger = LogManager.getLogger(NetworkResources.class);
 
         private EventLoopGroup bossEventLoopGroup;
         private EventLoopGroup workerEventLoopGroup;
@@ -379,7 +394,8 @@ public class FlightService extends AbstractLifecycleComponent {
                 components.getClusterService(),
                 components.getSslContextProvider(),
                 workerEventLoopGroup,
-                clientExecutor
+                clientExecutor,
+                client
             );
             components.setClientManager(clientManager);
         }

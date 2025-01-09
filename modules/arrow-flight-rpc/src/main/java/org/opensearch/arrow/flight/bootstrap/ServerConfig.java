@@ -41,17 +41,6 @@ public class ServerConfig {
      */
     public ServerConfig() {}
 
-    /**
-     * Setting for the transport stream port.
-     */
-    public static final Setting<Integer> STREAM_PORT = Setting.intSetting(
-        "node.attr.transport.stream.port",
-        9880,
-        1024,
-        65535,
-        Setting.Property.NodeScope
-    );
-
     static final Setting<String> ARROW_ALLOCATION_MANAGER_TYPE = Setting.simpleString(
         "arrow.allocation.manager.type",
         "Netty",

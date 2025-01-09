@@ -11,6 +11,7 @@ import org.opensearch.Version;
 import org.opensearch.arrow.flight.bootstrap.tls.DefaultSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.DisabledSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -74,9 +75,9 @@ public class FlightServiceTests extends OpenSearchTestCase {
 
         try (FlightService sslService = new FlightService(sslSettings)) {
             sslService.setSecureTransportSettingsProvider(secureTransportSettingsProvider);
-            sslService.initialize(clusterService, threadPool);
-            expectThrows(RuntimeException.class, () -> sslService.onNodeStart(localNode));
-
+            sslService.initialize(clusterService, threadPool, mock(Client.class));
+            sslService.setFlightTransport(mock(FlightServerTransport.class));
+            sslService.start();
             SslContextProvider sslContextProvider = sslService.getSslContextProvider();
             assertNotNull("SSL context provider should not be null", sslContextProvider);
             assertTrue("SSL context provider should be DefaultSslContextProvider", sslContextProvider instanceof DefaultSslContextProvider);
@@ -93,7 +94,8 @@ public class FlightServiceTests extends OpenSearchTestCase {
             .build();
 
         try (FlightService noSslService = new FlightService(noSslSettings)) {
-            noSslService.initialize(clusterService, threadPool);
+            noSslService.initialize(clusterService, threadPool, mock(Client.class));
+            noSslService.setFlightTransport(mock(FlightServerTransport.class));
             noSslService.start();
             noSslService.onNodeStart(localNode);
             // Verify SSL is properly disabled
@@ -109,8 +111,8 @@ public class FlightServiceTests extends OpenSearchTestCase {
 
     public void testStartAndStop() throws Exception {
         try (FlightService testService = new FlightService(Settings.EMPTY)) {
-            testService.initialize(clusterService, threadPool);
-
+            testService.initialize(clusterService, threadPool, mock(Client.class));
+            testService.setFlightTransport(mock(FlightServerTransport.class));
             testService.start();
             testService.onNodeStart(localNode);
             testService.stop();
@@ -126,26 +128,29 @@ public class FlightServiceTests extends OpenSearchTestCase {
         try (FlightService sslService = new FlightService(sslSettings)) {
             // Should throw exception when initializing without provider
             expectThrows(RuntimeException.class, () -> {
-                sslService.initialize(clusterService, threadPool);
-                sslService.onNodeStart(localNode);
+                sslService.initialize(clusterService, threadPool, mock(Client.class));
+                sslService.setFlightTransport(mock(FlightServerTransport.class));
+                sslService.start();
             });
         }
     }
 
     public void testServerStartupFailure() {
         Settings invalidSettings = Settings.builder()
-            .put("node.attr.transport.stream.port", "-1") // Invalid port
+            .put(FlightServerTransport.SETTING_FLIGHT_PUBLISH_PORT.getKey(), "-1") // Invalid port
             .build();
         try (FlightService invalidService = new FlightService(invalidSettings)) {
-            expectThrows(RuntimeException.class, () -> { invalidService.onNodeStart(localNode); });
+            invalidService.initialize(clusterService, threadPool, mock(Client.class));
+            invalidService.setFlightTransport(mock(FlightServerTransport.class));
+            expectThrows(RuntimeException.class, () -> { invalidService.doStart(); });
         }
     }
 
     public void testLifecycleStateTransitions() throws Exception {
         // Find new port for this test
         try (FlightService testService = new FlightService(Settings.EMPTY)) {
-            testService.initialize(clusterService, threadPool);
-
+            testService.initialize(clusterService, threadPool, mock(Client.class));
+            testService.setFlightTransport(mock(FlightServerTransport.class));
             // Test all state transitions
             testService.start();
             testService.onNodeStart(localNode);
@@ -172,5 +177,9 @@ public class FlightServiceTests extends OpenSearchTestCase {
 
         Set<DiscoveryNodeRole> roles = Collections.singleton(DiscoveryNodeRole.DATA_ROLE);
         return new DiscoveryNode("local_node", address, attributes, roles, Version.CURRENT);
+    }
+
+    protected static int getBaseStreamPort() {
+        return generateBasePort(9401);
     }
 }
