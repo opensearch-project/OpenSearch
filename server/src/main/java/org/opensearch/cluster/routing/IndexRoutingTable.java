@@ -521,7 +521,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                     for (ShardRouting shardRouting : indexShardRoutingTable.searchOnlyReplicas()) {
                         if (shardRouting.unassigned()) {
                             indexShardRoutingBuilder.addShard(
-                                ShardRouting.newUnassigned(shardId, false, EmptyStoreRecoverySource.INSTANCE, unassignedInfo)
+                                ShardRouting.newUnassigned(shardId, false, true, EmptyStoreRecoverySource.INSTANCE, unassignedInfo)
                             );
                         } else {
                             indexShardRoutingBuilder.addShard(shardRouting);
@@ -533,9 +533,15 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                     // Replica, if unassigned, trigger peer recovery else no action.
                     for (ShardRouting shardRouting : indexShardRoutingTable.replicaShards()) {
                         if (shardRouting.unassigned()) {
-                            indexShardRoutingBuilder.addShard(
-                                ShardRouting.newUnassigned(shardId, false, PeerRecoverySource.INSTANCE, unassignedInfo)
-                            );
+                            if (shardRouting.isSearchOnly()) {
+                                indexShardRoutingBuilder.addShard(
+                                    ShardRouting.newUnassigned(shardId, false, true, EmptyStoreRecoverySource.INSTANCE, unassignedInfo)
+                                );
+                            } else {
+                                indexShardRoutingBuilder.addShard(
+                                    ShardRouting.newUnassigned(shardId, false, PeerRecoverySource.INSTANCE, unassignedInfo)
+                                );
+                            }
                         } else {
                             indexShardRoutingBuilder.addShard(shardRouting);
                         }
