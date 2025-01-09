@@ -79,6 +79,5 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.tukaani.xz.XZ',
   'org.tukaani.xz.XZOutputStream',
   'org.apache.commons.codec.digest.PureJavaCrc32C',
-  'org.apache.commons.codec.digest.XXHash32',
-  'org.apache.commons.lang3.reflect.FieldUtils'
+  'org.apache.commons.codec.digest.XXHash32'
 )
