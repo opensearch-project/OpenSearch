@@ -12,6 +12,9 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
 import org.opensearch.action.StepListener;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
@@ -20,6 +23,7 @@ import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
@@ -32,6 +36,11 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.hamcrest.MatcherAssert;
@@ -41,6 +50,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -55,6 +65,8 @@ import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILE
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -538,6 +550,81 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             // clean up
             shards.removeReplica(replica);
             closeShards(replica);
+        }
+    }
+
+    public void testShallowCopySnapshotForClosedIndexSuccessful() throws Exception {
+        try (ReplicationGroup shards = createGroup(0, settings)) {
+            final IndexShard primaryShard = shards.getPrimary();
+            shards.startAll();
+            shards.indexDocs(10);
+            shards.refresh("test");
+            shards.flush();
+            shards.assertAllEqual(10);
+
+            RepositoriesService repositoriesService = createRepositoriesService();
+            BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository("random");
+
+            doAnswer(invocation -> {
+                IndexShardSnapshotStatus snapshotStatus = invocation.getArgument(5);
+                long commitGeneration = invocation.getArgument(7);
+                long startTime = invocation.getArgument(8);
+                final Map<String, Long> indexFilesToFileLengthMap = invocation.getArgument(9);
+                ActionListener<String> listener = invocation.getArgument(10);
+                if (indexFilesToFileLengthMap != null) {
+                    List<String> fileNames = new ArrayList<>(indexFilesToFileLengthMap.keySet());
+                    long indexTotalFileSize = indexFilesToFileLengthMap.values().stream().mapToLong(Long::longValue).sum();
+                    int indexTotalNumberOfFiles = fileNames.size();
+                    snapshotStatus.moveToStarted(startTime, 0, indexTotalNumberOfFiles, 0, indexTotalFileSize);
+                    // Not performing actual snapshot, just modifying the state
+                    snapshotStatus.moveToFinalize(commitGeneration);
+                    snapshotStatus.moveToDone(System.currentTimeMillis(), snapshotStatus.generation());
+                    listener.onResponse(snapshotStatus.generation());
+                    return null;
+                }
+                listener.onResponse(snapshotStatus.generation());
+                return null;
+            }).when(repository)
+                .snapshotRemoteStoreIndexShard(any(), any(), any(), any(), any(), any(), anyLong(), anyLong(), anyLong(), any(), any());
+
+            final SnapshotShardsService shardsService = getSnapshotShardsService(
+                primaryShard,
+                shards.getIndexMetadata(),
+                true,
+                repositoriesService
+            );
+            final Snapshot snapshot1 = new Snapshot(
+                randomAlphaOfLength(10),
+                new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5))
+            );
+
+            // Initialize the shallow copy snapshot
+            final ClusterState initState = addSnapshotIndex(
+                clusterService.state(),
+                snapshot1,
+                primaryShard,
+                SnapshotsInProgress.State.INIT,
+                true
+            );
+            shardsService.clusterChanged(new ClusterChangedEvent("test", initState, clusterService.state()));
+
+            // start the snapshot
+            shardsService.clusterChanged(
+                new ClusterChangedEvent(
+                    "test",
+                    addSnapshotIndex(clusterService.state(), snapshot1, primaryShard, SnapshotsInProgress.State.STARTED, true),
+                    initState
+                )
+            );
+
+            // Check the snapshot got completed successfully
+            assertBusy(() -> {
+                final IndexShardSnapshotStatus.Copy copy = shardsService.currentSnapshotShards(snapshot1)
+                    .get(primaryShard.shardId)
+                    .asCopy();
+                final IndexShardSnapshotStatus.Stage stage = copy.getStage();
+                assertEquals(IndexShardSnapshotStatus.Stage.DONE, stage);
+            });
         }
     }
 
