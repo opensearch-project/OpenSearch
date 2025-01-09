@@ -45,9 +45,9 @@ import org.opensearch.bootstrap.SecureRandomInitializer;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.crypto.KeyStoreFactory;
-import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.common.ssl.KeyStoreFactory;
+import org.opensearch.common.ssl.KeyStoreType;
 import org.opensearch.core.common.settings.SecureString;
 
 import javax.crypto.AEADBadTagException;

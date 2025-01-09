@@ -48,9 +48,9 @@ import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 
-import static org.opensearch.common.crypto.KeyStoreType.BCFKS;
-import static org.opensearch.common.crypto.KeyStoreType.JKS;
-import static org.opensearch.common.crypto.KeyStoreType.PKCS_12;
+import static org.opensearch.common.ssl.KeyStoreType.BCFKS;
+import static org.opensearch.common.ssl.KeyStoreType.JKS;
+import static org.opensearch.common.ssl.KeyStoreType.PKCS_12;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;

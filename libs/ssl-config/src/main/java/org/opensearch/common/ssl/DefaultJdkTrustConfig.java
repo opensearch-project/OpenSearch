@@ -33,8 +33,6 @@
 package org.opensearch.common.ssl;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.crypto.KeyStoreFactory;
-import org.opensearch.common.crypto.KeyStoreType;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;

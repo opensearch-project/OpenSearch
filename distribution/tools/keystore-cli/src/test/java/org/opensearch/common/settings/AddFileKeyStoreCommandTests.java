@@ -94,8 +94,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingNoCreate() throws Exception {
-        var password = randomFrom("", "keystorepassword");
-        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm() && password.isEmpty());
+        var password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
         terminal.addSecretInput(password);
         terminal.addTextInput("n"); // explicit no
         execute("foo");

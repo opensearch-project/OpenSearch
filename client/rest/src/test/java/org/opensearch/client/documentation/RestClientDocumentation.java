@@ -67,7 +67,7 @@ import org.opensearch.client.ResponseListener;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.RestClientBuilder.HttpClientConfigCallback;
-import org.opensearch.common.crypto.KeyStoreFactory;
+import org.opensearch.common.ssl.KeyStoreFactory;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -85,7 +85,7 @@ import java.util.Base64;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 
-import static org.opensearch.common.crypto.KeyStoreType.PKCS_12;
+import static org.opensearch.common.ssl.KeyStoreType.PKCS_12;
 
 /**
  * This class is used to generate the Java low-level REST client documentation.

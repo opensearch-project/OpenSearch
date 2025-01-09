@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.crypto;
+package org.opensearch.common.ssl;
 
 import java.util.HashMap;
 import java.util.List;

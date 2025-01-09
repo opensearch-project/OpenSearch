@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.crypto;
+package org.opensearch.common.ssl;
 
 import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.SuppressForbidden;
@@ -17,8 +17,8 @@ import java.security.NoSuchProviderException;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.crypto.KeyStoreType.SECURE_KEYSTORE_TYPES;
-import static org.opensearch.common.crypto.KeyStoreType.inferStoreType;
+import static org.opensearch.common.ssl.KeyStoreType.SECURE_KEYSTORE_TYPES;
+import static org.opensearch.common.ssl.KeyStoreType.inferStoreType;
 
 /**
  * Restricts types of keystores to PKCS#11 and BCFKS when running in FIPS JVM.
