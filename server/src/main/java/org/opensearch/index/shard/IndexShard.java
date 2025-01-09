@@ -1625,6 +1625,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Fetches the last remote uploaded segment metadata file
+     * @return {@link RemoteSegmentMetadata}
+     * @throws IOException
+     */
+    public RemoteSegmentMetadata fetchLastRemoteUploadedSegmentMetadata() throws IOException {
+        if (!indexSettings.isAssignedOnRemoteNode()) {
+            throw new IllegalStateException("Index is not assigned on Remote Node");
+        }
+        RemoteSegmentMetadata lastUploadedMetadata = getRemoteDirectory().readLatestMetadataFile();
+        if (lastUploadedMetadata == null) {
+            throw new FileNotFoundException("No metadata file found in remote store");
+        }
+        return lastUploadedMetadata;
+    }
+
+    /**
      * Creates a new {@link IndexCommit} snapshot from the currently running engine. All resources referenced by this
      * commit won't be freed until the commit / snapshot is closed.
      *

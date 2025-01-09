@@ -417,6 +417,45 @@ public interface Repository extends LifecycleComponent {
     }
 
     /**
+     * Adds a reference of remote store data for a index commit point.
+     * <p>
+     * The index commit point can be obtained by using {@link org.opensearch.index.engine.Engine#acquireLastIndexCommit} method.
+     * Or for closed index can be obtained by reading last remote uploaded metadata by using {@link org.opensearch.index.shard.IndexShard#fetchLastRemoteUploadedSegmentMetadata()} method.
+     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
+     * <p>
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
+     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
+     * @param store                    store to be snapshotted
+     * @param snapshotId               snapshot id
+     * @param indexId                  id for the index being snapshotted
+     * @param snapshotIndexCommit      commit point
+     * @param shardStateIdentifier     a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                                 to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                                 snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
+     * @param snapshotStatus           snapshot status
+     * @param primaryTerm              current Primary Term
+     * @param commitGeneration         current commit generation
+     * @param startTime                start time of the snapshot commit, this will be used as the start time for snapshot.
+     * @param indexFilesToFileLengthMap map of index files to file length
+     * @param listener                 listener invoked on completion
+     */
+    default void snapshotRemoteStoreIndexShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        @Nullable IndexCommit snapshotIndexCommit,
+        @Nullable String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        long primaryTerm,
+        long commitGeneration,
+        long startTime,
+        @Nullable Map<String, Long> indexFilesToFileLengthMap,
+        ActionListener<String> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Restores snapshot of the shard.
      * <p>
      * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
