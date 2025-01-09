@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.ingest;
+package org.opensearch.indices.pollingingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

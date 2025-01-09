@@ -17,7 +17,7 @@ opensearchplugin {
 }
 
 versions << [
-  'kafka': '2.8.2',
+  'kafka': '3.8.1',
   'docker': '3.3.6',
   'testcontainers': '1.19.7',
   'ducttape': '1.0.8',
@@ -29,7 +29,7 @@ dependencies {
   api "org.apache.kafka:kafka-clients:${versions.kafka}"
 
   // test
-  api "com.github.docker-java:docker-java-api:${versions.docker}"
+  testImplementation "com.github.docker-java:docker-java-api:${versions.docker}"
   testImplementation "com.github.docker-java:docker-java-transport:${versions.docker}"
   testImplementation "com.github.docker-java:docker-java-transport-zerodep:${versions.docker}"
   testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
