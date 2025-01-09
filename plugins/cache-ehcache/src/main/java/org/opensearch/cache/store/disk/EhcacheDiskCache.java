@@ -681,8 +681,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     }
 
     // Pkg-private for testing.
-    @Override
-    public long getMaximumWeight() {
+    long getMaximumWeight() {
         return maxWeightInBytes;
     }
 

@@ -128,8 +128,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
     }
 
-    @Override
-    public long getMaximumWeight() {
+    long getMaximumWeight() {
         return maxSize;
     }
 

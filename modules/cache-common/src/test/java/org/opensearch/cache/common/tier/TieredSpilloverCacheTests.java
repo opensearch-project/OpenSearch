@@ -2290,19 +2290,9 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     }
 
     private void checkSegmentSizes(TieredSpilloverCache<String, String> cache, long expectedHeapSize, long expectedDiskSize) {
-        OpenSearchOnHeapCache<String, String> segmentHeapCache = (OpenSearchOnHeapCache<
-            String,
-            String>) cache.tieredSpilloverCacheSegments[0].getOnHeapCache();
-        assertEquals(expectedHeapSize / cache.getNumberOfSegments(), segmentHeapCache.getMaximumWeight());
-
-        MockDiskCache<String, String> segmentDiskCache = (MockDiskCache<String, String>) cache.tieredSpilloverCacheSegments[0]
-            .getDiskCache();
-        assertEquals(expectedDiskSize / cache.getNumberOfSegments(), segmentDiskCache.getMaximumWeight());
-        assertEquals(
-            expectedHeapSize / cache.getNumberOfSegments() + expectedDiskSize / cache.getNumberOfSegments(),
-            cache.tieredSpilloverCacheSegments[0].getMaximumWeight()
-        );
-        assertEquals(expectedHeapSize + expectedDiskSize, cache.getMaximumWeight());
+        TieredSpilloverCache.TieredSpilloverCacheSegment<String, String> segment = cache.tieredSpilloverCacheSegments[0];
+        assertEquals(expectedHeapSize / cache.getNumberOfSegments(), segment.getOnHeapCacheMaxWeight());
+        assertEquals(expectedDiskSize / cache.getNumberOfSegments(), segment.getDiskCacheMaxWeight());
     }
 
     private List<String> getMockDimensions() {
