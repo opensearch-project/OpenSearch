@@ -50,7 +50,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.GroupedActionListener;
-import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.RepositoryCleanupInProgress;
@@ -70,7 +69,6 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -429,16 +427,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.Final
     );
 
-    /**
-     * Controls the fixed prefix for the snapshot shard blob path. cluster.snapshot.async-deletion.enable
-     */
-    public static final Setting<Boolean> SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING = Setting.boolSetting(
-        "cluster.snapshot.async-deletion.enable",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     protected volatile boolean supportURLRepo;
 
     private volatile int maxShardBlobDeleteBatch;
@@ -532,8 +520,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final String snapshotShardPathPrefix;
 
-    private volatile boolean enableAsyncDeletion;
-
     protected final long repositoryDataCacheThreshold;
 
     /**
@@ -591,8 +577,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings());
         this.snapshotShardPathPrefix = SNAPSHOT_SHARD_PATH_PREFIX_SETTING.get(clusterService.getSettings());
-        this.enableAsyncDeletion = SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING, this::setEnableAsyncDeletion);
         this.repositoryDataCacheThreshold = SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD.get(clusterService.getSettings()).getBytes();
     }
 
@@ -2293,15 +2277,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private DeleteResult deleteContainer(BlobContainer container) throws IOException {
         long startTime = System.nanoTime();
-        DeleteResult deleteResult;
-        if (enableAsyncDeletion && container instanceof AsyncMultiStreamBlobContainer) {
-            // Use deleteAsync and wait for the result
-            PlainActionFuture<DeleteResult> future = new PlainActionFuture<>();
-            ((AsyncMultiStreamBlobContainer) container).deleteAsync(future);
-            deleteResult = future.actionGet();
-        } else {
-            deleteResult = container.delete();
-        }
+        DeleteResult deleteResult = container.delete();
         logger.debug(new ParameterizedMessage("[{}] Deleted {} in {}ns", metadata.name(), container.path(), startTime - System.nanoTime()));
         return deleteResult;
     }
@@ -2961,13 +2937,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void deleteFromContainer(BlobContainer container, List<String> blobs) throws IOException {
         logger.trace(() -> new ParameterizedMessage("[{}] Deleting {} from [{}]", metadata.name(), blobs, container.path()));
         long startTime = System.nanoTime();
-        if (enableAsyncDeletion && container instanceof AsyncMultiStreamBlobContainer) {
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ((AsyncMultiStreamBlobContainer) container).deleteBlobsAsyncIgnoringIfNotExists(blobs, future);
-            future.actionGet();
-        } else {
-            container.deleteBlobsIgnoringIfNotExists(blobs);
-        }
+        container.deleteBlobsIgnoringIfNotExists(blobs);
         logger.debug(
             () -> new ParameterizedMessage(
                 "[{}] Deletion {} from [{}] took {}ns",
@@ -4893,9 +4863,5 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         public String toString() {
             return name;
         }
-    }
-
-    public void setEnableAsyncDeletion(boolean enableAsyncDeletion) {
-        this.enableAsyncDeletion = enableAsyncDeletion;
     }
 }
