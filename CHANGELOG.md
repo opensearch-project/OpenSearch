@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support for keyword fields in star-tree index ([#16233](https://github.com/opensearch-project/OpenSearch/pull/16233))
 - Add a flag in QueryShardContext to differentiate inner hit query ([#16600](https://github.com/opensearch-project/OpenSearch/pull/16600))
 - Add vertical scaling and SoftReference for snapshot repository data cache ([#16489](https://github.com/opensearch-project/OpenSearch/pull/16489))
+- [Workload Management] Add Workload Management IT ([#16359](https://github.com/opensearch-project/OpenSearch/pull/16359))
 - Support prefix list for remote repository attributes([#16271](https://github.com/opensearch-project/OpenSearch/pull/16271))
 - Add new configuration setting `synonym_analyzer`, to the `synonym` and `synonym_graph` filters, enabling the specification of a custom analyzer for reading the synonym file ([#16488](https://github.com/opensearch-project/OpenSearch/pull/16488)).
 - Add stats for remote publication failure and move download failure stats to remote methods([#16682](https://github.com/opensearch-project/OpenSearch/pull/16682/))
@@ -57,6 +58,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula.ospackage-base` from 11.10.0 to 11.10.1 ([#16896](https://github.com/opensearch-project/OpenSearch/pull/16896))
 - Bump `com.microsoft.azure:msal4j` from 1.17.2 to 1.18.0 ([#16918](https://github.com/opensearch-project/OpenSearch/pull/16918))
 - Bump `org.apache.commons:commons-text` from 1.12.0 to 1.13.0 ([#16919](https://github.com/opensearch-project/OpenSearch/pull/16919))
+- Bump `ch.qos.logback:logback-core` from 1.5.12 to 1.5.16 ([#16951](https://github.com/opensearch-project/OpenSearch/pull/16951))
+- Bump `com.azure:azure-core-http-netty` from 1.15.5 to 1.15.7 ([#16952](https://github.com/opensearch-project/OpenSearch/pull/16952))
 
 ### Changed
 - Indexed IP field supports `terms_query` with more than 1025 IP masks [#16391](https://github.com/opensearch-project/OpenSearch/pull/16391)
@@ -84,6 +87,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Skip remote-repositories validations for node-joins when RepositoriesService is not in sync with cluster-state ([#16763](https://github.com/opensearch-project/OpenSearch/pull/16763))
 - Fix _list/shards API failing when closed indices are present ([#16606](https://github.com/opensearch-project/OpenSearch/pull/16606))
 - Fix remote shards balance ([#15335](https://github.com/opensearch-project/OpenSearch/pull/15335))
+- Always use `constant_score` query for `match_only_text` field ([#16964](https://github.com/opensearch-project/OpenSearch/pull/16964))
+- Fix Shallow copy snapshot failures on closed index ([#16868](https://github.com/opensearch-project/OpenSearch/pull/16868))
 
 ### Security
 
