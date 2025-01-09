@@ -21,7 +21,11 @@ import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * BaseQueryRewriteContext
+ * BaseQueryRewriteContext is a base implementation of the QueryRewriteContext interface.
+ * It provides core functionality for query rewriting operations in OpenSearch.
+ *
+ * This class manages the context for query rewriting, including handling of asynchronous actions,
+ * access to content registries, and time-related operations.
  */
 public class BaseQueryRewriteContext implements QueryRewriteContext {
     private final NamedXContentRegistry xContentRegistry;
@@ -103,29 +107,30 @@ public class BaseQueryRewriteContext implements QueryRewriteContext {
     public void executeAsyncActions(ActionListener listener) {
         if (asyncActions.isEmpty()) {
             listener.onResponse(null);
-        } else {
-            CountDown countDown = new CountDown(asyncActions.size());
-            ActionListener<?> internalListener = new ActionListener() {
-                @Override
-                public void onResponse(Object o) {
-                    if (countDown.countDown()) {
-                        listener.onResponse(null);
-                    }
-                }
+            return;
+        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (countDown.fastForward()) {
-                        listener.onFailure(e);
-                    }
+        CountDown countDown = new CountDown(asyncActions.size());
+        ActionListener<?> internalListener = new ActionListener() {
+            @Override
+            public void onResponse(Object o) {
+                if (countDown.countDown()) {
+                    listener.onResponse(null);
                 }
-            };
-            // make a copy to prevent concurrent modification exception
-            List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
-            asyncActions.clear();
-            for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
-                action.accept(client, internalListener);
             }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (countDown.fastForward()) {
+                    listener.onFailure(e);
+                }
+            }
+        };
+        // make a copy to prevent concurrent modification exception
+        List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
+        asyncActions.clear();
+        for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
+            action.accept(client, internalListener);
         }
     }
 

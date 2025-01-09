@@ -20,7 +20,13 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * QueryCoordinatorContext
+ * The QueryCoordinatorContext class implements the QueryRewriteContext interface and provides
+ * additional functionality for coordinating query rewriting in OpenSearch.
+ *
+ * This class acts as a wrapper around a QueryRewriteContext instance and a PipelinedRequest,
+ * allowing access to both rewrite context methods and pass over search request information.
+ *
+ * @since 2.19.0
  */
 @PublicApi(since = "2.19.0")
 public class QueryCoordinatorContext implements QueryRewriteContext {
@@ -79,10 +85,8 @@ public class QueryCoordinatorContext implements QueryRewriteContext {
 
     public Map<String, Object> getContextVariables() {
 
-        Map<String, Object> contextVariables = new HashMap<>();
-
         // Read from pipeline context
-        contextVariables.putAll(searchRequest.getPipelineProcessingContext().getAttributes());
+        Map<String, Object> contextVariables = new HashMap<>(searchRequest.getPipelineProcessingContext().getAttributes());
 
         return contextVariables;
     }

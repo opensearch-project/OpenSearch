@@ -152,7 +152,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
             return newQueryBuilder;
 
         } catch (Exception e) {
-            throw new IOException("Failed to rewrite template query: " + newQueryContent, e);
+            throw new IllegalArgumentException("Failed to rewrite template query: " + newQueryContent, e);
         }
     }
 }
