@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.ingest;
+package org.opensearch.indices.pollingingest;
 
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;

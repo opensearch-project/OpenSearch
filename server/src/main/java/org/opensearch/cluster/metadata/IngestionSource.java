@@ -15,7 +15,7 @@ import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.indices.ingest.StreamPoller;
+import org.opensearch.indices.pollingingest.StreamPoller;
 
 import java.io.IOException;
 import java.util.Map;

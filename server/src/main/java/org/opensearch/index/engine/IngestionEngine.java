@@ -55,8 +55,8 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
-import org.opensearch.indices.ingest.DefaultStreamPoller;
-import org.opensearch.indices.ingest.StreamPoller;
+import org.opensearch.indices.pollingingest.DefaultStreamPoller;
+import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -80,6 +80,8 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
 
+import static org.opensearch.index.engine.NoOpEngine.EMPTY_TRANSLOG_SNAPSHOT;
+
 /**
  * IngestionEngine is an engine that ingests data from a stream source.
  */
@@ -97,7 +99,7 @@ public class IngestionEngine extends Engine {
     private final TranslogManager translogManager;
     private final DocumentMapperForType documentMapperForType;
     private final IngestionConsumerFactory ingestionConsumerFactory;
-    protected StreamPoller streamPoller;
+    private StreamPoller streamPoller;
 
     /**
      * UUID value that is updated every time the engine is force merged.
@@ -123,20 +125,7 @@ public class IngestionEngine extends Engine {
                 readLock,
                 this::ensureOpen,
                 new TranslogStats(0, 0, 0, 0, 0),
-                new Translog.Snapshot() {
-                    @Override
-                    public void close() {}
-
-                    @Override
-                    public int totalOperations() {
-                        return 0;
-                    }
-
-                    @Override
-                    public Translog.Operation next() {
-                        return null;
-                    }
-                }
+                EMPTY_TRANSLOG_SNAPSHOT
             );
             documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
 
@@ -221,8 +210,9 @@ public class IngestionEngine extends Engine {
         // Execute the search
         var topDocs = searcher.search(query, Integer.MAX_VALUE);
         Set<IngestionShardPointer> result = new HashSet<>();
+        var storedFields = searcher.getIndexReader().storedFields();
         for (var scoreDoc : topDocs.scoreDocs) {
-            var doc = searcher.doc(scoreDoc.doc);
+            var doc = storedFields.document(scoreDoc.doc);
             String valueStr = doc.get(IngestionShardPointer.OFFSET_FIELD);
             IngestionShardPointer value = ingestionConsumerFactory.parsePointerFromString(valueStr);
             result.add(value);

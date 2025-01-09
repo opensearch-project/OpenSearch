@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.ingest;
+package org.opensearch.indices.pollingingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -116,14 +116,16 @@ public class MessageProcessorRunnable implements Runnable {
             // TODO: get id from the message
             String id = "null";
             BytesReference source = new BytesArray(payload);
+            // TODO: parse the content to map to parse the inbuilt fields
+//            XContentHelper.convertToMap()
             SourceToParse sourceToParse = new SourceToParse("index", id, source, MediaTypeRegistry.xContentType(source), null);
             ParsedDocument doc = engine.getDocumentMapperForType().getDocumentMapper().parse(sourceToParse);
-            for (ParseContext.Document document : doc.docs()) {
-                // set the offset as the offset field
-                document.add(pointer.asPointField(IngestionShardPointer.OFFSET_FIELD));
-                // store the offset as string in stored field
-                document.add(new StoredField(IngestionShardPointer.OFFSET_FIELD, pointer.asString()));
-            }
+            // FIXME: just add to root doc
+            ParseContext.Document document = doc.rootDoc();
+            // set the offset as the offset field
+            document.add(pointer.asPointField(IngestionShardPointer.OFFSET_FIELD));
+            // store the offset as string in stored field
+            document.add(new StoredField(IngestionShardPointer.OFFSET_FIELD, pointer.asString()));
             // TODO: support delete
             Engine.Index index = new Engine.Index(
                 new Term("_id", id),
@@ -156,7 +158,7 @@ public class MessageProcessorRunnable implements Runnable {
                 result = blockingQueue.poll(1000, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 // TODO: add metric
-                logger.debug("ConcurrentSiaStreamsPoller poll interruptedException", e);
+                logger.debug("MessageProcessorRunnable poll interruptedException", e);
                 Thread.currentThread().interrupt(); // Restore interrupt status
             }
             if (result != null) {

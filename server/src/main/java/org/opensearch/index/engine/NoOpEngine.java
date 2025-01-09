@@ -72,6 +72,21 @@ public final class NoOpEngine extends ReadOnlyEngine {
     private final SegmentsStats segmentsStats;
     private final DocsStats docsStats;
 
+    static final Translog.Snapshot EMPTY_TRANSLOG_SNAPSHOT = new Translog.Snapshot() {
+        @Override
+        public void close() {}
+
+        @Override
+        public int totalOperations() {
+            return 0;
+        }
+
+        @Override
+        public Translog.Operation next() {
+            return null;
+        }
+    };
+
     public NoOpEngine(EngineConfig config) {
         super(config, null, null, true, Function.identity(), true);
         this.segmentsStats = new SegmentsStats();
@@ -158,21 +173,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
      */
     public TranslogManager translogManager() {
         try {
-            return new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, new Translog.Snapshot() {
-                @Override
-                public void close() {}
-
-                @Override
-                public int totalOperations() {
-                    return 0;
-                }
-
-                @Override
-                public Translog.Operation next() {
-                    return null;
-                }
-
-            }) {
+            return new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, EMPTY_TRANSLOG_SNAPSHOT) {
                 /**
                  * This implementation will trim existing translog files using a {@link TranslogDeletionPolicy}
                  * that retains nothing but the last translog generation from safe commit.

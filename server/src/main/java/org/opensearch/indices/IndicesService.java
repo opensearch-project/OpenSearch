@@ -147,7 +147,7 @@ import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.opensearch.indices.ingest.IngestionEngineFactory;
+import org.opensearch.indices.pollingingest.IngestionEngineFactory;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;

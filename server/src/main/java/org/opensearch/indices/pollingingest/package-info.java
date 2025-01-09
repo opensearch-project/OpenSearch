@@ -7,4 +7,4 @@
  */
 
 /** Indices ingestion module package. */
-package org.opensearch.indices.ingest;
+package org.opensearch.indices.pollingingest;
