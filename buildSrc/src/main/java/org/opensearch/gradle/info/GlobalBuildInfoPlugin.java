@@ -114,7 +114,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             // Initialize global build parameters
             boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
             var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
-            var inFipsJvm = cryptoStandard != null && cryptoStandard.equals("FIPS-140-3");
+            var inFipsJvm = "FIPS-140-3".equals(cryptoStandard);
 
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);

@@ -94,7 +94,7 @@ final class SystemJvmOptions {
 
     private static String enableFips() {
         var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
-        if (cryptoStandard != null && cryptoStandard.equals(FIPS_140_3)) {
+        if (FIPS_140_3.equals(cryptoStandard)) {
             return "-Dorg.bouncycastle.fips.approved_only=true";
         }
         return "";
@@ -103,7 +103,7 @@ final class SystemJvmOptions {
     private static String loadJavaSecurityProperties(final Path config) throws FileNotFoundException {
         String securityFile;
         var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
-        if (cryptoStandard != null && cryptoStandard.equals(FIPS_140_3)) {
+        if (FIPS_140_3.equals(cryptoStandard)) {
             securityFile = "fips_java.security";
         } else {
             securityFile = "java.security";

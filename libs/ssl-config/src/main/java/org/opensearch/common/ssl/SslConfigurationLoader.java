@@ -32,8 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import org.opensearch.common.crypto.KeyStoreType;
-
 import javax.crypto.Cipher;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -49,7 +47,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.crypto.KeyStoreType.inferStoreType;
+import static org.opensearch.common.ssl.KeyStoreType.inferStoreType;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CERTIFICATE;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CERTIFICATE_AUTHORITIES;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CIPHERS;

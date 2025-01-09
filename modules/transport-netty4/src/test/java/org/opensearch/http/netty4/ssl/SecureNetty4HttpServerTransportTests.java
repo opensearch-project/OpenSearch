@@ -10,13 +10,13 @@ package org.opensearch.http.netty4.ssl;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.crypto.KeyStoreFactory;
-import org.opensearch.common.crypto.KeyStoreType;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.ssl.KeyStoreFactory;
+import org.opensearch.common.ssl.KeyStoreType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;

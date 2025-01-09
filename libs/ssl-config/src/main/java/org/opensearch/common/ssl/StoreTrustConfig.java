@@ -32,8 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import org.opensearch.common.crypto.KeyStoreType;
-
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.nio.file.Path;

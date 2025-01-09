@@ -58,8 +58,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testNotMatchingPasswords() throws Exception {
-        String password = randomFrom("", "keystorepassword");
-        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm() && password.isEmpty());
+        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
         terminal.addSecretInput(password);
         terminal.addSecretInput("notthekeystorepasswordyouarelookingfor");
         UserException e = expectThrows(UserException.class, () -> execute(randomFrom("-p", "--password")));
@@ -75,8 +74,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testPosix() throws Exception {
-        String password = randomFrom("", "keystorepassword");
-        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm() && password.isEmpty());
+        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
         terminal.addSecretInput(password);
         terminal.addSecretInput(password);
         execute(randomFrom("-p", "--password"));
@@ -85,8 +83,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testNotPosix() throws Exception {
-        String password = randomFrom("", "keystorepassword");
-        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm() && password.isEmpty());
+        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
         terminal.addSecretInput(password);
         terminal.addSecretInput(password);
         env = setupEnv(false, fileSystems);
@@ -96,8 +93,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testOverwrite() throws Exception {
-        String password = randomFrom("", "keystorepassword");
-        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm() && password.isEmpty());
+        String password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
 
         Path keystoreFile = KeyStoreWrapper.keystorePath(env.configDir());
         byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);
