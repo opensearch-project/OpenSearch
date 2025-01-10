@@ -33,8 +33,19 @@
         id:     1
         body:   { "phone": "+41 58 316 10 10", "phone-ch": "058 316 10 10" }
   - do:
+      index:
+        index:  test
+        id:     2
+        body:   { "phone": "+41 58 316 99 99", "phone-ch": "058 316 99 99" }
+  - do:
+      index:
+        index:  test
+        id:     3
+        body:   { "phone": "+1-888-280-4331", "phone-ch": "+1-888-280-4331" }
+  - do:
       indices.refresh: {}
 
+  # international format in document & search will always work
   - do:
       search:
         rest_total_hits_as_int: true
@@ -45,6 +56,7 @@
               "phone": "+41583161010"
   - match: { hits.total: 1 }
 
+  # correct national format & international format in search will always work
   - do:
       search:
         rest_total_hits_as_int: true
@@ -54,3 +66,58 @@
             match:
               "phone-ch": "+41583161010"
   - match: { hits.total: 1 }
+
+  # national format without country specified won't work
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "0583161010"
+  - match: { hits.total: 0 }
+
+  # correct national format with country specified in document & search will always work
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone-ch": "0583161010"
+  - match: { hits.total: 1 }
+
+  # international format in document & search will always work
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "+1 888 280 4331"
+  - match: { hits.total: 1 }
+
+  # international format in document & search will always work
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone-ch": "+1 888 280 4331"
+  - match: { hits.total: 1 }
+
+  # national format in search won't work if no country is specified
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "888 280 4331"
+  - match: { hits.total: 0 }

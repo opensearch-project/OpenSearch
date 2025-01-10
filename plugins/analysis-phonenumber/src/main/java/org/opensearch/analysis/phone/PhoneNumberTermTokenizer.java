@@ -128,8 +128,12 @@ public final class PhoneNumberTermTokenizer extends Tokenizer {
                 countryCode = Optional.of(String.valueOf(numberProto.getCountryCode()));
                 input = String.valueOf(numberProto.getNationalNumber());
 
-                // Add Country code, extension, and the number as tokens
-                tokens.add(countryCode.get());
+                if (addNgrams) {
+                    // Consider the country code as an ngram - it makes no sense in the search analyzer as it'd match all values with the
+                    // same country code
+                    tokens.add(countryCode.get());
+                }
+                // Add extension, and the number as tokens
                 tokens.add(countryCode.get() + input);
                 if (!Strings.isEmpty(numberProto.getExtension())) {
                     tokens.add(numberProto.getExtension());
