@@ -1,6 +1,6 @@
 [versions]
 opensearch        = "3.0.0"
-lucene            = "9.12.0"
+lucene            = "9.12.1"
 
 bundled_jdk_vendor = "adoptium"
 bundled_jdk = "23.0.1+11"
@@ -27,7 +27,7 @@ google_http_client = "1.44.1"
 google_auth       = "1.29.0"
 tdigest           = "3.3"
 hdrhistogram      = "2.2.2"
-grpc              = "1.68.0"
+grpc              = "1.68.2"
 
 # when updating the JNA version, also update the version in buildSrc/build.gradle
 jna               = "5.13.0"
