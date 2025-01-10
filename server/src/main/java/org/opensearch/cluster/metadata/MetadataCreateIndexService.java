@@ -1096,14 +1096,9 @@ public class MetadataCreateIndexService {
     private static void updateSearchOnlyReplicas(Settings requestSettings, Settings.Builder builder) {
         if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(builder) && builder.get(SETTING_NUMBER_OF_SEARCH_REPLICAS) != null) {
             if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0
-                && ReplicationType.parseString(builder.get(INDEX_REPLICATION_TYPE_SETTING.getKey())).equals(ReplicationType.DOCUMENT)) {
+                && Boolean.parseBoolean(builder.get(SETTING_REMOTE_STORE_ENABLED)) == false) {
                 throw new IllegalArgumentException(
-                    "To set "
-                        + SETTING_NUMBER_OF_SEARCH_REPLICAS
-                        + ", "
-                        + INDEX_REPLICATION_TYPE_SETTING.getKey()
-                        + " must be set to "
-                        + ReplicationType.SEGMENT
+                    "To set " + SETTING_NUMBER_OF_SEARCH_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
                 );
             }
             builder.put(SETTING_NUMBER_OF_SEARCH_REPLICAS, INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings));
