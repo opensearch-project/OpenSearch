@@ -76,8 +76,8 @@ yamlRestTest.enabled = false
  */
 ['KeyStore', 'EnvVariables', 'SystemProperties', 'ContainerCredentials', 'InstanceProfile'].forEach { action ->
   AntFixture fixture = tasks.create(name: "ec2Fixture${action}", type: AntFixture) {
-    dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
-    env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
+    dependsOn sourceSets.yamlRestTest.runtimeClasspath
+    env 'CLASSPATH', "${-> sourceSets.yamlRestTest.runtimeClasspath.asPath}"
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     args 'org.opensearch.discovery.ec2.AmazonEC2Fixture', baseDir, "${buildDir}/testclusters/yamlRestTest${action}-1/config/unicast_hosts.txt"
   }
@@ -85,7 +85,7 @@ yamlRestTest.enabled = false
   tasks.create(name: "yamlRestTest${action}", type: RestIntegTestTask) {
     dependsOn fixture
   }
-  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSetContainer sourceSets = getExtensions().getByType(SourceSetContainer.class);
   SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
   "yamlRestTest${action}" {
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
