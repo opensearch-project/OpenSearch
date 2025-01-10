@@ -109,17 +109,6 @@ public class AdjacencyMatrixAggregationBuilderTests extends OpenSearchTestCase {
 
     public void testShowOnlyIntersecting() throws Exception {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        IndexShard indexShard = mock(IndexShard.class);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .build();
-        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        when(indexShard.indexSettings()).thenReturn(indexSettings);
-        when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
-        SearchContext context = new TestSearchContext(queryShardContext, indexShard);
 
         Map<String, QueryBuilder> filters = new HashMap<>(3);
         for (int i = 0; i < 2; i++) {
