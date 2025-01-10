@@ -31,6 +31,7 @@
 
 package org.opensearch.gradle.testclusters;
 
+import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.Nested;
@@ -43,8 +44,13 @@ public interface TestClustersAware extends Task {
     @Nested
     Collection<OpenSearchCluster> getClusters();
 
+    @Deprecated(forRemoval = true)
     default void useCluster(OpenSearchCluster cluster) {
-        if (cluster.getPath().equals(getProject().getPath()) == false) {
+        useCluster(getProject(), cluster);
+    }
+
+    default void useCluster(Project project, OpenSearchCluster cluster) {
+        if (cluster.getPath().equals(project.getPath()) == false) {
             throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
         }
 

@@ -249,7 +249,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         task.doFirst(new Action<Task>() {
             @Override
             public void execute(Task theTask) {
-                TestFixtureExtension extension = theTask.getProject().getExtensions().getByType(TestFixtureExtension.class);
+                TestFixtureExtension extension = fixtureProject.getExtensions().getByType(TestFixtureExtension.class);
 
                 fixtureProject.getExtensions()
                     .getByType(ComposeExtension.class)
