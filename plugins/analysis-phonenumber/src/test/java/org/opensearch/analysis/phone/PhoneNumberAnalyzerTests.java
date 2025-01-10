@@ -87,7 +87,7 @@ public class PhoneNumberAnalyzerTests extends OpenSearchTokenStreamTestCase {
      * Test for all tokens which are emitted by the "phone" analyzer.
      */
     public void testEuropeDetailledSearch() throws IOException {
-        assertTokensAreInAnyOrder(phoneSearchAnalyzer, "tel:+441344840400", Arrays.asList("tel:+441344840400", "tel:", "441344840400"));
+        assertTokensAreInAnyOrder(phoneSearchAnalyzer, "tel:+441344840400", Arrays.asList("tel:+441344840400", "441344840400"));
     }
 
     public void testEurope() throws IOException {
@@ -160,6 +160,10 @@ public class PhoneNumberAnalyzerTests extends OpenSearchTokenStreamTestCase {
 
     public void testTelPrefix() throws IOException {
         assertTokensInclude("tel:+1228", Arrays.asList("1228", "122", "228"));
+    }
+
+    public void testTelPrefixSearch() throws IOException {
+        assertTokensInclude("tel:+1228", Arrays.asList("1228"));
     }
 
     public void testNumberPrefix() throws IOException {

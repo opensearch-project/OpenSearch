@@ -98,7 +98,9 @@ public final class PhoneNumberTermTokenizer extends Tokenizer {
 
         // Rip off the "tel:" or "sip:" prefix
         if (input.indexOf("tel:") == 0 || input.indexOf("sip:") == 0) {
-            tokens.add(input.substring(0, 4));
+            if (addNgrams) {
+                tokens.add(input.substring(0, 4));
+            }
             input = input.substring(4);
         }
 

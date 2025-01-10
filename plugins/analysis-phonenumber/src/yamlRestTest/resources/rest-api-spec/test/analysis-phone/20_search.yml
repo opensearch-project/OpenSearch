@@ -55,6 +55,11 @@
         id:     5
         body:   { "phone": "+1-888-280-4331", "phone-ch": "+1-888-280-4331" }
   - do:
+      index:
+        index:  test
+        id:     6
+        body:   { "phone": "tel:+441344840400", "phone-ch": "tel:+441344840400" }
+  - do:
       indices.refresh: {}
 
   # international format in document & search will always work
@@ -155,3 +160,36 @@
             match:
               "phone": "888 280 4331"
   - match: { hits.total: 0 }
+
+  # document & search have a tel: prefix
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "tel:+441344840400"
+  - match: { hits.total: 1 }
+
+  # only document has a tel: prefix
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "+441344840400"
+  - match: { hits.total: 1 }
+
+  # only search has a tel: prefix
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "tel:+1 888 280 4331"
+  - match: { hits.total: 1 }
