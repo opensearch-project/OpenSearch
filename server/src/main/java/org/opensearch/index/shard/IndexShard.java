@@ -2547,22 +2547,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
-        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
-        loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker);
-        getEngine().skipTranslogRecovery();
+        openEngineAndSkipTranslogRecovery(true);
     }
 
     public void openEngineAndSkipTranslogRecoveryFromSnapshot() throws IOException {
-        assert routingEntry().recoverySource().getType() == RecoverySource.Type.SNAPSHOT : "not a snapshot recovery ["
-            + routingEntry()
-            + "]";
+        assert routingEntry().isSearchOnly() || routingEntry().recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            : "not a snapshot recovery [" + routingEntry() + "]";
         recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
         maybeCheckIndex();
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+        openEngineAndSkipTranslogRecovery(routingEntry().isSearchOnly());
+    }
+
+    void openEngineAndSkipTranslogRecovery(boolean syncFromRemote) throws IOException {
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker, false);
+        innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        assert routingEntry().isSearchOnly() == false || translogStats().estimatedNumberOfOperations() == 0
+            : "Translog is expected to be empty but holds " + translogStats().estimatedNumberOfOperations() + "Operations.";
         getEngine().skipTranslogRecovery();
     }
 
@@ -2912,7 +2914,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void recoverFromStore(ActionListener<Boolean> listener) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
-        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+        assert shardRouting.primary() || shardRouting.isSearchOnly()
+            : "recover from store only makes sense if the shard is a primary shard or an untracked search only replica";
         assert shardRouting.initializing() : "can only start recovery on initializing shard";
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         storeRecovery.recoverFromStore(this, listener);
