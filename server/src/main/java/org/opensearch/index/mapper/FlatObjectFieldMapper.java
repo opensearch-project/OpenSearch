@@ -27,6 +27,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.JsonToStringXContentParser;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -87,7 +88,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     @Override
     public MappedFieldType keyedFieldType(String key) {
         return new FlatObjectFieldType(
-            this.name() + DOT_SYMBOL + key,
+            Strings.isNullOrEmpty(key) ? this.name() : (this.name() + DOT_SYMBOL + key),
             this.name(),
             (KeywordFieldType) valueFieldMapper.fieldType(),
             (KeywordFieldType) valueAndPathFieldMapper.fieldType()
