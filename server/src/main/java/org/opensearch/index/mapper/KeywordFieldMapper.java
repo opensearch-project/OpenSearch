@@ -39,6 +39,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -396,6 +397,46 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         protected Object rewriteForDocValue(Object value) {
             return value;
+        }
+
+        @Override
+        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            if (isSearchable()) {
+                return super.termQueryCaseInsensitive(value, context);
+            } else {
+                BytesRef bytesRef = indexedValueForSearch(rewriteForDocValue(value));
+                Term term = new Term(name(), bytesRef);
+                Query query = AutomatonQueries.createAutomatonQuery(
+                    term,
+                    AutomatonQueries.toCaseInsensitiveString(bytesRef.utf8ToString(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+                if (boost() != 1f) {
+                    query = new BoostQuery(query, boost());
+                }
+                return query;
+            }
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            if (isSearchable()) {
+                return super.termQuery(value, context);
+            } else {
+                Query query = SortedSetDocValuesField.newSlowRangeQuery(
+                    name(),
+                    indexedValueForSearch(rewriteForDocValue(value)),
+                    indexedValueForSearch(rewriteForDocValue(value)),
+                    true,
+                    true
+                );
+                if (boost() != 1f) {
+                    query = new BoostQuery(query, boost());
+                }
+                return query;
+            }
         }
 
         @Override

@@ -45,6 +45,8 @@ setup:
           {"order":"order7","issue":{"labels":{"number":7,"name":"abc7","status":1}}}
           {"index":{"_index":"flat_object_doc_values_test","_id":"8"}}
           {"order":"order8","issue":{"labels":{"number":8,"name":"abc8","status":1}}}
+          {"index":{"_index":"flat_object_doc_values_test","_id":"9"}}
+          {"order":"order9","issue":{"labels":{"number":9,"name":"abC8","status":1}}}
 
 ---
 # Delete Index when connection is teardown
@@ -68,7 +70,53 @@ teardown:
           }
         }
 
-  - length: { hits.hits: 9 }
+  - length: { hits.hits: 10 }
+
+  # Case Insensitive Term Query with exact dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  term: {
+                    issue.labels.name: {
+                      value: "abc8",
+                      case_insensitive: "true"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+
+  # Case Insensitive Term Query with no path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  term: {
+                    issue.labels: {
+                      value: "abc8",
+                      case_insensitive: "true"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
 
   # Term Query with exact dot path.
   - do:

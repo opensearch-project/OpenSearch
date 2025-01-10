@@ -41,6 +41,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -60,6 +61,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -100,13 +102,52 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testTermQueryCaseInsensitive() {
+        MappedFieldType ft = new KeywordFieldType("field");
+        Query expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", BytesRefs.toBytesRef("foo")));
+        assertEquals(expected, ft.termQueryCaseInsensitive("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
+        ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        assertEquals(expected, ft.termQueryCaseInsensitive("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
+        ft = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        Term term = new Term("field", "foo");
+
+        expected = AutomatonQueries.createAutomatonQuery(
+            term,
+            AutomatonQueries.toCaseInsensitiveString("foo", Integer.MAX_VALUE),
+            MultiTermQuery.DOC_VALUES_REWRITE
+        );
+        assertEquals(expected, ft.termQueryCaseInsensitive("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQueryCaseInsensitive("foo", null));
+        assertEquals(
+            "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
+            e.getMessage()
+        );
+    }
+
     public void testTermQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", null));
+        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
+        ft = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        Query expected = SortedSetDocValuesField.newSlowRangeQuery("field", new BytesRef("foo"), new BytesRef("foo"), true, true);
+        assertEquals(expected, ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+        );
+        assertEquals(
+            "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
+            e.getMessage()
+        );
     }
 
     public void testTermQueryWithNormalizer() {

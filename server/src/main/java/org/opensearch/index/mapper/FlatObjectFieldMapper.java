@@ -15,7 +15,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -364,23 +363,17 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return (mappedFieldTypeName == null) ? valueFieldType : valueAndPathFieldType;
         }
 
+        @Override
+        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+            return valueFieldType().termQueryCaseInsensitive(rewriteValue(inputToString(value)), context);
+        }
+
         /**
          * redirect queries with rewrite value to rewriteSearchValue and directSubFieldName
          */
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-
-            String searchValueString = inputToString(value);
-            String directSubFieldName = directSubfield();
-            String rewriteSearchValue = rewriteValue(searchValueString);
-
-            failIfNotIndexed();
-            Query query;
-            query = new TermQuery(new Term(directSubFieldName, indexedValueForSearch(rewriteSearchValue)));
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+            return valueFieldType().termQuery(rewriteValue(inputToString(value)), context);
         }
 
         @Override
