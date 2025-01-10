@@ -23,6 +23,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -431,8 +432,46 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
             return builder.isDataCubeMetricSupported();
         }
 
-        private Optional<Mapper.Builder> findMapperBuilderByName(String field, List<Mapper.Builder> mappersBuilders) {
-            return mappersBuilders.stream().filter(builder -> builder.name().equals(field)).findFirst();
+        private Optional<Mapper.Builder> findMapperBuilderByName(String name, List<Mapper.Builder> mappersBuilders) {
+            String[] parts = name.split("\\.");
+
+            // Start with the top-level builders
+            Optional<Mapper.Builder> currentBuilder = mappersBuilders.stream()
+                .filter(builder -> builder.name().equals(parts[0]))
+                .findFirst();
+
+            // If we can't find the first part, or if there's only one part, return the result
+            if (currentBuilder.isEmpty() || parts.length == 1) {
+                return currentBuilder;
+            }
+
+            // Navigate through the nested structure
+            try {
+                Mapper.Builder builder = currentBuilder.get();
+                for (int i = 1; i < parts.length; i++) {
+                    List<Mapper.Builder> childBuilders = getChildBuilders(builder);
+                    int finalI = i;
+                    builder = childBuilders.stream()
+                        .filter(b -> b.name().equals(parts[finalI]))
+                        .findFirst()
+                        .orElseThrow(
+                            () -> new IllegalArgumentException(
+                                String.format(Locale.ROOT, "Could not find nested field [%s] in path [%s]", parts[finalI], name)
+                            )
+                        );
+                }
+                return Optional.of(builder);
+            } catch (Exception e) {
+                return Optional.empty();
+            }
+        }
+
+        // Helper method to get child builders from a parent builder
+        private List<Mapper.Builder> getChildBuilders(Mapper.Builder builder) {
+            if (builder instanceof ObjectMapper.Builder) {
+                return ((ObjectMapper.Builder) builder).mappersBuilders;
+            }
+            return Collections.emptyList();
         }
 
         public Builder(String name, ObjectMapper.Builder objBuilder) {
