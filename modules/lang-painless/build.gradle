@@ -36,8 +36,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'An easy, safe and fast scripting language for OpenSearch'
-  classname 'org.opensearch.painless.PainlessModulePlugin'
+  description = 'An easy, safe and fast scripting language for OpenSearch'
+  classname = 'org.opensearch.painless.PainlessModulePlugin'
 }
 
 ext {

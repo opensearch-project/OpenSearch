@@ -49,6 +49,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -63,6 +64,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -82,7 +84,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
@@ -2609,4 +2613,99 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         assertThat(searchResponse.toString(), not(containsString("error")));
     }
+
+    public void testSortMixedIntegerNumericFields() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        AtomicInteger counter = new AtomicInteger();
+        index("long", () -> Long.MAX_VALUE - counter.getAndIncrement());
+        index("integer", () -> Integer.MAX_VALUE - counter.getAndIncrement());
+        SearchResponse searchResponse = client().prepareSearch("long", "integer")
+            .setQuery(matchAllQuery())
+            .setSize(10)
+            .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC).sortMode(SortMode.MAX))
+            .get();
+        assertNoFailures(searchResponse);
+        long[] sortValues = new long[10];
+        for (int i = 0; i < 10; i++) {
+            sortValues[i] = ((Number) searchResponse.getHits().getAt(i).getSortValues()[0]).longValue();
+        }
+        for (int i = 1; i < 10; i++) {
+            assertThat(Arrays.toString(sortValues), sortValues[i - 1], lessThan(sortValues[i]));
+        }
+    }
+
+    public void testSortMixedFloatingNumericFields() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        AtomicInteger counter = new AtomicInteger();
+        index("double", () -> 100.5 - counter.getAndIncrement());
+        counter.set(0);
+        index("float", () -> 200.5 - counter.getAndIncrement());
+        counter.set(0);
+        index("half_float", () -> 300.5 - counter.getAndIncrement());
+        SearchResponse searchResponse = client().prepareSearch("double", "float", "half_float")
+            .setQuery(matchAllQuery())
+            .setSize(15)
+            .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC).sortMode(SortMode.MAX))
+            .get();
+        assertNoFailures(searchResponse);
+        double[] sortValues = new double[15];
+        for (int i = 0; i < 15; i++) {
+            sortValues[i] = ((Number) searchResponse.getHits().getAt(i).getSortValues()[0]).doubleValue();
+        }
+        for (int i = 1; i < 15; i++) {
+            assertThat(Arrays.toString(sortValues), sortValues[i - 1], lessThan(sortValues[i]));
+        }
+    }
+
+    public void testSortMixedFloatingAndIntegerNumericFields() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        index("long", () -> randomLongBetween(0, (long) 2E53 - 1));
+        index("integer", OpenSearchTestCase::randomInt);
+        index("double", OpenSearchTestCase::randomDouble);
+        index("float", () -> randomFloat());
+        boolean asc = randomBoolean();
+        SearchResponse searchResponse = client().prepareSearch("long", "integer", "double", "float")
+            .setQuery(matchAllQuery())
+            .setSize(20)
+            .addSort(SortBuilders.fieldSort("field").order(asc ? SortOrder.ASC : SortOrder.DESC).sortMode(SortMode.MAX))
+            .get();
+        assertNoFailures(searchResponse);
+        double[] sortValues = new double[20];
+        for (int i = 0; i < 20; i++) {
+            sortValues[i] = ((Number) searchResponse.getHits().getAt(i).getSortValues()[0]).doubleValue();
+        }
+        if (asc) {
+            for (int i = 1; i < 20; i++) {
+                assertThat(Arrays.toString(sortValues), sortValues[i - 1], lessThanOrEqualTo(sortValues[i]));
+            }
+        } else {
+            for (int i = 1; i < 20; i++) {
+                assertThat(Arrays.toString(sortValues), sortValues[i - 1], greaterThanOrEqualTo(sortValues[i]));
+            }
+        }
+    }
+
+    private void index(String type, Supplier<Number> valueSupplier) throws Exception {
+        assertAcked(
+            prepareCreate(type).setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", type)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0))
+        );
+        ensureGreen(type);
+        for (int i = 0; i < 5; i++) {
+            client().prepareIndex(type)
+                .setId(Integer.toString(i))
+                .setSource("{\"field\" : " + valueSupplier.get() + " }", XContentType.JSON)
+                .get();
+        }
+        client().admin().indices().prepareRefresh(type).get();
+    }
+
 }

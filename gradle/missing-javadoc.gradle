@@ -64,8 +64,8 @@ allprojects {
 
 
     tasks.register('missingJavadoc', MissingJavadocTask) {
-      description "This task validates and generates Javadoc API documentation for the main source code."
-      group "documentation"
+      description = "This task validates and generates Javadoc API documentation for the main source code."
+      group = "documentation"
 
       taskResources = resources
       dependsOn sourceSets.main.compileClasspath
@@ -227,9 +227,16 @@ class MissingJavadocTask extends DefaultTask {
   @PathSensitive(PathSensitivity.RELATIVE)
   def taskResources
 
+  Project project
+
   // See please https://docs.gradle.org/8.11/userguide/service_injection.html#execoperations
   interface InjectedExecOps {
     @Inject ExecOperations getExecOps()
+  }
+
+  @Inject
+  MissingJavadocTask(Project project) {
+    this.project = project
   }
 
   /** Utility method to recursively collect all tasks with same name like this one that we depend on */
@@ -351,7 +358,7 @@ class MissingJavadocTask extends DefaultTask {
         args += [ "-J-Duser.language=en", "-J-Duser.country=US" ]
         args += ["--add-modules", "jdk.incubator.vector"]
 
-        ignoreExitValue true
+        ignoreExitValue = true
       }
     }
 
