@@ -285,8 +285,8 @@ public class OperationRouting {
             }
         }
         List<ShardIterator> allShardIterators = new ArrayList<>();
-        for (List<ShardIterator> indexIterators : shardIterators.values()) {
-            if (slice != null) {
+        if (slice != null) {
+            for (List<ShardIterator> indexIterators : shardIterators.values()) {
                 // Filter the returned shards for the given slice
                 CollectionUtil.timSort(indexIterators);
                 // We use the ordinal of the iterator in the group (after sorting) rather than the shard id, because
@@ -300,9 +300,9 @@ public class OperationRouting {
                         allShardIterators.add(indexIterators.get(i));
                     }
                 }
-            } else {
-                allShardIterators.addAll(indexIterators);
             }
+        } else {
+            shardIterators.values().forEach(allShardIterators::addAll);
         }
 
         return GroupShardsIterator.sortAndCreate(allShardIterators);
