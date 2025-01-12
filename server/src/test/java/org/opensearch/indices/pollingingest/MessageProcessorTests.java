@@ -8,7 +8,10 @@
 
 package org.opensearch.indices.pollingingest;
 
+import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -19,6 +22,7 @@ import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -41,18 +45,19 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         ingestionEngine = mock(IngestionEngine.class);
         documentMapperForType = mock(DocumentMapperForType.class);
         when(ingestionEngine.getDocumentMapperForType()).thenReturn(documentMapperForType);
+
         documentMapper = mock(DocumentMapper.class);
         when(documentMapperForType.getDocumentMapper()).thenReturn(documentMapper);
-        processor = new MessageProcessorRunnable.MessageProcessor(ingestionEngine);
+        processor = new MessageProcessorRunnable.MessageProcessor(ingestionEngine, "index");
     }
 
-    public void testGetOperation() {
-        byte[] payload = "{\"name\":\"bob\", \"age\": 24}".getBytes(StandardCharsets.UTF_8);
+    public void testGetIndexOperation() throws IOException {
+        byte[] payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
         ParsedDocument parsedDocument = mock(ParsedDocument.class);
         when(documentMapper.parse(any())).thenReturn(parsedDocument);
-        when(parsedDocument.docs()).thenReturn(List.of(new ParseContext.Document[] { new ParseContext.Document() }));
+        when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
 
         Engine.Operation operation = processor.getOperation(payload, pointer);
 
@@ -60,6 +65,39 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         ArgumentCaptor<SourceToParse> captor = ArgumentCaptor.forClass(SourceToParse.class);
         verify(documentMapper).parse(captor.capture());
         assertEquals("index", captor.getValue().index());
-        assertEquals("null", captor.getValue().id());
+        assertEquals("1", captor.getValue().id());
+    }
+
+    public void testGetDeleteOperation() throws IOException {
+        byte[] payload = "{\"_id\":\"1\",\"_op_type\":\"delete\"}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        Engine.Operation operation = processor.getOperation(payload, pointer);
+
+        assertTrue(operation instanceof Engine.Delete);
+        Engine.Delete deleteOperation = (Engine.Delete) operation;
+        assertEquals("1", deleteOperation.id());
+    }
+
+    public void testSkipNoSourceIndexOperation() throws IOException {
+        byte[] payload = "{\"_id\":\"1\"}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        Engine.Operation operation = processor.getOperation(payload, pointer);
+        assertNull(operation);
+
+        // source has wrong type
+        payload = "{\"_id\":\"1\", \"_source\":1}".getBytes(StandardCharsets.UTF_8);
+
+        operation = processor.getOperation(payload, pointer);
+        assertNull(operation);
+    }
+
+    public void testUnsupportedOperation()throws IOException  {
+        byte[] payload = "{\"_id\":\"1\", \"_op_tpe\":\"update\"}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        Engine.Operation operation = processor.getOperation(payload, pointer);
+        assertNull(operation);
     }
 }
