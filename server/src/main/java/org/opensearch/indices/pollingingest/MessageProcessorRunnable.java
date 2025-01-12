@@ -135,8 +135,7 @@ public class MessageProcessorRunnable implements Runnable {
          */
         protected Engine.Operation getOperation(byte[] payload, IngestionShardPointer pointer) throws IOException {
             BytesReference payloadBR = new BytesArray(payload);
-            Map<String, Object> payloadMap =
-                XContentHelper.convertToMap(payloadBR, false, MediaTypeRegistry.xContentType(payloadBR)).v2();
+            Map<String, Object> payloadMap = XContentHelper.convertToMap(payloadBR, false, MediaTypeRegistry.xContentType(payloadBR)).v2();
 
             String id = (String) payloadMap.getOrDefault(ID, "null");
             if (payloadMap.containsKey(OP_TYPE) && !(payloadMap.get(OP_TYPE) instanceof String)) {
@@ -211,7 +210,7 @@ public class MessageProcessorRunnable implements Runnable {
 
     private static BytesReference convertToBytes(Object object) throws IOException {
         assert object instanceof Map;
-        return BytesReference.bytes(XContentFactory.jsonBuilder().map((Map)object));
+        return BytesReference.bytes(XContentFactory.jsonBuilder().map((Map) object));
     }
 
     BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> getBlockingQueue() {
