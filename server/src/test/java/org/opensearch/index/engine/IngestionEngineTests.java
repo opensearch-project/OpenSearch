@@ -128,7 +128,7 @@ public class IngestionEngineTests extends EngineTestCase {
         // overwrite the config with ingestion engine settings
         String mapping = "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}";
         MapperService mapperService = createMapperService(mapping);
-        engineConfig = config(engineConfig, () -> new DocumentMapperForType(mapperService.documentMapper(), null), consumerFactory);
+        engineConfig = config(engineConfig, () -> new DocumentMapperForType(mapperService.documentMapper(), null));
         if (!Lucene.indexExists(store.directory())) {
             store.createEmpty(engineConfig.getIndexSettings().getIndexVersionCreated().luceneVersion);
             final String translogUuid = Translog.createEmptyTranslog(
@@ -139,7 +139,9 @@ public class IngestionEngineTests extends EngineTestCase {
             );
             store.associateIndexWithNewTranslog(translogUuid);
         }
-        return new IngestionEngine(engineConfig);
+        IngestionEngine ingestionEngine = new IngestionEngine(engineConfig, consumerFactory);
+        ingestionEngine.start();
+        return ingestionEngine;
     }
 
     private void waitForResults(Engine engine, int numDocs) {

@@ -9,7 +9,6 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.core.xcontent.ConstructingObjectParser;
 
 import java.util.Map;
 import java.util.Objects;

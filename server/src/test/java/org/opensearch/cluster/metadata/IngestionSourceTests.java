@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.junit.Test;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -16,7 +15,6 @@ import java.util.Map;
 
 public class IngestionSourceTests extends OpenSearchTestCase {
 
-    @Test
     public void testConstructorAndGetters() {
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
@@ -27,7 +25,6 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         assertEquals(params, source.params());
     }
 
-    @Test
     public void testEquals() {
         Map<String, Object> params1 = new HashMap<>();
         params1.put("key", "value");
@@ -44,7 +41,6 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         assertFalse(source1.equals(source3));
     }
 
-    @Test
     public void testHashCode() {
         Map<String, Object> params1 = new HashMap<>();
         params1.put("key", "value");
@@ -60,7 +56,6 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         assertNotEquals(source1.hashCode(), source3.hashCode());
     }
 
-    @Test
     public void testToString() {
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");

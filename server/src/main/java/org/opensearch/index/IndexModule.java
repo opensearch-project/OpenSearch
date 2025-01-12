@@ -247,7 +247,6 @@ public final class IndexModule {
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
-    private final IngestionConsumerFactory ingestionConsumerFactory;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -268,8 +267,7 @@ public final class IndexModule {
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         final FileCache fileCache,
-        final CompositeIndexSettings compositeIndexSettings,
-        final IngestionConsumerFactory ingestionConsumerFactory
+        final CompositeIndexSettings compositeIndexSettings
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -283,7 +281,6 @@ public final class IndexModule {
         this.recoveryStateFactories = recoveryStateFactories;
         this.fileCache = fileCache;
         this.compositeIndexSettings = compositeIndexSettings;
-        this.ingestionConsumerFactory = ingestionConsumerFactory;
     }
 
     public IndexModule(
@@ -305,7 +302,6 @@ public final class IndexModule {
             allowExpensiveQueries,
             expressionResolver,
             recoveryStateFactories,
-            null,
             null,
             null
         );
@@ -745,8 +741,7 @@ public final class IndexModule {
                 remoteStoreSettings,
                 fileCache,
                 compositeIndexSettings,
-                replicator,
-                ingestionConsumerFactory
+                replicator
             );
             success = true;
             return indexService;

@@ -994,8 +994,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
      */
     protected EngineConfig config(
         EngineConfig config,
-        Supplier<DocumentMapperForType> documentMapperForTypeSupplier,
-        IngestionConsumerFactory ingestionConsumerFactory
+        Supplier<DocumentMapperForType> documentMapperForTypeSupplier
     ) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test",
@@ -1024,7 +1023,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .primaryTermSupplier(config.getPrimaryTermSupplier())
             .tombstoneDocSupplier(config.getTombstoneDocSupplier())
             .documentMapperForTypeSupplier(documentMapperForTypeSupplier)
-            .ingestionConsumerFactory(ingestionConsumerFactory)
             .build();
     }
 
