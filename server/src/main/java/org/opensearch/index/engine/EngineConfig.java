@@ -50,7 +50,6 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
@@ -113,8 +112,6 @@ public final class EngineConfig {
     private final BooleanSupplier startedPrimarySupplier;
     private final Comparator<LeafReader> leafSorter;
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
-    // the consumer factory used by the ingestion engine
-    private final IngestionConsumerFactory ingestionConsumerFactory;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -302,7 +299,6 @@ public final class EngineConfig {
         this.translogFactory = builder.translogFactory;
         this.leafSorter = builder.leafSorter;
         this.documentMapperForTypeSupplier = builder.documentMapperForTypeSupplier;
-        this.ingestionConsumerFactory = builder.ingestionConsumerFactory;
     }
 
     /**
@@ -555,10 +551,6 @@ public final class EngineConfig {
         return documentMapperForTypeSupplier;
     }
 
-    public IngestionConsumerFactory getIngestionConsumerFactory() {
-        return ingestionConsumerFactory;
-    }
-
     public TranslogDeletionPolicyFactory getCustomTranslogDeletionPolicyFactory() {
         return translogDeletionPolicyFactory;
     }
@@ -605,7 +597,6 @@ public final class EngineConfig {
         private BooleanSupplier startedPrimarySupplier;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
         private Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
-        private IngestionConsumerFactory ingestionConsumerFactory;
         Comparator<LeafReader> leafSorter;
 
         public Builder shardId(ShardId shardId) {
@@ -720,11 +711,6 @@ public final class EngineConfig {
 
         public Builder documentMapperForTypeSupplier(Supplier<DocumentMapperForType> documentMapperForTypeSupplier) {
             this.documentMapperForTypeSupplier = documentMapperForTypeSupplier;
-            return this;
-        }
-
-        public Builder ingestionConsumerFactory(IngestionConsumerFactory ingestionConsumerFactory) {
-            this.ingestionConsumerFactory = ingestionConsumerFactory;
             return this;
         }
 

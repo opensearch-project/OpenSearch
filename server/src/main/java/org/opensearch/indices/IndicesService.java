@@ -967,8 +967,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories,
             fileCache,
-            compositeIndexSettings,
-            getIngestionConsumerFactory(idxSettings)
+            compositeIndexSettings
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -1031,7 +1030,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
         // streaming ingestion
         if (indexMetadata != null && indexMetadata.useIngestionSource()) {
-            return new IngestionEngineFactory();
+            IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
+            return new IngestionEngineFactory(ingestionConsumerFactory);
         }
 
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()
@@ -1081,8 +1081,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories,
             fileCache,
-            compositeIndexSettings,
-            getIngestionConsumerFactory(idxSettings)
+            compositeIndexSettings
         );
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);

@@ -107,7 +107,7 @@ public class IngestionEngine extends Engine {
     @Nullable
     private volatile String forceMergeUUID;
 
-    public IngestionEngine(EngineConfig engineConfig) {
+    public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory) {
         super(engineConfig);
         store.incRef();
         boolean success = false;
@@ -128,44 +128,8 @@ public class IngestionEngine extends Engine {
                 EMPTY_TRANSLOG_SNAPSHOT
             );
             documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
+            this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
 
-            IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
-            ingestionConsumerFactory = Objects.requireNonNull(engineConfig.getIngestionConsumerFactory());
-            // initialize the ingestion consumer factory
-            ingestionConsumerFactory.initialize(ingestionSource.params());
-            String clientId = engineConfig.getIndexSettings().getNodeName()
-                + "-"
-                + engineConfig.getIndexSettings().getIndex().getName()
-                + "-"
-                + engineConfig.getShardId().getId();
-            IngestionShardConsumer ingestionShardConsumer = ingestionConsumerFactory.createShardConsumer(
-                clientId,
-                engineConfig.getShardId().getId()
-            );
-            logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
-
-            Map<String, String> commitData = commitDataAsMap();
-            StreamPoller.ResetState resetState = StreamPoller.ResetState.valueOf(
-                ingestionSource.getPointerInitReset().toUpperCase(Locale.ROOT)
-            );
-            IngestionShardPointer startPointer = null;
-            Set<IngestionShardPointer> persistedPointers = new HashSet<>();
-            if (commitData.containsKey(StreamPoller.BATCH_START)) {
-                // try recovering from commit data
-                String batchStartStr = commitData.get(StreamPoller.BATCH_START);
-                startPointer = ingestionConsumerFactory.parsePointerFromString(batchStartStr);
-                try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
-                    persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()), startPointer);
-                    logger.info("recovered persisted pointers: {}", persistedPointers);
-                } catch (IOException e) {
-                    throw new EngineCreationFailureException(config().getShardId(), "failed to restore offset", e);
-                }
-                // reset to none so the poller will poll from the startPointer
-                resetState = StreamPoller.ResetState.NONE;
-            }
-
-            streamPoller = new DefaultStreamPoller(startPointer, persistedPointers, ingestionShardConsumer, this, resetState);
-            streamPoller.start();
             success = true;
         } catch (IOException | TranslogCorruptedException e) {
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -185,6 +149,51 @@ public class IngestionEngine extends Engine {
                 }
             }
         }
+    }
+
+    /**
+     * Starts the ingestion engine to pull.
+     */
+    public void start() {
+        IndexMetadata indexMetadata = engineConfig.getIndexSettings().getIndexMetadata();
+        assert indexMetadata != null;
+        IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
+
+        // initialize the ingestion consumer factory
+        this.ingestionConsumerFactory.initialize(ingestionSource.params());
+        String clientId = engineConfig.getIndexSettings().getNodeName()
+            + "-"
+            + engineConfig.getIndexSettings().getIndex().getName()
+            + "-"
+            + engineConfig.getShardId().getId();
+        IngestionShardConsumer ingestionShardConsumer = this.ingestionConsumerFactory.createShardConsumer(
+            clientId,
+            engineConfig.getShardId().getId()
+        );
+        logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
+
+        Map<String, String> commitData = commitDataAsMap();
+        StreamPoller.ResetState resetState = StreamPoller.ResetState.valueOf(
+            ingestionSource.getPointerInitReset().toUpperCase(Locale.ROOT)
+        );
+        IngestionShardPointer startPointer = null;
+        Set<IngestionShardPointer> persistedPointers = new HashSet<>();
+        if (commitData.containsKey(StreamPoller.BATCH_START)) {
+            // try recovering from commit data
+            String batchStartStr = commitData.get(StreamPoller.BATCH_START);
+            startPointer = this.ingestionConsumerFactory.parsePointerFromString(batchStartStr);
+            try (Searcher searcher = acquireSearcher("restore_offset", SearcherScope.INTERNAL)) {
+                persistedPointers = fetchPersistedOffsets(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()), startPointer);
+                logger.info("recovered persisted pointers: {}", persistedPointers);
+            } catch (IOException e) {
+                throw new EngineCreationFailureException(config().getShardId(), "failed to restore offset", e);
+            }
+            // reset to none so the poller will poll from the startPointer
+            resetState = StreamPoller.ResetState.NONE;
+        }
+
+        streamPoller = new DefaultStreamPoller(startPointer, persistedPointers, ingestionShardConsumer, this, resetState);
+        streamPoller.start();
     }
 
     private IndexWriter createWriter() throws IOException {

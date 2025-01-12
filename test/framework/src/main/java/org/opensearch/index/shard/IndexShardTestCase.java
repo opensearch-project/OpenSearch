@@ -689,7 +689,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
                 return new InternalTranslogFactory();
             };
-            IngestionConsumerFactory ingestionConsumerFactory = null;
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -719,8 +718,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 DefaultRecoverySettings.INSTANCE,
                 DefaultRemoteStoreSettings.INSTANCE,
                 false,
-                discoveryNodes,
-                ingestionConsumerFactory
+                discoveryNodes
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

@@ -112,7 +112,6 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.VersionType;
@@ -292,7 +291,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;
     final EngineConfigFactory engineConfigFactory;
-    final IngestionConsumerFactory ingestionConsumerFactory;
 
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
@@ -393,8 +391,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RecoverySettings recoverySettings,
         final RemoteStoreSettings remoteStoreSettings,
         boolean seedRemote,
-        final DiscoveryNodes discoveryNodes,
-        final IngestionConsumerFactory ingestionConsumerFactory
+        final DiscoveryNodes discoveryNodes
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -436,7 +433,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         state = IndexShardState.CREATED;
         this.path = path;
         this.circuitBreakerService = circuitBreakerService;
-        this.ingestionConsumerFactory = ingestionConsumerFactory;
         /* create engine config */
         logger.debug("state: [CREATED]");
 
@@ -4082,8 +4078,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
             // timeseries
-            () -> docMapper(),
-            ingestionConsumerFactory
+            () -> docMapper()
         );
     }
 

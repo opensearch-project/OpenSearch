@@ -22,7 +22,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
@@ -157,8 +156,7 @@ public class EngineConfigFactory {
         BooleanSupplier startedPrimarySupplier,
         TranslogFactory translogFactory,
         Comparator<LeafReader> leafSorter,
-        Supplier<DocumentMapperForType> documentMapperForTypeSupplier,
-        IngestionConsumerFactory ingestionConsumerFactory
+        Supplier<DocumentMapperForType> documentMapperForTypeSupplier
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -193,7 +191,6 @@ public class EngineConfigFactory {
             .translogFactory(translogFactory)
             .leafSorter(leafSorter)
             .documentMapperForTypeSupplier(documentMapperForTypeSupplier)
-            .ingestionConsumerFactory(ingestionConsumerFactory)
             .build();
     }
 

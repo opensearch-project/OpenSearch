@@ -12,7 +12,6 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.junit.Assert;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -24,6 +23,7 @@ import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Assert;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -115,10 +115,14 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
         Properties props = new Properties();
         props.put("bootstrap.servers", kafka.getBootstrapServers());
         Producer<String, String> producer = new KafkaProducer<>(props, new StringSerializer(), new StringSerializer());
-        producer.send(new ProducerRecord<>(topicName, "null",
-            "{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}"));
-        producer.send(new ProducerRecord<>(topicName, "null",
-            "{\"_id\":\"2\", \"_op_type:\":\"index\",\"_source\":{\"name\":\"alice\", \"age\": 20}}"));
+        producer.send(new ProducerRecord<>(topicName, "null", "{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}"));
+        producer.send(
+            new ProducerRecord<>(
+                topicName,
+                "null",
+                "{\"_id\":\"2\", \"_op_type:\":\"index\",\"_source\":{\"name\":\"alice\", \"age\": 20}}"
+            )
+        );
         producer.close();
     }
 }
