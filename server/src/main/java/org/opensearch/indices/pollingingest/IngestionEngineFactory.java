@@ -31,6 +31,6 @@ public class IngestionEngineFactory implements EngineFactory {
     public Engine newReadWriteEngine(EngineConfig config) {
         IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory);
         ingestionEngine.start();
-        return  ingestionEngine;
+        return ingestionEngine;
     }
 }
