@@ -8,10 +8,7 @@
 
 package org.opensearch.indices.pollingingest;
 
-import org.opensearch.core.index.Index;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -24,7 +21,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 import org.mockito.ArgumentCaptor;
 
@@ -93,7 +89,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         assertNull(operation);
     }
 
-    public void testUnsupportedOperation()throws IOException  {
+    public void testUnsupportedOperation() throws IOException {
         byte[] payload = "{\"_id\":\"1\", \"_op_tpe\":\"update\"}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 

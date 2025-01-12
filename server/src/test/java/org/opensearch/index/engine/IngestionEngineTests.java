@@ -54,8 +54,8 @@ public class IngestionEngineTests extends EngineTestCase {
         ingestionEngineStore = createStore(indexSettings, newDirectory());
         // create some initial messages
         messages = new ArrayList<>();
-        publishData("{\"name\":\"bob\", \"age\": 24}");
-        publishData("{\"name\":\"alice\", \"age\": 20}");
+        publishData("{\"_id\":\"2\",\"_source\":{\"name\":\"bob\", \"age\": 24}}");
+        publishData("{\"_id\":\"1\",\"_source\":{\"name\":\"alice\", \"age\": 20}}");
         ingestionEngine = buildIngestionEngine(globalCheckpoint, ingestionEngineStore, indexSettings);
     }
 
@@ -115,8 +115,8 @@ public class IngestionEngineTests extends EngineTestCase {
         ingestionEngine.flush(false, true);
 
         // ingest some new messages
-        publishData("{\"name\":\"john\", \"age\": 30}");
-        publishData("{\"name\":\"jane\", \"age\": 25}");
+        publishData("{\"_id\":\"3\",\"_source\":{\"name\":\"john\", \"age\": 30}}");
+        publishData("{\"_id\":\"4\",\"_source\":{\"name\":\"jane\", \"age\": 25}}");
         ingestionEngine.close();
         ingestionEngine = buildIngestionEngine(new AtomicLong(2), ingestionEngineStore, indexSettings);
         waitForResults(ingestionEngine, 4);

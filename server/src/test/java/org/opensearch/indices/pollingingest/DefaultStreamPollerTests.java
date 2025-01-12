@@ -34,14 +34,15 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     private MessageProcessorRunnable.MessageProcessor processor;
     private List<byte[]> messages;
     private Set<IngestionShardPointer> persistedPointers;
+    private final int sleepTime = 300;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         messages = new ArrayList<>();
         ;
-        messages.add("{\"name\":\"bob\", \"age\": 24}".getBytes(StandardCharsets.UTF_8));
-        messages.add("{\"name\":\"alice\", \"age\": 21}".getBytes(StandardCharsets.UTF_8));
+        messages.add("{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
+        messages.add("{\"_id\":\"2\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
         fakeConsumer = new FakeIngestionSource.FakeIngestionConsumer(messages, 0);
         processor = mock(MessageProcessorRunnable.MessageProcessor.class);
         processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(5), processor);
@@ -66,14 +67,14 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     public void testPauseAndResume() throws InterruptedException {
         poller.pause();
         poller.start();
-        Thread.sleep(100); // Allow some time for the poller to run
+        Thread.sleep(sleepTime); // Allow some time for the poller to run
         assertEquals(DefaultStreamPoller.State.PAUSED, poller.getState());
         assertTrue(poller.isPaused());
         // no messages are processed
         verify(processor, never()).process(any(), any());
 
         poller.resume();
-        Thread.sleep(100); // Allow some time for the poller to run
+        Thread.sleep(sleepTime); // Allow some time for the poller to run
         assertFalse(poller.isPaused());
         // 2 messages are processed
         verify(processor, times(2)).process(any(), any());
@@ -92,7 +93,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.ResetState.NONE
         );
         poller.start();
-        Thread.sleep(200); // Allow some time for the poller to run
+        Thread.sleep(sleepTime); // Allow some time for the poller to run
         // 2 messages are processed, 2 messages are skipped
         verify(processor, times(2)).process(any(), any());
         assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(2), poller.getMaxPersistedPointer());
@@ -105,7 +106,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
     public void testClose() throws InterruptedException {
         poller.start();
-        Thread.sleep(100); // Allow some time for the poller to run
+        Thread.sleep(sleepTime); // Allow some time for the poller to run
         poller.close();
         assertTrue(poller.isClosed());
         assertEquals(DefaultStreamPoller.State.CLOSED, poller.getState());
@@ -121,7 +122,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         );
 
         poller.start();
-        Thread.sleep(100); // Allow some time for the poller to run
+        Thread.sleep(sleepTime); // Allow some time for the poller to run
 
         // 2 messages are processed
         verify(processor, times(2)).process(any(), any());
@@ -137,7 +138,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         );
 
         poller.start();
-        Thread.sleep(100); // Allow some time for the poller to run
+        Thread.sleep(sleepTime); // Allow some time for the poller to run
         // no messages processed
         verify(processor, never()).process(any(), any());
         // reset to the latest
@@ -155,7 +156,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
     public void testStartClosedPoller() throws InterruptedException {
         poller.start();
-        Thread.sleep(100);
+        Thread.sleep(sleepTime);
         poller.close();
         try {
             poller.startPoll();
