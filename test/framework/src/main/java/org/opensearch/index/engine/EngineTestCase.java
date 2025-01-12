@@ -91,7 +91,6 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.MapperTestUtils;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
@@ -992,10 +991,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     /**
      * Override config with ingestion engine configs
      */
-    protected EngineConfig config(
-        EngineConfig config,
-        Supplier<DocumentMapperForType> documentMapperForTypeSupplier
-    ) {
+    protected EngineConfig config(EngineConfig config, Supplier<DocumentMapperForType> documentMapperForTypeSupplier) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder().put(config.getIndexSettings().getSettings()).build()
