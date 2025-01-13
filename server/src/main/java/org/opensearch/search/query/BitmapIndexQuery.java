@@ -94,6 +94,9 @@ public class BitmapIndexQuery extends Query implements Accountable {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         return new ConstantScoreWeight(this, boost) {
+            // get cardinality is not cheap enough to do when supplying scorers, so do it once per weight
+            final long cardinality = bitmap.getLongCardinality();
+
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 ScorerSupplier scorerSupplier = scorerSupplier(context);
@@ -117,12 +120,13 @@ public class BitmapIndexQuery extends Query implements Accountable {
                 }
 
                 return new ScorerSupplier() {
-                    long cost = -1; // calculate lazily, and only once
+                    long cost = -1;
+
+                    final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, field);
+                    final MergePointVisitor visitor = new MergePointVisitor(result);
 
                     @Override
                     public Scorer get(long leadCost) throws IOException {
-                        DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, field);
-                        MergePointVisitor visitor = new MergePointVisitor(result);
                         values.intersect(visitor);
                         return new ConstantScoreScorer(weight, score(), scoreMode, result.build().iterator());
                     }
@@ -130,7 +134,9 @@ public class BitmapIndexQuery extends Query implements Accountable {
                     @Override
                     public long cost() {
                         if (cost == -1) {
-                            cost = bitmap.getLongCardinality();
+                            // rough estimate of the cost, 20 times penalty is based on the experiment results
+                            // details in https://github.com/opensearch-project/OpenSearch/pull/16936
+                            cost = cardinality * 20;
                         }
                         return cost;
                     }
@@ -246,7 +252,7 @@ public class BitmapIndexQuery extends Query implements Accountable {
 
     @Override
     public String toString(String field) {
-        return "BitmapIndexQuery(field=" + field + ")";
+        return "BitmapIndexQuery(field=" + this.field + ")";
     }
 
     @Override
