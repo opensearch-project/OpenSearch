@@ -130,12 +130,12 @@ setup:
 ---
 "Show only intersections":
   - skip:
-      version: " - 2.99.99"
-      reason: "show_only_intersecting was added in 3.0.0"
+      version: " - 2.19.0"
+      reason: "show_only_intersecting was added in 2.19.0"
       features: node_selector
   - do:
       node_selector:
-        version: "3.0.0 - "
+        version: "2.19.0 - "
       search:
         index: test
         rest_total_hits_as_int: true
