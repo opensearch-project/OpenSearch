@@ -174,7 +174,11 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
                 this.setSubCollectors();
             }
 
-            String metricName =  StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(), MetricStat.SUM.getTypeName());
+            String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                MetricStat.SUM.getTypeName()
+            );
             SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
                 .getMetricValuesIterator(metricName);
 

@@ -14,7 +14,6 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
-import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -24,6 +23,7 @@ import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -41,7 +41,6 @@ import org.opensearch.search.startree.StarTreeFilter;
 import org.opensearch.search.startree.StarTreeQueryContext;
 
 import java.io.IOException;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,7 +81,7 @@ public class StarTreeQueryHelper {
         for (AggregatorFactory aggregatorFactory : context.aggregations().factories().getFactories()) {
             // first check for aggregation is a metric aggregation
             if (validateStarTreeMetricSupport(compositeMappedFieldType, aggregatorFactory)) {
-               continue;
+                continue;
             }
 
             // if not a metric aggregation, check for applicable date histogram shape
@@ -175,26 +174,27 @@ public class StarTreeQueryHelper {
         CompositeDataCubeFieldType compositeIndexFieldInfo,
         AggregatorFactory aggregatorFactory
     ) {
-        if ((aggregatorFactory instanceof DateHistogramAggregatorFactory) == false &&
-                aggregatorFactory.getSubFactories().getFactories().length != 1 &&
-                (compositeIndexFieldInfo.getDimensions().get(0) instanceof DateDimension) == false) {
+        if ((aggregatorFactory instanceof DateHistogramAggregatorFactory) == false
+            && aggregatorFactory.getSubFactories().getFactories().length != 1
+            && (compositeIndexFieldInfo.getDimensions().get(0) instanceof DateDimension) == false) {
             return false;
         }
 
         DateHistogramAggregatorFactory dateHistogramAggregatorFactory = (DateHistogramAggregatorFactory) aggregatorFactory;
         // date fields are indexed at top of tree
-        int numDateSupported = compositeIndexFieldInfo.getDimensions().get(0).getNumSubDimensions();
         DateDimension starTreeDateDimension = (DateDimension) compositeIndexFieldInfo.getDimensions().get(0);
 
-        // id field in rounding class is proportional to granularity of calendar time interval
-        // the request id() therefore should be lower than available granularity in star-tree
-        if (dateHistogramAggregatorFactory.getRounding().getId() > ((DateTimeUnitAdapter) starTreeDateDimension.getSortedCalendarIntervals().get(numDateSupported-1)).getdateTimeUnitId()) {
+        if (dateHistogramAggregatorFactory.getRounding() == null) return false;
+        // find the closest interval in the DateTimeUnitRounding class associated with star tree
+        DateTimeUnitRounding rounding = starTreeDateDimension.findClosestValidInterval(
+            new DateTimeUnitAdapter(dateHistogramAggregatorFactory.getRounding())
+        );
+        if (rounding == null) {
             return false;
         }
 
         for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
-            if (validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory) == false)
-                return false;
+            if (validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory) == false) return false;
         }
         return true;
     }

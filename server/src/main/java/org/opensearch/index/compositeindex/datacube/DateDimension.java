@@ -169,6 +169,20 @@ public class DateDimension implements Dimension {
         }
     }
 
+    public List<DateTimeUnitRounding> getSortedDescDateTimeUnits() {
+        return sortedCalendarIntervals.stream().sorted(new DateTimeUnitComparator().reversed()).collect(Collectors.toList());
+    }
+
+    public DateTimeUnitRounding findClosestValidInterval(DateTimeUnitRounding searchInterval) {
+        DateTimeUnitComparator comparator = new DateTimeUnitComparator();
+
+        // Find the first interval that is less than or equal to search interval
+        return getSortedDescDateTimeUnits().stream()
+            .filter(interval -> comparator.compare(interval, searchInterval) <= 0)
+            .findFirst()
+            .orElse(null);
+    }
+
     /**
      * Returns a sorted list of dateTimeUnits based on the DateTimeUnitComparator
      */

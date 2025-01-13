@@ -228,21 +228,17 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     private String fetchStarTreeCalendarUnit() {
         CompositeDataCubeFieldType compositeMappedFieldType = (CompositeDataCubeFieldType) context.mapperService()
-                .getCompositeFieldTypes()
-                .iterator()
-                .next();
+            .getCompositeFieldTypes()
+            .iterator()
+            .next();
         DateDimension starTreeDateDimension = (DateDimension) compositeMappedFieldType.getDimensions().get(0);
-        byte requestCalendarInterval = this.rounding.unit().getId();
-        String dimensionName = "@timestamp_";
-        for (DateTimeUnitRounding d : starTreeDateDimension.getIntervals()) {
-            // find the calendar interval in the star tree
-            if (((DateTimeUnitAdapter)d).getdateTimeUnitId() >= requestCalendarInterval) {
-                if (((DateTimeUnitAdapter)d).getdateTimeUnitId() == requestCalendarInterval) {
-                    this.starTreeDateRoundingRequired = false;
-                }
-                dimensionName = dimensionName + d.shortName();
-                break;
-            }
+
+        DateTimeUnitAdapter dateTimeUnitRounding = new DateTimeUnitAdapter(this.rounding.unit());
+        // check for null post this
+        DateTimeUnitRounding rounding = starTreeDateDimension.findClosestValidInterval(dateTimeUnitRounding);
+        String dimensionName = "@timestamp_" + rounding.shortName();
+        if (rounding.shortName().equals(this.rounding.unit().shortName())) {
+            this.starTreeDateRoundingRequired = false;
         }
         return dimensionName;
     }
@@ -262,14 +258,15 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 }
             }
 
-
-
-
             // TODO: fetch dimension name
             SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
                 .getDimensionValuesIterator(starTreeDateDimension);
 
-            String metricName =  StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), "_doc_count", MetricStat.DOC_COUNT.getTypeName());
+            String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                "_doc_count",
+                MetricStat.DOC_COUNT.getTypeName()
+            );
             SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
                 .getMetricValuesIterator(metricName);
 
@@ -281,7 +278,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 }
 
                 for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
-                    long dimensionValue = starTreeDateRoundingRequired ? preparedRounding.round(valuesIterator.nextValue()) : valuesIterator.nextValue();
+                    long dimensionValue = starTreeDateRoundingRequired
+                        ? preparedRounding.round(valuesIterator.nextValue())
+                        : valuesIterator.nextValue();
 
                     if (metricValuesIterator.advanceExact(starTreeEntry)) {
                         long metricValue = metricValuesIterator.nextValue();
