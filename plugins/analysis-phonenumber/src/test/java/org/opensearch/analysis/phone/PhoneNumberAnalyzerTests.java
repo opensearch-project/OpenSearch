@@ -159,11 +159,11 @@ public class PhoneNumberAnalyzerTests extends OpenSearchTokenStreamTestCase {
     }
 
     public void testTelPrefix() throws IOException {
-        assertTokensInclude("tel:+1228", Arrays.asList("1228", "122", "228"));
+        assertTokensInclude(phoneAnalyzer, "tel:+1228", Arrays.asList("tel:+1228", "tel:", "1228", "122", "228"));
     }
 
     public void testTelPrefixSearch() throws IOException {
-        assertTokensInclude("tel:+1228", Arrays.asList("1228"));
+        assertTokensAreInAnyOrder(phoneSearchAnalyzer, "tel:+1228", Arrays.asList("tel:+1228", "1228"));
     }
 
     public void testNumberPrefix() throws IOException {
