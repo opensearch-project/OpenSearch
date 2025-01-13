@@ -15,7 +15,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -171,7 +170,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
-        identityService = new IdentityService(Settings.EMPTY, mock(Client.class), List.of());
+        identityService = new IdentityService(Settings.EMPTY, client, List.of());
     }
 
     @Override
