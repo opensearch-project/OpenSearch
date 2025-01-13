@@ -155,7 +155,7 @@ public class GetStats implements Writeable, ToXContentFragment {
     static final class Fields {
         static final String GET = "get";
         static final String TOTAL = "total";
-        static final String TIME = "getTime";
+        static final String TIME = "time";
         static final String TIME_IN_MILLIS = "time_in_millis";
         static final String EXISTS_TOTAL = "exists_total";
         static final String EXISTS_TIME = "exists_time";
