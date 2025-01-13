@@ -833,8 +833,4 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     public <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).map(p -> ((T) p.v2())).collect(Collectors.toList());
     }
-
-    public <T> List<PluginInfo> filterPluginInfos(Class<T> type) {
-        return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).map(Tuple::v1).collect(Collectors.toList());
-    }
 }
