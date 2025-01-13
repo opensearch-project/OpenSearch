@@ -85,6 +85,10 @@ import java.util.concurrent.TimeUnit;
 public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
+    public DateTimeUnit unit() {
+        return null;
+    }
+
     /**
      * A Date Time Unit
      *
@@ -504,6 +508,11 @@ public abstract class Rounding implements Writeable {
 
         TimeUnitRounding(StreamInput in) throws IOException {
             this(DateTimeUnit.resolve(in.readByte()), in.readZoneId());
+        }
+
+        @Override
+        public DateTimeUnit unit() {
+            return unit;
         }
 
         @Override

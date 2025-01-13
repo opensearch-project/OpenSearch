@@ -40,6 +40,7 @@ import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
@@ -97,12 +98,17 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null || (parent != null && subAggregators.length == 0)) {
+        if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
+            if (parent != null && subAggregators.length == 0) {
+                // If this a child aggregator, then the parent will trigger star-tree pre-computation.
+                // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+            }
             return getStarTreeCollector(ctx, sub, supportedStarTree);
         }
         return getDefaultLeafCollector(ctx, sub);
@@ -156,6 +162,10 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         );
     }
 
+    /**
+     * The parent aggregator invokes this method to get a StarTreeBucketCollector,
+     * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
+     */
     public StarTreeBucketCollector getStarTreeBucketCollector(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         return new StarTreeBucketCollector() {
             {
@@ -163,20 +173,17 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
                 this.matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, "@timestamp_month");
                 this.setSubCollectors();
             }
-            // final StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
-            // assert starTreeValues != null;
 
-            // FixedBitSet matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, "@timestamp_month");
-
+            String metricName =  StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(), MetricStat.SUM.getTypeName());
             SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
-                .getMetricValuesIterator("startree1_status_sum_metric");
+                .getMetricValuesIterator(metricName);
 
             public void setSubCollectors() throws IOException {
                 return;
             }
 
             @Override
-            public void collectStarEntry(int starTreeEntryBit, long bucket) throws IOException {
+            public void collectStarTreeEntry(int starTreeEntryBit, long bucket) throws IOException {
                 sums = context.bigArrays().grow(sums, bucket + 1);
                 // Advance the valuesIterator to the current bit
                 if (!metricValuesIterator.advanceExact(starTreeEntryBit)) {

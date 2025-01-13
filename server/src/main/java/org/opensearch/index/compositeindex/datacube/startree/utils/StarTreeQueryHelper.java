@@ -14,13 +14,16 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -38,6 +41,7 @@ import org.opensearch.search.startree.StarTreeFilter;
 import org.opensearch.search.startree.StarTreeQueryContext;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,14 +81,15 @@ public class StarTreeQueryHelper {
 
         for (AggregatorFactory aggregatorFactory : context.aggregations().factories().getFactories()) {
             // first check for aggregation is a metric aggregation
-            MetricStat metricStat = validateStarTreeMetricSupport(compositeMappedFieldType, aggregatorFactory);
+            if (validateStarTreeMetricSupport(compositeMappedFieldType, aggregatorFactory)) {
+               continue;
+            }
 
             // if not a metric aggregation, check for applicable date histogram shape
-            if (metricStat == null) {
-                if (validateDateHistogramSupport(compositeMappedFieldType, aggregatorFactory) == false) {
-                    return null;
-                }
+            if (validateDateHistogramSupport(compositeMappedFieldType, aggregatorFactory)) {
+                continue;
             }
+            return null;
         }
 
         // need to cache star tree values only for multiple aggregations
@@ -146,7 +151,7 @@ public class StarTreeQueryHelper {
         return predicateMap;
     }
 
-    private static MetricStat validateStarTreeMetricSupport(
+    private static boolean validateStarTreeMetricSupport(
         CompositeDataCubeFieldType compositeIndexFieldInfo,
         AggregatorFactory aggregatorFactory
     ) {
@@ -163,21 +168,35 @@ public class StarTreeQueryHelper {
                 return metricStat;
             }
         }
-        return null;
+        return false;
     }
 
     private static boolean validateDateHistogramSupport(
         CompositeDataCubeFieldType compositeIndexFieldInfo,
         AggregatorFactory aggregatorFactory
     ) {
-        if (aggregatorFactory instanceof DateHistogramAggregatorFactory && aggregatorFactory.getSubFactories().getFactories().length == 1) {
-            AggregatorFactory subFactory = aggregatorFactory.getSubFactories().getFactories()[0];
-            MetricStat metricStat = validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory);
-            if (metricStat != null) {
-                return true;
-            }
+        if ((aggregatorFactory instanceof DateHistogramAggregatorFactory) == false &&
+                aggregatorFactory.getSubFactories().getFactories().length != 1 &&
+                (compositeIndexFieldInfo.getDimensions().get(0) instanceof DateDimension) == false) {
+            return false;
         }
-        return false;
+
+        DateHistogramAggregatorFactory dateHistogramAggregatorFactory = (DateHistogramAggregatorFactory) aggregatorFactory;
+        // date fields are indexed at top of tree
+        int numDateSupported = compositeIndexFieldInfo.getDimensions().get(0).getNumSubDimensions();
+        DateDimension starTreeDateDimension = (DateDimension) compositeIndexFieldInfo.getDimensions().get(0);
+
+        // id field in rounding class is proportional to granularity of calendar time interval
+        // the request id() therefore should be lower than available granularity in star-tree
+        if (dateHistogramAggregatorFactory.getRounding().getId() > ((DateTimeUnitAdapter) starTreeDateDimension.getSortedCalendarIntervals().get(numDateSupported-1)).getdateTimeUnitId()) {
+            return false;
+        }
+
+        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
+            if (validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory) == false)
+                return false;
+        }
+        return true;
     }
 
     public static CompositeIndexFieldInfo getSupportedStarTree(SearchContext context) {

@@ -29,5 +29,5 @@ public abstract class StarTreeBucketCollector {
         return matchingDocsBitSet;
     }
 
-    public abstract void collectStarEntry(int starTreeEntry, long bucket) throws IOException;
+    public abstract void collectStarTreeEntry(int starTreeEntry, long bucket) throws IOException;
 }

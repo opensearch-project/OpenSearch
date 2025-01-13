@@ -24,6 +24,9 @@ public class DateTimeUnitAdapter implements DateTimeUnitRounding {
         this.dateTimeUnit = dateTimeUnit;
     }
 
+    public byte getdateTimeUnitId() {
+        return dateTimeUnit.getId();
+    }
     @Override
     public String shortName() {
         return dateTimeUnit.shortName();

@@ -136,7 +136,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             multiBucketConsumer.accept(0);
         }
         for (StarTreeBucketCollector subCollector : collector.getSubCollectors()) {
-            subCollector.collectStarEntry(entryBit, bucketOrd);
+            subCollector.collectStarTreeEntry(entryBit, bucketOrd);
         }
 
     }

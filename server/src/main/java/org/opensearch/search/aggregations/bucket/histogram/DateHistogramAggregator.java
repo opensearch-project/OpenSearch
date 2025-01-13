@@ -42,7 +42,13 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -94,6 +100,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
     private final LongKeyedBucketOrds bucketOrds;
+    private final String starTreeDateDimension;
+    private boolean starTreeDateRoundingRequired = true;
 
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
@@ -160,6 +168,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             }
         };
         filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
+        this.starTreeDateDimension = (context.getStarTreeQueryContext() != null) ? fetchStarTreeCalendarUnit() : null;
     }
 
     @Override
@@ -182,7 +191,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
-            if (preCompute(ctx, supportedStarTree) == true) {
+            if (preComputeWithStarTree(ctx, supportedStarTree) == true) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
         }
@@ -217,10 +226,35 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         };
     }
 
+    private String fetchStarTreeCalendarUnit() {
+        CompositeDataCubeFieldType compositeMappedFieldType = (CompositeDataCubeFieldType) context.mapperService()
+                .getCompositeFieldTypes()
+                .iterator()
+                .next();
+        DateDimension starTreeDateDimension = (DateDimension) compositeMappedFieldType.getDimensions().get(0);
+        byte requestCalendarInterval = this.rounding.unit().getId();
+        String dimensionName = "@timestamp_";
+        for (DateTimeUnitRounding d : starTreeDateDimension.getIntervals()) {
+            // find the calendar interval in the star tree
+            if (((DateTimeUnitAdapter)d).getdateTimeUnitId() >= requestCalendarInterval) {
+                if (((DateTimeUnitAdapter)d).getdateTimeUnitId() == requestCalendarInterval) {
+                    this.starTreeDateRoundingRequired = false;
+                }
+                dimensionName = dimensionName + d.shortName();
+                break;
+            }
+        }
+        return dimensionName;
+    }
+
     @Override
     public StarTreeBucketCollector getStarTreeBucketCollector(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-
         return new StarTreeBucketCollector() {
+            {
+                this.starTreeValues = getStarTreeValues(ctx, starTree);
+                this.matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, starTreeDateDimension);
+                this.setSubCollectors();
+            }
 
             public void setSubCollectors() throws IOException {
                 for (Aggregator aggregator : subAggregators) {
@@ -228,26 +262,26 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 }
             }
 
-            {
-                this.starTreeValues = getStarTreeValues(ctx, starTree);
-                this.matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, "@timestamp_month");
-                this.setSubCollectors();
-            }
-            SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
-                .getDimensionValuesIterator("@timestamp_month");
 
+
+
+            // TODO: fetch dimension name
+            SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getDimensionValuesIterator(starTreeDateDimension);
+
+            String metricName =  StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), "_doc_count", MetricStat.DOC_COUNT.getTypeName());
             SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
-                .getMetricValuesIterator("startree1__doc_count_doc_count_metric");
+                .getMetricValuesIterator(metricName);
 
             @Override
-            public void collectStarEntry(int starTreeEntry, long owningBucketOrd) throws IOException {
+            public void collectStarTreeEntry(int starTreeEntry, long owningBucketOrd) throws IOException {
 
                 if (!valuesIterator.advanceExact(starTreeEntry)) {
                     return;
                 }
 
                 for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
-                    long dimensionValue = valuesIterator.nextValue();
+                    long dimensionValue = starTreeDateRoundingRequired ? preparedRounding.round(valuesIterator.nextValue()) : valuesIterator.nextValue();
 
                     if (metricValuesIterator.advanceExact(starTreeEntry)) {
                         long metricValue = metricValuesIterator.nextValue();
@@ -334,10 +368,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
     }
 
-    public boolean preCompute(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        // TODO: validate query shape - retrun false if cannot be resolved via star-tree
+    public boolean preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree);
-
         FixedBitSet matchingDocsBitSet = starTreeBucketCollector.getMatchingDocsBitSet();
 
         int numBits = matchingDocsBitSet.length();
@@ -346,7 +378,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             for (int bit = matchingDocsBitSet.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
                 ? matchingDocsBitSet.nextSetBit(bit + 1)
                 : DocIdSetIterator.NO_MORE_DOCS) {
-                starTreeBucketCollector.collectStarEntry(bit, 0);
+                starTreeBucketCollector.collectStarTreeEntry(bit, 0);
             }
         }
         return true;
