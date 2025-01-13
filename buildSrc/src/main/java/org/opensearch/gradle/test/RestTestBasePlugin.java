@@ -55,7 +55,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
             OpenSearchCluster cluster = testClusters.maybeCreate(restIntegTestTask.getName());
-            restIntegTestTask.useCluster(cluster);
+            restIntegTestTask.useCluster(project, cluster);
             restIntegTestTask.include("**/*IT.class");
             restIntegTestTask.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());
             if (System.getProperty(TESTS_REST_CLUSTER) == null) {

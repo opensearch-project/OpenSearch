@@ -56,14 +56,6 @@ import static org.hamcrest.Matchers.not;
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
     @Override
-    protected Settings nodeSettings() {
-        return Settings.builder()
-            .put(super.nodeSettings())
-            .put(BlobStoreRepository.SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING.getKey(), false)
-            .build();
-    }
-
-    @Override
     @Before
     @SuppressForbidden(reason = "Need to set system property here for AWS SDK v2")
     public void setUp() throws Exception {

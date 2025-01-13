@@ -33,8 +33,8 @@ import org.opensearch.gradle.info.BuildParams
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
-  description 'Ingest processor that uses Apache Tika to extract contents'
-  classname 'org.opensearch.ingest.attachment.IngestAttachmentPlugin'
+  description = 'Ingest processor that uses Apache Tika to extract contents'
+  classname = 'org.opensearch.ingest.attachment.IngestAttachmentPlugin'
 }
 
 versions << [
