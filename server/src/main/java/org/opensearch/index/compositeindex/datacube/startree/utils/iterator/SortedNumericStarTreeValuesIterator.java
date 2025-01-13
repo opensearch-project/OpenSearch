@@ -22,19 +22,22 @@ import java.io.IOException;
 @ExperimentalApi
 public class SortedNumericStarTreeValuesIterator extends StarTreeValuesIterator {
 
+    private final SortedNumericDocValues sortedNumericDocValues;
+
     public SortedNumericStarTreeValuesIterator(DocIdSetIterator docIdSetIterator) {
         super(docIdSetIterator);
+        sortedNumericDocValues = (SortedNumericDocValues) docIdSetIterator;
     }
 
     public long nextValue() throws IOException {
-        return ((SortedNumericDocValues) docIdSetIterator).nextValue();
+        return sortedNumericDocValues.nextValue();
     }
 
     public int entryValueCount() throws IOException {
-        return ((SortedNumericDocValues) docIdSetIterator).docValueCount();
+        return sortedNumericDocValues.docValueCount();
     }
 
     public boolean advanceExact(int target) throws IOException {
-        return ((SortedNumericDocValues) docIdSetIterator).advanceExact(target);
+        return sortedNumericDocValues.advanceExact(target);
     }
 }

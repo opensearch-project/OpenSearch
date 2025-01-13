@@ -77,7 +77,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
@@ -1552,6 +1552,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     context.starTreeQueryContext(starTreeQueryContext);
                     logger.debug("can use star tree");
                 } else {
+                    context.starTreeQueryContext(new StarTreeQueryContext(null, null, -1));
                     logger.debug("cannot use star tree");
                 }
             } catch (IOException ignored) {}

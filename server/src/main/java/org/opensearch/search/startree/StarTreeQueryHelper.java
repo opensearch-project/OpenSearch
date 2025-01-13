@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex.datacube.startree.utils;
+package org.opensearch.search.startree;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
@@ -21,7 +21,11 @@ import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -33,13 +37,15 @@ import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.startree.StarTreeFilter;
-import org.opensearch.search.startree.StarTreeQueryContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -50,6 +56,8 @@ import java.util.stream.Collectors;
  * @opensearch.experimental
  */
 public class StarTreeQueryHelper {
+
+    private static StarTreeValues starTreeValues;
 
     /**
      * Checks if the search context can be supported by star-tree
@@ -240,9 +248,126 @@ public class StarTreeQueryHelper {
         throws IOException {
         FixedBitSet result = context.getStarTreeQueryContext().getStarTreeValues(ctx);
         if (result == null) {
-            result = StarTreeFilter.getStarTreeResult(starTreeValues, context.getStarTreeQueryContext().getQueryMap());
+            result = OlderStarTreeFilter.getStarTreeResult(starTreeValues, context.getStarTreeQueryContext().getQueryMap());
             context.getStarTreeQueryContext().setStarTreeValues(ctx, result);
         }
         return result;
+    }
+
+    public static Set<Integer> traverseStarTree(StarTreeValues starTreeValues, Map<String, List<DimensionFilter>> dimensionFilterMap) throws IOException {
+
+        Map<String, Integer> dimensionNameToDimIdMap = new HashMap<>();
+        int ctr = 0;
+        for (Dimension dimension : starTreeValues.getStarTreeField().getDimensionsOrder()) {
+            dimensionNameToDimIdMap.put(dimension.getField(), ctr++);
+        }
+
+        // Sorting the dimension predicates based on their order
+        String[] orderedDimPredicates = new String[dimensionFilterMap.size()];
+        dimensionFilterMap.keySet().stream().sorted(new Comparator<String>() {
+            @Override
+            public int compare(String o1, String o2) {
+                return dimensionNameToDimIdMap.get(o1).compareTo(dimensionNameToDimIdMap.get(o2));
+            }
+        }).collect(Collectors.toList()).toArray(orderedDimPredicates);
+
+        Set<Integer> matchingDocIds = new HashSet<>();
+
+        List<StarTreeNode> matchingNodes = new ArrayList<>();
+        matchingNodes.add(starTreeValues.getRoot());
+
+        List<UnMatchedDocIdSet> unmatchedDocIdSets = new ArrayList<>();
+
+        int dimensionIndexToMatch = 0;
+
+        // Matching all predicates that can be done in the star tree
+        while (!matchingNodes.isEmpty() && dimensionIndexToMatch < dimensionFilterMap.size()) {
+            String currentDimName = orderedDimPredicates[dimensionIndexToMatch];
+            int currentDimId = dimensionNameToDimIdMap.get(currentDimName);
+            List<StarTreeNode> effectiveParentStarTreeNodes = matchingNodes.stream().map(node -> {
+                try {
+                    return reachClosestParent(node, currentDimId);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }).collect(Collectors.toList());
+            matchingNodes.clear(); // These will contain the matching nodes from next ordered dimension.
+            for (StarTreeNode effectiveParentStarTreeNode : effectiveParentStarTreeNodes) {
+                if (effectiveParentStarTreeNode.isLeaf()) {
+                    unmatchedDocIdSets.add(new UnMatchedDocIdSet(currentDimId, effectiveParentStarTreeNode));
+                    // TODO : Record unmatched dimensions for matching via dimension value iterator
+                    continue;
+                }
+                for (DimensionFilter dimensionFilter : dimensionFilterMap.get(currentDimName)) {
+                    dimensionFilter.matchStarTreeNodes(effectiveParentStarTreeNode, starTreeValues, matchingNodes);
+                }
+            }
+            dimensionIndexToMatch++;
+        }
+
+        if (!matchingNodes.isEmpty()) {
+            matchingDocIds.addAll(matchingNodes.stream().map(node -> {
+                try {
+                    return node.getAggregatedDocId();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }).collect(Collectors.toList()));
+        }
+
+        // TODO : Perform Dim Value Iterator matching here for things not matched in star tree
+        for (UnMatchedDocIdSet unmatchedDocIdSet : unmatchedDocIdSets) {
+            for (int dimId = unmatchedDocIdSet.getMinDimensionIdUnMatched(); dimId < dimensionNameToDimIdMap.size(); dimId++) {
+                Dimension dimension = starTreeValues.getStarTreeField().getDimensionsOrder().get(dimId);
+                StarTreeValuesIterator dimensionIterator = starTreeValues.getDimensionValuesIterator(dimension.getField());
+                SequentialDocValuesIterator dimValueWrapper = new SequentialDocValuesIterator(dimensionIterator);
+                for (int docIdToCheck : unmatchedDocIdSet.getUnmatchedDocIds()) {
+                    if (dimensionIterator.advance(docIdToCheck) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
+                        long value = dimValueWrapper.value(docIdToCheck);
+                        for (DimensionFilter dimensionFilter : dimensionFilterMap.get(dimension.getField())) {
+                            // Change this if multivalued fields are supported in Star Tree.
+                            if(dimensionFilter.matchDimValue(value, starTreeValues)) {
+                                matchingDocIds.add(docIdToCheck);
+                                break; // Match at least one filter.
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return matchingDocIds;
+
+    }
+
+    private static StarTreeNode reachClosestParent(StarTreeNode startNode, int dimensionOrder) throws IOException {
+        StarTreeNode currentNode = startNode;
+        while (currentNode.getChildStarNode() != null && currentNode.getChildStarNode().getDimensionId() < dimensionOrder) {
+            currentNode = currentNode.getChildStarNode();
+        }
+        return currentNode;
+    }
+
+    static class UnMatchedDocIdSet {
+
+        private final int minDimensionIdUnMatched;
+
+        private final List<Integer> unmatchedDocIds;
+
+        public UnMatchedDocIdSet(int minDimensionIdUnMatched, StarTreeNode unmatchedNode) throws IOException {
+            this.minDimensionIdUnMatched = minDimensionIdUnMatched;
+            unmatchedDocIds = new ArrayList<>(unmatchedNode.getEndDocId() - unmatchedNode.getStartDocId());
+            for (int i = unmatchedNode.getStartDocId(); i < unmatchedNode.getEndDocId(); i++) {
+                unmatchedDocIds.add(i);
+            }
+        }
+
+        public int getMinDimensionIdUnMatched() {
+            return minDimensionIdUnMatched;
+        }
+
+        public List<Integer> getUnmatchedDocIds() {
+            return unmatchedDocIds;
+        }
     }
 }
