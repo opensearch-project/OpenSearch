@@ -604,11 +604,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
                 context.doc().add(new Field(name(), value, fieldType));
             }
-            if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                createFieldNamesField(context);
-            }
             if (fieldType().hasDocValues()) {
                 context.doc().add(new SortedSetDocValuesField(name(), value));
+            } else {
+                createFieldNamesField(context);
             }
         }
     }
