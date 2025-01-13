@@ -9,6 +9,7 @@
 package org.opensearch.identity.noop;
 
 import org.opensearch.client.Client;
+import org.opensearch.identity.RunAsSystemClient;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;

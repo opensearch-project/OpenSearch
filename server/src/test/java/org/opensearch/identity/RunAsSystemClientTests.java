@@ -12,7 +12,6 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.client.Client;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.identity.noop.RunAsSystemClient;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.Before;
 

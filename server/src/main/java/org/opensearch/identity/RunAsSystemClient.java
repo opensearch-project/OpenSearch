@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.noop;
+package org.opensearch.identity;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
@@ -36,21 +36,11 @@ public class RunAsSystemClient extends FilterClient {
     protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
         ActionType<Response> action,
         Request request,
-        ActionListener<Response> actionListener
+        ActionListener<Response> listener
     ) {
         ThreadContext threadContext = threadPool().getThreadContext();
-
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-
-            ActionListener<Response> wrappedListener = ActionListener.wrap(r -> {
-                ctx.restore();
-                actionListener.onResponse(r);
-            }, e -> {
-                ctx.restore();
-                actionListener.onFailure(e);
-            });
-
-            super.doExecute(action, request, wrappedListener);
+            super.doExecute(action, request, ActionListener.runBefore(listener, ctx::restore));
         }
     }
 }
