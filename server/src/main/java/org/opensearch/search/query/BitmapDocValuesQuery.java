@@ -114,7 +114,7 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
 
     @Override
     public String toString(String field) {
-        return "BitmapDocValuesQuery(field=" + field + ")";
+        return "BitmapDocValuesQuery(field=" + this.field + ")";
     }
 
     @Override
