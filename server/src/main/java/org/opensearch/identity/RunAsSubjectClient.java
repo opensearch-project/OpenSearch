@@ -19,8 +19,6 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 
-import static org.opensearch.identity.IdentityConstants.SUBJECT_TRANSIENT_NAME;
-
 /**
  * Implementation of client that will run transport actions in a stashed context and inject the name of the provided
  * subject into the context.
@@ -45,11 +43,14 @@ public class RunAsSubjectClient extends FilterClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        ThreadContext threadContext = threadPool().getThreadContext();
-        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            threadContext.putTransient(SUBJECT_TRANSIENT_NAME, subject);
-            logger.info("Running transport action with subject: {}", subject.getPrincipal().getName());
-            super.doExecute(action, request, ActionListener.runBefore(listener, ctx::restore));
+        try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().newStoredContext(false)) {
+            subject.runAs(() -> {
+                logger.info("Running transport action with subject: {}", subject.getPrincipal().getName());
+                super.doExecute(action, request, ActionListener.runBefore(listener, ctx::restore));
+                return null;
+            });
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }
