@@ -227,7 +227,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private String searchPipeline;
 
-    private boolean verbosePipeline;
+    private boolean verbosePipeline = false;
 
     /**
      * Constructs a new search source builder.
@@ -394,7 +394,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         // Todo: change version to 2_19_0
         if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeOptionalBoolean(verbosePipeline);
+            out.writeBoolean(verbosePipeline);
         }
     }
 
