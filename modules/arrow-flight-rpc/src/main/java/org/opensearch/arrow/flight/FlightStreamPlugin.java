@@ -12,12 +12,15 @@ import org.opensearch.arrow.flight.bootstrap.FlightStreamPluginImpl;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -27,6 +30,8 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ExecutorBuilder;
@@ -91,6 +96,18 @@ public class FlightStreamPlugin extends BaseFlightStreamPlugin {
                 }
 
                 @Override
+                public Map<String, Supplier<AuxTransport>> getAuxTransports(
+                    Settings settings,
+                    ThreadPool threadPool,
+                    CircuitBreakerService circuitBreakerService,
+                    NetworkService networkService,
+                    ClusterSettings clusterSettings,
+                    Tracer tracer
+                ) {
+                    return Map.of();
+                }
+
+                @Override
                 public Supplier<StreamManager> getStreamManager() {
                     return () -> null;
                 }
@@ -106,8 +123,21 @@ public class FlightStreamPlugin extends BaseFlightStreamPlugin {
                 }
 
                 @Override
-                public void onNodeStarted(DiscoveryNode localNode) {
+                public List<RestHandler> getRestHandlers(
+                    Settings settings,
+                    RestController restController,
+                    ClusterSettings clusterSettings,
+                    IndexScopedSettings indexScopedSettings,
+                    SettingsFilter settingsFilter,
+                    IndexNameExpressionResolver indexNameExpressionResolver,
+                    Supplier<DiscoveryNodes> nodesInCluster
+                ) {
+                    return List.of();
+                }
 
+                @Override
+                public List<ActionHandler<?, ?>> getActions() {
+                    return List.of();
                 }
             };
         }
@@ -192,6 +222,44 @@ public class FlightStreamPlugin extends BaseFlightStreamPlugin {
         );
     }
 
+    @Override
+    public Map<String, Supplier<AuxTransport>> getAuxTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        CircuitBreakerService circuitBreakerService,
+        NetworkService networkService,
+        ClusterSettings clusterSettings,
+        Tracer tracer
+    ) {
+        return delegate.getAuxTransports(settings, threadPool, circuitBreakerService, networkService, clusterSettings, tracer);
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return delegate.getRestHandlers(
+            settings,
+            restController,
+            clusterSettings,
+            indexScopedSettings,
+            settingsFilter,
+            indexNameExpressionResolver,
+            nodesInCluster
+        );
+    }
+
+    @Override
+    public List<ActionHandler<?, ?>> getActions() {
+        return delegate.getActions();
+    }
+
     /**
      * Gets the StreamManager instance for managing flight streams.
      */
@@ -215,14 +283,5 @@ public class FlightStreamPlugin extends BaseFlightStreamPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return delegate.getSettings();
-    }
-
-    /**
-     * Called when a node is started. ClusterService is started by this time
-     * @param localNode local Node info
-     */
-    @Override
-    public void onNodeStarted(DiscoveryNode localNode) {
-        delegate.onNodeStarted(localNode);
     }
 }
