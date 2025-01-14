@@ -149,7 +149,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
-
         super(name, factories, aggregationContext, parent, metadata);
         this.targetBuckets = targetBuckets;
         // TODO: Remove null usage here, by using a different aggregator for create
@@ -170,6 +169,17 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 buildRanges(context);
             }
 
+            /**
+             * The filter rewrite optimization uses this method to pre-emptively update the preparedRounding
+             * when considering the optimized path for a single segment. This is necessary since the optimized path
+             * skips doc collection entirely which is where the preparedRounding is normally updated.
+             *
+             * @param low lower bound of rounding to prepare
+             * @param high upper bound of rounding to prepare
+             * @return select a prepared rounding which satisfies the conditions:
+             * 1. Is at least as large as our previously prepared rounding
+             * 2. Must span a range of [low, high] with buckets <= targetBuckets
+             */
             @Override
             protected Rounding getRounding(final long low, final long high) {
                 // max - min / targetBuckets = bestDuration
@@ -177,7 +187,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 // since we cannot exceed targetBuckets, bestDuration should go up,
                 // so the right innerInterval should be an upper bound
                 long bestDuration = (high - low) / targetBuckets;
-                // reset so this function is idempotent
+
+                int prevRoundingIdx = roundingIdx;
                 roundingIdx = 0;
                 while (roundingIdx < roundingInfos.length - 1) {
                     final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
@@ -190,6 +201,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     roundingIdx++;
                 }
 
+                // Ensure preparedRounding never shrinks
+                roundingIdx = Math.max(prevRoundingIdx, roundingIdx);
                 preparedRounding = prepareRounding(roundingIdx);
                 return roundingInfos[roundingIdx].rounding;
             }
