@@ -23,7 +23,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.identity.RunAsSystemClient;
+import org.opensearch.identity.PluginSubject;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.TokenManager;
@@ -54,7 +54,6 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
     private final ShiroTokenManager authTokenHandler;
 
     private ThreadPool threadPool;
-    private Client client;
 
     /**
      * Create a new instance of the Shiro Identity Plugin
@@ -84,7 +83,6 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.threadPool = threadPool;
-        this.client = client;
         return Collections.emptyList();
     }
 
@@ -140,7 +138,7 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
         }
     }
 
-    public Client getRunAsClient(Plugin plugin) {
-        return new RunAsSystemClient(client);
+    public PluginSubject getPluginSubject(Plugin plugin) {
+        return new ShiroPluginSubject(threadPool);
     }
 }

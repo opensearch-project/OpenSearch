@@ -10,27 +10,35 @@ package org.opensearch.identity;
 
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.client.Client;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.Before;
 
+import java.security.Principal;
+
 import static org.hamcrest.Matchers.equalTo;
 
-public class RunAsSystemClientTests extends OpenSearchSingleNodeTestCase {
+public class RunAsSubjectClientTests extends OpenSearchSingleNodeTestCase {
+
+    private final Subject TEST_SUBJECT = new Subject() {
+        @Override
+        public Principal getPrincipal() {
+            return new NamedPrincipal("testSubject");
+        }
+    };
+
     @Before
     public void setup() {
         client().threadPool().getThreadContext().stashContext(); // start with fresh context
     }
 
     public void testThatContextIsRestoredOnActionListenerResponse() throws Exception {
-        Client systemClient = new RunAsSystemClient(client());
-        systemClient.threadPool().getThreadContext().putHeader("test_header", "foo");
+        client().threadPool().getThreadContext().putHeader("test_header", "foo");
 
-        systemClient.admin().cluster().health(new ClusterHealthRequest(), new ActionListener<>() {
+        client().runAs(TEST_SUBJECT).admin().cluster().health(new ClusterHealthRequest(), new ActionListener<>() {
             @Override
             public void onResponse(ClusterHealthResponse clusterHealthResponse) {
-                String testHeader = systemClient.threadPool().getThreadContext().getHeader("test_header");
+                String testHeader = client().threadPool().getThreadContext().getHeader("test_header");
                 assertThat(testHeader, equalTo("foo"));
             }
 
@@ -42,10 +50,9 @@ public class RunAsSystemClientTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testThatContextIsRestoredOnActionListenerFailure() throws Exception {
-        Client systemClient = new RunAsSystemClient(client());
-        systemClient.threadPool().getThreadContext().putHeader("test_header", "bar");
+        client().threadPool().getThreadContext().putHeader("test_header", "bar");
 
-        systemClient.admin().cluster().health(new ClusterHealthRequest("dne"), new ActionListener<>() {
+        client().runAs(TEST_SUBJECT).admin().cluster().health(new ClusterHealthRequest("dne"), new ActionListener<>() {
             @Override
             public void onResponse(ClusterHealthResponse clusterHealthResponse) {
                 fail("Expected cluster health action to fail");
@@ -53,7 +60,7 @@ public class RunAsSystemClientTests extends OpenSearchSingleNodeTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                String testHeader = systemClient.threadPool().getThreadContext().getHeader("test_header");
+                String testHeader = client().threadPool().getThreadContext().getHeader("test_header");
                 assertThat(testHeader, equalTo("bar"));
             }
         });

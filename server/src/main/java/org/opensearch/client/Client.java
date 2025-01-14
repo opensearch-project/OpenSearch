@@ -91,6 +91,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.identity.Subject;
 
 import java.util.Map;
 
@@ -124,6 +125,8 @@ public interface Client extends OpenSearchClient, Releasable {
      * The admin client that can be used to perform administrative operations.
      */
     AdminClient admin();
+
+    Client runAs(Subject subject);
 
     /**
      * Index a JSON source associated with a given index.

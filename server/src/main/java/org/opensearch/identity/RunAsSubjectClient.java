@@ -18,18 +18,21 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 
 /**
- * Implementation of client that will run transport actions in a stashed context
- * <p>
- * This class and related classes in this package will not return nulls or fail permissions checks
- *
- * This class is used by the NoopIdentityPlugin to initialize IdentityAwarePlugins
+ * Implementation of client that will run transport actions in a stashed context and inject the name of the provided
+ * subject into the context.
  *
  * @opensearch.internal
  */
 @InternalApi
-public class RunAsSystemClient extends FilterClient {
-    public RunAsSystemClient(Client delegate) {
+public class RunAsSubjectClient extends FilterClient {
+
+    public static final String SUBJECT_TRANSIENT_NAME = "subject.name";
+
+    private final Subject subject;
+
+    public RunAsSubjectClient(Client delegate, Subject subject) {
         super(delegate);
+        this.subject = subject;
     }
 
     @Override
@@ -40,6 +43,7 @@ public class RunAsSystemClient extends FilterClient {
     ) {
         ThreadContext threadContext = threadPool().getThreadContext();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            threadContext.putTransient(SUBJECT_TRANSIENT_NAME, subject.getPrincipal().getName());
             super.doExecute(action, request, ActionListener.runBefore(listener, ctx::restore));
         }
     }

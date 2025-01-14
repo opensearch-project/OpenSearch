@@ -588,9 +588,7 @@ public class Node implements Closeable {
             runnableTaskListener = new AtomicReference<>();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
 
-            client = new NodeClient(settings, threadPool);
-
-            final IdentityService identityService = new IdentityService(settings, client, identityPlugins);
+            final IdentityService identityService = new IdentityService(settings, threadPool, identityPlugins);
 
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 final List<ExtensionAwarePlugin> extensionAwarePlugins = pluginsService.filterPlugins(ExtensionAwarePlugin.class);
@@ -624,6 +622,8 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
+
+            client = new NodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
             final ScriptService scriptService = newScriptService(settings, scriptModule.engines, scriptModule.contexts);

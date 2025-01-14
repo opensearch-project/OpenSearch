@@ -23,17 +23,15 @@ import java.util.List;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class IdentityPluginTests extends OpenSearchTestCase {
 
     public void testSingleIdentityPluginSucceeds() {
         Client client = mock(Client.class);
         TestThreadPool threadPool = new TestThreadPool(getTestName());
-        when(client.threadPool()).thenReturn(threadPool);
-        IdentityPlugin identityPlugin1 = new NoopIdentityPlugin(client);
+        IdentityPlugin identityPlugin1 = new NoopIdentityPlugin(threadPool);
         List<IdentityPlugin> pluginList1 = List.of(identityPlugin1);
-        IdentityService identityService1 = new IdentityService(Settings.EMPTY, client, pluginList1);
+        IdentityService identityService1 = new IdentityService(Settings.EMPTY, threadPool, pluginList1);
         assertTrue(identityService1.getCurrentSubject().getPrincipal().getName().equalsIgnoreCase("Unauthenticated"));
         assertThat(identityService1.getTokenManager(), is(instanceOf(NoopTokenManager.class)));
         terminate(threadPool);
@@ -42,12 +40,11 @@ public class IdentityPluginTests extends OpenSearchTestCase {
     public void testMultipleIdentityPluginsFail() {
         Client client = mock(Client.class);
         TestThreadPool threadPool = new TestThreadPool(getTestName());
-        when(client.threadPool()).thenReturn(threadPool);
-        IdentityPlugin identityPlugin1 = new NoopIdentityPlugin(client);
-        IdentityPlugin identityPlugin2 = new NoopIdentityPlugin(client);
-        IdentityPlugin identityPlugin3 = new NoopIdentityPlugin(client);
+        IdentityPlugin identityPlugin1 = new NoopIdentityPlugin(threadPool);
+        IdentityPlugin identityPlugin2 = new NoopIdentityPlugin(threadPool);
+        IdentityPlugin identityPlugin3 = new NoopIdentityPlugin(threadPool);
         List<IdentityPlugin> pluginList = List.of(identityPlugin1, identityPlugin2, identityPlugin3);
-        Exception ex = assertThrows(OpenSearchException.class, () -> new IdentityService(Settings.EMPTY, client, pluginList));
+        Exception ex = assertThrows(OpenSearchException.class, () -> new IdentityService(Settings.EMPTY, threadPool, pluginList));
         assert (ex.getMessage().contains("Multiple identity plugins are not supported,"));
         terminate(threadPool);
     }

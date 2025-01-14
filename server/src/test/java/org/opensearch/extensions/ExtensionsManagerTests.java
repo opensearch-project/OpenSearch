@@ -170,7 +170,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
-        identityService = new IdentityService(Settings.EMPTY, client, List.of());
+        identityService = new IdentityService(Settings.EMPTY, threadPool, List.of());
     }
 
     @Override
