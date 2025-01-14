@@ -425,6 +425,8 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.identity.RunAsSubjectClient;
+import org.opensearch.identity.Subject;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Map;
@@ -462,6 +464,11 @@ public abstract class AbstractClient implements Client {
     @Override
     public final AdminClient admin() {
         return admin;
+    }
+
+    @Override
+    public final Client runAs(Subject subject) {
+        return new RunAsSubjectClient(this, subject);
     }
 
     @Override
