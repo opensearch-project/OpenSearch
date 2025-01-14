@@ -9,14 +9,20 @@
 package org.opensearch.arrow.flight.bootstrap;
 
 import org.opensearch.arrow.flight.BaseFlightStreamPlugin;
+import org.opensearch.arrow.flight.api.FlightServerInfoAction;
+import org.opensearch.arrow.flight.api.NodesFlightInfoAction;
+import org.opensearch.arrow.flight.api.TransportNodesFlightInfoAction;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -25,6 +31,8 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ExecutorBuilder;
@@ -32,6 +40,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.watcher.ResourceWatcherService;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -82,7 +92,9 @@ public class FlightStreamPluginImpl extends BaseFlightStreamPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        flightService.initialize(clusterService, threadPool);
+        flightService.setClusterService(clusterService);
+        flightService.setThreadPool(threadPool);
+        flightService.setClient(client);
         return List.of(flightService);
     }
 
@@ -113,13 +125,35 @@ public class FlightStreamPluginImpl extends BaseFlightStreamPlugin {
         return Collections.emptyMap();
     }
 
-    /**
-     * Called when a node is started. Starts the FlightService
-     * @param localNode local Node.
-     */
     @Override
-    public void onNodeStarted(DiscoveryNode localNode) {
-        flightService.onNodeStart(localNode);
+    public Map<String, Supplier<AuxTransport>> getAuxTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        CircuitBreakerService circuitBreakerService,
+        NetworkService networkService,
+        ClusterSettings clusterSettings,
+        Tracer tracer
+    ) {
+        flightService.setNetworkService(networkService);
+        return Collections.singletonMap(FlightService.AUX_TRANSPORT_TYPES_KEY, () -> flightService);
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return List.of(new FlightServerInfoAction());
+    }
+
+    @Override
+    public List<ActionHandler<?, ?>> getActions() {
+        return List.of(new ActionHandler<>(NodesFlightInfoAction.INSTANCE, TransportNodesFlightInfoAction.class));
     }
 
     /**
@@ -144,6 +178,17 @@ public class FlightStreamPluginImpl extends BaseFlightStreamPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return ServerConfig.getSettings();
+        return new ArrayList<>(
+            Arrays.asList(
+                ServerComponents.SETTING_FLIGHT_PORTS,
+                ServerComponents.SETTING_FLIGHT_HOST,
+                ServerComponents.SETTING_FLIGHT_BIND_HOST,
+                ServerComponents.SETTING_FLIGHT_PUBLISH_HOST
+            )
+        ) {
+            {
+                addAll(ServerConfig.getSettings());
+            }
+        };
     }
 }

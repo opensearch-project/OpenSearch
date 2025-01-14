@@ -1768,7 +1768,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return getBasePort() + "-" + (getBasePort() + 99); // upper bound is inclusive
     }
 
-    private static int generateBasePort(int start) {
+    protected static int generateBasePort(int start) {
         // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
@@ -1793,10 +1793,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return start + (startAt * 100);
-    }
-
-    protected static int getBaseStreamPort() {
-        return generateBasePort(9880);
     }
 
     protected static int getBasePort() {

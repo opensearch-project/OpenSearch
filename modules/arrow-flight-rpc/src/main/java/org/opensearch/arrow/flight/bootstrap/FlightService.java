@@ -8,10 +8,6 @@
 
 package org.opensearch.arrow.flight.bootstrap;
 
-import org.apache.arrow.flight.FlightProducer;
-import org.apache.arrow.flight.Location;
-import org.apache.arrow.flight.NoOpFlightProducer;
-import org.apache.arrow.flight.OSFlightServer;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.util.AutoCloseables;
@@ -22,47 +18,33 @@ import org.opensearch.arrow.flight.bootstrap.tls.DefaultSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.DisabledSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.arrow.spi.StreamManager;
-import org.opensearch.arrow.spi.StreamProducer;
-import org.opensearch.arrow.spi.StreamReader;
-import org.opensearch.arrow.spi.StreamTicket;
-import org.opensearch.arrow.spi.StreamTicketFactory;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
-
-import io.netty.channel.EventLoopGroup;
-import io.netty.util.NettyRuntime;
-import io.netty.util.concurrent.Future;
 
 /**
  * FlightService manages the Arrow Flight server and client for OpenSearch.
  * It handles the initialization, startup, and shutdown of the Flight server and client,
  * as well as managing the stream operations through a FlightStreamManager.
  */
-public class FlightService extends AbstractLifecycleComponent {
+public class FlightService extends NetworkPlugin.AuxTransport {
     private static final Logger logger = LogManager.getLogger(FlightService.class);
-
-    // Constants
-    private static final String GRPC_WORKER_ELG = "os-grpc-worker-ELG";
-    private static final String GRPC_BOSS_ELG = "os-grpc-boss-ELG";
-    private static final int SHUTDOWN_TIMEOUT_SECONDS = 5;
-    private static final String TRANSPORT_STREAM_PORT = "transport.stream.port";
-
     private final ServerComponents serverComponents;
-    private final NetworkResources networkResources;
+    private StreamManager streamManager;
+    private Client client;
+    private FlightClientManager clientManager;
+    private SecureTransportSettingsProvider secureTransportSettingsProvider;
+    private BufferAllocator allocator;
+    private ThreadPool threadPool;
 
     /**
      * Constructor for FlightService.
@@ -70,12 +52,6 @@ public class FlightService extends AbstractLifecycleComponent {
      */
     public FlightService(Settings settings) {
         Objects.requireNonNull(settings, "Settings cannot be null");
-        this.serverComponents = new ServerComponents();
-        this.networkResources = new NetworkResources();
-        initializeServerConfig(settings);
-    }
-
-    private void initializeServerConfig(Settings settings) {
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 ServerConfig.init(settings);
@@ -84,27 +60,28 @@ public class FlightService extends AbstractLifecycleComponent {
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Arrow Flight server", e);
         }
+        this.serverComponents = new ServerComponents(settings);
     }
 
-    /**
-     * Initializes the FlightService with the provided ClusterService and ThreadPool.
-     * It sets up the SSL context provider, client manager, and stream manager.
-     * @param clusterService The ClusterService instance.
-     * @param threadPool The ThreadPool instance.
-     */
-    public void initialize(ClusterService clusterService, ThreadPool threadPool) {
+    void setClusterService(ClusterService clusterService) {
         serverComponents.setClusterService(Objects.requireNonNull(clusterService, "ClusterService cannot be null"));
-        serverComponents.setThreadPool(Objects.requireNonNull(threadPool, "ThreadPool cannot be null"));
     }
 
-    /**
-     * Sets the SecureTransportSettingsProvider for the FlightService.
-     * @param secureTransportSettingsProvider The SecureTransportSettingsProvider instance.
-     */
-    public void setSecureTransportSettingsProvider(SecureTransportSettingsProvider secureTransportSettingsProvider) {
-        serverComponents.setSecureTransportSettingsProvider(
-            Objects.requireNonNull(secureTransportSettingsProvider, "SecureTransportSettingsProvider cannot be null")
-        );
+    void setNetworkService(NetworkService networkService) {
+        serverComponents.setNetworkService(Objects.requireNonNull(networkService, "NetworkService cannot be null"));
+    }
+
+    void setThreadPool(ThreadPool threadPool) {
+        this.threadPool = Objects.requireNonNull(threadPool, "ThreadPool cannot be null");
+        serverComponents.setThreadPool(threadPool);
+    }
+
+    void setClient(Client client) {
+        this.client = client;
+    }
+
+    void setSecureTransportSettingsProvider(SecureTransportSettingsProvider secureTransportSettingsProvider) {
+        this.secureTransportSettingsProvider = secureTransportSettingsProvider;
     }
 
     /**
@@ -112,102 +89,31 @@ public class FlightService extends AbstractLifecycleComponent {
      */
     @Override
     protected void doStart() {
-        serverComponents.initializeStreamManager();
-    }
-
-    /**
-     * Stops the FlightService by closing the server components and network resources.
-     */
-    @Override
-    protected void doStop() {
-        serverComponents.close();
-        networkResources.close();
-    }
-
-    /**
-     * doStop() ensures all resources are cleaned up and resources are recreated
-     * onNodeStart()
-     */
-    @Override
-    protected void doClose() {
-
-    }
-
-    /**
-     * Lazily instantiates the server and networks resources and starts the FlightServer.
-     * Cluster services is started and node is part of the cluster when  this method is called.
-     * If the node is a dedicated cluster manager node, its a no-op as this feature isn't valid on dedicated
-     * cluster manager nodes.
-     * @param localNode The local node
-     */
-    public void onNodeStart(DiscoveryNode localNode) {
-        Objects.requireNonNull(localNode, "LocalNode cannot be null");
-
-        if (isDedicatedClusterManagerNode(localNode)) {
-            doClose();
-            return;
-        }
-
         try {
-            serverComponents.initialize();
-            networkResources.initialize(serverComponents);
-            startFlightServer(localNode);
+            allocator = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE)
+            );
+            serverComponents.setAllocator(allocator);
+            SslContextProvider sslContextProvider = ServerConfig.isSslEnabled()
+                ? new DefaultSslContextProvider(secureTransportSettingsProvider)
+                : new DisabledSslContextProvider();
+            serverComponents.setSslContextProvider(sslContextProvider);
+            serverComponents.initComponents();
+            serverComponents.start();
+            initializeStreamManager();
+            clientManager = new FlightClientManager(
+                allocator, // sharing the same allocator between server and client
+                serverComponents.clusterService,
+                sslContextProvider,
+                serverComponents.workerEventLoopGroup, // sharing the same worker ELG between server and client
+                threadPool,
+                client
+            );
         } catch (Exception e) {
             logger.error("Failed to start Flight server", e);
-            cleanup();
+            doClose();
             throw new RuntimeException("Failed to start Flight server", e);
         }
-    }
-
-    private void cleanup() {
-        try {
-            doClose();
-        } catch (Exception e) {
-            logger.error("Error during cleanup", e);
-        }
-    }
-
-    private void startFlightServer(DiscoveryNode localNode) {
-        Location serverLocation = createServerLocation(localNode);
-        FlightProducer producer = serverComponents.createFlightProducer();
-
-        try {
-            OSFlightServer server = buildAndStartServer(serverLocation, producer);
-            serverComponents.setServer(server);
-            logger.info("Arrow Flight server started. Listening at {}", serverLocation);
-        } catch (Exception e) {
-            String errorMsg = "Failed to start Arrow Flight server at " + serverLocation;
-            logger.error(errorMsg, e);
-            throw new RuntimeException(errorMsg, e);
-        }
-    }
-
-    private Location createServerLocation(DiscoveryNode localNode) {
-        String host = localNode.getAddress().getAddress();
-        int port = Integer.parseInt(localNode.getAttributes().get(TRANSPORT_STREAM_PORT));
-        return ServerConfig.getLocation(host, port);
-    }
-
-    private OSFlightServer buildAndStartServer(Location location, FlightProducer producer) throws IOException {
-        OSFlightServer server = OSFlightServer.builder(
-            serverComponents.getAllocator(),
-            location,
-            producer,
-            serverComponents.getSslContextProvider().getServerSslContext(),
-            ServerConfig.serverChannelType(),
-            networkResources.getBossEventLoopGroup(),
-            networkResources.getWorkerEventLoopGroup(),
-            networkResources.getServerExecutor()
-        ).build();
-
-        server.start();
-        return server;
-    }
-
-    private static boolean isDedicatedClusterManagerNode(DiscoveryNode node) {
-        Set<DiscoveryNodeRole> nodeRoles = node.getRoles();
-        return nodeRoles.size() == 1
-            && (nodeRoles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) || nodeRoles.contains(DiscoveryNodeRole.MASTER_ROLE));
     }
 
     /**
@@ -215,15 +121,15 @@ public class FlightService extends AbstractLifecycleComponent {
      * @return The FlightClientManager instance.
      */
     public FlightClientManager getFlightClientManager() {
-        return serverComponents.getClientManager();
+        return clientManager;
     }
 
-    /**
-     * Retrieves the StreamManager used by the FlightService.
-     * @return The StreamManager instance.
-     */
-    public StreamManager getStreamManager() {
-        return serverComponents.getStreamManager();
+    StreamManager getStreamManager() {
+        return streamManager;
+    }
+
+    public BoundTransportAddress getBoundAddress() {
+        return serverComponents.getBoundAddress();
     }
 
     @VisibleForTesting
@@ -231,201 +137,28 @@ public class FlightService extends AbstractLifecycleComponent {
         return serverComponents.getSslContextProvider();
     }
 
-    @VisibleForTesting
-    BufferAllocator getAllocator() {
-        return serverComponents.getAllocator();
-    }
-
-    private static class ServerComponents implements AutoCloseable {
-        private static final Logger logger = LogManager.getLogger(ServerComponents.class);
-
-        private OSFlightServer server;
-        private BufferAllocator allocator;
-        private StreamManager streamManager;
-        private FlightClientManager clientManager;
-        private ClusterService clusterService;
-        private ThreadPool threadPool;
-        private SecureTransportSettingsProvider secureTransportSettingsProvider;
-        private SslContextProvider sslContextProvider;
-
-        void initialize() throws Exception {
-            initializeAllocator();
-            initializeSslContext();
-        }
-
-        void initializeStreamManager() {
-            streamManager = new StreamManager() {
-                @Override
-                public StreamTicket registerStream(StreamProducer producer, TaskId parentTaskId) {
-                    return null;
-                }
-
-                @Override
-                public StreamReader getStreamReader(StreamTicket ticket) {
-                    return null;
-                }
-
-                @Override
-                public StreamTicketFactory getStreamTicketFactory() {
-                    return null;
-                }
-
-                @Override
-                public void close() {
-
-                }
-            };
-        }
-
-        private void initializeAllocator() throws Exception {
-            allocator = AccessController.doPrivileged(
-                (PrivilegedExceptionAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE)
-            );
-        }
-
-        private void initializeSslContext() {
-            sslContextProvider = ServerConfig.isSslEnabled()
-                ? new DefaultSslContextProvider(secureTransportSettingsProvider)
-                : new DisabledSslContextProvider();
-        }
-
-        FlightProducer createFlightProducer() {
-            return new NoOpFlightProducer();
-        }
-
-        @Override
-        public void close() {
-            try {
-                AutoCloseables.close(server, clientManager, allocator);
-            } catch (Exception e) {
-                logger.error("Error while closing server components", e);
-            }
-        }
-
-        public BufferAllocator getAllocator() {
-            return allocator;
-        }
-
-        public StreamManager getStreamManager() {
-            return streamManager;
-        }
-
-        public FlightClientManager getClientManager() {
-            return clientManager;
-        }
-
-        public void setClientManager(FlightClientManager clientManager) {
-            this.clientManager = Objects.requireNonNull(clientManager);
-        }
-
-        public ClusterService getClusterService() {
-            return clusterService;
-        }
-
-        public void setClusterService(ClusterService clusterService) {
-            this.clusterService = Objects.requireNonNull(clusterService);
-        }
-
-        public ThreadPool getThreadPool() {
-            return threadPool;
-        }
-
-        public void setThreadPool(ThreadPool threadPool) {
-            this.threadPool = Objects.requireNonNull(threadPool);
-        }
-
-        public void setSecureTransportSettingsProvider(SecureTransportSettingsProvider provider) {
-            this.secureTransportSettingsProvider = Objects.requireNonNull(provider);
-        }
-
-        public void setServer(OSFlightServer server) {
-            this.server = Objects.requireNonNull(server);
-        }
-
-        public SslContextProvider getSslContextProvider() {
-            return sslContextProvider;
+    /**
+     * Stops the FlightService by closing the server components and network resources.
+     */
+    @Override
+    protected void doStop() {
+        try {
+            AutoCloseables.close(serverComponents, streamManager, clientManager, allocator);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
-    private static class NetworkResources implements AutoCloseable {
-        private static final Logger logger = LogManager.getLogger(NetworkResources.class);
+    /**
+     * doStop() ensures all resources are cleaned up and resources are recreated on
+     * doStart()
+     */
+    @Override
+    protected void doClose() {
+        doStop();
+    }
 
-        private EventLoopGroup bossEventLoopGroup;
-        private EventLoopGroup workerEventLoopGroup;
-        private ExecutorService serverExecutor;
-        private ExecutorService clientExecutor;
-
-        void initialize(ServerComponents components) {
-            initializeEventLoopGroups();
-            initializeExecutors(components.getThreadPool());
-            initializeClientManager(components);
-        }
-
-        private void initializeEventLoopGroups() {
-            bossEventLoopGroup = ServerConfig.createELG(GRPC_BOSS_ELG, 1);
-            workerEventLoopGroup = ServerConfig.createELG(GRPC_WORKER_ELG, NettyRuntime.availableProcessors() * 2);
-        }
-
-        private void initializeExecutors(ThreadPool threadPool) {
-            Objects.requireNonNull(threadPool, "ThreadPool cannot be null");
-            serverExecutor = threadPool.executor(ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME);
-            clientExecutor = threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME);
-        }
-
-        private void initializeClientManager(ServerComponents components) {
-            Objects.requireNonNull(components, "ServerComponents cannot be null");
-            FlightClientManager clientManager = new FlightClientManager(
-                components.getAllocator(),
-                components.getClusterService(),
-                components.getSslContextProvider(),
-                workerEventLoopGroup,
-                clientExecutor
-            );
-            components.setClientManager(clientManager);
-        }
-
-        @Override
-        public void close() {
-            closeEventLoopGroups();
-            closeExecutors();
-        }
-
-        private void closeEventLoopGroups() {
-            gracefullyShutdownEventLoopGroup(bossEventLoopGroup, GRPC_BOSS_ELG);
-            gracefullyShutdownEventLoopGroup(workerEventLoopGroup, GRPC_WORKER_ELG);
-        }
-
-        private void gracefullyShutdownEventLoopGroup(EventLoopGroup group, String groupName) {
-            if (group != null) {
-                Future<?> shutdownFuture = group.shutdownGracefully(0, SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                shutdownFuture.awaitUninterruptibly();
-                if (!shutdownFuture.isSuccess()) {
-                    logger.warn("Error closing {} netty event loop group {}", groupName, shutdownFuture.cause());
-                }
-            }
-        }
-
-        private void closeExecutors() {
-            shutdownExecutor(serverExecutor);
-            shutdownExecutor(clientExecutor);
-        }
-
-        private void shutdownExecutor(ExecutorService executor) {
-            if (executor != null) {
-                executor.shutdown();
-            }
-        }
-
-        public EventLoopGroup getBossEventLoopGroup() {
-            return bossEventLoopGroup;
-        }
-
-        public EventLoopGroup getWorkerEventLoopGroup() {
-            return workerEventLoopGroup;
-        }
-
-        public ExecutorService getServerExecutor() {
-            return serverExecutor;
-        }
+    private void initializeStreamManager() {
+        streamManager = null;
     }
 }

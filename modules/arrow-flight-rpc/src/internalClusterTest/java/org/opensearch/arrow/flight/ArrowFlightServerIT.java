@@ -13,7 +13,6 @@ import org.apache.arrow.flight.OSFlightClient;
 import org.opensearch.arrow.flight.bootstrap.FlightClientManager;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.FeatureFlagSetter;
@@ -22,10 +21,9 @@ import org.junit.BeforeClass;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 3)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 5)
 public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
 
     private FlightClientManager flightClientManager;
@@ -51,20 +49,10 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
 
     public void testArrowFlightEndpoint() throws Exception {
         for (DiscoveryNode node : getClusterState().nodes()) {
-            if (isDedicatedClusterManagerNode(node)) {
-                continue;
-            }
             try (OSFlightClient flightClient = flightClientManager.getFlightClient(node.getId())) {
                 assertNotNull(flightClient);
                 flightClient.handshake(CallOptions.timeout(5000L, TimeUnit.MILLISECONDS));
             }
         }
     }
-
-    private static boolean isDedicatedClusterManagerNode(DiscoveryNode node) {
-        Set<DiscoveryNodeRole> nodeRoles = node.getRoles();
-        return nodeRoles.size() == 1
-            && (nodeRoles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE) || nodeRoles.contains(DiscoveryNodeRole.MASTER_ROLE));
-    }
-
 }
