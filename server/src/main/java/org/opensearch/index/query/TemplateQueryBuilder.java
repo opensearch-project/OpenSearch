@@ -79,7 +79,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        throw new IllegalStateException("Template query should run with a ml_inference request processor");
+        throw new IllegalStateException("Template query should run with a request processor that produces a pipelineContext.");
     }
 
     @Override
@@ -115,7 +115,9 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        if (!(queryShardContext instanceof QueryCoordinatorContext)) {
+        QueryCoordinatorContext queryCoordinatorContext = queryShardContext.convertToCoordinatorContext();
+
+        if (queryCoordinatorContext == null) {
             throw new IllegalStateException("Template query needs to be resolved with variables from search processors.");
         }
 
