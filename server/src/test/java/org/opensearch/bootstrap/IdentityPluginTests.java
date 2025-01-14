@@ -9,7 +9,6 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
@@ -22,12 +21,10 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 
 public class IdentityPluginTests extends OpenSearchTestCase {
 
     public void testSingleIdentityPluginSucceeds() {
-        Client client = mock(Client.class);
         TestThreadPool threadPool = new TestThreadPool(getTestName());
         IdentityPlugin identityPlugin1 = new NoopIdentityPlugin(threadPool);
         List<IdentityPlugin> pluginList1 = List.of(identityPlugin1);
@@ -38,7 +35,6 @@ public class IdentityPluginTests extends OpenSearchTestCase {
     }
 
     public void testMultipleIdentityPluginsFail() {
-        Client client = mock(Client.class);
         TestThreadPool threadPool = new TestThreadPool(getTestName());
         IdentityPlugin identityPlugin1 = new NoopIdentityPlugin(threadPool);
         IdentityPlugin identityPlugin2 = new NoopIdentityPlugin(threadPool);
