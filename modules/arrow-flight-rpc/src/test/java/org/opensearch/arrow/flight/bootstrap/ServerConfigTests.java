@@ -12,6 +12,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 
+import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_PUBLISH_PORT;
+
 public class ServerConfigTests extends OpenSearchTestCase {
 
     private Settings settings;
@@ -69,7 +71,7 @@ public class ServerConfigTests extends OpenSearchTestCase {
         ServerConfig.init(defaultSettings);
 
         // Verify default values
-        assertEquals(9880, ServerConfig.STREAM_PORT.get(defaultSettings).intValue());
+        assertEquals(9401, SETTING_FLIGHT_PUBLISH_PORT.get(defaultSettings).intValue());
         assertEquals("Netty", ServerConfig.ARROW_ALLOCATION_MANAGER_TYPE.get(defaultSettings));
         assertFalse(ServerConfig.ARROW_ENABLE_NULL_CHECK_FOR_GET.get(defaultSettings));
         assertTrue(ServerConfig.ARROW_ENABLE_UNSAFE_MEMORY_ACCESS.get(defaultSettings));

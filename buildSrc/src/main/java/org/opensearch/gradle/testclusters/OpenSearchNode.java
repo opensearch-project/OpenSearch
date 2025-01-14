@@ -174,7 +174,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private boolean isWorkingDirConfigured = false;
     private String httpPort = "0";
     private String transportPort = "0";
-    private String streamPort = "0";
     private Path confPathData;
     private String keystorePassword = "";
     private boolean preserveDataDir = false;
@@ -1176,7 +1175,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
         baseConfig.put("node.portsfile", "true");
         baseConfig.put("http.port", httpPort);
         baseConfig.put("transport.port", transportPort);
-        baseConfig.put("node.attr.transport.stream.port", streamPort);
 
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         baseConfig.put("cluster.routing.allocation.disk.watermark.low", "1b");
@@ -1448,10 +1446,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     void setTransportPort(String transportPort) {
         this.transportPort = transportPort;
-    }
-
-    void setStreamPort(String streamPort) {
-        this.streamPort = streamPort;
     }
 
     void setDataPath(Path dataPath) {
