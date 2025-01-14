@@ -427,6 +427,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 );
             }
 
+            // when either the upper term or lower term is null,
+            // we can't delegate to valueFieldType() and need to process the prefix ourselves
             Query indexQuery = null;
             Query dvQuery = null;
             if (isSearchable()) {
