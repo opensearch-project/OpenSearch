@@ -926,9 +926,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             ZonedDateTime.of(2023, 11, 11, 0, 0, 0, 0, ZoneOffset.UTC)
         );
 
-        final List<ZonedDateTime> singleBucketIndexData = Arrays.asList(
-            ZonedDateTime.of(2023, 12, 27, 0, 0, 0, 0, ZoneOffset.UTC)
-        );
+        final List<ZonedDateTime> singleBucketIndexData = Arrays.asList(ZonedDateTime.of(2023, 12, 27, 0, 0, 0, 0, ZoneOffset.UTC));
 
         try (Directory directory = newDirectory()) {
             /*
