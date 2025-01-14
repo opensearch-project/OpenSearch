@@ -13,6 +13,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
 

@@ -30,7 +30,7 @@ import java.util.concurrent.Callable;
 public class NoopPluginSubject implements PluginSubject {
     private final ThreadPool threadPool;
 
-    public NoopPluginSubject(ThreadPool threadPool) {
+    NoopPluginSubject(ThreadPool threadPool) {
         super();
         this.threadPool = threadPool;
     }
