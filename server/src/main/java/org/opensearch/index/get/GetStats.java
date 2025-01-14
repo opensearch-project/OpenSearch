@@ -137,6 +137,7 @@ public class GetStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.GET);
         builder.field(Fields.TOTAL, getCount());
+        builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.GET_TIME, getTime());
         builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, getTime());
         builder.field(Fields.EXISTS_TOTAL, existsCount);
         builder.humanReadableField(Fields.EXISTS_TIME_IN_MILLIS, Fields.EXISTS_TIME, getExistsTime());
@@ -155,6 +156,11 @@ public class GetStats implements Writeable, ToXContentFragment {
     static final class Fields {
         static final String GET = "get";
         static final String TOTAL = "total";
+        /**
+         * Deprecated field name for time. Use {@link #TIME} instead.
+         */
+        @Deprecated
+        static final String GET_TIME = "getTime";
         static final String TIME = "time";
         static final String TIME_IN_MILLIS = "time_in_millis";
         static final String EXISTS_TOTAL = "exists_total";
