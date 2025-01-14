@@ -19,6 +19,8 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 
+import static org.opensearch.identity.IdentityConstants.SUBJECT_TRANSIENT_NAME;
+
 /**
  * Implementation of client that will run transport actions in a stashed context and inject the name of the provided
  * subject into the context.
@@ -29,8 +31,6 @@ import org.opensearch.core.action.ActionResponse;
 public class RunAsSubjectClient extends FilterClient {
 
     private static final Logger logger = LogManager.getLogger(RunAsSubjectClient.class);
-
-    public static final String SUBJECT_TRANSIENT_NAME = "subject.name";
 
     private final Subject subject;
 
