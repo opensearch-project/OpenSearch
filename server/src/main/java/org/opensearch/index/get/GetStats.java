@@ -159,7 +159,7 @@ public class GetStats implements Writeable, ToXContentFragment {
         /**
          * Deprecated field name for time. Use {@link #TIME} instead.
          */
-        @Deprecated
+        @Deprecated(forRemoval = true)
         static final String GET_TIME = "getTime";
         static final String TIME = "time";
         static final String TIME_IN_MILLIS = "time_in_millis";
