@@ -256,6 +256,9 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.hasParam("timeout")) {
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
         }
+        if (request.hasParam("verbose_pipeline")) {
+            searchSourceBuilder.verbosePipeline(request.paramAsBoolean("verbose_pipeline", false));
+        }
         if (request.hasParam("terminate_after")) {
             int terminateAfter = request.paramAsInt("terminate_after", SearchContext.DEFAULT_TERMINATE_AFTER);
             if (terminateAfter < 0) {
