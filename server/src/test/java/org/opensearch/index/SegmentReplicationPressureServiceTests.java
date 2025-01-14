@@ -33,6 +33,7 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import static java.util.Arrays.asList;
+import static org.opensearch.index.SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS;
 import static org.opensearch.index.SegmentReplicationPressureService.MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING;
 import static org.opensearch.index.SegmentReplicationPressureService.MAX_REPLICATION_TIME_BACKPRESSURE_SETTING;
 import static org.opensearch.index.SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED;
@@ -53,6 +54,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
         .put(MAX_REPLICATION_TIME_BACKPRESSURE_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+        .put(MAX_INDEXING_CHECKPOINTS.getKey(), 4)
         .build();
 
     public void testIsSegrepLimitBreached() throws Exception {
@@ -200,6 +202,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(MAX_REPLICATION_TIME_BACKPRESSURE_SETTING.getKey(), TimeValue.timeValueMillis(10))
             .put(MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING.getKey(), TimeValue.timeValueMillis(20))
+            .put(MAX_INDEXING_CHECKPOINTS.getKey(), 4)
             .build();
 
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {

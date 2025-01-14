@@ -8,6 +8,7 @@
 
 
 import javax.annotation.Nullable
+import javax.inject.Inject
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.internal.jvm.Jvm
@@ -63,8 +64,8 @@ allprojects {
 
 
     tasks.register('missingJavadoc', MissingJavadocTask) {
-      description "This task validates and generates Javadoc API documentation for the main source code."
-      group "documentation"
+      description = "This task validates and generates Javadoc API documentation for the main source code."
+      group = "documentation"
 
       taskResources = resources
       dependsOn sourceSets.main.compileClasspath
@@ -169,7 +170,6 @@ configure([
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
   project(":libs:opensearch-compress"),
-  project(":plugins:events-correlation-engine"),
   project(":server")
 ]) {
   project.tasks.withType(MissingJavadocTask) {
@@ -226,6 +226,18 @@ class MissingJavadocTask extends DefaultTask {
   @InputFiles
   @PathSensitive(PathSensitivity.RELATIVE)
   def taskResources
+
+  Project project
+
+  // See please https://docs.gradle.org/8.11/userguide/service_injection.html#execoperations
+  interface InjectedExecOps {
+    @Inject ExecOperations getExecOps()
+  }
+
+  @Inject
+  MissingJavadocTask(Project project) {
+    this.project = project
+  }
 
   /** Utility method to recursively collect all tasks with same name like this one that we depend on */
   private Set findRenderTasksInDependencies() {
@@ -317,11 +329,12 @@ class MissingJavadocTask extends DefaultTask {
       }
     }()
 
+    def execOps = project.objects.newInstance(InjectedExecOps)
     def outputFile = project.file("${getTemporaryDir()}/javadoc-output.txt")
     def result
 
     outputFile.withOutputStream { output ->
-      result = project.exec {
+      result = execOps.execOps.exec {
         executable javadocCmd
 
         // we want to capture both stdout and stderr to the same
@@ -344,7 +357,7 @@ class MissingJavadocTask extends DefaultTask {
         // force locale to be "en_US" (fix for: https://bugs.openjdk.java.net/browse/JDK-8222793)
         args += [ "-J-Duser.language=en", "-J-Duser.country=US" ]
 
-        ignoreExitValue true
+        ignoreExitValue = true
       }
     }
 

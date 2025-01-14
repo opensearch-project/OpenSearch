@@ -39,6 +39,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -59,6 +60,7 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -73,6 +75,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -254,6 +257,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 this
             );
         }
+
+        @Override
+        public Optional<DimensionType> getSupportedDataCubeDimensionType() {
+            return Optional.of(DimensionType.ORDINAL);
+        }
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
@@ -389,6 +397,46 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         protected Object rewriteForDocValue(Object value) {
             return value;
+        }
+
+        @Override
+        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            if (isSearchable()) {
+                return super.termQueryCaseInsensitive(value, context);
+            } else {
+                BytesRef bytesRef = indexedValueForSearch(rewriteForDocValue(value));
+                Term term = new Term(name(), bytesRef);
+                Query query = AutomatonQueries.createAutomatonQuery(
+                    term,
+                    AutomatonQueries.toCaseInsensitiveString(bytesRef.utf8ToString(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+                if (boost() != 1f) {
+                    query = new BoostQuery(query, boost());
+                }
+                return query;
+            }
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            if (isSearchable()) {
+                return super.termQuery(value, context);
+            } else {
+                Query query = SortedSetDocValuesField.newSlowRangeQuery(
+                    name(),
+                    indexedValueForSearch(rewriteForDocValue(value)),
+                    indexedValueForSearch(rewriteForDocValue(value)),
+                    true,
+                    true
+                );
+                if (boost() != 1f) {
+                    query = new BoostQuery(query, boost());
+                }
+                return query;
+            }
         }
 
         @Override

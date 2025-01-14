@@ -1,8 +1,9 @@
 ---
 # The test setup includes:
-# - Create flat_object mapping for flat_object_doc_values_test index
-# - Index 9 example documents
-# - Search tests about doc_values and index
+# - 1.Create flat_object mapping for flat_object_doc_values_test index
+# - 2.Index 9 example documents
+# - 3.Search tests about doc_values and index
+# - 4.Fetch doc_value from flat_object field
 
 setup:
   - skip:
@@ -44,6 +45,8 @@ setup:
           {"order":"order7","issue":{"labels":{"number":7,"name":"abc7","status":1}}}
           {"index":{"_index":"flat_object_doc_values_test","_id":"8"}}
           {"order":"order8","issue":{"labels":{"number":8,"name":"abc8","status":1}}}
+          {"index":{"_index":"flat_object_doc_values_test","_id":"9"}}
+          {"order":"order9","issue":{"labels":{"number":9,"name":"abC8","status":1}}}
 
 ---
 # Delete Index when connection is teardown
@@ -67,7 +70,53 @@ teardown:
           }
         }
 
-  - length: { hits.hits: 9 }
+  - length: { hits.hits: 10 }
+
+  # Case Insensitive Term Query with exact dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  term: {
+                    issue.labels.name: {
+                      value: "abc8",
+                      case_insensitive: "true"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+
+  # Case Insensitive Term Query with no path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            bool: {
+              must: [
+                {
+                  term: {
+                    issue.labels: {
+                      value: "abc8",
+                      case_insensitive: "true"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
 
   # Term Query with exact dot path.
   - do:
@@ -786,3 +835,48 @@ teardown:
 
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.order: "order8" }
+
+  # Stored Fields with exact dot path.
+  - do:
+      search:
+        body: {
+          _source: false,
+          query: {
+            bool: {
+              must: [
+                {
+                  term: {
+                    order: "order0"
+                  }
+                }
+              ]
+            }
+          },
+          stored_fields: "_none_",
+          docvalue_fields: [ "issue.labels.name","order" ]
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields: { "order" : [ "order0" ], "issue.labels.name": [ "abc0" ] } }
+
+  - do:
+      search:
+        body: {
+          _source: false,
+          query: {
+            bool: {
+              must: [
+                {
+                  term: {
+                    order: "order0"
+                  }
+                }
+              ]
+            }
+          },
+          stored_fields: "_none_",
+          docvalue_fields: [ "issue.labels.name" ]
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields: { "issue.labels.name": [ "abc0" ] } }

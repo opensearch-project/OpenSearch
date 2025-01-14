@@ -39,11 +39,13 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A plugin that provides alternative directory implementations.
@@ -104,5 +106,12 @@ public interface IndexStorePlugin {
      */
     default Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         return Collections.emptyMap();
+    }
+
+    /**
+     * The {@link IndexStoreListener}s for this plugin which are triggered upon shard/index path deletion
+     */
+    default Optional<IndexStoreListener> getIndexStoreListener() {
+        return Optional.empty();
     }
 }

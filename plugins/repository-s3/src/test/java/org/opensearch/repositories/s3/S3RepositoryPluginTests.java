@@ -8,6 +8,7 @@
 
 package org.opensearch.repositories.s3;
 
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeUnit;
 import org.opensearch.common.unit.SizeValue;
@@ -25,6 +26,8 @@ import java.util.concurrent.Executor;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class S3RepositoryPluginTests extends OpenSearchTestCase {
 
@@ -37,8 +40,6 @@ public class S3RepositoryPluginTests extends OpenSearchTestCase {
         ThreadPool threadPool = null;
         try (S3RepositoryPlugin plugin = new S3RepositoryPlugin(settings, configPath)) {
             List<ExecutorBuilder<?>> executorBuilders = plugin.getExecutorBuilders(settings);
-            assertNotNull(executorBuilders);
-            assertFalse(executorBuilders.isEmpty());
             threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder<?>[0]));
             final Executor executor = threadPool.executor(URGENT_FUTURE_COMPLETION);
             assertNotNull(executor);
@@ -56,6 +57,12 @@ public class S3RepositoryPluginTests extends OpenSearchTestCase {
             assertThat(openSearchThreadPoolExecutor.getCorePoolSize(), equalTo(size));
             assertThat(info.getMax(), equalTo(size));
             assertThat(openSearchThreadPoolExecutor.getMaximumPoolSize(), equalTo(size));
+
+            ClusterService clusterService = mock(ClusterService.class);
+            when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+            plugin.createComponents(null, clusterService, threadPool, null, null, null, null, null, null, null, null);
+            assertNotNull(executorBuilders);
+            assertFalse(executorBuilders.isEmpty());
 
             final int availableProcessors = Runtime.getRuntime().availableProcessors();
             if (processors > availableProcessors) {

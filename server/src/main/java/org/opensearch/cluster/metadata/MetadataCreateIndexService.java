@@ -434,6 +434,14 @@ public class MetadataCreateIndexService {
             // in which case templates don't apply, so create the index from the source metadata
             return applyCreateIndexRequestWithExistingMetadata(currentState, request, silent, sourceMetadata, metadataTransformer);
         } else {
+            // The backing index may have a different name or prefix than the data stream name.
+            final String name = request.dataStreamName() != null ? request.dataStreamName() : request.index();
+
+            // Do not apply any templates to system indices
+            if (systemIndices.isSystemIndex(name)) {
+                return applyCreateIndexRequestWithNoTemplates(currentState, request, silent, metadataTransformer);
+            }
+
             // Hidden indices apply templates slightly differently (ignoring wildcard '*'
             // templates), so we need to check to see if the request is creating a hidden index
             // prior to resolving which templates it matches
@@ -441,8 +449,6 @@ public class MetadataCreateIndexService {
                 ? IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings())
                 : null;
 
-            // The backing index may have a different name or prefix than the data stream name.
-            final String name = request.dataStreamName() != null ? request.dataStreamName() : request.index();
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 currentState.metadata(),
@@ -674,6 +680,17 @@ public class MetadataCreateIndexService {
             () -> new ParameterizedMessage("Added newCustomData={}, replaced oldCustomData={}", remoteCustomData, existingCustomData)
         );
         tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
+    }
+
+    private ClusterState applyCreateIndexRequestWithNoTemplates(
+        final ClusterState currentState,
+        final CreateIndexClusterStateUpdateRequest request,
+        final boolean silent,
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+    ) throws Exception {
+        // Using applyCreateIndexRequestWithV1Templates with empty list instead of applyCreateIndexRequestWithV2Template
+        // with null template as applyCreateIndexRequestWithV2Template has assertions when template is null
+        return applyCreateIndexRequestWithV1Templates(currentState, request, silent, Collections.emptyList(), metadataTransformer);
     }
 
     private ClusterState applyCreateIndexRequestWithV1Templates(
@@ -1079,14 +1096,9 @@ public class MetadataCreateIndexService {
     private static void updateSearchOnlyReplicas(Settings requestSettings, Settings.Builder builder) {
         if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(builder) && builder.get(SETTING_NUMBER_OF_SEARCH_REPLICAS) != null) {
             if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0
-                && ReplicationType.parseString(builder.get(INDEX_REPLICATION_TYPE_SETTING.getKey())).equals(ReplicationType.DOCUMENT)) {
+                && Boolean.parseBoolean(builder.get(SETTING_REMOTE_STORE_ENABLED)) == false) {
                 throw new IllegalArgumentException(
-                    "To set "
-                        + SETTING_NUMBER_OF_SEARCH_REPLICAS
-                        + ", "
-                        + INDEX_REPLICATION_TYPE_SETTING.getKey()
-                        + " must be set to "
-                        + ReplicationType.SEGMENT
+                    "To set " + SETTING_NUMBER_OF_SEARCH_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
                 );
             }
             builder.put(SETTING_NUMBER_OF_SEARCH_REPLICAS, INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings));
@@ -1161,12 +1173,8 @@ public class MetadataCreateIndexService {
                 .findFirst();
 
             if (remoteNode.isPresent()) {
-                translogRepo = remoteNode.get()
-                    .getAttributes()
-                    .get(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
-                segmentRepo = remoteNode.get()
-                    .getAttributes()
-                    .get(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
+                translogRepo = RemoteStoreNodeAttribute.getTranslogRepoName(remoteNode.get().getAttributes());
+                segmentRepo = RemoteStoreNodeAttribute.getSegmentRepoName(remoteNode.get().getAttributes());
                 if (segmentRepo != null && translogRepo != null) {
                     settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                         .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo)

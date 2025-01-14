@@ -26,7 +26,6 @@ import org.opensearch.gateway.remote.IndexMetadataUploadListener;
 import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.RemoteStoreSettings;
-import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -70,11 +69,6 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
 
     private static final String TIMEOUT_EXCEPTION_MSG = "Timed out waiting while uploading remote index path file for indexes=%s";
     private static final String UPLOAD_EXCEPTION_MSG = "Exception occurred while uploading remote index paths for indexes=%s";
-    static final String TRANSLOG_REPO_NAME_KEY = Node.NODE_ATTRIBUTES.getKey()
-        + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
-    static final String SEGMENT_REPO_NAME_KEY = Node.NODE_ATTRIBUTES.getKey()
-        + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-
     private static final Logger logger = LogManager.getLogger(RemoteIndexPathUploader.class);
 
     private final Settings settings;
@@ -226,9 +220,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         }
     }
 
-    private Repository validateAndGetRepository(String repoSetting) {
-        final String repo = settings.get(repoSetting);
-        assert repo != null : "Remote " + repoSetting + " repository is not configured";
+    private Repository validateAndGetRepository(String repo) {
+        assert repo != null : "Remote repository is not configured";
         final Repository repository = repositoriesService.get().repository(repo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         return repository;
@@ -240,15 +233,16 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
             // If remote store data attributes are not present than we skip this.
             return;
         }
-        translogRepository = (BlobStoreRepository) validateAndGetRepository(TRANSLOG_REPO_NAME_KEY);
-        segmentRepository = (BlobStoreRepository) validateAndGetRepository(SEGMENT_REPO_NAME_KEY);
+
+        translogRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings));
+        segmentRepository = (BlobStoreRepository) validateAndGetRepository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings));
     }
 
     private boolean isTranslogSegmentRepoSame() {
         // TODO - The current comparison checks the repository name. But it is also possible that the repository are same
         // by attributes, but different by name. We need to handle this.
-        String translogRepoName = settings.get(TRANSLOG_REPO_NAME_KEY);
-        String segmentRepoName = settings.get(SEGMENT_REPO_NAME_KEY);
+        String translogRepoName = RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings);
+        String segmentRepoName = RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings);
         return Objects.equals(translogRepoName, segmentRepoName);
     }
 

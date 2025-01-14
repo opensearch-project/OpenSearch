@@ -63,7 +63,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "com.netflix.nebula.ospackage-base" version "11.10.0"
+  id "com.netflix.nebula.ospackage-base" version "11.10.1"
 }
 
 void addProcessFilesTask(String type, boolean jdk) {
@@ -111,21 +111,21 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       OS.current().equals(OS.WINDOWS) == false
     }
     dependsOn "process'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
-    packageName "opensearch"
+    packageName = "opensearch"
     if (type == 'deb') {
       if (architecture == 'x64') {
-        arch('amd64')
+        arch = 'amd64'
       } else {
         assert architecture == 'arm64' : architecture
-        arch('arm64')
+        arch = 'arm64'
       }
     } else {
       assert type == 'rpm' : type
       if (architecture == 'x64') {
-        arch('x86_64')
+        arch = 'x86_64'
       } else {
         assert architecture == 'arm64' : architecture
-        arch('aarch64')
+        arch = 'aarch64'
       }
     }
     // Follow opensearch's file naming convention
@@ -224,8 +224,8 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       }
       into('/etc')
       permissionGroup 'opensearch'
-      includeEmptyDirs true
-      createDirectoryEntry true
+      includeEmptyDirs = true
+      createDirectoryEntry = true
       include("opensearch") // empty dir, just to add directory entry
       include("opensearch/jvm.options.d") // empty dir, just to add directory entry
     }
@@ -238,8 +238,8 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         unix 0660
       }
       permissionGroup 'opensearch'
-      includeEmptyDirs true
-      createDirectoryEntry true
+      includeEmptyDirs = true
+      createDirectoryEntry = true
       fileType CONFIG | NOREPLACE
     }
     String envFile = expansionsForDistribution(type, jdk)['path.env']
@@ -298,8 +298,8 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       into(file.parent) {
         from "${packagingFiles}/${file.parent}"
         include file.name
-        includeEmptyDirs true
-        createDirectoryEntry true
+        includeEmptyDirs = true
+        createDirectoryEntry = true
         user u
         permissionGroup g
         dirPermissions {
@@ -320,13 +320,13 @@ apply plugin: 'com.netflix.nebula.ospackage-base'
 
 // this is package indepdendent configuration
 ospackage {
-  maintainer 'OpenSearch Team <opensearch@amazon.com>'
-  summary 'Distributed RESTful search engine built for the cloud'
-  packageDescription '''
+  maintainer ='OpenSearch Team <opensearch@amazon.com>'
+  summary = 'Distributed RESTful search engine built for the cloud'
+  packageDescription = '''
     Reference documentation can be found at
     https://github.com/opensearch-project/OpenSearch
   '''.stripIndent().trim()
-  url 'https://github.com/opensearch-project/OpenSearch'
+  url = 'https://github.com/opensearch-project/OpenSearch'
 
   // signing setup
   if (project.hasProperty('signing.password') && BuildParams.isSnapshotBuild() == false) {
@@ -340,10 +340,10 @@ ospackage {
   // version found on oldest supported distro, centos-6
   requires('coreutils', '8.4', GREATER | EQUAL)
 
-  fileMode 0644
-  dirMode 0755
-  user 'root'
-  permissionGroup 'root'
+  fileMode = 0644
+  dirMode = 0755
+  user = 'root'
+  permissionGroup = 'root'
 
   into '/usr/share/opensearch'
 }
@@ -357,7 +357,7 @@ Closure commonDebConfig(boolean jdk, String architecture) {
     customFields['License'] = 'ASL-2.0'
 
     archiveVersion = project.version.replace('-', '~')
-    packageGroup 'web'
+    packageGroup = 'web'
 
     // versions found on oldest supported distro, centos-6
     requires('bash', '4.1', GREATER | EQUAL)
@@ -394,24 +394,24 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
   return {
     configure(commonPackageConfig('rpm', jdk, architecture))
 
-    license 'ASL-2.0'
+    license = 'ASL-2.0'
 
-    packageGroup 'Application/Internet'
+    packageGroup = 'Application/Internet'
     requires '/bin/bash'
 
     obsoletes packageName, '7.0.0', Flags.LESS
 
     prefix '/usr'
-    packager 'OpenSearch'
+    packager = 'OpenSearch'
     archiveVersion = project.version.replace('-', '_')
     release = '1'
-    os 'LINUX'
-    distribution 'OpenSearch'
-    vendor 'OpenSearch'
+    os = 'LINUX'
+    distribution = 'OpenSearch'
+    vendor = 'OpenSearch'
     // TODO ospackage doesn't support icon but we used to have one
 
     // without this the rpm will have parent dirs of any files we copy in, eg /etc/opensearch
-    addParentDirs false
+    addParentDirs = false
   }
 }
 

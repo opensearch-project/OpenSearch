@@ -30,12 +30,16 @@
 package org.opensearch.gradle.test
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.gradle.api.Project
 import org.gradle.api.GradleException
 import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskProvider
 import org.opensearch.gradle.AntTask
 import org.opensearch.gradle.LoggedExec
+
+import javax.inject.Inject
+
 /**
  * A fixture for integration tests which runs in a separate process launched by Ant.
  */
@@ -90,9 +94,12 @@ class AntFixture extends AntTask implements Fixture {
     }
 
     private final TaskProvider stopTask
+    private final Project project
 
-    AntFixture() {
-        stopTask = createStopTask()
+    @Inject
+    AntFixture(Project project) {
+        this.project = project
+        this.stopTask = createStopTask()
         finalizedBy(stopTask)
     }
 
