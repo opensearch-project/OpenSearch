@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
 public class AdjacencyMatrixAggregationBuilderTests extends OpenSearchTestCase {
 
     public void testFilterSizeLimitation() throws Exception {
-        // filter size grater than max size should thrown a exception
+        // filter size grater than max size should throw an exception
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         IndexShard indexShard = mock(IndexShard.class);
         Settings settings = Settings.builder()
@@ -94,7 +94,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends OpenSearchTestCase {
             )
         );
 
-        // filter size not grater than max size should return an instance of AdjacencyMatrixAggregatorFactory
+        // filter size not greater than max size should return an instance of AdjacencyMatrixAggregatorFactory
         Map<String, QueryBuilder> emptyFilters = Collections.emptyMap();
 
         AdjacencyMatrixAggregationBuilder aggregationBuilder = new AdjacencyMatrixAggregationBuilder("dummy", emptyFilters);
@@ -105,5 +105,22 @@ public class AdjacencyMatrixAggregationBuilderTests extends OpenSearchTestCase {
             "[index.max_adjacency_matrix_filters] setting was deprecated in OpenSearch and will be "
                 + "removed in a future release! See the breaking changes documentation for the next major version."
         );
+    }
+
+    public void testShowOnlyIntersecting() throws Exception {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+
+        Map<String, QueryBuilder> filters = new HashMap<>(3);
+        for (int i = 0; i < 2; i++) {
+            QueryBuilder queryBuilder = mock(QueryBuilder.class);
+            // return builder itself to skip rewrite
+            when(queryBuilder.rewrite(queryShardContext)).thenReturn(queryBuilder);
+            filters.put("filter" + i, queryBuilder);
+        }
+        AdjacencyMatrixAggregationBuilder builder = new AdjacencyMatrixAggregationBuilder("dummy", filters, true);
+        assertTrue(builder.isShowOnlyIntersecting());
+
+        builder = new AdjacencyMatrixAggregationBuilder("dummy", filters, false);
+        assertFalse(builder.isShowOnlyIntersecting());
     }
 }
