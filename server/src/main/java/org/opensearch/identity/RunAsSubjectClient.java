@@ -47,7 +47,7 @@ public class RunAsSubjectClient extends FilterClient {
     ) {
         ThreadContext threadContext = threadPool().getThreadContext();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            threadContext.putTransient(SUBJECT_TRANSIENT_NAME, subject.getPrincipal().getName());
+            threadContext.putTransient(SUBJECT_TRANSIENT_NAME, subject);
             logger.info("Running transport action with subject: {}", subject.getPrincipal().getName());
             super.doExecute(action, request, ActionListener.runBefore(listener, ctx::restore));
         }
