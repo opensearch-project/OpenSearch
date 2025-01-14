@@ -8,11 +8,14 @@
 
 package org.opensearch.arrow.flight;
 
+import org.opensearch.arrow.flight.api.FlightServerInfoAction;
+import org.opensearch.arrow.flight.api.NodesFlightInfoAction;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -28,6 +31,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS_SETTING;
+import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -75,8 +79,10 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
         assertTrue(disabledPlugin.getExecutorBuilders(disabledSettings).isEmpty());
         assertNotNull(disabledPlugin.getSettings());
         assertTrue(disabledPlugin.getSettings().isEmpty());
-
         assertNotNull(disabledPlugin.getSecureTransports(null, null, null, null, null, null, null, null));
+        assertTrue(disabledPlugin.getAuxTransports(null, null, null, null, null, null).isEmpty());
+        assertEquals(0, disabledPlugin.getRestHandlers(null, null, null, null, null, null, null).size());
+        assertEquals(0, disabledPlugin.getActions().size());
 
         disabledPlugin.close();
 
@@ -115,6 +121,17 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
         assertFalse(settings.isEmpty());
 
         assertNotNull(plugin.getSecureTransports(null, null, null, null, null, null, mock(SecureTransportSettingsProvider.class), null));
+
+        assertTrue(
+            plugin.getAuxTransports(null, null, null, new NetworkService(List.of()), null, null)
+                .get(AUX_TRANSPORT_TYPES_KEY)
+                .get() instanceof FlightService
+        );
+        assertEquals(1, plugin.getRestHandlers(null, null, null, null, null, null, null).size());
+        assertTrue(plugin.getRestHandlers(null, null, null, null, null, null, null).get(0) instanceof FlightServerInfoAction);
+        assertEquals(1, plugin.getActions().size());
+        assertEquals(NodesFlightInfoAction.INSTANCE.name(), plugin.getActions().get(0).getAction().name());
+
         plugin.close();
     }
 }

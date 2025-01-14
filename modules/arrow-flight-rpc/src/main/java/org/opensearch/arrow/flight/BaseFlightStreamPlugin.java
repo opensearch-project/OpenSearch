@@ -11,23 +11,28 @@ package org.opensearch.arrow.flight;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.plugins.ClusterPlugin;
+import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.plugins.StreamManagerPlugin;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ExecutorBuilder;
@@ -44,7 +49,7 @@ import java.util.function.Supplier;
  * BaseFlightStreamPlugin is a plugin that implements the StreamManagerPlugin interface.
  * It provides the necessary components for handling flight streams in the OpenSearch cluster.
  */
-public abstract class BaseFlightStreamPlugin extends Plugin implements StreamManagerPlugin, NetworkPlugin, ClusterPlugin {
+public abstract class BaseFlightStreamPlugin extends Plugin implements StreamManagerPlugin, NetworkPlugin, ActionPlugin {
 
     /**
      * Constructor for BaseFlightStreamPlugin.
@@ -107,6 +112,16 @@ public abstract class BaseFlightStreamPlugin extends Plugin implements StreamMan
         Tracer tracer
     );
 
+    @Override
+    public abstract Map<String, Supplier<AuxTransport>> getAuxTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        CircuitBreakerService circuitBreakerService,
+        NetworkService networkService,
+        ClusterSettings clusterSettings,
+        Tracer tracer
+    );
+
     /**
      * Returns the StreamManager instance for managing flight streams.
      */
@@ -126,10 +141,17 @@ public abstract class BaseFlightStreamPlugin extends Plugin implements StreamMan
     @Override
     public abstract List<Setting<?>> getSettings();
 
-    /**
-     * Called when a node is started. ClusterService is started by this time
-     * @param localNode local Node info
-     */
     @Override
-    public abstract void onNodeStarted(DiscoveryNode localNode);
+    public abstract List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    );
+
+    @Override
+    public abstract List<ActionHandler<?, ?>> getActions();
 }

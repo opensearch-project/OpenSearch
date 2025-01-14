@@ -8,7 +8,6 @@
 
 package org.opensearch.arrow.flight.bootstrap;
 
-import org.apache.arrow.flight.Location;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -40,17 +39,6 @@ public class ServerConfig {
      * Creates a new instance of the server configuration with default settings.
      */
     public ServerConfig() {}
-
-    /**
-     * Setting for the transport stream port.
-     */
-    public static final Setting<Integer> STREAM_PORT = Setting.intSetting(
-        "node.attr.transport.stream.port",
-        9880,
-        1024,
-        65535,
-        Setting.Property.NodeScope
-    );
 
     static final Setting<String> ARROW_ALLOCATION_MANAGER_TYPE = Setting.simpleString(
         "arrow.allocation.manager.type",
@@ -183,13 +171,6 @@ public class ServerConfig {
                 addAll(Netty4Configs.getSettings());
             }
         };
-    }
-
-    static Location getLocation(String address, int port) {
-        if (enableSsl) {
-            return Location.forGrpcTls(address, port);
-        }
-        return Location.forGrpcInsecure(address, port);
     }
 
     static EventLoopGroup createELG(String name, int eventLoopThreads) {
