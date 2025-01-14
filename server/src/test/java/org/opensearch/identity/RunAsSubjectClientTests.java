@@ -8,9 +8,12 @@
 
 package org.opensearch.identity;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.Before;
 
@@ -33,36 +36,61 @@ public class RunAsSubjectClientTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testThatContextIsRestoredOnActionListenerResponse() throws Exception {
-        client().threadPool().getThreadContext().putHeader("test_header", "foo");
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(RunAsSubjectClient.class))) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "testSubject",
+                    "org.opensearch.identity.RunAsSubjectClient",
+                    Level.INFO,
+                    "Running transport action with subject: testSubject"
+                )
+            );
 
-        client().runAs(TEST_SUBJECT).admin().cluster().health(new ClusterHealthRequest(), new ActionListener<>() {
-            @Override
-            public void onResponse(ClusterHealthResponse clusterHealthResponse) {
-                String testHeader = client().threadPool().getThreadContext().getHeader("test_header");
-                assertThat(testHeader, equalTo("foo"));
-            }
+            client().threadPool().getThreadContext().putHeader("test_header", "foo");
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("Expected cluster health action to succeed");
-            }
-        });
+            client().runAs(TEST_SUBJECT).admin().cluster().health(new ClusterHealthRequest(), new ActionListener<>() {
+                @Override
+                public void onResponse(ClusterHealthResponse clusterHealthResponse) {
+                    String testHeader = client().threadPool().getThreadContext().getHeader("test_header");
+                    assertThat(testHeader, equalTo("foo"));
+
+                    mockLogAppender.assertAllExpectationsMatched();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Expected cluster health action to succeed");
+                }
+            });
+        }
     }
 
     public void testThatContextIsRestoredOnActionListenerFailure() throws Exception {
-        client().threadPool().getThreadContext().putHeader("test_header", "bar");
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(RunAsSubjectClient.class))) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "testSubject",
+                    "org.opensearch.identity.RunAsSubjectClient",
+                    Level.INFO,
+                    "Running transport action with subject: testSubject"
+                )
+            );
+            client().threadPool().getThreadContext().putHeader("test_header", "bar");
 
-        client().runAs(TEST_SUBJECT).admin().cluster().health(new ClusterHealthRequest("dne"), new ActionListener<>() {
-            @Override
-            public void onResponse(ClusterHealthResponse clusterHealthResponse) {
-                fail("Expected cluster health action to fail");
-            }
+            client().runAs(TEST_SUBJECT).admin().cluster().health(new ClusterHealthRequest("dne"), new ActionListener<>() {
+                @Override
+                public void onResponse(ClusterHealthResponse clusterHealthResponse) {
+                    fail("Expected cluster health action to fail");
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                String testHeader = client().threadPool().getThreadContext().getHeader("test_header");
-                assertThat(testHeader, equalTo("bar"));
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    String testHeader = client().threadPool().getThreadContext().getHeader("test_header");
+                    assertThat(testHeader, equalTo("bar"));
+
+                    mockLogAppender.assertAllExpectationsMatched();
+                }
+            });
+        }
     }
 }

@@ -8,6 +8,8 @@
 
 package org.opensearch.identity;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.client.Client;
@@ -25,6 +27,8 @@ import org.opensearch.core.action.ActionResponse;
  */
 @InternalApi
 public class RunAsSubjectClient extends FilterClient {
+
+    private static final Logger logger = LogManager.getLogger(RunAsSubjectClient.class);
 
     public static final String SUBJECT_TRANSIENT_NAME = "subject.name";
 
@@ -44,6 +48,7 @@ public class RunAsSubjectClient extends FilterClient {
         ThreadContext threadContext = threadPool().getThreadContext();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             threadContext.putTransient(SUBJECT_TRANSIENT_NAME, subject.getPrincipal().getName());
+            logger.info("Running transport action with subject: {}", subject.getPrincipal().getName());
             super.doExecute(action, request, ActionListener.runBefore(listener, ctx::restore));
         }
     }
