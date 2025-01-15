@@ -30,56 +30,47 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.espresso.sandbox;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
-import org.opensearch.common.action.ActionFuture;
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.client.support.AbstractClient;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.threadpool.ThreadPool;
 
-/**
- * Interface for an OpenSearch client implementation
- *
- * @opensearch.internal
- */
-@PublicApi(since = "1.0.0")
-public interface OpenSearchClient {
+import java.util.concurrent.TimeUnit;
 
-    /**
-     * Executes a generic action, denoted by an {@link ActionType}.
-     *
-     * @param action           The action type to execute.
-     * @param request          The action request.
-     * @param <Request>        The request type.
-     * @param <Response>       the response type.
-     * @return A future allowing to get back the response.
-     */
-    <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
-        ActionType<Response> action,
-        Request request
-    );
+public class NoOpClient extends AbstractClient {
+    public NoOpClient(ThreadPool threadPool) {
+        super(Settings.EMPTY, threadPool);
+    }
 
-    /**
-     * Executes a generic action, denoted by an {@link ActionType}.
-     *
-     * @param action           The action type to execute.
-     * @param request          The action request.
-     * @param listener         The listener to receive the response back.
-     * @param <Request>        The request type.
-     * @param <Response>       The response type.
-     */
-    <Request extends ActionRequest, Response extends ActionResponse> void execute(
+    public NoOpClient(String testName) {
+        super(Settings.EMPTY, new ThreadPool(Settings.EMPTY));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
         ActionType<Response> action,
         Request request,
         ActionListener<Response> listener
-    );
+    ) {
+        listener.onResponse((Response) new ClusterStateResponse(ClusterName.DEFAULT, ClusterState.EMPTY_STATE, false));
+    }
 
-    /**
-     * Returns the threadpool used to execute requests on this client
-     */
-    ThreadPool threadPool();
-
+    @Override
+    public void close() {
+        try {
+            ThreadPool.terminate(threadPool(), 10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new OpenSearchException(e.getMessage(), e);
+        }
+    }
 }
