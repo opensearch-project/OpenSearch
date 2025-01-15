@@ -37,8 +37,8 @@ apply plugin: 'opensearch.internal-cluster-test'
 
 
 opensearchplugin {
-  description 'Module for URL repository'
-  classname 'org.opensearch.plugin.repository.url.URLRepositoryModulePlugin'
+  description = 'Module for URL repository'
+  classname = 'org.opensearch.plugin.repository.url.URLRepositoryModulePlugin'
 }
 
 restResources {
@@ -56,7 +56,7 @@ task urlFixture(type: AntFixture) {
   doFirst {
     repositoryDir.mkdirs()
   }
-  env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
+  env 'CLASSPATH', "${-> sourceSets.test.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.opensearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
 }

@@ -127,8 +127,8 @@ subprojects {
           name = 'Snapshots'
           url = 'https://aws.oss.sonatype.org/content/repositories/snapshots'
           credentials {
-            username "$System.env.SONATYPE_USERNAME"
-            password "$System.env.SONATYPE_PASSWORD"
+            username = "$System.env.SONATYPE_USERNAME"
+            password = "$System.env.SONATYPE_PASSWORD"
           }
         }
       }
@@ -420,7 +420,7 @@ allprojects {
 gradle.projectsEvaluated {
   allprojects {
     project.tasks.withType(JavaForkOptions) {
-      maxHeapSize project.property('options.forkOptions.memoryMaximumSize')
+      maxHeapSize = project.property('options.forkOptions.memoryMaximumSize')
     }
 
     if (project.path == ':test:framework') {
@@ -736,7 +736,7 @@ tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
 }
 
 tasks.register('checkCompatibility', CheckCompatibilityTask) {
-  description('Checks the compatibility with child components')
+  description = 'Checks the compatibility with child components'
 }
 
 allprojects { project ->
