@@ -14,13 +14,29 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.nio.file.Path;
+
 public class AutoExpandWithSearchReplicaIT extends OpenSearchIntegTestCase {
 
     private static final String INDEX_NAME = "test-idx-1";
+    private static final String REPOSITORY_NAME = "test-remote-store-repo";
+
+    private Path absolutePath;
 
     @Override
     protected Settings featureFlagSettings() {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, true).build();
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        if (absolutePath == null) {
+            absolutePath = randomRepoPath().toAbsolutePath();
+        }
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath))
+            .build();
     }
 
     public void testEnableAutoExpandWhenSearchReplicaActive() {
