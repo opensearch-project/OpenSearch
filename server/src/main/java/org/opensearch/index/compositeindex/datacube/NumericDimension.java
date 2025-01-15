@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 @ExperimentalApi
 public class NumericDimension implements Dimension {
     public static final String NUMERIC = "numeric";
+
     private final String field;
 
     public NumericDimension(String field) {
@@ -77,4 +78,5 @@ public class NumericDimension implements Dimension {
     public int hashCode() {
         return Objects.hash(field);
     }
+
 }

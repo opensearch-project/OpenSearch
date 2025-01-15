@@ -9,7 +9,9 @@
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
 import org.apache.lucene.util.IntroSorter;
+import org.opensearch.index.compositeindex.datacube.Dimension;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.function.IntFunction;
 
@@ -24,7 +26,8 @@ public class StarTreeDocumentsSorter {
         final int[] sortedDocIds,
         final int dimensionId,
         final int numDocs,
-        final IntFunction<Long[]> dimensionsReader
+        final IntFunction<Long[]> dimensionsReader,
+        final List<Dimension> dimensionsOrder
     ) {
         new IntroSorter() {
             private Long[] dimensions;
@@ -44,19 +47,17 @@ public class StarTreeDocumentsSorter {
             @Override
             protected int comparePivot(int j) {
                 Long[] currentDimensions = dimensionsReader.apply(j);
-                for (int i = dimensionId + 1; i < dimensions.length; i++) {
-                    Long dimension = currentDimensions[i];
-                    if (!Objects.equals(dimensions[i], dimension)) {
-                        if (dimensions[i] == null && dimension == null) {
-                            return 0;
+                int totalDimensions = dimensionsOrder.size();
+                int docDimensionIndex = dimensionId + 1;
+                for (int i = dimensionId + 1; i < totalDimensions; i++) {
+                    Dimension dimension = dimensionsOrder.get(i);
+                    int subDimensionsToProcess = dimension.getNumSubDimensions();
+                    while (subDimensionsToProcess > 0) {
+                        if (!Objects.equals(dimensions[docDimensionIndex], currentDimensions[docDimensionIndex])) {
+                            return dimension.comparator().compare(dimensions[docDimensionIndex], currentDimensions[docDimensionIndex]);
                         }
-                        if (dimension == null) {
-                            return -1;
-                        }
-                        if (dimensions[i] == null) {
-                            return 1;
-                        }
-                        return Long.compare(dimensions[i], dimension);
+                        docDimensionIndex++;
+                        subDimensionsToProcess--;
                     }
                 }
                 return 0;

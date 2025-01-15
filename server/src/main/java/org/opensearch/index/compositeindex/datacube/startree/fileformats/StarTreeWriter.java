@@ -27,8 +27,11 @@ public class StarTreeWriter {
     /** Initial version for the star tree writer */
     public static final int VERSION_START = 0;
 
+    /** Version for the star tree writer with updated metadata which handles unsigned long */
+    public static final int VERSION_DIMENSION_DATA_TYPE = 1;
+
     /** Current version for the star tree writer */
-    public static final int VERSION_CURRENT = VERSION_START;
+    public static final int VERSION_CURRENT = VERSION_DIMENSION_DATA_TYPE;
 
     public StarTreeWriter() {}
 

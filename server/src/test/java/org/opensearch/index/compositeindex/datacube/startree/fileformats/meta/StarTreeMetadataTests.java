@@ -42,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -182,11 +181,10 @@ public class StarTreeMetadataTests extends OpenSearchTestCase {
         assertEquals(starTreeMetadata.getNumberOfNodes(), numberOfNodes);
         assertNotNull(starTreeMetadata);
 
-        assertEquals(dimensionsOrder.size(), starTreeMetadata.dimensionFieldsToDocValuesMap.size());
-        int k = 0;
-        for (Map.Entry<String, DocValuesType> entry : starTreeMetadata.dimensionFieldsToDocValuesMap.entrySet()) {
-            assertEquals(dimensionsOrder.get(k).getField(), entry.getKey());
-            k++;
+        assertEquals(dimensionsOrder.size(), starTreeMetadata.dimensionFieldToDimensionConfigMap.size());
+        int index = 0;
+        for (String key : starTreeMetadata.dimensionFieldToDimensionConfigMap.keySet()) {
+            assertEquals(dimensionsOrder.get(index++).getField(), key);
         }
 
         assertEquals(starTreeField.getMetrics().size(), starTreeMetadata.getMetrics().size());
