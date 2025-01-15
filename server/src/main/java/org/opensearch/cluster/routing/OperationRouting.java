@@ -243,6 +243,17 @@ public class OperationRouting {
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
+        @Nullable Map<String, Long> nodeCounts
+    ) {
+        return searchShards(clusterState, concreteIndices, routing, preference, collectorService, nodeCounts, null);
+    }
+
+    public GroupShardsIterator<ShardIterator> searchShards(
+        ClusterState clusterState,
+        String[] concreteIndices,
+        @Nullable Map<String, Set<String>> routing,
+        @Nullable String preference,
+        @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts,
         @Nullable SliceBuilder slice
     ) {
