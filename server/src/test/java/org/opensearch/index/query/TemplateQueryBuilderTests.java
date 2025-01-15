@@ -579,7 +579,10 @@ public class TemplateQueryBuilderTests extends OpenSearchTestCase {
         QueryCoordinatorContext queryRewriteContext = mockQueryRewriteContext();
         when(queryRewriteContext.getContextVariables()).thenReturn(new HashMap<>());
 
-        IOException exception = expectThrows(IOException.class, () -> templateQueryBuilder.doRewrite(queryRewriteContext));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> templateQueryBuilder.doRewrite(queryRewriteContext)
+        );
         assertTrue(exception.getMessage().contains("Failed to rewrite template query"));
     }
 
@@ -595,7 +598,10 @@ public class TemplateQueryBuilderTests extends OpenSearchTestCase {
         QueryCoordinatorContext queryRewriteContext = mockQueryRewriteContext();
         when(queryRewriteContext.getContextVariables()).thenReturn(new HashMap<>());
 
-        IOException exception = expectThrows(IOException.class, () -> templateQueryBuilder.doRewrite(queryRewriteContext));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> templateQueryBuilder.doRewrite(queryRewriteContext)
+        );
         assertTrue(exception.getMessage().contains("Failed to rewrite template query"));
     }
 
@@ -611,7 +617,10 @@ public class TemplateQueryBuilderTests extends OpenSearchTestCase {
         QueryCoordinatorContext queryRewriteContext = mockQueryRewriteContext();
         when(queryRewriteContext.getContextVariables()).thenReturn(new HashMap<>());
 
-        IOException exception = expectThrows(IOException.class, () -> templateQueryBuilder.doRewrite(queryRewriteContext));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> templateQueryBuilder.doRewrite(queryRewriteContext)
+        );
         assertTrue(exception.getMessage().contains("Failed to rewrite template query"));
     }
 
@@ -627,7 +636,10 @@ public class TemplateQueryBuilderTests extends OpenSearchTestCase {
         QueryCoordinatorContext queryRewriteContext = mockQueryRewriteContext();
         when(queryRewriteContext.getContextVariables()).thenReturn(new HashMap<>());
 
-        IOException exception = expectThrows(IOException.class, () -> templateQueryBuilder.doRewrite(queryRewriteContext));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> templateQueryBuilder.doRewrite(queryRewriteContext)
+        );
         assertTrue(exception.getMessage().contains("Failed to rewrite template query"));
     }
 
@@ -640,7 +652,7 @@ public class TemplateQueryBuilderTests extends OpenSearchTestCase {
         Map<String, Object> template = new HashMap<>();
         Map<String, Object> terms = new HashMap<>();
 
-        terms.put("message", "${malformed_variable}");
+        terms.put("message", "${response}");
         template.put("terms", terms);
         TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(template);
 
@@ -651,8 +663,68 @@ public class TemplateQueryBuilderTests extends OpenSearchTestCase {
 
         when(queryRewriteContext.getContextVariables()).thenReturn(contextVariables);
 
-        IOException exception = expectThrows(IOException.class, () -> templateQueryBuilder.doRewrite(queryRewriteContext));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> templateQueryBuilder.doRewrite(queryRewriteContext)
+        );
+
         assertTrue(exception.getMessage().contains("Failed to rewrite template query"));
+    }
+
+    /**
+     * Tests the doRewrite method with a variable not found.
+     * Verifies that an IOException is thrown when a malformed variable is used.
+     */
+    public void testDoRewriteWithNotFoundVariableSubstitution() throws IOException {
+
+        Map<String, Object> template = new HashMap<>();
+        Map<String, Object> term = new HashMap<>();
+        Map<String, Object> message = new HashMap<>();
+
+        message.put("value", "${response}");
+        term.put("message", message);
+        template.put("term", term);
+        TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(template);
+
+        QueryCoordinatorContext queryRewriteContext = mockQueryRewriteContext();
+
+        Map<String, Object> contextVariables = new HashMap<>();
+        contextVariables.put("response1", "foo");
+        when(queryRewriteContext.getContextVariables()).thenReturn(contextVariables);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> templateQueryBuilder.doRewrite(queryRewriteContext)
+        );
+        assertTrue(exception.getMessage().contains("Variable not found"));
+    }
+
+    /**
+     * Tests the doRewrite method of TemplateQueryBuilder with a missing bracket variable.
+     * Verifies that the exception is thrown
+     */
+    public void testDoRewriteWithMissingBracketVariable() throws IOException {
+
+        Map<String, Object> template = new HashMap<>();
+        Map<String, Object> term = new HashMap<>();
+        Map<String, Object> message = new HashMap<>();
+
+        message.put("value", "${response");
+        term.put("message", message);
+        template.put("term", term);
+        TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(template);
+
+        QueryCoordinatorContext queryRewriteContext = mockQueryRewriteContext();
+
+        Map<String, Object> contextVariables = new HashMap<>();
+        contextVariables.put("response", "foo");
+        when(queryRewriteContext.getContextVariables()).thenReturn(contextVariables);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> templateQueryBuilder.doRewrite(queryRewriteContext)
+        );
+        assertTrue(exception.getMessage().contains("Unclosed variable in template"));
     }
 
     /**
