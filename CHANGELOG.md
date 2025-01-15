@@ -40,7 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-storage-blob` from 12.23.0 to 12.28.1 ([#16501](https://github.com/opensearch-project/OpenSearch/pull/16501))
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.0 to 3.4.1 ([#16550](https://github.com/opensearch-project/OpenSearch/pull/16550))
 - Bump `org.apache.xmlbeans:xmlbeans` from 5.2.1 to 5.3.0 ([#16612](https://github.com/opensearch-project/OpenSearch/pull/16612), [#16854](https://github.com/opensearch-project/OpenSearch/pull/16854))
-- Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 9.47 ([#16611](https://github.com/opensearch-project/OpenSearch/pull/16611), [#16807](https://github.com/opensearch-project/OpenSearch/pull/16807))
+- Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 10.0.1 ([#16611](https://github.com/opensearch-project/OpenSearch/pull/16611), [#16807](https://github.com/opensearch-project/OpenSearch/pull/16807), [#17011](https://github.com/opensearch-project/OpenSearch/pull/17011))
 - Bump `lycheeverse/lychee-action` from 2.0.2 to 2.2.0 ([#16610](https://github.com/opensearch-project/OpenSearch/pull/16610), [#16897](https://github.com/opensearch-project/OpenSearch/pull/16897))
 - Bump `me.champeau.gradle.japicmp` from 0.4.4 to 0.4.5 ([#16614](https://github.com/opensearch-project/OpenSearch/pull/16614))
 - Bump `mockito` from 5.14.1 to 5.14.2, `objenesis` from 3.2 to 3.3 and `bytebuddy` from 1.15.4 to 1.15.10 ([#16655](https://github.com/opensearch-project/OpenSearch/pull/16655))
