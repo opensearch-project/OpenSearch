@@ -70,9 +70,6 @@ dependencies {
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
 
-  // TODO: need to move to proper packages under libs
-  implementation group: 'org.apache.commons', name: 'commons-text', version: '1.10.0'
-  api 'org.apache.commons:commons-lang3:3.17.0'
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 

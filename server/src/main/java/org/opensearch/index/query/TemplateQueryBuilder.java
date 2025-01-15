@@ -8,7 +8,6 @@
 
 package org.opensearch.index.query;
 
-import org.apache.commons.text.StringSubstitutor;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -79,7 +78,9 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        throw new IllegalStateException("Template query should run with a request processor that produces a pipelineContext.");
+        throw new IllegalStateException(
+            "Template queries cannot be converted directly to a query. Template Query must be rewritten first during doRewrite."
+        );
     }
 
     @Override
@@ -109,21 +110,21 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     /**
      * Rewrites the template query by substituting variables from the context.
      *
-     * @param queryShardContext The context for query rewriting.
+     * @param queryCoordinatorContext The context for query rewriting.
      * @return A rewritten QueryBuilder.
      * @throws IOException If there's an error during rewriting.
      */
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryCoordinatorContext queryCoordinatorContext = queryShardContext.convertToCoordinatorContext();
-
-        if (queryCoordinatorContext == null) {
-            throw new IllegalStateException("Template query needs to be resolved with variables from search processors.");
+    protected QueryBuilder doRewrite(QueryRewriteContext queryCoordinatorContext) throws IOException {
+        // the queryRewrite is expected at QueryCoordinator level
+        if (!(queryCoordinatorContext instanceof QueryCoordinatorContext)) {
+            throw new IllegalStateException(
+                "Template Query must be rewritten at the coordinator node. Rewriting at shard level is not supported."
+            );
         }
 
-        QueryCoordinatorContext queryCoordinateContext = (QueryCoordinatorContext) queryShardContext;
-
-        Map<String, Object> contextVariables = queryCoordinateContext.getContextVariables();
+        QueryCoordinatorContext convertedQueryCoordinateContext = (QueryCoordinatorContext) queryCoordinatorContext;
+        Map<String, Object> contextVariables = convertedQueryCoordinateContext.getContextVariables();
         String queryString;
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -140,12 +141,11 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
             }
         }));
 
-        StringSubstitutor substitutor = new StringSubstitutor(variablesMap).setVariablePrefix("\"${").setVariableSuffix("}\"");
-        String newQueryContent = substitutor.replace(queryString);
+        String newQueryContent = replaceVariables(queryString, variablesMap);
 
         try {
             XContentParser parser = XContentType.JSON.xContent()
-                .createParser(queryShardContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, newQueryContent);
+                .createParser(queryCoordinatorContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, newQueryContent);
 
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
 
@@ -157,4 +157,30 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
             throw new IllegalArgumentException("Failed to rewrite template query: " + newQueryContent, e);
         }
     }
+
+    private String replaceVariables(String template, Map<String, String> variables) {
+        StringBuilder result = new StringBuilder();
+        int start = 0;
+        while (true) {
+            int startVar = template.indexOf("\"${", start);
+            if (startVar == -1) {
+                result.append(template.substring(start));
+                break;
+            }
+            result.append(template, start, startVar);
+            int endVar = template.indexOf("}\"", startVar);
+            if (endVar == -1) {
+                throw new IllegalArgumentException("Unclosed variable in template: " + template.substring(startVar));
+            }
+            String varName = template.substring(startVar + 3, endVar);
+            String replacement = variables.get(varName);
+            if (replacement == null) {
+                throw new IllegalArgumentException("Variable not found: " + varName);
+            }
+            result.append(replacement);
+            start = endVar + 2;
+        }
+        return result.toString();
+    }
+
 }
