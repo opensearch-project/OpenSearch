@@ -57,7 +57,7 @@ public class ReactorNetty4Plugin extends Plugin implements NetworkPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(/* no setting registered since we're picking the onces from Netty 4 transport */);
+        return Arrays.asList(ReactorNetty4HttpServerTransport.SETTING_H2C_MAX_CONTENT_LENGTH);
     }
 
     /**
