@@ -89,6 +89,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -2171,7 +2172,7 @@ public final class InternalTestCluster extends TestCluster {
             return client.admin().cluster().prepareState().get().getState().nodes().getClusterManagerNode().getName();
         } catch (Exception e) {
             logger.warn("Can't fetch cluster state", e);
-            throw new RuntimeException("Can't get cluster-manager node " + e.getMessage(), e);
+            throw new ClusterManagerNotDiscoveredException(e);
         }
     }
 
