@@ -49,6 +49,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "wildcard");
+        b.field("doc_values", false);
     }
 
     @Override
@@ -59,7 +60,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("normalizer", b -> b.field("normalizer", "lowercase"));
-        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerConflictCheck("doc_values", fieldMapping(this::minimalMapping), fieldMapping(xcb -> {
+            xcb.field("type", "wildcard");
+            xcb.field("doc_values", true);
+        }));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((WildcardFieldMapper) m).ignoreAbove()));
     }
