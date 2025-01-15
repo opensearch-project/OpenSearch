@@ -150,6 +150,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
         private final TieredSpilloverCacheStatsHolder statsHolder;
 
+        private final long onHeapCacheMaxWeight;
+        private final long diskCacheMaxWeight;
+
         /**
          * This map is used to handle concurrent requests for same key in computeIfAbsent() to ensure we load the value
          * only once.
@@ -218,6 +221,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             cacheListMap.put(diskCache, new TierInfo(isDiskCacheEnabled, TIER_DIMENSION_VALUE_DISK));
             this.caches = Collections.synchronizedMap(cacheListMap);
             this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
+            this.onHeapCacheMaxWeight = onHeapCacheSizeInBytes;
+            this.diskCacheMaxWeight = diskCacheSizeInBytes;
         }
 
         // Package private for testing
@@ -524,6 +529,16 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, destinationTierValue);
             statsHolder.incrementItems(dimensionValues);
             statsHolder.incrementSizeInBytes(dimensionValues, weigher.applyAsLong(key, value));
+        }
+
+        // pkg-private for testing
+        long getOnHeapCacheMaxWeight() {
+            return onHeapCacheMaxWeight;
+        }
+
+        // pkg-private for testing
+        long getDiskCacheMaxWeight() {
+            return diskCacheMaxWeight;
         }
 
         /**
