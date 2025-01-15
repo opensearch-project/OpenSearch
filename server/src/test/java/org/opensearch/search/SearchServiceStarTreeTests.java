@@ -31,7 +31,7 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.search.startree.StarTreeQueryContext;
+import org.opensearch.search.startree.OlderStarTreeQueryContext;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
@@ -90,7 +90,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             CompositeMappedFieldType.CompositeFieldType.STAR_TREE
         );
         Map<String, Long> expectedQueryMap = null;
-        assertStarTreeContext(request, sourceBuilder, new StarTreeQueryContext(expectedStarTree, expectedQueryMap, -1), -1);
+        assertStarTreeContext(request, sourceBuilder, new OlderStarTreeQueryContext(expectedStarTree, expectedQueryMap, -1), -1);
 
         // Case 4: MatchAllQuery and aggregations present, but postFilter specified, should not use star tree
         sourceBuilder = new SearchSourceBuilder().size(0)
@@ -104,7 +104,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .query(new TermQueryBuilder("sndv", 1))
             .aggregation(AggregationBuilders.max("test").field("field"));
         expectedQueryMap = Map.of("sndv", 1L);
-        assertStarTreeContext(request, sourceBuilder, new StarTreeQueryContext(expectedStarTree, expectedQueryMap, -1), -1);
+        assertStarTreeContext(request, sourceBuilder, new OlderStarTreeQueryContext(expectedStarTree, expectedQueryMap, -1), -1);
 
         // Case 6: TermQuery and multiple aggregations present, should use star tree & initialize cache
         sourceBuilder = new SearchSourceBuilder().size(0)
@@ -112,11 +112,11 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .aggregation(AggregationBuilders.max("test").field("field"))
             .aggregation(AggregationBuilders.sum("test2").field("field"));
         expectedQueryMap = Map.of("sndv", 1L);
-        assertStarTreeContext(request, sourceBuilder, new StarTreeQueryContext(expectedStarTree, expectedQueryMap, 0), 0);
+        assertStarTreeContext(request, sourceBuilder, new OlderStarTreeQueryContext(expectedStarTree, expectedQueryMap, 0), 0);
 
         // Case 7: No query, metric aggregations present, should use star tree
         sourceBuilder = new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.max("test").field("field"));
-        assertStarTreeContext(request, sourceBuilder, new StarTreeQueryContext(expectedStarTree, null, -1), -1);
+        assertStarTreeContext(request, sourceBuilder, new OlderStarTreeQueryContext(expectedStarTree, null, -1), -1);
 
         setStarTreeIndexSetting(null);
     }
@@ -132,14 +132,14 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     private void assertStarTreeContext(
         ShardSearchRequest request,
         SearchSourceBuilder sourceBuilder,
-        StarTreeQueryContext expectedContext,
+        OlderStarTreeQueryContext expectedContext,
         int expectedCacheUsage
     ) throws IOException {
         request.source(sourceBuilder);
         SearchService searchService = getInstanceFromNode(SearchService.class);
         try (ReaderContext reader = searchService.createOrGetReaderContext(request, false)) {
             SearchContext context = searchService.createContext(reader, request, null, true);
-            StarTreeQueryContext actualContext = context.getStarTreeQueryContext();
+            OlderStarTreeQueryContext actualContext = context.getStarTreeQueryContext();
 
             if (expectedContext == null) {
                 assertThat(context.getStarTreeQueryContext(), nullValue());

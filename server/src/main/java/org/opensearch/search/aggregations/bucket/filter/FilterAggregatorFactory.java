@@ -98,7 +98,6 @@ public class FilterAggregatorFactory extends AggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        System.out.println("StarTreeQueryContext is " + searchContext.getStarTreeQueryContext() + " for agg [" + name + "] filter [" + filter + "]");
         return new FilterAggregator(name, this::getWeight, factories, searchContext, parent, cardinality, metadata);
     }
 

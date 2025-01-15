@@ -33,12 +33,12 @@ import org.opensearch.index.codec.composite.composite101.Composite101Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.startree.OlderStarTreeFilter;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.junit.After;
 import org.junit.Before;
 

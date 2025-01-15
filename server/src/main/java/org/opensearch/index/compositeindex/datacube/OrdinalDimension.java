@@ -9,12 +9,8 @@
 package org.opensearch.index.compositeindex.datacube;
 
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 
 import java.io.IOException;
@@ -60,20 +56,6 @@ public class OrdinalDimension implements Dimension {
     @Override
     public DocValuesType getDocValuesType() {
         return DocValuesType.SORTED_SET;
-    }
-
-    @Override
-    public long convertToOrdinal(Object rawValue, StarTreeValues starTreeValues) {
-        StarTreeValuesIterator genericIterator = starTreeValues.getDimensionValuesIterator(field);
-        if (genericIterator instanceof SortedSetStarTreeValuesIterator) {
-            try {
-                return ((SortedSetStarTreeValuesIterator) genericIterator).lookupTerm((BytesRef) rawValue);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            throw new IllegalArgumentException("Unsupported star tree values iterator " + genericIterator.getClass().getName());
-        }
     }
 
     @Override

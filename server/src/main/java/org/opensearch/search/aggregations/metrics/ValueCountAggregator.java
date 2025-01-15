@@ -39,7 +39,6 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -49,6 +48,7 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.Map;

@@ -11,9 +11,6 @@ package org.opensearch.index.compositeindex.datacube;
 import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 
 import java.io.IOException;
@@ -57,16 +54,6 @@ public class NumericDimension implements Dimension {
     @Override
     public DocValuesType getDocValuesType() {
         return DocValuesType.SORTED_NUMERIC;
-    }
-
-    @Override
-    public long convertToOrdinal(Object rawValue, StarTreeValues starTreeValues) {
-        StarTreeValuesIterator genericIterator = starTreeValues.getDimensionValuesIterator(field);
-        if (genericIterator instanceof SortedNumericStarTreeValuesIterator) {
-            return Long.parseLong(rawValue.toString());
-        } else {
-            throw new IllegalArgumentException("Unsupported star tree values iterator " + genericIterator.getClass().getName());
-        }
     }
 
     @Override

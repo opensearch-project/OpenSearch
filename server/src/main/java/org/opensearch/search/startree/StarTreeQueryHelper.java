@@ -29,6 +29,7 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.Star
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.LeafBucketCollector;
@@ -70,7 +71,8 @@ public class StarTreeQueryHelper {
      * Gets StarTreeQueryContext from the search context and source builder.
      * Returns null if the query and aggregation cannot be supported.
      */
-    public static StarTreeQueryContext getStarTreeQueryContext(SearchContext context, SearchSourceBuilder source) throws IOException {
+    public static OlderStarTreeQueryContext getOlderStarTreeQueryContext(SearchContext context, SearchSourceBuilder source)
+        throws IOException {
         // Current implementation assumes only single star-tree is supported
         CompositeDataCubeFieldType compositeMappedFieldType = (CompositeDataCubeFieldType) context.mapperService()
             .getCompositeFieldTypes()
@@ -98,7 +100,7 @@ public class StarTreeQueryHelper {
     /**
      * Uses query builder and composite index info to form star-tree query context
      */
-    private static StarTreeQueryContext tryCreateStarTreeQueryContext(
+    private static OlderStarTreeQueryContext tryCreateStarTreeQueryContext(
         CompositeIndexFieldInfo compositeIndexFieldInfo,
         CompositeDataCubeFieldType compositeFieldType,
         QueryBuilder queryBuilder,
@@ -125,7 +127,7 @@ public class StarTreeQueryHelper {
         } else {
             return null;
         }
-        return new StarTreeQueryContext(compositeIndexFieldInfo, queryMap, cacheStarTreeValuesSize);
+        return new OlderStarTreeQueryContext(compositeIndexFieldInfo, queryMap, cacheStarTreeValuesSize);
     }
 
     /**
@@ -167,9 +169,14 @@ public class StarTreeQueryHelper {
         return null;
     }
 
-    public static CompositeIndexFieldInfo getSupportedStarTree(SearchContext context) {
+    public static CompositeIndexFieldInfo getSupportedStarTree2(QueryShardContext context) {
         StarTreeQueryContext starTreeQueryContext = context.getStarTreeQueryContext();
         return (starTreeQueryContext != null) ? starTreeQueryContext.getStarTree() : null;
+    }
+
+    public static CompositeIndexFieldInfo getSupportedStarTree(SearchContext context) {
+        OlderStarTreeQueryContext olderStarTreeQueryContext = context.getStarTreeQueryContext();
+        return (olderStarTreeQueryContext != null) ? olderStarTreeQueryContext.getStarTree() : null;
     }
 
     public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
@@ -246,15 +253,20 @@ public class StarTreeQueryHelper {
      */
     public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues)
         throws IOException {
-        FixedBitSet result = context.getStarTreeQueryContext().getStarTreeValues(ctx);
-        if (result == null) {
-            result = OlderStarTreeFilter.getStarTreeResult(starTreeValues, context.getStarTreeQueryContext().getQueryMap());
-            context.getStarTreeQueryContext().setStarTreeValues(ctx, result);
-        }
-        return result;
+        // TODO : Uncomment and implement caching in new STQC
+        // FixedBitSet result = context.getStarTreeQueryContext().getStarTreeValues(ctx);
+        // if (result == null) {
+        return OlderStarTreeFilter.getStarTreeResult2(
+            starTreeValues,
+            context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter()
+        );
+        // context.getStarTreeQueryContext().setStarTreeValues(ctx, result);
+        // }
+        // return result;
     }
 
-    public static Set<Integer> traverseStarTree(StarTreeValues starTreeValues, Map<String, List<DimensionFilter>> dimensionFilterMap) throws IOException {
+    public static Set<Integer> traverseStarTree(StarTreeValues starTreeValues, Map<String, List<DimensionFilter>> dimensionFilterMap)
+        throws IOException {
 
         Map<String, Integer> dimensionNameToDimIdMap = new HashMap<>();
         int ctr = 0;
@@ -293,13 +305,13 @@ public class StarTreeQueryHelper {
             }).collect(Collectors.toList());
             matchingNodes.clear(); // These will contain the matching nodes from next ordered dimension.
             for (StarTreeNode effectiveParentStarTreeNode : effectiveParentStarTreeNodes) {
-                if (effectiveParentStarTreeNode.isLeaf()) {
+                if (effectiveParentStarTreeNode.getDimensionId() == -1 || effectiveParentStarTreeNode.isLeaf()) {
                     unmatchedDocIdSets.add(new UnMatchedDocIdSet(currentDimId, effectiveParentStarTreeNode));
                     // TODO : Record unmatched dimensions for matching via dimension value iterator
                     continue;
                 }
                 for (DimensionFilter dimensionFilter : dimensionFilterMap.get(currentDimName)) {
-                    dimensionFilter.matchStarTreeNodes(effectiveParentStarTreeNode, starTreeValues, matchingNodes);
+                    // dimensionFilter.matchStarTreeNodes(effectiveParentStarTreeNode, starTreeValues, matchingNodes);
                 }
             }
             dimensionIndexToMatch++;
@@ -326,7 +338,7 @@ public class StarTreeQueryHelper {
                         long value = dimValueWrapper.value(docIdToCheck);
                         for (DimensionFilter dimensionFilter : dimensionFilterMap.get(dimension.getField())) {
                             // Change this if multivalued fields are supported in Star Tree.
-                            if(dimensionFilter.matchDimValue(value, starTreeValues)) {
+                            if (dimensionFilter.matchDimValue(value, starTreeValues)) {
                                 matchingDocIds.add(docIdToCheck);
                                 break; // Match at least one filter.
                             }
@@ -352,6 +364,7 @@ public class StarTreeQueryHelper {
 
         private final int minDimensionIdUnMatched;
 
+        // TODO : Just record start and end
         private final List<Integer> unmatchedDocIds;
 
         public UnMatchedDocIdSet(int minDimensionIdUnMatched, StarTreeNode unmatchedNode) throws IOException {

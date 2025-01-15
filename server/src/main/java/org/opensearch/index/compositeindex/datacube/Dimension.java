@@ -11,7 +11,6 @@ package org.opensearch.index.compositeindex.datacube;
 import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -46,9 +45,5 @@ public interface Dimension extends ToXContent {
     List<String> getSubDimensionNames();
 
     DocValuesType getDocValuesType();
-
-    default long convertToOrdinal(Object rawValue, StarTreeValues starTreeValues) {
-        throw new UnsupportedOperationException();
-    }
 
 }

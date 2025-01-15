@@ -8,12 +8,15 @@
 
 package org.opensearch.search.startree;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+@ExperimentalApi
 public class StarTreeFilter {
 
     private final Map<String, List<DimensionFilter>> dimensionFilterMap;
@@ -32,15 +35,15 @@ public class StarTreeFilter {
 
     /**
      *
-     * @param starTreeFilter
+     * @param other
      * @return : true, if merging was successful false otherwise.
      */
-    public boolean mergeStarTreeFilter(StarTreeFilter starTreeFilter) {
+    public boolean mergeStarTreeFilter(StarTreeFilter other) {
         Set<String> newDimsFromOther = new HashSet<>();
         Map<String, List<DimensionFilter>> newMergedDimensionFilterMap = new HashMap<>();
-        for (String dimension : starTreeFilter.getDimensions()) {
+        for (String dimension : other.getDimensions()) {
             if (dimensionFilterMap.containsKey(dimension)) {
-                List<DimensionFilter> mergedDimFilters = mergeDimensionFilters(dimension, starTreeFilter);
+                List<DimensionFilter> mergedDimFilters = mergeDimensionFilters(dimension, other);
                 if (mergedDimFilters != null) {
                     newMergedDimensionFilterMap.put(dimension, mergedDimFilters);
                 } else {
@@ -51,7 +54,7 @@ public class StarTreeFilter {
             }
         }
         for (String newDim : newDimsFromOther) {
-            dimensionFilterMap.put(newDim, starTreeFilter.getFiltersForDimension(newDim));
+            dimensionFilterMap.put(newDim, other.getFiltersForDimension(newDim));
         }
         for (String mergedDim : newMergedDimensionFilterMap.keySet()) {
             dimensionFilterMap.put(mergedDim, newMergedDimensionFilterMap.get(mergedDim));

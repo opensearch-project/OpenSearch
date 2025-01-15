@@ -39,7 +39,6 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -49,11 +48,12 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree2;
 
 /**
  * Aggregate all docs into a single sum value
@@ -96,7 +96,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree2(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             return getStarTreeCollector(ctx, sub, supportedStarTree);
         }
