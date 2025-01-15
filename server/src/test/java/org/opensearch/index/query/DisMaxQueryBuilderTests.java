@@ -106,7 +106,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
             + "}";
         Query query = parseQuery(queryAsString).toQuery(createShardContext());
         Query expected = new DisjunctionMaxQuery(
-            List.of(new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh"), MultiTermQuery.CONSTANT_SCORE_REWRITE), 1.2f)),
+            List.of(new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE), 1.2f)),
             0
         );
         assertEquals(expected, query);

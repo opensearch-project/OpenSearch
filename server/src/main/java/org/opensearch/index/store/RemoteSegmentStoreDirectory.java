@@ -494,6 +494,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Opens a stream for reading an existing file and returns {@link RemoteIndexInput} enclosing the stream.
      *
      * @param name the name of an existing file.
+     * @param context desired {@link IOContext} context
      * @throws IOException         in case of I/O error
      * @throws NoSuchFileException if the file does not exist either in cache or remote segment store
      */
@@ -503,6 +504,28 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         long fileLength = fileLength(name);
         if (remoteFilename != null) {
             return remoteDataDirectory.openInput(remoteFilename, fileLength, context);
+        } else {
+            throw new NoSuchFileException(name);
+        }
+    }
+
+    /**
+     * Opens a stream for reading one block from the existing file and returns {@link RemoteIndexInput} enclosing
+     * the block stream.
+     * @param name the name of an existing file.
+     * @param position block start position
+     * @param length block length
+     * @param context desired {@link IOContext} context
+     * @return the {@link RemoteIndexInput} enclosing the block stream
+     * @throws IOException in case of I/O error
+     * @throws NoSuchFileException if the file does not exist
+     */
+
+    public IndexInput openBlockInput(String name, long position, long length, IOContext context) throws IOException {
+        String remoteFilename = getExistingRemoteFilename(name);
+        long fileLength = fileLength(name);
+        if (remoteFilename != null) {
+            return remoteDataDirectory.openBlockInput(remoteFilename, position, length, fileLength, context);
         } else {
             throw new NoSuchFileException(name);
         }

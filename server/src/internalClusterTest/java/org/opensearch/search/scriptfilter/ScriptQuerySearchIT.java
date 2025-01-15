@@ -94,18 +94,18 @@ public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIn
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("doc['num1'].value", vars -> {
+            scripts.put("doc['num1'].value()", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 return doc.get("num1");
             });
 
-            scripts.put("doc['num1'].value > 1", vars -> {
+            scripts.put("doc['num1'].value() > 1", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
                 return num1.getValue() > 1;
             });
 
-            scripts.put("doc['num1'].value > param1", vars -> {
+            scripts.put("doc['num1'].value() > param1", vars -> {
                 Integer param1 = (Integer) vars.get("param1");
 
                 Map<?, ?> doc = (Map) vars.get("doc");
@@ -167,7 +167,7 @@ public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIn
             )
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(0).getFields().get("sbinaryData").getValues().get(0), equalTo(16));
 
@@ -210,14 +210,16 @@ public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIn
         refresh();
         indexRandomForConcurrentSearch("test");
 
-        logger.info("running doc['num1'].value > 1");
+        logger.info("running doc['num1'].value() > 1");
         SearchResponse response = client().prepareSearch()
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap())))
+            .setQuery(
+                scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value() > 1", Collections.emptyMap()))
+            )
             .addSort("num1", SortOrder.ASC)
-            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value()", Collections.emptyMap()))
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(1).getId(), equalTo("3"));
@@ -226,14 +228,14 @@ public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIn
         Map<String, Object> params = new HashMap<>();
         params.put("param1", 2);
 
-        logger.info("running doc['num1'].value > param1");
+        logger.info("running doc['num1'].value() > param1");
         response = client().prepareSearch()
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", params)))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value() > param1", params)))
             .addSort("num1", SortOrder.ASC)
-            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value()", Collections.emptyMap()))
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
         assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
 
@@ -241,12 +243,12 @@ public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIn
         params.put("param1", -1);
         logger.info("running doc['num1'].value > param1");
         response = client().prepareSearch()
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", params)))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value() > param1", params)))
             .addSort("num1", SortOrder.ASC)
-            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value()", Collections.emptyMap()))
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(1.0));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
@@ -266,7 +268,7 @@ public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIn
             indexRandomForConcurrentSearch("test-index");
 
             // Execute with search.allow_expensive_queries = null => default value = false => success
-            Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap());
+            Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value() > 1", Collections.emptyMap());
             SearchResponse resp = client().prepareSearch("test-index").setQuery(scriptQuery(script)).get();
             assertNoFailures(resp);
 

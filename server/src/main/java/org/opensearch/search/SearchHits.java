@@ -219,12 +219,12 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         builder.startObject(Fields.HITS);
         boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
         if (totalHitAsInt) {
-            long total = totalHits == null ? -1 : totalHits.value;
+            long total = totalHits == null ? -1 : totalHits.value();
             builder.field(Fields.TOTAL, total);
         } else if (totalHits != null) {
             builder.startObject(Fields.TOTAL);
-            builder.field("value", totalHits.value);
-            builder.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
+            builder.field("value", totalHits.value());
+            builder.field("relation", totalHits.relation() == Relation.EQUAL_TO ? "eq" : "gte");
             builder.endObject();
         }
         if (Float.isNaN(maxScore)) {

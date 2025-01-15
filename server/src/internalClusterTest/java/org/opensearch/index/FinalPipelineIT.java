@@ -140,7 +140,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         SearchResponse target = client().prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
+        assertEquals(1, target.getHits().getTotalHits().value());
         assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
     }
 
@@ -170,7 +170,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         SearchResponse target = client().prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
+        assertEquals(1, target.getHits().getTotalHits().value());
         assertEquals(true, target.getHits().getAt(0).getSourceAsMap().get("final"));
     }
 
@@ -200,7 +200,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         SearchResponse target = client().prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
+        assertEquals(1, target.getHits().getTotalHits().value());
         assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
     }
 

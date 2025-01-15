@@ -85,6 +85,7 @@ public class SecurityTests extends OpenSearchTestCase {
         } catch (SecurityException expected) {}
     }
 
+    @SuppressWarnings("removal")
     public void testReadPolicyWithCodebases() throws IOException {
         final Map<String, URL> codebases = Map.of(
             "test-netty-tcnative-boringssl-static-2.0.61.Final-linux-x86_64.jar",

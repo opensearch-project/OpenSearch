@@ -37,6 +37,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
@@ -422,6 +423,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
+            MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
             // TODO: Not sure if we can reasonably describe a fuzzy query in terms of n-grams without exploding the cardinality
@@ -449,7 +451,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 finalValue = value;
             }
             Predicate<String> matchPredicate;
-            Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), finalValue));
+            Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), finalValue), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
             if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.SINGLE) {
                 // when type equals SINGLE, #compiledAutomaton.runAutomaton is null
@@ -614,7 +616,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             final boolean caseInsensitive = matchFlags == RegExp.ASCII_CASE_INSENSITIVE;
 
             RegExp regExp = new RegExp(finalValue, syntaxFlags, matchFlags);
-            Automaton automaton = regExp.toAutomaton(maxDeterminizedStates);
+            Automaton automaton = Operations.determinize(regExp.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
 
             Predicate<String> regexpPredicate;
@@ -705,7 +707,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     return new MatchAllDocsQuery();
                 }
             if (query.clauses().size() == 1) {
-                return query.iterator().next().getQuery();
+                return query.iterator().next().query();
             } else if (query.clauses().size() == 0) {
                 return new MatchAllDocsQuery();
             }
@@ -863,17 +865,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             Weight firstPhaseWeight = firstPhaseQuery.createWeight(searcher, scoreMode, boost);
             return new ConstantScoreWeight(this, boost) {
                 @Override
-                public Scorer scorer(LeafReaderContext leafReaderContext) throws IOException {
-                    ScorerSupplier supplier = scorerSupplier(leafReaderContext);
-                    if (supplier == null) {
-                        return null;
-                    }
-                    return supplier.get(Long.MAX_VALUE);
-                }
-
-                @Override
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                    Weight weight = this;
                     ScorerSupplier firstPhaseSupplier = firstPhaseWeight.scorerSupplier(context);
                     if (firstPhaseSupplier == null) {
                         return null;
@@ -904,7 +896,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                                     return MATCH_COST_ESTIMATE;
                                 }
                             };
-                            return new ConstantScoreScorer(weight, score(), scoreMode, twoPhaseIterator);
+                            return new ConstantScoreScorer(score(), scoreMode, twoPhaseIterator);
                         }
 
                         @Override
