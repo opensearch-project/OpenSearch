@@ -10,7 +10,6 @@ package org.opensearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.ClusterInfo;
@@ -53,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING;
@@ -437,10 +437,51 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         TestThreadPool threadPool = new TestThreadPool(getTestName());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
         final CountDownLatch rerouteLatch = new CountDownLatch(2);
+        final AtomicBoolean primary = new AtomicBoolean(true);
         final RerouteService rerouteService = (reason, priority, listener) -> {
             listener.onResponse(clusterService.state());
             assertThat(rerouteLatch.getCount(), greaterThanOrEqualTo(0L));
-            assertEquals("reroute after existing shards allocator timed out", reason);
+            if (primary.get()) {
+                assertEquals("reroute after existing shards allocator [P] timed out", reason);
+            } else {
+                assertEquals("reroute after existing shards allocator [R] timed out", reason);
+            }
+            assertEquals(Priority.NORMAL, priority);
+            rerouteLatch.countDown();
+        };
+        CountDownLatch timedOutShardsLatch = new CountDownLatch(20);
+        testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(timedOutShardsLatch, 1000, rerouteService);
+        testShardsBatchGatewayAllocator.setPrimaryBatchAllocatorTimeout(TimeValue.ZERO);
+        testShardsBatchGatewayAllocator.setReplicaBatchAllocatorTimeout(TimeValue.ZERO);
+        testShardsBatchGatewayAllocator.setFollowUpRerouteTaskPriority(Priority.NORMAL);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, primary.get());
+        executor.run();
+        assertEquals(timedOutShardsLatch.getCount(), 10);
+        assertEquals(1, rerouteLatch.getCount());
+        primary.set(false);
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, primary.get());
+        executor.run();
+        assertEquals(timedOutShardsLatch.getCount(), 0);
+        assertEquals(0, rerouteLatch.getCount()); // even with failure it doesn't leak any listeners
+        final boolean terminated = terminate(threadPool);
+        assert terminated;
+        clusterService.close();
+    }
+
+    public void testCollectTimedOutShardsAndScheduleRerouteWithHighPriority_Success() throws InterruptedException {
+        createIndexAndUpdateClusterState(2, 5, 2);
+        TestThreadPool threadPool = new TestThreadPool(getTestName());
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
+        final CountDownLatch rerouteLatch = new CountDownLatch(2);
+        final AtomicBoolean primary = new AtomicBoolean(true);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            listener.onResponse(clusterService.state());
+            assertThat(rerouteLatch.getCount(), greaterThanOrEqualTo(0L));
+            if (primary.get()) {
+                assertEquals("reroute after existing shards allocator [P] timed out", reason);
+            } else {
+                assertEquals("reroute after existing shards allocator [R] timed out", reason);
+            }
             assertEquals(Priority.HIGH, priority);
             rerouteLatch.countDown();
         };
@@ -448,11 +489,13 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(timedOutShardsLatch, 1000, rerouteService);
         testShardsBatchGatewayAllocator.setPrimaryBatchAllocatorTimeout(TimeValue.ZERO);
         testShardsBatchGatewayAllocator.setReplicaBatchAllocatorTimeout(TimeValue.ZERO);
-        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        testShardsBatchGatewayAllocator.setFollowUpRerouteTaskPriority(Priority.HIGH);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, primary.get());
         executor.run();
         assertEquals(timedOutShardsLatch.getCount(), 10);
         assertEquals(1, rerouteLatch.getCount());
-        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
+        primary.set(false);
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, primary.get());
         executor.run();
         assertEquals(timedOutShardsLatch.getCount(), 0);
         assertEquals(0, rerouteLatch.getCount()); // even with failure it doesn't leak any listeners
@@ -466,28 +509,64 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         TestThreadPool threadPool = new TestThreadPool(getTestName());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
         final CountDownLatch rerouteLatch = new CountDownLatch(2);
+        final AtomicBoolean primary = new AtomicBoolean(true);
         final RerouteService rerouteService = (reason, priority, listener) -> {
-            listener.onFailure(new OpenSearchException("simulated"));
+            listener.onResponse(clusterService.state());
             assertThat(rerouteLatch.getCount(), greaterThanOrEqualTo(0L));
-            assertEquals("reroute after existing shards allocator timed out", reason);
-            assertEquals(Priority.HIGH, priority);
+            if (primary.get()) {
+                assertEquals("reroute after existing shards allocator [P] timed out", reason);
+            } else {
+                assertEquals("reroute after existing shards allocator [R] timed out", reason);
+            }
+            assertEquals(Priority.NORMAL, priority);
             rerouteLatch.countDown();
         };
         CountDownLatch timedOutShardsLatch = new CountDownLatch(20);
         testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(timedOutShardsLatch, 1000, rerouteService);
         testShardsBatchGatewayAllocator.setPrimaryBatchAllocatorTimeout(TimeValue.ZERO);
         testShardsBatchGatewayAllocator.setReplicaBatchAllocatorTimeout(TimeValue.ZERO);
-        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        testShardsBatchGatewayAllocator.setFollowUpRerouteTaskPriority(Priority.NORMAL);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, primary.get());
         executor.run();
         assertEquals(timedOutShardsLatch.getCount(), 10);
         assertEquals(1, rerouteLatch.getCount());
-        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
+        primary.set(false);
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, primary.get());
         executor.run();
         assertEquals(timedOutShardsLatch.getCount(), 0);
         assertEquals(0, rerouteLatch.getCount()); // even with failure it doesn't leak any listeners
         final boolean terminated = terminate(threadPool);
         assert terminated;
         clusterService.close();
+    }
+
+    public void testFollowupPriorityValues() {
+        String settingKey = "cluster.routing.allocation.shards_batch_gateway_allocator.schedule_reroute.priority";
+        Settings build = Settings.builder().put(settingKey, "normal").build();
+        assertEquals(Priority.NORMAL, ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        build = Settings.builder().put(settingKey, "high").build();
+        assertEquals(Priority.HIGH, ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        build = Settings.builder().put(settingKey, "urgent").build();
+        assertEquals(Priority.URGENT, ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        Settings wrongPriority = Settings.builder().put(settingKey, "immediate").build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(wrongPriority)
+        );
+        assertEquals(
+            "priority [IMMEDIATE] not supported for [" + ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey() + "]",
+            iae.getMessage()
+        );
+
+        Settings wrongPriority2 = Settings.builder().put(settingKey, "random").build();
+        IllegalArgumentException iae2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(wrongPriority2)
+        );
+        assertEquals("No enum constant org.opensearch.common.Priority.RANDOM", iae2.getMessage());
     }
 
     private void createIndexAndUpdateClusterState(int count, int numberOfShards, int numberOfReplicas) {
