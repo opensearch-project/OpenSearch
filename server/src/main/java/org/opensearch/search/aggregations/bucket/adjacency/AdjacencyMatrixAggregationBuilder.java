@@ -188,7 +188,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         super(in);
         int filtersSize = in.readVInt();
         separator = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_19_0)) {
             showOnlyIntersecting = in.readBoolean();
         }
         filters = new ArrayList<>(filtersSize);
@@ -201,7 +201,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(filters.size());
         out.writeString(separator);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_19_0)) {
             out.writeBoolean(showOnlyIntersecting);
         }
         for (KeyedFilter keyedFilter : filters) {
