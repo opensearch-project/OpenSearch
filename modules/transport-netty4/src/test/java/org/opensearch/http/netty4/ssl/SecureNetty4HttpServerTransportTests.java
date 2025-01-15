@@ -15,6 +15,8 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.ssl.KeyStoreFactory;
+import org.opensearch.common.ssl.KeyStoreType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
@@ -121,13 +123,13 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
                 try {
-                    final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+                    final KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
                     keyStore.load(
-                        SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure.jks"),
+                        SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure.bcfks"),
                         "password".toCharArray()
                     );
 
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
                     keyManagerFactory.init(keyStore, "password".toCharArray());
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)

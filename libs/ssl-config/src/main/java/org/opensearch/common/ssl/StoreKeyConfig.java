@@ -51,7 +51,7 @@ import java.util.Enumeration;
 public class StoreKeyConfig implements SslKeyConfig {
     private final Path path;
     private final char[] storePassword;
-    private final String type;
+    private final KeyStoreType type;
     private final char[] keyPassword;
     private final String algorithm;
 
@@ -59,12 +59,12 @@ public class StoreKeyConfig implements SslKeyConfig {
      * @param path          The path to the keystore file
      * @param storePassword The password for the keystore
      * @param type          The {@link KeyStore#getType() type} of the keystore (typically "PKCS12" or "jks").
-     *                      See {@link KeyStoreUtil#inferKeyStoreType(Path)}.
+     *                      See {@link KeyStoreType#inferStoreType(String)}.
      * @param keyPassword   The password for the key(s) within the keystore
      *                      (see {@link javax.net.ssl.KeyManagerFactory#init(KeyStore, char[])}).
      * @param algorithm     The algorithm to use for the Key Manager (see {@link KeyManagerFactory#getAlgorithm()}).
      */
-    StoreKeyConfig(Path path, char[] storePassword, String type, char[] keyPassword, String algorithm) {
+    StoreKeyConfig(Path path, char[] storePassword, KeyStoreType type, char[] keyPassword, String algorithm) {
         this.path = path;
         this.storePassword = storePassword;
         this.type = type;
