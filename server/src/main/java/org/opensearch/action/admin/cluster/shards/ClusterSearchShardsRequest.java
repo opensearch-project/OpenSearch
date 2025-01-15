@@ -80,7 +80,7 @@ public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<Cl
         preference = in.readOptionalString();
 
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_19_0)) {
             boolean hasSlice = in.readBoolean();
             if (hasSlice) {
                 sliceBuilder = new SliceBuilder(in);
@@ -95,7 +95,7 @@ public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<Cl
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_19_0)) {
             if (sliceBuilder != null) {
                 out.writeBoolean(true);
                 sliceBuilder.writeTo(out);
