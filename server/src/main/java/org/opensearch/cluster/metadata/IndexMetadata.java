@@ -230,7 +230,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     + "]"
             );
         }
-        return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, defaultNumShards, 1, maxNumShards, Property.IndexScope, Property.Final);
+        return Setting.intSetting(
+            SETTING_NUMBER_OF_SHARDS,
+            defaultNumShards,
+            1,
+            maxNumShards,
+            Property.IndexScope,
+            Property.Final,
+            Property.UnmodifiableOnRestore
+        );
     }
 
     public static final String INDEX_SETTING_PREFIX = "index.";
@@ -270,8 +278,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         1,
         Property.IndexScope
     );
-
-    public static final String SETTING_KNN_ENABLED = "index.knn";
 
     public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = Setting.intSetting(
         "index.number_of_routing_shards",

@@ -171,7 +171,12 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Extension scope
          */
-        ExtensionScope
+        ExtensionScope,
+
+        /**
+         * Mark this setting as immutable on restore snapshot
+         */
+        UnmodifiableOnRestore
     }
 
     private final Key key;
@@ -346,6 +351,10 @@ public class Setting<T> implements ToXContentObject {
      */
     public final boolean isFinal() {
         return properties.contains(Property.Final);
+    }
+
+    public final boolean isUnmodifiableOnRestore() {
+        return properties.contains(Property.UnmodifiableOnRestore);
     }
 
     public final boolean isInternalIndex() {

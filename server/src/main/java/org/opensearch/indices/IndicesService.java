@@ -1182,6 +1182,10 @@ public class IndicesService extends AbstractLifecycleComponent
         return indicesQueryCache;
     }
 
+    public IndexScopedSettings getIndexScopedSettings() {
+        return indexScopedSettings;
+    }
+
     /**
      * Accumulate stats from the passed Object
      *
