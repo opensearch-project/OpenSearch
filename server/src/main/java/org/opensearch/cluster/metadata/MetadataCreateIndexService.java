@@ -1470,7 +1470,7 @@ public class MetadataCreateIndexService {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
         validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
         if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
-            validateAutoExpandReplicaConflictInRequest(settings).ifPresent(validationErrors::add);
+            validateAutoExpandAllowed(settings).ifPresent(validationErrors::add);
         }
         validateErrors(indexName, validationErrors);
     }
@@ -1742,12 +1742,12 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Validates that the settings do not conflict with each other.
+     * Validates that auto expand and search replicas are mutually exclusive.
      *
      * @param requestSettings settings passed in during index create request
      * @return the validation error if there is one, otherwise {@code Optional.empty()}
      */
-    public static Optional<String> validateAutoExpandReplicaConflictInRequest(Settings requestSettings) {
+    public static Optional<String> validateAutoExpandAllowed(Settings requestSettings) {
         boolean hasRequestAutoExpand = AutoExpandReplicas.SETTING.get(requestSettings).isEnabled();
         boolean hasRequestSearchReplica = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0;
         if (hasRequestAutoExpand && hasRequestSearchReplica) {
@@ -1763,17 +1763,20 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Validates that the settings do not conflict with each other.
-     * Check conflicts between request and existing settings
-     * @param requestSettings
-     * @param indexSettings
-     * @return
+     * Validates that auto expand and search replicas are mutually exclusive.
+     * It also checks conflicts between request and existing settings.
+     *
+     * @param requestSettings settings passed in during index create request
+     * @param indexSettings current indexSettings
+     * @return the validation error if there is one, otherwise {@code Optional.empty()}
      */
-    public static Optional<String> validateAutoExpandReplicaConflictWithIndex(Settings requestSettings, Settings indexSettings) {
+    public static Optional<String> validateAutoExpandAllowed(Settings requestSettings, Settings indexSettings) {
         boolean hasRequestAutoExpand = AutoExpandReplicas.SETTING.get(requestSettings).isEnabled();
         boolean hasRequestSearchReplica = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0;
         boolean hasIndexAutoExpand = AutoExpandReplicas.SETTING.get(indexSettings).isEnabled();
         boolean hasIndexSearchReplica = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(indexSettings) > 0;
+
+        validateAutoExpandAllowed(requestSettings);
 
         if (hasRequestAutoExpand && hasIndexSearchReplica) {
             return Optional.of(

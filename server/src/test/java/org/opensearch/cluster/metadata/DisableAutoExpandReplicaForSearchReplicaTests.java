@@ -24,7 +24,7 @@ public class DisableAutoExpandReplicaForSearchReplicaTests extends OpenSearchTes
 
         assertEquals(
             "Cannot set both [index.auto_expand_replicas] and [index.number_of_search_only_replicas]. These settings are mutually exclusive.",
-            MetadataCreateIndexService.validateAutoExpandReplicaConflictInRequest(conflictRequestSettings).get()
+            MetadataCreateIndexService.validateAutoExpandAllowed(conflictRequestSettings).get()
         );
     }
 
@@ -34,7 +34,7 @@ public class DisableAutoExpandReplicaForSearchReplicaTests extends OpenSearchTes
             .put("index.auto_expand_replicas", "0-all")
             .build();
 
-        assertTrue(MetadataCreateIndexService.validateAutoExpandReplicaConflictInRequest(reqestSettings).isEmpty());
+        assertTrue(MetadataCreateIndexService.validateAutoExpandAllowed(reqestSettings).isEmpty());
     }
 
     public void testWhenAutoExpandReplicaEnabledForTheIndex() {
@@ -44,7 +44,7 @@ public class DisableAutoExpandReplicaForSearchReplicaTests extends OpenSearchTes
 
         assertEquals(
             "Cannot set [index.number_of_search_only_replicas] because [index.auto_expand_replicas] is configured. These settings are mutually exclusive.",
-            MetadataCreateIndexService.validateAutoExpandReplicaConflictWithIndex(reqestSettings, indexSettings).get()
+            MetadataCreateIndexService.validateAutoExpandAllowed(reqestSettings, indexSettings).get()
         );
     }
 
@@ -55,7 +55,7 @@ public class DisableAutoExpandReplicaForSearchReplicaTests extends OpenSearchTes
 
         assertEquals(
             "Cannot set [index.auto_expand_replicas] because [index.number_of_search_only_replicas] is set. These settings are mutually exclusive.",
-            MetadataCreateIndexService.validateAutoExpandReplicaConflictWithIndex(reqestSettings, indexSettings).get()
+            MetadataCreateIndexService.validateAutoExpandAllowed(reqestSettings, indexSettings).get()
         );
     }
 
@@ -64,7 +64,7 @@ public class DisableAutoExpandReplicaForSearchReplicaTests extends OpenSearchTes
 
         Settings indexSettings = Settings.builder().put("index.number_of_search_only_replicas", 0).build();
 
-        assertTrue(MetadataCreateIndexService.validateAutoExpandReplicaConflictWithIndex(reqestSettings, indexSettings).isEmpty());
+        assertTrue(MetadataCreateIndexService.validateAutoExpandAllowed(reqestSettings, indexSettings).isEmpty());
     }
 
     public void testIfSearchReplicaEnabledEnablingAutoExpandReplicasAndDisablingSearchReplicasNotPossibleInSingleRequest() {
@@ -78,7 +78,7 @@ public class DisableAutoExpandReplicaForSearchReplicaTests extends OpenSearchTes
         assertEquals(
             "Cannot set [index.auto_expand_replicas] because [index.number_of_search_only_replicas] "
                 + "is set. These settings are mutually exclusive.",
-            MetadataCreateIndexService.validateAutoExpandReplicaConflictWithIndex(reqestSettings, indexSettings).get()
+            MetadataCreateIndexService.validateAutoExpandAllowed(reqestSettings, indexSettings).get()
         );
     }
 }

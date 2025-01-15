@@ -79,8 +79,7 @@ import java.util.Set;
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
-import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateAutoExpandReplicaConflictInRequest;
-import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateAutoExpandReplicaConflictWithIndex;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateAutoExpandAllowed;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateOverlap;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogDurabilitySettings;
@@ -232,10 +231,7 @@ public class MetadataUpdateSettingsService {
                         ).ifPresent(validationErrors::add);
 
                         if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
-                            validateAutoExpandReplicaConflictInRequest(normalizedSettings).ifPresent(validationErrors::add);
-                            validateAutoExpandReplicaConflictWithIndex(normalizedSettings, metadata.getSettings()).ifPresent(
-                                validationErrors::add
-                            );
+                            validateAutoExpandAllowed(normalizedSettings, metadata.getSettings()).ifPresent(validationErrors::add);
                         }
                     }
 
