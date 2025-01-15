@@ -1,7 +1,7 @@
 ---
 "Search shards with slice specified in body":
   - skip:
-      version: " - 2.99.99"
+      version: " - 2.18.99"
       reason: "Added slice body to search_shards in 2.19"
   - do:
       indices.create:
