@@ -44,6 +44,6 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     private static Settings createSettings() {
-        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORTS.getKey(), getPortRange()).build();
+        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), getPortRange()).build();
     }
 }
