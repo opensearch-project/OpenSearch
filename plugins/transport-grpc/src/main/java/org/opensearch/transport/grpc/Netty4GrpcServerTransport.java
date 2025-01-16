@@ -134,7 +134,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
      * @param networkService the bind/publish addresses.
      */
     public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService) {
-        logger.debug("Initializing netty4GrpcServerTransport with settings = {}", settings);
+        logger.debug("Initializing Netty4GrpcServerTransport with settings = {}", settings);
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
         this.networkService = Objects.requireNonNull(networkService);
