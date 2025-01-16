@@ -123,8 +123,9 @@ dependencies {
   api 'org.jruby.joni:joni:2.2.1'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.2.1"
-  api "org.bouncycastle:bc-fips:${props.getProperty('bouncycastle_jce')}"
-
+  if (System.getenv('OPENSEARCH_CRYPTO_STANDARD') == 'FIPS-140-3') {
+    api "org.bouncycastle:bc-fips:${props.getProperty('bouncycastle_jce')}"
+  }
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
