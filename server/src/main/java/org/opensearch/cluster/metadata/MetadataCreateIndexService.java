@@ -1464,6 +1464,9 @@ public class MetadataCreateIndexService {
         throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
         validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
+        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
+            validateAutoExpandAllowed(settings).ifPresent(validationErrors::add);
+        }
         validateErrors(indexName, validationErrors);
     }
 
@@ -1731,6 +1734,66 @@ public class MetadataCreateIndexService {
         int numSplits = log2MaxNumShards - log2NumShards;
         numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
         return numShards * 1 << numSplits;
+    }
+
+    /**
+     * Validates that auto expand and search replicas are mutually exclusive.
+     *
+     * @param requestSettings settings passed in during index create request
+     * @return the validation error if there is one, otherwise {@code Optional.empty()}
+     */
+    public static Optional<String> validateAutoExpandAllowed(Settings requestSettings) {
+        boolean hasRequestAutoExpand = AutoExpandReplicas.SETTING.get(requestSettings).isEnabled();
+        boolean hasRequestSearchReplica = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0;
+        if (hasRequestAutoExpand && hasRequestSearchReplica) {
+            return Optional.of(
+                "Cannot set both ["
+                    + SETTING_AUTO_EXPAND_REPLICAS
+                    + "] and ["
+                    + SETTING_NUMBER_OF_SEARCH_REPLICAS
+                    + "]. These settings are mutually exclusive."
+            );
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Validates that auto expand and search replicas are mutually exclusive.
+     * It also checks conflicts between request and existing settings.
+     *
+     * @param requestSettings settings passed in during index create request
+     * @param indexSettings current indexSettings
+     * @return the validation error if there is one, otherwise {@code Optional.empty()}
+     */
+    public static Optional<String> validateAutoExpandAllowed(Settings requestSettings, Settings indexSettings) {
+        boolean hasRequestAutoExpand = AutoExpandReplicas.SETTING.get(requestSettings).isEnabled();
+        boolean hasRequestSearchReplica = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0;
+        boolean hasIndexAutoExpand = AutoExpandReplicas.SETTING.get(indexSettings).isEnabled();
+        boolean hasIndexSearchReplica = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(indexSettings) > 0;
+
+        validateAutoExpandAllowed(requestSettings);
+
+        if (hasRequestAutoExpand && hasIndexSearchReplica) {
+            return Optional.of(
+                "Cannot set ["
+                    + AutoExpandReplicas.SETTING.getKey()
+                    + "] because ["
+                    + INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.getKey()
+                    + "] is set"
+                    + ". These settings are mutually exclusive."
+            );
+        }
+
+        if (hasRequestSearchReplica && hasIndexAutoExpand) {
+            return Optional.of(
+                "Cannot set ["
+                    + INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.getKey()
+                    + "] because ["
+                    + AutoExpandReplicas.SETTING.getKey()
+                    + "] is configured. These settings are mutually exclusive."
+            );
+        }
+        return Optional.empty();
     }
 
     public static void validateTranslogRetentionSettings(Settings indexSettings) {

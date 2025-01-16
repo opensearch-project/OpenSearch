@@ -78,6 +78,7 @@ import java.util.Set;
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateAutoExpandAllowed;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateOverlap;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogDurabilitySettings;
@@ -228,6 +229,9 @@ public class MetadataUpdateSettingsService {
                             metadata.getSettings()
                         ).ifPresent(validationErrors::add);
 
+                        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
+                            validateAutoExpandAllowed(normalizedSettings, metadata.getSettings()).ifPresent(validationErrors::add);
+                        }
                     }
 
                     if (validationErrors.size() > 0) {
