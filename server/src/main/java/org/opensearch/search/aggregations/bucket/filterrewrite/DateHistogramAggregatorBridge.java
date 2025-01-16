@@ -23,6 +23,7 @@ import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.opensearch.common.Rounding.isUTCTimeZone;
 import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.multiRangesTraverse;
 
 /**
@@ -33,6 +34,14 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     int maxRewriteFilters;
 
     protected boolean canOptimize(ValuesSourceConfig config) {
+        /**
+         * The filter rewrite optimized path does not support bucket intervals which are not fixed.
+         * For this reason we exclude non UTC timezones.
+         */
+        if (!isUTCTimeZone(config.timezone())) {
+            return false;
+        }
+
         if (config.script() == null && config.missing() == null) {
             MappedFieldType fieldType = config.fieldType();
             if (fieldType instanceof DateFieldMapper.DateFieldType) {

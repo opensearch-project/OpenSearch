@@ -1412,7 +1412,7 @@ public abstract class Rounding implements Writeable {
      * Helper function for checking if the time zone requested for date histogram
      * aggregation is utc or not
      */
-    private static boolean isUTCTimeZone(final ZoneId zoneId) {
+    public static boolean isUTCTimeZone(final ZoneId zoneId) {
         return "Z".equals(zoneId.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
     }
 }
