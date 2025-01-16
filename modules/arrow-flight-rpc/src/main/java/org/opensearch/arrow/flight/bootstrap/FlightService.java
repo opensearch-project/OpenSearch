@@ -27,8 +27,6 @@ import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.util.Objects;
 
 /**
@@ -53,10 +51,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
     public FlightService(Settings settings) {
         Objects.requireNonNull(settings, "Settings cannot be null");
         try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                ServerConfig.init(settings);
-                return null;
-            });
+            ServerConfig.init(settings);
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Arrow Flight server", e);
         }
@@ -90,9 +85,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
     @Override
     protected void doStart() {
         try {
-            allocator = AccessController.doPrivileged(
-                (PrivilegedExceptionAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE)
-            );
+            allocator = new RootAllocator(Integer.MAX_VALUE);
             serverComponents.setAllocator(allocator);
             SslContextProvider sslContextProvider = ServerConfig.isSslEnabled()
                 ? new DefaultSslContextProvider(secureTransportSettingsProvider)

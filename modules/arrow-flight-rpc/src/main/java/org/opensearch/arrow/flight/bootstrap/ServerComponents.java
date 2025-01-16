@@ -39,9 +39,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import io.netty.channel.EventLoopGroup;
-import io.netty.util.NettyRuntime;
-import io.netty.util.concurrent.Future;
+import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
+import io.grpc.netty.shaded.io.netty.util.NettyRuntime;
+import io.grpc.netty.shaded.io.netty.util.concurrent.Future;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.settings.Setting.intSetting;

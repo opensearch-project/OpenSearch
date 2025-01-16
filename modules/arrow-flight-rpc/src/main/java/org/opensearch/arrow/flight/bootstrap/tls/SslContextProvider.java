@@ -8,7 +8,7 @@
 
 package org.opensearch.arrow.flight.bootstrap.tls;
 
-import io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 
 /**
  * Provider interface for SSL/TLS context configuration in OpenSearch Flight.

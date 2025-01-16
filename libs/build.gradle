@@ -44,7 +44,7 @@ subprojects {
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project depProject = project.project(dep.path)
         if (depProject != null
-          && (false == depProject.path.equals(':libs:opensearch-core') &&
+          && (false == depProject.path.equals(':libs:opensearch-core') && false == depProject.path.equals(':libs:opensearch-arrow-memory-netty-shaded') &&
               false == depProject.path.equals(':libs:opensearch-common'))
           && depProject.path.startsWith(':libs')) {
           throw new InvalidUserDataException("projects in :libs "

@@ -19,36 +19,24 @@ opensearchplugin {
 
 dependencies {
   implementation project(':libs:opensearch-arrow-spi')
+  implementation project(':libs:opensearch-flight-core-netty-shaded')
+  implementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
 
-  implementation "io.netty:netty-buffer:${versions.netty}"
-  implementation "io.netty:netty-codec:${versions.netty}"
-  implementation "io.netty:netty-codec-http:${versions.netty}"
-  implementation "io.netty:netty-codec-http2:${versions.netty}"
-  implementation "io.netty:netty-common:${versions.netty}"
-  implementation "io.netty:netty-handler:${versions.netty}"
-  implementation "io.netty:netty-resolver:${versions.netty}"
-  implementation "io.netty:netty-transport:${versions.netty}"
-  implementation "io.netty:netty-transport-native-unix-common:${versions.netty}"
-  implementation "io.netty:netty-transport-classes-epoll:${versions.netty}"
+  implementation "io.grpc:grpc-api:${versions.grpc}"
+  runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
+  implementation "io.grpc:grpc-stub:${versions.grpc}"
 
   implementation 'org.checkerframework:checker-qual:3.44.0'
-  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
-
   runtimeOnly group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.2'
   compileOnly 'org.immutables:value:2.10.1'
   annotationProcessor 'org.immutables:value:2.10.1'
-  implementation "org.apache.arrow:arrow-flight:${versions.arrow}"
-  implementation "org.apache.arrow:flight-core:${versions.arrow}"
-  implementation "io.grpc:grpc-api:${versions.grpc}"
-  implementation "io.grpc:grpc-netty:${versions.grpc}"
-  runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
-  implementation "io.grpc:grpc-stub:${versions.grpc}"
-  runtimeOnly "io.grpc:grpc-all:${versions.grpc}"
-  runtimeOnly "io.grpc:grpc-protobuf:${versions.grpc}"
-  runtimeOnly "io.grpc:grpc-protobuf-lite:${versions.grpc}"
+
   runtimeOnly 'io.perfmark:perfmark-api:0.27.0'
+
+  runtimeOnly 'org.apache.parquet:parquet-arrow:1.13.1'
+  runtimeOnly "io.grpc:grpc-protobuf-lite:${versions.grpc}"
+  runtimeOnly "io.grpc:grpc-protobuf:${versions.grpc}"
+
   runtimeOnly "com.google.guava:failureaccess:1.0.1"
   compileOnly "com.google.errorprone:error_prone_annotations:2.31.0"
   runtimeOnly('com.google.guava:guava:33.3.1-jre') {
@@ -56,7 +44,6 @@ dependencies {
       attribute(Attribute.of('org.gradle.jvm.environment', String), 'standard-jvm')
     }
   }
-  runtimeOnly 'org.apache.parquet:parquet-arrow:1.13.1'
 }
 
 tasks.named('test').configure {
@@ -82,10 +69,15 @@ tasks.named('thirdPartyAudit').configure {
   ignoreMissingClasses(
     'com.google.gson.stream.JsonReader',
     'com.google.gson.stream.JsonToken',
-    'com.google.protobuf.util.Timestamps',
+    'org.apache.parquet.schema.GroupType',
     'com.google.rpc.Status',
     'com.google.rpc.Status$Builder',
-    'org.apache.parquet.schema.GroupType',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.helpers.FormattingTuple',
+    'org.slf4j.helpers.MessageFormatter',
+    'org.slf4j.spi.LocationAwareLogger',
+
     // Parquet Schema classes
     'org.apache.parquet.schema.LogicalTypeAnnotation',
     'org.apache.parquet.schema.LogicalTypeAnnotation$DateLogicalTypeAnnotation',
@@ -126,14 +118,6 @@ tasks.named('thirdPartyAudit').configure {
     // from Log4j (deliberate, Netty will fallback to Log4j 2)
     'org.apache.log4j.Level',
     'org.apache.log4j.Logger',
-
-    // from io.netty.handler.ssl.OpenSslEngine (netty)
-    'io.netty.internal.tcnative.Buffer',
-    'io.netty.internal.tcnative.CertificateCompressionAlgo',
-    'io.netty.internal.tcnative.Library',
-    'io.netty.internal.tcnative.SSL',
-    'io.netty.internal.tcnative.SSLContext',
-    'io.netty.internal.tcnative.SSLPrivateKeyMethod',
 
     // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
     'org.bouncycastle.cert.X509v3CertificateBuilder',
@@ -180,16 +164,6 @@ tasks.named('thirdPartyAudit').configure {
     'net.jpountz.lz4.LZ4FastDecompressor',
     'net.jpountz.xxhash.XXHash32',
     'net.jpountz.xxhash.XXHashFactory',
-    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
-    'io.netty.internal.tcnative.AsyncTask',
-    'io.netty.internal.tcnative.CertificateCallback',
-    'io.netty.internal.tcnative.CertificateVerifier',
-    'io.netty.internal.tcnative.ResultCallback',
-    'io.netty.internal.tcnative.SessionTicketKey',
-    'io.netty.internal.tcnative.SniHostNameMatcher',
-    'io.netty.internal.tcnative.SSL',
-    'io.netty.internal.tcnative.SSLSession',
-    'io.netty.internal.tcnative.SSLSessionCache',
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
     'org.eclipse.jetty.alpn.ALPN',
@@ -218,42 +192,36 @@ tasks.named('thirdPartyAudit').configure {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
 
-    // Arrow memory classes
-    'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1',
-
-    'io.netty.util.internal.PlatformDependent0',
-    'io.netty.util.internal.PlatformDependent0$1',
-    'io.netty.util.internal.PlatformDependent0$2',
-    'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$4',
-    'io.netty.util.internal.PlatformDependent0$6',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
-    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5'
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0$1',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0$2',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0$3',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0$4',
+    'io.grpc.netty.shaded.io.netty.util.internal.PlatformDependent0$6',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+    'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
   )
 }
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
+  mapping from: /grpc-.*/, to: 'grpc'
 }
