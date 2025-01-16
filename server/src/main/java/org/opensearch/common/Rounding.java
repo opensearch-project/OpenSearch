@@ -1391,16 +1391,8 @@ public abstract class Rounding implements Writeable {
 
         if (rounding instanceof TimeUnitRounding) {
             interval = (((TimeUnitRounding) rounding).unit).extraLocalOffsetLookup();
-            if (!isUTCTimeZone(((TimeUnitRounding) rounding).timeZone)) {
-                // Fast filter aggregation cannot be used if it needs time zone rounding
-                return OptionalLong.empty();
-            }
         } else if (rounding instanceof TimeIntervalRounding) {
             interval = ((TimeIntervalRounding) rounding).interval;
-            if (!isUTCTimeZone(((TimeIntervalRounding) rounding).timeZone)) {
-                // Fast filter aggregation cannot be used if it needs time zone rounding
-                return OptionalLong.empty();
-            }
         } else {
             return OptionalLong.empty();
         }
