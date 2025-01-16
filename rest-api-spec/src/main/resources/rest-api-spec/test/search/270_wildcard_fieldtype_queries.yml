@@ -63,6 +63,19 @@ setup:
         body:
           my_field: "ABCD"
   - do:
+      index:
+        index: test
+        id: 8
+        body:
+          my_field: "*"
+
+  - do:
+      index:
+        index: test
+        id: 9
+        body:
+          my_field: "\\*"
+  - do:
       indices.refresh: {}
 
 ---
@@ -223,7 +236,7 @@ setup:
             wildcard:
               my_field:
                 value: "*"
-  - match: { hits.total.value: 6 }
+  - match: { hits.total.value: 8 }
 ---
 "regexp match-all works":
   - do:
@@ -234,7 +247,7 @@ setup:
             regexp:
               my_field:
                 value: ".*"
-  - match: { hits.total.value: 6 }
+  - match: { hits.total.value: 8 }
 ---
 "terms query on wildcard field matches":
   - do:
@@ -270,3 +283,113 @@ setup:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "5" }
   - match: { hits.hits.1._id: "7" }
+---
+"case insensitive regexp query on wildcard field":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: "AbCd"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "5" }
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: "AbCd"
+                case_insensitive: true
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.1._id: "7" }
+---
+"wildcard query works on values contains escaped characters":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "\\*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "8" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "\\\\\\*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "9" }
+---
+"regexp query works on values contains escaped characters":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: "\\*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "8" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: "\\\\\\*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "9"}
+---
+"term query contains escaped characters":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field: "\\*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "9" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              my_field: "*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "8"}
+---
+"terms query contains escaped characters":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            terms: { my_field: ["*"] }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "8" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            terms: { my_field: [ "\\*" ] }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "9" }
