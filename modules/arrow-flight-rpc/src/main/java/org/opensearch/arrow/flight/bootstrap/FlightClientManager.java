@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
-import io.netty.channel.EventLoopGroup;
+import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
 
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS_SETTING;
 
@@ -146,7 +146,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
                 CompletableFuture<Location> locationFuture = new CompletableFuture<>();
                 requestNodeLocation(node, locationFuture);
                 locationFuture.thenAccept(location -> { nodeLocations.put(node.getId(), location); }).exceptionally(throwable -> {
-                    logger.error("Failed to get Flight server location for node: {}", node.getId(), throwable);
+                    logger.error("Failed to get Flight server location for node: {}{}", node.getId(), throwable);
                     return null;
                 });
             }
@@ -206,7 +206,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
             @Override
             public void onFailure(Exception e) {
                 future.completeExceptionally(e);
-                logger.error("Failed to get Flight server info for node: {}", node.getId(), e);
+                logger.error("Failed to get Flight server info for node: {}{}", node.getId(), e);
             }
         });
     }

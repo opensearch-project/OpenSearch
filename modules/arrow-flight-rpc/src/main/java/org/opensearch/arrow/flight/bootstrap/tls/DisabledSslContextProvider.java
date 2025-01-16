@@ -8,7 +8,7 @@
 
 package org.opensearch.arrow.flight.bootstrap.tls;
 
-import io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 
 /**
  * DisabledSslContextProvider is an implementation of the SslContextProvider interface that provides disabled SSL contexts.
