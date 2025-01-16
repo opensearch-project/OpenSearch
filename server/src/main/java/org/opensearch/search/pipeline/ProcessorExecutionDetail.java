@@ -273,7 +273,16 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
             + '\''
             + '}';
     }
-
+    /**
+     * Represents the status of a processor in the search pipeline.
+     *
+     * <p>This enum is used to indicate whether a processor has executed successfully
+     * or encountered a failure during its execution. It helps in categorizing the
+     * execution result of processors within a pipeline.
+     *
+     * @opensearch.internal
+     * @since 2.19.0
+     */
     @PublicApi(since = "2.19.0")
     public enum ProcessorStatus {
         SUCCESS,

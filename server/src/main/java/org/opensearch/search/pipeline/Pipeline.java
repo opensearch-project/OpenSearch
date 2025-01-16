@@ -167,11 +167,12 @@ class Pipeline {
                     afterRequestProcessor(processor, took);
                     onRequestProcessorFailed(processor);
                     if (r.source().verbosePipeline()) {
-                        String errorMessage = "The request processor ["
+                        String errorMessage = "An error occurred in the request processor ["
                             + processor.getType()
-                            + "] encountered an error while executing in the search pipeline ["
+                            + "] while executing in the search pipeline ["
                             + id
-                            + "].";
+                            + "]: "
+                            + e.getMessage();
                         detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, errorMessage);
                         requestContext.addProcessorExecutionDetail(detail);
                         nextListener.onResponse(r);
@@ -274,11 +275,12 @@ class Pipeline {
                     afterResponseProcessor(processor, took);
                     // If an error occurs and the pipeline is in verbose mode, the processor will not terminate the execution chain.
                     if (request.source().verbosePipeline()) {
-                        String errorMessage = "The response processor ["
+                        String errorMessage = "An error occurred in the response processor ["
                             + processor.getType()
-                            + "] encountered an error while executing in the search pipeline ["
+                            + "] while executing in the search pipeline ["
                             + id
-                            + "].";
+                            + "]: "
+                            + e.getMessage();
                         detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, errorMessage);
                         requestContext.addProcessorExecutionDetail(detail);
                         r.getInternalResponse().getProcessorResult().add(detail);
