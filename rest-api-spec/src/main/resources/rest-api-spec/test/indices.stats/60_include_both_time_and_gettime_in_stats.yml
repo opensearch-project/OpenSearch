@@ -21,6 +21,10 @@ setup:
 
 ---
 "Test _stats API includes both time and getTime metrics with human filter":
+  - skip:
+      version: " - 2.19.99"
+      reason: "this change is added in 3.0.0"
+
   - do:
       indices.stats:
         metric: [ get ]
