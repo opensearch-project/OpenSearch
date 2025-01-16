@@ -36,6 +36,7 @@ import groovy.lang.Closure;
 import org.opensearch.gradle.FileSystemOperationsAware;
 import org.opensearch.gradle.test.Fixture;
 import org.opensearch.gradle.util.GradleUtils;
+import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceProvider;
@@ -47,6 +48,8 @@ import org.gradle.api.tasks.WorkResult;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.resources.ResourceLock;
 import org.gradle.internal.resources.SharedResource;
+
+import javax.inject.Inject;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -67,7 +70,8 @@ public abstract class StandaloneRestIntegTestTask extends Test implements TestCl
     private Collection<OpenSearchCluster> clusters = new HashSet<>();
     private Closure<Void> beforeStart;
 
-    public StandaloneRestIntegTestTask() {
+    @Inject
+    public StandaloneRestIntegTestTask(Project project) {
         this.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it uses a cluster shared by other tasks",
@@ -77,7 +81,7 @@ public abstract class StandaloneRestIntegTestTask extends Test implements TestCl
                  * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
                  * multiple tasks.
                  */
-                t -> getProject().getTasks()
+                t -> project.getTasks()
                     .withType(StandaloneRestIntegTestTask.class)
                     .stream()
                     .filter(task -> task != this)

@@ -289,6 +289,10 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             return new EngineConfigFactory(indexSettings);
         }
 
+        public IndexMetadata getIndexMetadata() {
+            return indexMetadata;
+        }
+
         public int indexDocs(final int numOfDoc) throws Exception {
             for (int doc = 0; doc < numOfDoc; doc++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName()).id(Integer.toString(docId.incrementAndGet()))
