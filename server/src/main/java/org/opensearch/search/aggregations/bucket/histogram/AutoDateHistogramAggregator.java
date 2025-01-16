@@ -203,7 +203,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
                 // Ensure preparedRounding never shrinks
                 roundingIdx = Math.max(prevRoundingIdx, roundingIdx);
-                preparedRounding = prepareRounding(roundingIdx);
+                if (roundingIdx != prevRoundingIdx) {
+                    preparedRounding = prepareRounding(roundingIdx);
+                }
+                
                 return roundingInfos[roundingIdx].rounding;
             }
 
