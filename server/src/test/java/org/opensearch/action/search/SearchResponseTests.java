@@ -314,8 +314,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
         SearchHit[] hits = new SearchHit[] { hit };
         String dummyId = UUID.randomUUID().toString();
         List<ProcessorExecutionDetail> processorResults = List.of(
-            new ProcessorExecutionDetail("processor1", 50, List.of(1), List.of(1)),
-            new ProcessorExecutionDetail("processor2", 30, List.of(3), List.of(3))
+            new ProcessorExecutionDetail("processor1", 50, List.of(1), List.of(1), ProcessorExecutionDetail.ProcessorStatus.SUCCESS, ""),
+            new ProcessorExecutionDetail("processor2", 30, List.of(3), List.of(3), ProcessorExecutionDetail.ProcessorStatus.SUCCESS, "")
         );
         {
             SearchResponse response = new SearchResponse(

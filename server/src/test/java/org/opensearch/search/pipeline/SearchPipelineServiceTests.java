@@ -764,6 +764,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         // First try without specifying a pipeline, which should be a no-op.
         SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(createDefaultSearchSourceBuilder());
         PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
         AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResults = searchPhaseResults.getAtomicArray();
         pipelinedRequest.transformSearchPhaseResults(
@@ -776,6 +777,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         // Now set the pipeline as p1
         searchRequest = new SearchRequest().pipeline("p1");
+        searchRequest.source(createDefaultSearchSourceBuilder());
         pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
 
         pipelinedRequest.transformSearchPhaseResults(
@@ -794,6 +796,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         // Check Processor doesn't run for between other phases
         searchRequest = new SearchRequest().pipeline("p1");
+        searchRequest.source(createDefaultSearchSourceBuilder());
         pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
         AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResult = searchPhaseResults.getAtomicArray();
         pipelinedRequest.transformSearchPhaseResults(
@@ -1582,8 +1585,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             .build();
         searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
 
-        PipelinedRequest request = searchPipelineService.resolvePipeline(new SearchRequest().pipeline("p1"), indexNameExpressionResolver);
-        request.source(createDefaultSearchSourceBuilder());
+        PipelinedRequest request = searchPipelineService.resolvePipeline(
+            new SearchRequest().source(createDefaultSearchSourceBuilder()).pipeline("p1"),
+            indexNameExpressionResolver
+        );
         assertNull(contextHolder.get());
         syncExecutePipeline(request, createDefaultSearchResponse());
         assertNotNull(contextHolder.get());
@@ -1815,6 +1820,20 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals(2, executionDetails.size());
         assertEquals("scale_request_size", executionDetails.get(0).getProcessorName());
         assertEquals("fixed_score", executionDetails.get(1).getProcessorName());
+    }
+
+    public void testVerbosePipelineWithoutDefinedPipelineThrowsException() {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(SearchSourceBuilder.searchSource().verbosePipeline(true));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
+        );
+
+        assertEquals("The 'verbose pipelines' option requires a search pipeline to be defined.", e.getMessage());
     }
 
     public void testVerbosePipelineWithRequestProcessorOnly() throws Exception {

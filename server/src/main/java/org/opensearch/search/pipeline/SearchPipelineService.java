@@ -367,7 +367,6 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     public PipelinedRequest resolvePipeline(SearchRequest searchRequest, IndexNameExpressionResolver indexNameExpressionResolver) {
         Pipeline pipeline = Pipeline.NO_OP_PIPELINE;
-
         if (searchRequest.source() != null && searchRequest.source().searchPipelineSource() != null) {
             // Pipeline defined in search request (ad hoc pipeline).
             if (searchRequest.pipeline() != null) {
@@ -425,6 +424,9 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 }
                 pipeline = pipelineHolder.pipeline;
             }
+        }
+        if (searchRequest.source().verbosePipeline() && pipeline.getId().equals(NOOP_PIPELINE_ID)) {
+            throw new IllegalArgumentException("The 'verbose pipelines' option requires a search pipeline to be defined.");
         }
         PipelineProcessingContext requestContext = new PipelineProcessingContext();
         return new PipelinedRequest(pipeline, searchRequest, requestContext);

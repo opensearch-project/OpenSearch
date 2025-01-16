@@ -166,7 +166,16 @@ class Pipeline {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterRequestProcessor(processor, took);
                     onRequestProcessorFailed(processor);
-                    if (processor.isIgnoreFailure()) {
+                    if (r.source().verbosePipeline()) {
+                        String errorMessage = "The request processor ["
+                            + processor.getType()
+                            + "] encountered an error while executing in the search pipeline ["
+                            + id
+                            + "].";
+                        detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, errorMessage);
+                        requestContext.addProcessorExecutionDetail(detail);
+                        nextListener.onResponse(r);
+                    } else if (processor.isIgnoreFailure()) {
                         logger.warn(
                             "The exception from request processor ["
                                 + processor.getType()
@@ -251,19 +260,30 @@ class Pipeline {
                 final long start = relativeTimeSupplier.getAsLong();
                 processor.processResponseAsync(request, r, requestContext, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
-                    afterResponseProcessor(processor, took);
                     if (request.source().verbosePipeline()) {
                         detail.addOutput(Arrays.asList(rr.getHits().deepCopy().getHits()));
                         detail.addTook(took);
                         requestContext.addProcessorExecutionDetail(detail);
                         rr.getInternalResponse().getProcessorResult().add(detail);
                     }
+                    afterResponseProcessor(processor, took);
                     currentFinalListener.onResponse(rr);
                 }, e -> {
                     onResponseProcessorFailed(processor);
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterResponseProcessor(processor, took);
-                    if (processor.isIgnoreFailure()) {
+                    // If an error occurs and the pipeline is in verbose mode, the processor will not terminate the execution chain.
+                    if (request.source().verbosePipeline()) {
+                        String errorMessage = "The response processor ["
+                            + processor.getType()
+                            + "] encountered an error while executing in the search pipeline ["
+                            + id
+                            + "].";
+                        detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, errorMessage);
+                        requestContext.addProcessorExecutionDetail(detail);
+                        r.getInternalResponse().getProcessorResult().add(detail);
+                        currentFinalListener.onResponse(r);
+                    } else if (processor.isIgnoreFailure()) {
                         logger.warn(
                             "The exception from response processor ["
                                 + processor.getType()

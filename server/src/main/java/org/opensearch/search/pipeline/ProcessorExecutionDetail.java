@@ -20,6 +20,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -37,25 +38,38 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
     private long durationMillis;
     private Object inputData;
     private Object outputData;
+    private ProcessorStatus status;
+    private String errorMessage;
     private static final ParseField PROCESSOR_NAME_FIELD = new ParseField("processor_name");
     private static final ParseField DURATION_MILLIS_FIELD = new ParseField("duration_millis");
     private static final ParseField INPUT_DATA_FIELD = new ParseField("input_data");
     private static final ParseField OUTPUT_DATA_FIELD = new ParseField("output_data");
+    private static final ParseField STATUS_FIELD = new ParseField("status");
+    private static final ParseField ERROR_MESSAGE_FIELD = new ParseField("error");
     // Key for processor execution details
     public static final String PROCESSOR_EXECUTION_DETAILS_KEY = "processorExecutionDetails";
 
     /**
      * Constructor for ProcessorExecutionDetail
      */
-    public ProcessorExecutionDetail(String processorName, long durationMillis, Object inputData, Object outputData) {
+    public ProcessorExecutionDetail(
+        String processorName,
+        long durationMillis,
+        Object inputData,
+        Object outputData,
+        ProcessorStatus status,
+        String errorMessage
+    ) {
         this.processorName = processorName;
         this.durationMillis = durationMillis;
         this.inputData = inputData;
         this.outputData = outputData;
+        this.status = status;
+        this.errorMessage = errorMessage;
     }
 
     public ProcessorExecutionDetail(String processorName) {
-        this(processorName, 0, null, null);
+        this(processorName, 0, null, null, ProcessorStatus.SUCCESS, "");
 
     }
 
@@ -64,6 +78,8 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         this.durationMillis = in.readLong();
         this.inputData = in.readGenericValue();
         this.outputData = in.readGenericValue();
+        this.status = in.readEnum(ProcessorStatus.class);
+        this.errorMessage = in.readString();
     }
 
     @Override
@@ -72,6 +88,8 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         out.writeLong(durationMillis);
         out.writeGenericValue(inputData);
         out.writeGenericValue(outputData);
+        out.writeEnum(status);
+        out.writeString(errorMessage);
     }
 
     public String getProcessorName() {
@@ -89,6 +107,15 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
 
     public Object getOutputData() {
         return outputData;
+    }
+
+    public void markProcessorAsFailed(ProcessorStatus status, String errorMessage) {
+        this.status = status;
+        this.errorMessage = errorMessage;
+    }
+
+    public ProcessorStatus getStatus() {
+        return status;
     }
 
     /**
@@ -118,13 +145,22 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         this.durationMillis = durationMillis;
     }
 
+    /**
+     * Serializes the processor execution detail into XContent.
+     * Includes the error message only if the processor has failed.
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(PROCESSOR_NAME_FIELD.getPreferredName(), processorName);
         builder.field(DURATION_MILLIS_FIELD.getPreferredName(), durationMillis);
+        builder.field(STATUS_FIELD.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
+        if (status == ProcessorStatus.FAIL) {
+            builder.field(ERROR_MESSAGE_FIELD.getPreferredName(), errorMessage);
+        }
         addFieldToXContent(builder, INPUT_DATA_FIELD.getPreferredName(), inputData, params);
         addFieldToXContent(builder, OUTPUT_DATA_FIELD.getPreferredName(), outputData, params);
+
         builder.endObject();
         return builder;
     }
@@ -179,6 +215,8 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         long durationMillis = 0;
         Object inputData = null;
         Object outputData = null;
+        ProcessorStatus status = null;
+        String errorMessage = "";
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             parser.nextToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
@@ -191,6 +229,10 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
                 processorName = parser.text();
             } else if (DURATION_MILLIS_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                 durationMillis = parser.longValue();
+            } else if (STATUS_FIELD.match(fieldName, parser.getDeprecationHandler())) {
+                status = ProcessorStatus.valueOf(parser.text().toUpperCase(Locale.ROOT));
+            } else if (ERROR_MESSAGE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
+                errorMessage = parser.text();
             } else if (INPUT_DATA_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                 inputData = XContentUtils.readValue(parser, parser.currentToken());
             } else if (OUTPUT_DATA_FIELD.match(fieldName, parser.getDeprecationHandler())) {
@@ -204,12 +246,12 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Processor name is required");
         }
 
-        return new ProcessorExecutionDetail(processorName, durationMillis, inputData, outputData);
+        return new ProcessorExecutionDetail(processorName, durationMillis, inputData, outputData, status, errorMessage);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(processorName, durationMillis, inputData, outputData);
+        return Objects.hash(processorName, durationMillis, inputData, outputData, status, errorMessage);
     }
 
     @Override
@@ -224,6 +266,18 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
             + inputData
             + ", outputData="
             + outputData
+            + ", status="
+            + status
+            + ", errorMessage='"
+            + errorMessage
+            + '\''
             + '}';
     }
+
+    @PublicApi(since = "2.19.0")
+    public enum ProcessorStatus {
+        SUCCESS,
+        FAIL
+    }
+
 }

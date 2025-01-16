@@ -28,7 +28,14 @@ import java.util.Map;
 public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
 
     public void testSerializationRoundtrip() throws IOException {
-        ProcessorExecutionDetail detail = new ProcessorExecutionDetail("testProcessor", 123L, Map.of("key", "value"), List.of(1, 2, 3));
+        ProcessorExecutionDetail detail = new ProcessorExecutionDetail(
+            "testProcessor",
+            123L,
+            Map.of("key", "value"),
+            List.of(1, 2, 3),
+            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+            ""
+        );
         ProcessorExecutionDetail deserialized;
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             detail.writeTo(output);
@@ -53,9 +60,30 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        ProcessorExecutionDetail detail1 = new ProcessorExecutionDetail("processor1", 100L, "input1", "output1");
-        ProcessorExecutionDetail detail2 = new ProcessorExecutionDetail("processor1", 100L, "input1", "output1");
-        ProcessorExecutionDetail detail3 = new ProcessorExecutionDetail("processor2", 200L, "input2", "output2");
+        ProcessorExecutionDetail detail1 = new ProcessorExecutionDetail(
+            "processor1",
+            100L,
+            "input1",
+            "output1",
+            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+            ""
+        );
+        ProcessorExecutionDetail detail2 = new ProcessorExecutionDetail(
+            "processor1",
+            100L,
+            "input1",
+            "output1",
+            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+            ""
+        );
+        ProcessorExecutionDetail detail3 = new ProcessorExecutionDetail(
+            "processor2",
+            200L,
+            "input2",
+            "output2",
+            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+            ""
+        );
 
         assertEquals(detail1, detail2);
         assertNotEquals(detail1, detail3);
@@ -64,14 +92,28 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
     }
 
     public void testToString() {
-        ProcessorExecutionDetail detail = new ProcessorExecutionDetail("processorZ", 500L, "inputData", "outputData");
+        ProcessorExecutionDetail detail = new ProcessorExecutionDetail(
+            "processorZ",
+            500L,
+            "inputData",
+            "outputData",
+            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+            ""
+        );
         String expected =
-            "ProcessorExecutionDetail{processorName='processorZ', durationMillis=500, inputData=inputData, outputData=outputData}";
+            "ProcessorExecutionDetail{processorName='processorZ', durationMillis=500, inputData=inputData, outputData=outputData, status=SUCCESS, errorMessage=''}";
         assertEquals(expected, detail.toString());
     }
 
     public void testToXContent() throws IOException {
-        ProcessorExecutionDetail detail = new ProcessorExecutionDetail("testProcessor", 123L, Map.of("key1", "value1"), List.of(1, 2, 3));
+        ProcessorExecutionDetail detail = new ProcessorExecutionDetail(
+            "testProcessor",
+            123L,
+            Map.of("key1", "value1"),
+            List.of(1, 2, 3),
+            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+            ""
+        );
 
         XContentBuilder actualBuilder = XContentBuilder.builder(JsonXContent.jsonXContent);
         detail.toXContent(actualBuilder, ToXContent.EMPTY_PARAMS);
@@ -79,6 +121,43 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
         String expected = "{"
             + "  \"processor_name\": \"testProcessor\","
             + "  \"duration_millis\": 123,"
+            + "  \"status\": \"success\","
+            + "  \"input_data\": {\"key1\": \"value1\"},"
+            + "  \"output_data\": [1, 2, 3]"
+            + "}";
+
+        XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
+            this.xContentRegistry(),
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            expected
+        );
+        XContentBuilder expectedBuilder = XContentBuilder.builder(JsonXContent.jsonXContent);
+        expectedBuilder.generator().copyCurrentStructure(expectedParser);
+
+        assertEquals(
+            XContentHelper.convertToMap(BytesReference.bytes(expectedBuilder), false, (MediaType) MediaTypeRegistry.JSON),
+            XContentHelper.convertToMap(BytesReference.bytes(actualBuilder), false, (MediaType) MediaTypeRegistry.JSON)
+        );
+    }
+
+    public void testToXContentWithProcessorError() throws IOException {
+        ProcessorExecutionDetail detail = new ProcessorExecutionDetail(
+            "testProcessor",
+            123L,
+            Map.of("key1", "value1"),
+            List.of(1, 2, 3),
+            ProcessorExecutionDetail.ProcessorStatus.FAIL,
+            "processor 1 fail"
+        );
+
+        XContentBuilder actualBuilder = XContentBuilder.builder(JsonXContent.jsonXContent);
+        detail.toXContent(actualBuilder, ToXContent.EMPTY_PARAMS);
+
+        String expected = "{"
+            + "  \"processor_name\": \"testProcessor\","
+            + "  \"duration_millis\": 123,"
+            + "  \"status\": \"fail\","
+            + "  \"error\": \"processor 1 fail\","
             + "  \"input_data\": {\"key1\": \"value1\"},"
             + "  \"output_data\": [1, 2, 3]"
             + "}";
@@ -118,6 +197,33 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
             assertEquals(123L, detail.getDurationMillis());
             assertEquals(Map.of("key1", "value1"), detail.getInputData());
             assertEquals(List.of(1, 2, 3), detail.getOutputData());
+        }
+    }
+
+    public void testFromXContentWithPRocessorError() throws IOException {
+        String json = "{"
+            + "  \"processor_name\": \"testProcessor\","
+            + "  \"duration_millis\": 123,"
+            + "  \"status\": \"fail\","
+            + "  \"error\": \"processor 1 fail\","
+            + "  \"input_data\": {\"key1\": \"value1\"},"
+            + "  \"output_data\": [1, 2, 3]"
+            + "}";
+
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                this.xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                json
+            )
+        ) {
+            ProcessorExecutionDetail detail = ProcessorExecutionDetail.fromXContent(parser);
+
+            assertEquals("testProcessor", detail.getProcessorName());
+            assertEquals(123L, detail.getDurationMillis());
+            assertEquals(Map.of("key1", "value1"), detail.getInputData());
+            assertEquals(List.of(1, 2, 3), detail.getOutputData());
+            assertEquals(ProcessorExecutionDetail.ProcessorStatus.FAIL, detail.getStatus());
         }
     }
 }
