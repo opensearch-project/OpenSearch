@@ -20,6 +20,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -36,10 +37,10 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
     private long durationMillis;
     private Object inputData;
     private Object outputData;
-    public static final ParseField PROCESSOR_NAME_FIELD = new ParseField("processor_name");
-    public static final ParseField DURATION_MILLIS_FIELD = new ParseField("duration_millis");
-    public static final ParseField INPUT_DATA_FIELD = new ParseField("input_data");
-    public static final ParseField OUTPUT_DATA_FIELD = new ParseField("output_data");
+    private static final ParseField PROCESSOR_NAME_FIELD = new ParseField("processor_name");
+    private static final ParseField DURATION_MILLIS_FIELD = new ParseField("duration_millis");
+    private static final ParseField INPUT_DATA_FIELD = new ParseField("input_data");
+    private static final ParseField OUTPUT_DATA_FIELD = new ParseField("output_data");
     // Key for processor execution details
     public static final String PROCESSOR_EXECUTION_DETAILS_KEY = "processorExecutionDetails";
 
@@ -83,6 +84,7 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
 
     public Object getInputData() {
         return inputData;
+
     }
 
     public Object getOutputData() {
@@ -139,6 +141,12 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
                 writeItemToXContent(builder, item, params);
             }
             builder.endArray();
+        } else if (data instanceof Map) {
+            builder.startObject(fieldName);
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) data).entrySet()) {
+                addFieldToXContent(builder, entry.getKey().toString(), entry.getValue(), params);
+            }
+            builder.endObject();
         } else if (data instanceof ToXContentObject) {
             builder.field(fieldName);
             ((ToXContentObject) data).toXContent(builder, params);

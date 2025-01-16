@@ -378,7 +378,6 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 expectedString.append("]");
             }
             expectedString.append("}");
-
             assertEquals(expectedString.toString(), Strings.toString(MediaTypeRegistry.JSON, response));
             List<SearchExtBuilder> searchExtBuilders = response.getInternalResponse().getSearchExtBuilders();
             assertEquals(1, searchExtBuilders.size());

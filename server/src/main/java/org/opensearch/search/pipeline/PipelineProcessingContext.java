@@ -58,15 +58,10 @@ public class PipelineProcessingContext {
     /**
      * Get all ProcessorExecutionDetails recorded in this context.
      *
-     * @return an unmodifiable list of ProcessorExecutionDetails
+     * @return a list of ProcessorExecutionDetails
      */
     @SuppressWarnings("unchecked")
     public List<ProcessorExecutionDetail> getProcessorExecutionDetails() {
-        Object details = attributes.get(PROCESSOR_EXECUTION_DETAILS_KEY);
-        if (details instanceof List) {
-            return Collections.unmodifiableList((List<ProcessorExecutionDetail>) details);
-        }
-        return Collections.emptyList();
+        return (List<ProcessorExecutionDetail>) attributes.getOrDefault(PROCESSOR_EXECUTION_DETAILS_KEY, Collections.emptyList());
     }
-
 }
