@@ -13,6 +13,13 @@ import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 
 import java.io.IOException;
 
+/**
+ * This interface is used to pre-compute the star tree bucket collector for each segment/leaf.
+ * It is utilized by parent aggregation to retrieve a StarTreeBucketCollector which can be used to
+ * pre-compute the associated aggregation along with its parent pre-computation using star-tree
+ *
+ * @opensearch.internal
+ */
 public interface StarTreePreComputeCollector {
     StarTreeBucketCollector getStarTreeBucketCollector(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException;
 }

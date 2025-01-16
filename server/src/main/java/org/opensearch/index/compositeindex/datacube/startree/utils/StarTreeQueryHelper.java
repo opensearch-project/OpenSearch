@@ -31,7 +31,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.LeafBucketCollector;
-import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -262,13 +261,8 @@ public class StarTreeQueryHelper {
         // Call the final consumer after processing all entries
         finalConsumer.run();
 
-        // Return a LeafBucketCollector that terminates collection
-        return new LeafBucketCollectorBase(sub, valuesSource.doubleValues(ctx)) {
-            @Override
-            public void collect(int doc, long bucket) {
-                throw new CollectionTerminatedException();
-            }
-        };
+        // Terminate after pre-computing aggregation
+        throw new CollectionTerminatedException();
     }
 
     /**

@@ -51,10 +51,10 @@ public class StarTreeFilter {
     public static FixedBitSet getStarTreeResult(
         StarTreeValues starTreeValues,
         Map<String, Long> predicateEvaluators,
-        Set<String> groupbyField
+        Set<String> groupByField
     ) throws IOException {
         Map<String, Long> queryMap = predicateEvaluators != null ? predicateEvaluators : Collections.emptyMap();
-        StarTreeResult starTreeResult = traverseStarTree(starTreeValues, queryMap, groupbyField);
+        StarTreeResult starTreeResult = traverseStarTree(starTreeValues, queryMap, groupByField);
 
         // Initialize FixedBitSet with size maxMatchedDoc + 1
         FixedBitSet bitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);

@@ -231,7 +231,11 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             .getCompositeFieldTypes()
             .iterator()
             .next();
-        DateDimension starTreeDateDimension = (DateDimension) compositeMappedFieldType.getDimensions().get(0);
+        DateDimension starTreeDateDimension = (DateDimension) compositeMappedFieldType.getDimensions()
+                .stream()
+                .filter(dim -> dim.getField().equals("@timestamp")) // Filter for "@timestamp"
+                .findFirst() // Get the first matching dimension (if any)
+                .orElseThrow(() -> new AssertionError("Date dimension '@timestamp' not found")); // Throw an exception if not found
 
         DateTimeUnitAdapter dateTimeUnitRounding = new DateTimeUnitAdapter(this.rounding.unit());
         // check for null post this
