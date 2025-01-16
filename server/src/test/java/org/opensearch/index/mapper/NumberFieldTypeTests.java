@@ -970,6 +970,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         ft = new NumberFieldType("field", NumberType.INTEGER, false, false, true, true, null, Collections.emptyMap());
         assertEquals(new BitmapDocValuesQuery("field", r), ft.bitmapQuery(bitmap));
 
+        ft = new NumberFieldType("field", NumberType.INTEGER, true, false, false, true, null, Collections.emptyMap());
+        assertEquals(new BitmapIndexQuery("field", r), ft.bitmapQuery(bitmap));
+
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig());
         DirectoryReader reader = DirectoryReader.open(w);

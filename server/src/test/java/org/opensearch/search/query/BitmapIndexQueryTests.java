@@ -15,14 +15,18 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.common.Randomness;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -49,6 +53,7 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
     public void initSearcher() throws IOException {
         dir = newDirectory();
         w = new IndexWriter(dir, newIndexWriterConfig());
+        reader = DirectoryReader.open(w);
     }
 
     @After
@@ -179,4 +184,100 @@ public class BitmapIndexQueryTests extends OpenSearchTestCase {
         assertEquals(expected, actual);
     }
 
+    public void testCheckArgsNullBitmap() {
+        /**
+         * Test that checkArgs throws IllegalArgumentException when bitmap is null
+         */
+        assertThrows(IllegalArgumentException.class, () -> BitmapIndexQuery.checkArgs("field", null));
+    }
+
+    public void testCheckArgsNullField() {
+        /**
+         * Test that checkArgs throws IllegalArgumentException when field is null
+         */
+        RoaringBitmap bitmap = new RoaringBitmap();
+        assertThrows(IllegalArgumentException.class, () -> BitmapIndexQuery.checkArgs(null, bitmap));
+    }
+
+    public void testCheckArgsWithNullBitmap() {
+        assertThrows(IllegalArgumentException.class, () -> { BitmapIndexQuery.checkArgs("product_id", null); });
+    }
+
+    public void testCheckArgsWithNullFieldAndBitmap() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> { BitmapIndexQuery.checkArgs(null, null); }
+        );
+        assertEquals("field must not be null", exception.getMessage());
+    }
+
+    public void testCreateWeight() throws IOException {
+        Document d = new Document();
+        d.add(new IntField("product_id", 4, Field.Store.NO));
+        w.addDocument(d);
+
+        w.commit();
+        reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
+        RoaringBitmap bitmap = new RoaringBitmap();
+        bitmap.add(1);
+        BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
+        Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        assertNotNull(weight);
+        Scorer scorer = weight.scorer(reader.leaves().get(0));
+        assertNotNull(scorer);
+        ScorerSupplier supplier = weight.scorerSupplier(reader.leaves().get(0));
+        assertNotNull(supplier);
+        long cost = supplier.cost();
+        assertEquals(20, cost);
+    }
+
+    public void testRewrite() throws IOException {
+        RoaringBitmap bitmap = new RoaringBitmap();
+        BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
+        assertEquals(new MatchNoDocsQuery(), query.rewrite(searcher));
+    }
+
+    public void testPointVisitor() throws IOException {
+        w.close();
+        // default codec uses 512 documents per leaf node, so we can cover the visit disi methods in PointVisitor
+        w = new IndexWriter(dir, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()));
+
+        for (int i = 0; i < 512 + 1; i++) {
+            Document d = new Document();
+            d.add(new IntField("product_id", 1, Field.Store.NO));
+            w.addDocument(d);
+        }
+
+        for (int i = 0; i < 256 + 1; i++) {
+            Document d = new Document();
+            d.add(new IntField("product_id", 2, Field.Store.NO));
+            w.addDocument(d);
+        }
+
+        for (int i = 0; i < 256 + 1; i++) {
+            Document d = new Document();
+            d.add(new IntField("product_id", 3, Field.Store.NO));
+            w.addDocument(d);
+        }
+
+        for (int i = 0; i < 512 + 1; i++) {
+            Document d = new Document();
+            d.add(new IntField("product_id", 4, Field.Store.NO));
+            w.addDocument(d);
+        }
+
+        w.commit();
+        reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
+
+        RoaringBitmap bitmap = new RoaringBitmap();
+        bitmap.add(0, 1, 2, 3, 5);
+        BitmapIndexQuery query = new BitmapIndexQuery("product_id", bitmap);
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+        Set<Integer> actual = new HashSet<>(getMatchingValues(weight, searcher.getIndexReader()));
+        Set<Integer> expected = Set.of(1, 2, 3);
+        assertEquals(expected, actual);
+    }
 }

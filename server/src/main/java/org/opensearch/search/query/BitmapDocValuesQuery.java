@@ -141,8 +141,8 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOfInstance(BitmapDocValuesQuery.class) + RamUsageEstimator.sizeOfObject(field)
-            + RamUsageEstimator.sizeOfObject(bitmap);
+        return RamUsageEstimator.shallowSizeOfInstance(BitmapIndexQuery.class) + RamUsageEstimator.sizeOf(field) + bitmap
+            .getLongSizeInBytes();
     }
 
     @Override
