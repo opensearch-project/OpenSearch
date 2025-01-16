@@ -572,9 +572,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected abstract String contentType();
 
-    public Object getDerivedSource(LeafReader leafReader, int docId) throws IOException{
-        if (mappedFieldType.isDerivedSourceSupported() == false)
-            throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
+    public Object getDerivedSource(LeafReader leafReader, int docId) throws IOException {
+        if (mappedFieldType.isDerivedSourceSupported() == false) throw new UnsupportedOperationException(
+            "Derived source field is not supported for [" + name() + "] field"
+        );
         return deriveSource(leafReader, docId);
     }
 
