@@ -112,6 +112,16 @@ public abstract class BaseFlightStreamPlugin extends Plugin implements StreamMan
         Tracer tracer
     );
 
+    /**
+     * Used to get the auxiliary transports for Flight server and clients
+     * @param settings The settings for the plugin
+     * @param threadPool The thread pool instance
+     * @param circuitBreakerService The circuit breaker service instance
+     * @param networkService The network service instance
+     * @param clusterSettings The cluster settings instance
+     * @param tracer The tracer instance
+     * @return A map of auxiliary transports
+     */
     @Override
     public abstract Map<String, Supplier<AuxTransport>> getAuxTransports(
         Settings settings,
@@ -141,6 +151,17 @@ public abstract class BaseFlightStreamPlugin extends Plugin implements StreamMan
     @Override
     public abstract List<Setting<?>> getSettings();
 
+    /**
+     * Returns the REST handlers for the Flight plugin.
+     * @param settings The settings for the plugin.
+     * @param restController The REST controller instance.
+     * @param clusterSettings The cluster settings instance.
+     * @param indexScopedSettings The index scoped settings instance.
+     * @param settingsFilter The settings filter instance.
+     * @param indexNameExpressionResolver The index name expression resolver instance.
+     * @param nodesInCluster The supplier for the discovery nodes.
+     * @return A list of REST handlers.
+     */
     @Override
     public abstract List<RestHandler> getRestHandlers(
         Settings settings,
@@ -152,6 +173,9 @@ public abstract class BaseFlightStreamPlugin extends Plugin implements StreamMan
         Supplier<DiscoveryNodes> nodesInCluster
     );
 
+    /**
+     * Returns the list of action handlers for the Flight plugin.
+     */
     @Override
     public abstract List<ActionHandler<?, ?>> getActions();
 }

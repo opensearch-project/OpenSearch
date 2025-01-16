@@ -125,6 +125,16 @@ public class FlightStreamPluginImpl extends BaseFlightStreamPlugin {
         return Collections.emptyMap();
     }
 
+    /**
+     * Gets the auxiliary transports for the FlightStream plugin.
+     * @param settings The settings for the plugin.
+     * @param threadPool The thread pool instance.
+     * @param circuitBreakerService The circuit breaker service instance.
+     * @param networkService The network service instance.
+     * @param clusterSettings The cluster settings instance.
+     * @param tracer The tracer instance.
+     * @return A map of auxiliary transports.
+     */
     @Override
     public Map<String, Supplier<AuxTransport>> getAuxTransports(
         Settings settings,
@@ -138,6 +148,17 @@ public class FlightStreamPluginImpl extends BaseFlightStreamPlugin {
         return Collections.singletonMap(FlightService.AUX_TRANSPORT_TYPES_KEY, () -> flightService);
     }
 
+    /**
+     * Gets the REST handlers for the FlightStream plugin.
+     * @param settings The settings for the plugin.
+     * @param restController The REST controller instance.
+     * @param clusterSettings The cluster settings instance.
+     * @param indexScopedSettings The index scoped settings instance.
+     * @param settingsFilter The settings filter instance.
+     * @param indexNameExpressionResolver The index name expression resolver instance.
+     * @param nodesInCluster The supplier for the discovery nodes.
+     * @return A list of REST handlers.
+     */
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
@@ -151,6 +172,10 @@ public class FlightStreamPluginImpl extends BaseFlightStreamPlugin {
         return List.of(new FlightServerInfoAction());
     }
 
+    /**
+     * Gets the list of action handlers for the FlightStream plugin.
+     * @return A list of action handlers.
+     */
     @Override
     public List<ActionHandler<?, ?>> getActions() {
         return List.of(new ActionHandler<>(NodesFlightInfoAction.INSTANCE, TransportNodesFlightInfoAction.class));

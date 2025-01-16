@@ -70,6 +70,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
      * @param clusterService     Service for cluster state management
      * @param sslContextProvider Provider for SSL/TLS context configuration
      * @param elg                Event loop group for network operations
+     * @param threadPool         Thread pool for executing tasks asynchronously
      * @param client             OpenSearch client
      */
     public FlightClientManager(
@@ -132,6 +133,11 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         grpcExecutor.shutdown();
     }
 
+    /**
+     * Handles cluster state changes by updating node locations and managing client connections.
+     *
+     * @param event The ClusterChangedEvent containing information about the cluster state change
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.nodesChanged()) {
