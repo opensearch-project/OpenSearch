@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_HOST;
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PORTS;
+import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PORT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT;
@@ -58,7 +58,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            SETTING_GRPC_PORTS,
+            SETTING_GRPC_PORT,
             SETTING_GRPC_HOST,
             SETTING_GRPC_PUBLISH_HOST,
             SETTING_GRPC_BIND_HOST,
