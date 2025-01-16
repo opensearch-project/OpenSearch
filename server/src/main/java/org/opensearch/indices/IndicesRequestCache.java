@@ -124,10 +124,18 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         Property.Dynamic,
         Property.IndexScope
     );
+
+    /**
+     * If pluggable caching is off, or pluggable caching is on but a store name isn't specified, this setting determines the cache size.
+     * Otherwise, the implementation-specific size setting like indices.requests.cache.opensearch_onheap.size is used instead.
+     *
+     * Deprecated; once pluggable caching is no longer behind a feature flag (likely in 2.19), this setting will no longer have any effect.
+     */
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE = Setting.memorySizeSetting(
         "indices.requests.cache.size",
         "1%",
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
     public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE = Setting.positiveTimeSetting(
         "indices.requests.cache.expire",
@@ -166,7 +174,6 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
-    private final ByteSizeValue size;
     private final TimeValue expire;
     private final ICache<Key, BytesReference> cache;
     private final ClusterService clusterService;
@@ -187,10 +194,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         ClusterService clusterService,
         NodeEnvironment nodeEnvironment
     ) {
-        this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
-        long sizeInBytes = size.getBytes();
-        ToLongBiFunction<ICacheKey<Key>, BytesReference> weigher = (k, v) -> k.ramBytesUsed(k.key.ramBytesUsed()) + v.ramBytesUsed();
         this.cacheCleanupManager = new IndicesRequestCacheCleanupManager(
             threadPool,
             INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING.get(settings),
@@ -200,30 +204,42 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         this.clusterService = clusterService;
         this.clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING, this::setStalenessThreshold);
-        this.cache = cacheService.createCache(
-            new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)
-                .setWeigher(weigher)
-                .setValueType(BytesReference.class)
-                .setKeyType(Key.class)
-                .setRemovalListener(this)
-                .setMaxSizeInBytes(sizeInBytes) // for backward compatibility
-                .setExpireAfterAccess(expire) // for backward compatibility
-                .setDimensionNames(List.of(INDEX_DIMENSION_NAME, SHARD_ID_DIMENSION_NAME))
-                .setCachedResultParser((bytesReference) -> {
-                    try {
-                        return CachedQueryResult.getPolicyValues(bytesReference);
-                    } catch (IOException e) {
-                        // Set took time to -1, which will always be rejected by the policy.
-                        return new CachedQueryResult.PolicyValues(-1);
-                    }
-                })
-                .setKeySerializer(new IRCKeyWriteableSerializer())
-                .setValueSerializer(new BytesReferenceSerializer())
-                .setClusterSettings(clusterService.getClusterSettings())
-                .setStoragePath(nodeEnvironment.nodePaths()[0].path.toString() + "/request_cache")
-                .build(),
-            CacheType.INDICES_REQUEST_CACHE
-        );
+
+        CacheConfig<Key, BytesReference> config = getCacheConfig(settings, nodeEnvironment);
+        this.cache = cacheService.createCache(config, CacheType.INDICES_REQUEST_CACHE);
+    }
+
+    // pkg-private for testing
+    CacheConfig<Key, BytesReference> getCacheConfig(Settings settings, NodeEnvironment nodeEnvironment) {
+        long sizeInBytes = INDICES_CACHE_QUERY_SIZE.get(settings).getBytes();
+        ToLongBiFunction<ICacheKey<Key>, BytesReference> weigher = (k, v) -> k.ramBytesUsed(k.key.ramBytesUsed()) + v.ramBytesUsed();
+        CacheConfig.Builder<Key, BytesReference> configBuilder = new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)
+            .setWeigher(weigher)
+            .setValueType(BytesReference.class)
+            .setKeyType(Key.class)
+            .setRemovalListener(this)
+            .setExpireAfterAccess(expire) // for backward compatibility
+            .setDimensionNames(List.of(INDEX_DIMENSION_NAME, SHARD_ID_DIMENSION_NAME))
+            .setCachedResultParser((bytesReference) -> {
+                try {
+                    return CachedQueryResult.getPolicyValues(bytesReference);
+                } catch (IOException e) {
+                    // Set took time to -1, which will always be rejected by the policy.
+                    return new CachedQueryResult.PolicyValues(-1);
+                }
+            })
+            .setKeySerializer(new IRCKeyWriteableSerializer())
+            .setValueSerializer(new BytesReferenceSerializer())
+            .setClusterSettings(clusterService.getClusterSettings())
+            .setStoragePath(nodeEnvironment.nodePaths()[0].path.toString() + "/request_cache");
+
+        if (!CacheService.pluggableCachingEnabled(CacheType.INDICES_REQUEST_CACHE, settings)) {
+            // If pluggable caching is not enabled, use the max size based on the IRC setting into the config.
+            // If pluggable caching is enabled, cache implementations instead determine their own sizes based on their own implementation
+            // size settings.
+            configBuilder.setMaxSizeInBytes(sizeInBytes);
+        }
+        return configBuilder.build();
     }
 
     // package private for testing
