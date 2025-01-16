@@ -206,7 +206,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 if (roundingIdx != prevRoundingIdx) {
                     preparedRounding = prepareRounding(roundingIdx);
                 }
-                
+
                 return roundingInfos[roundingIdx].rounding;
             }
 
