@@ -19,25 +19,62 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Represents the response for nodes flight information.
+ */
 public class NodesFlightInfoResponse extends BaseNodesResponse<NodeFlightInfo> implements ToXContentObject {
+    /**
+     * Constructs a new NodesFlightInfoResponse instance.
+     *
+     * @param in The stream input to read from.
+     * @throws IOException If an I/O error occurs.
+     */
     public NodesFlightInfoResponse(StreamInput in) throws IOException {
         super(in);
     }
 
+    /**
+     * Constructs a new NodesFlightInfoResponse instance.
+     *
+     * @param clusterName The cluster name.
+     * @param nodes       The list of node flight information.
+     * @param failures    The list of failed node exceptions.
+     */
     public NodesFlightInfoResponse(ClusterName clusterName, List<NodeFlightInfo> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
+    /**
+     * Reads the nodes from the given stream input.
+     *
+     * @param in The stream input to read from.
+     * @return The list of node flight information.
+     * @throws IOException If an I/O error occurs.
+     */
     @Override
     protected List<NodeFlightInfo> readNodesFrom(StreamInput in) throws IOException {
         return in.readList(NodeFlightInfo::new);
     }
 
+    /**
+     * Writes the nodes to the given stream output.
+     *
+     * @param out   The stream output to write to.
+     * @param nodes The list of node flight information.
+     * @throws IOException If an I/O error occurs.
+     */
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeFlightInfo> nodes) throws IOException {
         out.writeList(nodes);
     }
 
+    /**
+     * Converts the nodes flight information response to XContent.
+     * @param builder The XContent builder.
+     * @param params  The parameters for the XContent conversion.
+     * @return The XContent builder.
+     * @throws IOException  If an I/O error occurs.
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 

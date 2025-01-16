@@ -46,6 +46,10 @@ dependencies {
   }
 }
 
+javadoc {
+  exclude '**/flight-core-netty-shaded/**'
+}
+
 tasks.named('test').configure {
   jacoco {
     excludes = ['org/apache/arrow/flight/**']

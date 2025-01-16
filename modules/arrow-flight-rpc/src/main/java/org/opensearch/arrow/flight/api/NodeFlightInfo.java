@@ -20,29 +20,58 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Represents the response for a node's flight information.
+ */
 public class NodeFlightInfo extends BaseNodeResponse implements ToXContentObject {
     private final BoundTransportAddress boundAddress;
 
+    /**
+     * Constructor for NodeFlightInfo.
+     * @param in The stream input to read from.
+     * @throws IOException If an I/O error occurs.
+     */
     public NodeFlightInfo(StreamInput in) throws IOException {
         super(in);
         boundAddress = new BoundTransportAddress(in);
     }
 
+    /**
+     * Constructor for NodeFlightInfo.
+     * @param node The discovery node.
+     * @param boundAddress The bound transport address.
+     */
     public NodeFlightInfo(DiscoveryNode node, BoundTransportAddress boundAddress) {
         super(node);
         this.boundAddress = boundAddress;
     }
 
+    /**
+     * Writes the node flight information to the stream.
+     * @param out The stream output to write to.
+     * @throws IOException If an I/O error occurs.
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         boundAddress.writeTo(out);
     }
 
+    /**
+     * Returns the bound transport address.
+     * @return The bound transport address.
+     */
     public BoundTransportAddress getBoundAddress() {
         return boundAddress;
     }
 
+    /**
+     * Converts the node flight information to XContent.
+     * @param builder The XContent builder.
+     * @param params  The parameters for the XContent conversion.
+     * @return The XContent builder.
+     * @throws IOException If an I/O error occurs.
+     */
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.startObject("flight_server");

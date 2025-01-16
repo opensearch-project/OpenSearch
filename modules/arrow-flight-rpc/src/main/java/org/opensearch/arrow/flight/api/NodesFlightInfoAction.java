@@ -10,8 +10,17 @@ package org.opensearch.arrow.flight.api;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Action to retrieve flight info from nodes
+ */
 public class NodesFlightInfoAction extends ActionType<NodesFlightInfoResponse> {
+    /**
+     * Singleton instance of NodesFlightInfoAction.
+     */
     public static final NodesFlightInfoAction INSTANCE = new NodesFlightInfoAction();
+    /**
+     * Name of this action.
+     */
     public static final String NAME = "cluster:admin/flight/info";
 
     NodesFlightInfoAction() {
