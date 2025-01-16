@@ -22,6 +22,9 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport action for getting flight information from nodes
+ */
 public class TransportNodesFlightInfoAction extends TransportNodesAction<
     NodesFlightInfoRequest,
     NodesFlightInfoResponse,
@@ -30,6 +33,15 @@ public class TransportNodesFlightInfoAction extends TransportNodesAction<
 
     private final FlightService flightService;
 
+    /**
+     * Constructor for TransportNodesFlightInfoAction
+     * @param settings The settings for the action
+     * @param threadPool The thread pool for the action
+     * @param clusterService The cluster service for the action
+     * @param transportService The transport service for the action
+     * @param actionFilters The action filters for the action
+     * @param flightService The flight service for the action
+     */
     @Inject
     public TransportNodesFlightInfoAction(
         Settings settings,
@@ -53,6 +65,13 @@ public class TransportNodesFlightInfoAction extends TransportNodesAction<
         this.flightService = flightService;
     }
 
+    /**
+     * Creates a new response object for the action.
+     * @param request The associated request.
+     * @param nodeFlightInfos All successful node-level responses.
+     * @param failures All node-level failures.
+     * @return The response object.
+     */
     @Override
     protected NodesFlightInfoResponse newResponse(
         NodesFlightInfoRequest request,
@@ -62,16 +81,31 @@ public class TransportNodesFlightInfoAction extends TransportNodesAction<
         return new NodesFlightInfoResponse(clusterService.getClusterName(), nodeFlightInfos, failures);
     }
 
+    /**
+     * Creates a new request object for a node.
+     * @param request The associated request.
+     * @return The request object.
+     */
     @Override
     protected NodesFlightInfoRequest.NodeFlightInfoRequest newNodeRequest(NodesFlightInfoRequest request) {
         return new NodesFlightInfoRequest.NodeFlightInfoRequest(request);
     }
 
+    /**
+     * Creates a new response object for a node.
+     * @param in The stream input to read from.
+     * @return The response object.
+     */
     @Override
     protected NodeFlightInfo newNodeResponse(StreamInput in) throws IOException {
         return new NodeFlightInfo(in);
     }
 
+    /**
+     * Creates a new response object for a node.
+     * @param request The associated request.
+     * @return The response object.
+     */
     @Override
     protected NodeFlightInfo nodeOperation(NodesFlightInfoRequest.NodeFlightInfoRequest request) {
         return new NodeFlightInfo(clusterService.localNode(), flightService.getBoundAddress());

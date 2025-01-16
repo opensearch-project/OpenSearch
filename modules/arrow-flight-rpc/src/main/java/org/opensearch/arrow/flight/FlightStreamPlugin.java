@@ -222,6 +222,16 @@ public class FlightStreamPlugin extends BaseFlightStreamPlugin {
         );
     }
 
+    /**
+     * Gets the auxiliary transports for Flight stream functionality.
+     * @param settings The settings for the plugin
+     * @param threadPool The thread pool
+     * @param circuitBreakerService The circuit breaker service
+     * @param networkService The network service
+     * @param clusterSettings The cluster settings
+     * @param tracer The tracer
+     * @return A map of auxiliary transports
+     */
     @Override
     public Map<String, Supplier<AuxTransport>> getAuxTransports(
         Settings settings,
@@ -234,6 +244,17 @@ public class FlightStreamPlugin extends BaseFlightStreamPlugin {
         return delegate.getAuxTransports(settings, threadPool, circuitBreakerService, networkService, clusterSettings, tracer);
     }
 
+    /**
+     * Gets the REST handlers for the Flight plugin.
+     * @param settings The settings for the plugin.
+     * @param restController The REST controller instance.
+     * @param clusterSettings The cluster settings instance.
+     * @param indexScopedSettings The index scoped settings instance.
+     * @param settingsFilter The settings filter instance.
+     * @param indexNameExpressionResolver The index name expression resolver instance.
+     * @param nodesInCluster The supplier for the discovery nodes.
+     * @return A list of REST handlers.
+     */
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
@@ -255,6 +276,9 @@ public class FlightStreamPlugin extends BaseFlightStreamPlugin {
         );
     }
 
+    /**
+     * Gets the list of action handlers for the Flight plugin.
+     */
     @Override
     public List<ActionHandler<?, ?>> getActions() {
         return delegate.getActions();
