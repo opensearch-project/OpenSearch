@@ -562,7 +562,7 @@ subprojects {
   // test with FIPS-140-3 enabled
   plugins.withType(JavaPlugin).configureEach {
     tasks.withType(Test).configureEach { testTask ->
-      if (System.getenv('OPENSEARCH_CRYPTO_STANDARD') == 'FIPS-140-3') {
+      if (BuildParams.inFipsJvm == true) {
         testTask.jvmArgs += "-Dorg.bouncycastle.fips.approved_only=true"
       }
     }

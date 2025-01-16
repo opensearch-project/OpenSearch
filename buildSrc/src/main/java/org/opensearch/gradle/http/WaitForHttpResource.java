@@ -32,10 +32,11 @@
 
 package org.opensearch.gradle.http;
 
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
+import de.thetaphi.forbiddenapis.SuppressForbidden;
+
+import org.opensearch.gradle.SecureRandomProvider;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.internal.impldep.com.jcraft.jsch.annotations.SuppressForbiddenApi;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManager;
@@ -240,7 +241,7 @@ public class WaitForHttpResource {
         return store;
     }
 
-    @SuppressForbiddenApi("runs exclusively in test-context without KeyStoreFactory on classpath.")
+    @SuppressForbidden
     private KeyStore getKeyStoreInstance(String type) throws KeyStoreException {
         return KeyStore.getInstance(type);
     }
@@ -250,7 +251,7 @@ public class WaitForHttpResource {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(trustStore);
         SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-        sslContext.init(new KeyManager[0], tmf.getTrustManagers(), CryptoServicesRegistrar.getSecureRandom());
+        sslContext.init(new KeyManager[0], tmf.getTrustManagers(), SecureRandomProvider.getSecureRandom());
         return sslContext;
     }
 

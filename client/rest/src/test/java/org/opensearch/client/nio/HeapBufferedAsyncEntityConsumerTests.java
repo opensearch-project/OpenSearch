@@ -35,34 +35,34 @@ public class HeapBufferedAsyncEntityConsumerTests extends RestClientTestCase {
     }
 
     public void testConsumerAllocatesBufferLimit() throws IOException {
-        consumer.consume(randomByteBufferOfLength(1000).flip());
+        consumer.consume((ByteBuffer) randomByteBufferOfLength(1000).flip());
         assertThat(consumer.getBuffer().capacity(), equalTo(1000));
     }
 
     public void testConsumerAllocatesEmptyBuffer() throws IOException {
-        consumer.consume(ByteBuffer.allocate(0).flip());
+        consumer.consume((ByteBuffer) ByteBuffer.allocate(0).flip());
         assertThat(consumer.getBuffer().capacity(), equalTo(0));
     }
 
     public void testConsumerExpandsBufferLimits() throws IOException {
-        consumer.consume(randomByteBufferOfLength(1000).flip());
-        consumer.consume(randomByteBufferOfLength(2000).flip());
-        consumer.consume(randomByteBufferOfLength(3000).flip());
+        consumer.consume((ByteBuffer) randomByteBufferOfLength(1000).flip());
+        consumer.consume((ByteBuffer) randomByteBufferOfLength(2000).flip());
+        consumer.consume((ByteBuffer) randomByteBufferOfLength(3000).flip());
         assertThat(consumer.getBuffer().capacity(), equalTo(6000));
     }
 
     public void testConsumerAllocatesLimit() throws IOException {
-        consumer.consume(randomByteBufferOfLength(BUFFER_LIMIT).flip());
+        consumer.consume((ByteBuffer) randomByteBufferOfLength(BUFFER_LIMIT).flip());
         assertThat(consumer.getBuffer().capacity(), equalTo(BUFFER_LIMIT));
     }
 
     public void testConsumerFailsToAllocateOverLimit() throws IOException {
-        assertThrows(ContentTooLongException.class, () -> consumer.consume(randomByteBufferOfLength(BUFFER_LIMIT + 1).flip()));
+        assertThrows(ContentTooLongException.class, () -> consumer.consume((ByteBuffer) randomByteBufferOfLength(BUFFER_LIMIT + 1).flip()));
     }
 
     public void testConsumerFailsToExpandOverLimit() throws IOException {
-        consumer.consume(randomByteBufferOfLength(BUFFER_LIMIT).flip());
-        assertThrows(ContentTooLongException.class, () -> consumer.consume(randomByteBufferOfLength(1).flip()));
+        consumer.consume((ByteBuffer) randomByteBufferOfLength(BUFFER_LIMIT).flip());
+        assertThrows(ContentTooLongException.class, () -> consumer.consume((ByteBuffer) randomByteBufferOfLength(1).flip()));
     }
 
     private static ByteBuffer randomByteBufferOfLength(int length) {

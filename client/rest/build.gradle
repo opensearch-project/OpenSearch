@@ -34,8 +34,8 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
 java {
-  targetCompatibility = JavaVersion.VERSION_11
-  sourceCompatibility = JavaVersion.VERSION_11
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
 }
 
 base {
@@ -51,15 +51,13 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
-
+  runtimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
 
   // reactor
   api "io.projectreactor:reactor-core:${versions.reactor}"
   api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
 
   testImplementation project(":client:test")
-  testImplementation project(':libs:opensearch-ssl-config')
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -80,6 +78,7 @@ tasks.named("dependencyLicenses").configure {
 tasks.withType(CheckForbiddenApis).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
+  classpath += files(project(':libs:opensearch-ssl-config').jar.archiveFile)
 }
 
 tasks.named('forbiddenApisTest').configure {
@@ -212,8 +211,14 @@ thirdPartyAudit {
 }
 
 tasks.withType(JavaCompile) {
+  classpath += files(project(':libs:opensearch-ssl-config').jar.archiveFile)
   // Suppressing '[options] target value 8 is obsolete and will be removed in a future release'
   configure(options) {
     options.compilerArgs << '-Xlint:-options'
+    options.compilerArgs -= '-Werror' // use of incubator modules is reported as a warning
   }
+}
+
+tasks.withType(Test).configureEach {
+  classpath += files(project(':libs:opensearch-ssl-config').jar.archiveFile)
 }

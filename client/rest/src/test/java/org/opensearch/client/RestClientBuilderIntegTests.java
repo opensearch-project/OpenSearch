@@ -138,7 +138,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             tmf.init(trustStore);
 
-            var sslContextBuilder = SSLContextBuilder.create()
+            SSLContextBuilder sslContextBuilder = SSLContextBuilder.create()
                 .setProvider("BCJSSE")
                 .setProtocol(getProtocol())
                 .setSecureRandom(secureRandom);
