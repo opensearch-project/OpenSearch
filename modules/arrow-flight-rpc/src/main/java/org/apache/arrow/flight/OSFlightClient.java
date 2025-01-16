@@ -54,17 +54,17 @@ import io.grpc.ClientInterceptors;
 import io.grpc.ManagedChannel;
 import io.grpc.MethodDescriptor;
 import io.grpc.StatusRuntimeException;
-import io.grpc.netty.GrpcSslContexts;
-import io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
+import io.grpc.netty.shaded.io.netty.channel.ServerChannel;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientCalls;
 import io.grpc.stub.ClientResponseObserver;
 import io.grpc.stub.StreamObserver;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 /**
  * Clone of {@link FlightClient} to support setting SslContext directly. It can be discarded once
@@ -718,7 +718,7 @@ public class OSFlightClient implements AutoCloseable {
     public static Builder builder(
         BufferAllocator allocator,
         Location location,
-        Class<? extends io.netty.channel.Channel> channelType,
+        Class<? extends io.grpc.netty.shaded.io.netty.channel.Channel> channelType,
         ExecutorService executorService,
         EventLoopGroup workerELG,
         SslContext sslContext
@@ -747,7 +747,7 @@ public class OSFlightClient implements AutoCloseable {
         private boolean verifyServer = true;
         private EventLoopGroup workerELG;
         private ExecutorService executorService;
-        private Class<? extends io.netty.channel.Channel> channelType;
+        private Class<? extends io.grpc.netty.shaded.io.netty.channel.Channel> channelType;
         private SslContext sslContext;
 
         private Builder() {}
@@ -820,7 +820,7 @@ public class OSFlightClient implements AutoCloseable {
             return this;
         }
 
-        public Builder channelType(Class<? extends io.netty.channel.Channel> channelType) {
+        public Builder channelType(Class<? extends io.grpc.netty.shaded.io.netty.channel.Channel> channelType) {
             this.channelType = channelType;
             return this;
         }
@@ -860,19 +860,22 @@ public class OSFlightClient implements AutoCloseable {
                         try {
                             // Linux
                             builder.channelType(
-                                Class.forName("io.netty.channel.epoll.EpollDomainSocketChannel").asSubclass(ServerChannel.class)
+                                Class.forName("io.grpc.netty.shaded.io.netty.channel.epoll.EpollDomainSocketChannel")
+                                    .asSubclass(ServerChannel.class)
                             );
-                            final EventLoopGroup elg = Class.forName("io.netty.channel.epoll.EpollEventLoopGroup")
+                            final EventLoopGroup elg = Class.forName("io.grpc.netty.shaded.io.netty.channel.epoll.EpollEventLoopGroup")
                                 .asSubclass(EventLoopGroup.class)
                                 .getDeclaredConstructor()
                                 .newInstance();
                             builder.eventLoopGroup(elg);
                         } catch (ClassNotFoundException e) {
                             // BSD
+                            // this might not work as io.netty.channel.kqueue classes aren't present in grpc-netty-shaded
                             builder.channelType(
-                                Class.forName("io.netty.channel.kqueue.KQueueDomainSocketChannel").asSubclass(ServerChannel.class)
+                                Class.forName("io.grpc.netty.shaded.io.netty.channel.kqueue.KQueueDomainSocketChannel")
+                                    .asSubclass(ServerChannel.class)
                             );
-                            final EventLoopGroup elg = Class.forName("io.netty.channel.kqueue.KQueueEventLoopGroup")
+                            final EventLoopGroup elg = Class.forName("io.grpc.netty.shaded.io.netty.channel.kqueue.KQueueEventLoopGroup")
                                 .asSubclass(EventLoopGroup.class)
                                 .getDeclaredConstructor()
                                 .newInstance();
