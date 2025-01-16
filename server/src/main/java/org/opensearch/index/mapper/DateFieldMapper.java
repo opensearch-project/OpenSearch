@@ -36,7 +36,9 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -74,6 +76,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -330,7 +333,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 buildFormatter(),
                 resolution,
                 nullValue.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                true
             );
             ft.setBoost(boost.getValue());
             Long nullTimestamp = parseNullValue(ft);
@@ -372,13 +376,27 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateFormatter dateTimeFormatter,
             Resolution resolution,
             String nullValue,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean derivedSourceSupported
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta, derivedSourceSupported);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
             this.nullValue = nullValue;
+        }
+
+        public DateFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            Map<String, String> meta
+        ) {
+            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, false);
         }
 
         public DateFieldType(String name) {
@@ -799,5 +817,19 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public Long getNullValue() {
         return nullValue;
+    }
+
+    @Override
+    protected String[] deriveSource(LeafReader leafReader, int docId) throws IOException {
+        SortedNumericDocValues sortedNumericDocValues = leafReader.getSortedNumericDocValues(name());
+        if (sortedNumericDocValues.advanceExact(docId)) {
+            int size = sortedNumericDocValues.docValueCount();
+            String[] values = new String[size];
+            DateFormatter dateFormatter = fieldType().dateTimeFormatter;
+            for (int i = 0; i < size; i++)
+                values[i] = dateFormatter.formatMillis(sortedNumericDocValues.nextValue());
+            return values;
+        }
+        return null;
     }
 }

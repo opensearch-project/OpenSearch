@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -570,6 +571,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected abstract String contentType();
+
+    public Object getDerivedSource(LeafReader leafReader, int docId) throws IOException{
+        if (mappedFieldType.isDerivedSourceSupported() == false)
+            throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
+        return deriveSource(leafReader, docId);
+    }
+
+    // generic implementation, override in subclasses for specific implementation
+    protected Object deriveSource(LeafReader leafReader, int docId) throws IOException {
+        return null;
+    }
 
     /**
      * Multi field implementation used across field mappers
