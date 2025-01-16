@@ -121,6 +121,10 @@ public class FlightService extends NetworkPlugin.AuxTransport {
         return streamManager;
     }
 
+    /**
+     * Retrieves the bound address of the FlightService.
+     * @return The BoundTransportAddress instance.
+     */
     public BoundTransportAddress getBoundAddress() {
         return serverComponents.getBoundAddress();
     }
