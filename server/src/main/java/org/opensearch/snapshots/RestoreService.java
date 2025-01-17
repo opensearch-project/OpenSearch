@@ -163,7 +163,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
 
-    private static final Set<String> USER_UNMODIFIABLE_SETTINGS = unmodifiableSet(
+    // It's OK to change some settings, but we shouldn't allow simply removing them
+    private static final Set<String> USER_UNREMOVABLE_SETTINGS = unmodifiableSet(
         newHashSet(
             SETTING_VERSION_CREATED,
             SETTING_INDEX_UUID,
@@ -171,23 +172,15 @@ public class RestoreService implements ClusterStateApplier {
             SETTING_HISTORY_UUID,
             SETTING_REMOTE_STORE_ENABLED,
             SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-            SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
+            SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
+            SETTING_NUMBER_OF_SHARDS,
+            SETTING_NUMBER_OF_REPLICAS,
+            SETTING_AUTO_EXPAND_REPLICAS,
+            SETTING_VERSION_UPGRADED
         )
     );
 
-    // It's OK to change some settings, but we shouldn't allow simply removing them
-    private static final Set<String> USER_UNREMOVABLE_SETTINGS;
     private static final String REMOTE_STORE_INDEX_SETTINGS_REGEX = "index.remote_store.*";
-
-    static {
-        Set<String> unremovable = new HashSet<>(USER_UNMODIFIABLE_SETTINGS.size() + 4);
-        unremovable.addAll(USER_UNMODIFIABLE_SETTINGS);
-        unremovable.add(SETTING_NUMBER_OF_SHARDS);
-        unremovable.add(SETTING_NUMBER_OF_REPLICAS);
-        unremovable.add(SETTING_AUTO_EXPAND_REPLICAS);
-        unremovable.add(SETTING_VERSION_UPGRADED);
-        USER_UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
-    }
 
     private final ClusterService clusterService;
 
@@ -874,9 +867,7 @@ public class RestoreService implements ClusterStateApplier {
                         Settings.Builder settingsBuilder = Settings.builder()
                             .put(settings.filter(settingsFilter))
                             .put(normalizedChangeSettings.filter(k -> {
-                                if (USER_UNMODIFIABLE_SETTINGS.contains(k)) {
-                                    throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
-                                } else if (indexScopedSettings.isUnmodifiableOnRestoreSetting(k)) {
+                                if (indexScopedSettings.isUnmodifiableOnRestoreSetting(k)) {
                                     throw new SnapshotRestoreException(
                                         snapshot,
                                         "cannot modify UnmodifiableOnRestore setting [" + k + "] on restore"

@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.Version;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
@@ -494,6 +495,51 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
     }
 
+    public void testIndexRestoredFromSnapshotWithUpdateSetting() throws IOException, ExecutionException, InterruptedException {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+
+        String indexName1 = "testindex1";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotName1 = "test-restore-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+
+        Settings indexSettings = getIndexSettings(1, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        final int numDocsInIndex1 = randomIntBetween(20, 30);
+        indexDocuments(client(), indexName1, numDocsInIndex1);
+        flushAndRefresh(indexName1);
+        ensureGreen(indexName1);
+
+        logger.info("--> snapshot");
+        SnapshotInfo snapshotInfo1 = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(Arrays.asList(indexName1)));
+        assertThat(snapshotInfo1.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo1.successfulShards(), equalTo(snapshotInfo1.totalShards()));
+        assertThat(snapshotInfo1.state(), equalTo(SnapshotState.SUCCESS));
+
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(indexName1)).get());
+        assertFalse(indexExists(indexName1));
+
+        // try index restore with index.number_of_replicas setting modified. index.number_of_replicas can be modified on restore
+        Settings numberOfReplicasSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+
+        RestoreSnapshotResponse restoreSnapshotResponse1 = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(false)
+            .setIndexSettings(numberOfReplicasSettings)
+            .setIndices(indexName1)
+            .get();
+
+        assertEquals(restoreSnapshotResponse1.status(), RestStatus.ACCEPTED);
+        ensureGreen(indexName1);
+        assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
+    }
+
     protected IndexShard getIndexShard(String node, String indexName) {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
@@ -721,9 +767,45 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         );
         assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.enabled] on restore"));
 
-        // try index restore with remote store repository modified
-        Settings remoteStoreIndexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, newRemoteStoreRepo)
+        // try index restore with index.number_of_shards setting modified
+        Settings numberOfShardsSettingsDiff = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(numberOfShardsSettingsDiff)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.number_of_shards]" + " on restore"));
+
+        // try index restore with index.number_of_shards setting same
+        Settings numberOfShardsSettingsSame = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(numberOfShardsSettingsSame)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.number_of_shards]" + " on restore"));
+
+        // try index restore with mix of modifiable and unmodifiable settings on restore
+        // index.version.created is unmodifiable, index.number_of_replicas is modifiable
+        Settings mixedSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_EMPTY)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build();
 
         exception = expectThrows(
@@ -732,16 +814,20 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
                 .cluster()
                 .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
                 .setWaitForCompletion(false)
-                .setIndexSettings(remoteStoreIndexSettings)
+                .setIndexSettings(mixedSettings)
                 .setIndices(index)
                 .setRenamePattern(index)
                 .setRenameReplacement(restoredIndex)
                 .get()
         );
-        assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.segment.repository]" + " on restore"));
+        assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.version.created]" + " on restore"));
 
-        // try index restore with index.number_of_shards setting modified
-        Settings indexKnnSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, false).build();
+        // try index restore with multiple UnmodifiableOnRestore settings on restore
+        Settings unmodifiableSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_CREATION_DATE, -1L)
+            .put(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)
+            .put(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)
+            .build();
 
         exception = expectThrows(
             SnapshotRestoreException.class,
@@ -749,13 +835,13 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
                 .cluster()
                 .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
                 .setWaitForCompletion(false)
-                .setIndexSettings(indexKnnSettings)
+                .setIndexSettings(unmodifiableSettings)
                 .setIndices(index)
                 .setRenamePattern(index)
                 .setRenameReplacement(restoredIndex)
                 .get()
         );
-        assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.number_of_shards]" + " on restore"));
+        assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.creation_date]" + " on restore"));
 
         // try index restore with remote store repository and translog store repository disabled
         exception = expectThrows(
