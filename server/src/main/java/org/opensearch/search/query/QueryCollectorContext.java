@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
@@ -67,38 +68,52 @@ import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_
  */
 @PublicApi(since = "1.0.0")
 public abstract class QueryCollectorContext {
-    private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
-        @Override
-        public void collect(int doc) {}
 
-        @Override
-        public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE_NO_SCORES;
-        }
-    };
+    private static Collector createEmptyCollector(ScoreMode scoreMode) {
+        return new SimpleCollector() {
+            @Override
+            public void collect(int doc) {}
 
-    public static final QueryCollectorContext EMPTY_CONTEXT = new QueryCollectorContext("empty") {
+            @Override
+            public ScoreMode scoreMode() {
+                return scoreMode;
+            }
+        };
+    }
 
-        @Override
-        Collector create(Collector in) throws IOException {
-            return EMPTY_COLLECTOR;
-        }
+    private static final ReduceableSearchResult EMPTY_RESULT = result -> {};
 
-        @Override
-        CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
-            return new CollectorManager<Collector, ReduceableSearchResult>() {
-                @Override
-                public Collector newCollector() throws IOException {
-                    return EMPTY_COLLECTOR;
-                }
+    private static QueryCollectorContext createEmptyContext(Collector collector) {
+        String name = String.format(Locale.ROOT, "empty_with_score_mode_%s", collector.scoreMode().toString().toLowerCase(Locale.ROOT));
+        return new QueryCollectorContext(name) {
+            @Override
+            Collector create(Collector in) {
+                return collector;
+            }
 
-                @Override
-                public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
-                    return result -> {};
-                }
-            };
-        }
-    };
+            @Override
+            CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) {
+                return new CollectorManager<>() {
+                    @Override
+                    public Collector newCollector() {
+                        return collector;
+                    }
+
+                    @Override
+                    public ReduceableSearchResult reduce(Collection<Collector> collectors) {
+                        return EMPTY_RESULT;
+                    }
+                };
+
+            }
+        };
+    }
+
+    private static final Collector EMPTY_COLLECTOR = createEmptyCollector(ScoreMode.COMPLETE_NO_SCORES);
+    private static final Collector EMPTY_COLLECTOR_TOP_SCORES = createEmptyCollector(ScoreMode.TOP_SCORES);
+
+    public static final QueryCollectorContext EMPTY_CONTEXT = createEmptyContext(EMPTY_COLLECTOR);
+    public static final QueryCollectorContext EMPTY_CONTEXT_TOP_SCORES_SCORE_MODE = createEmptyContext(EMPTY_COLLECTOR_TOP_SCORES);
 
     private String profilerName;
 
