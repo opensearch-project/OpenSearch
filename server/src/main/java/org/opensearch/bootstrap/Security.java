@@ -74,7 +74,7 @@ import java.util.regex.Pattern;
 import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_PORT_DEFAULTS;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORTS;
+import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORT;
 import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
 
 /**
@@ -423,7 +423,7 @@ final class Security {
     }
 
     /**
-     * Add dynamic {@link SocketPermission} based on AffixSetting AUX_TRANSPORT_PORTS.
+     * Add dynamic {@link SocketPermission} based on AffixSetting AUX_TRANSPORT_PORT.
      * If an auxiliary transport type is enabled but has no corresponding port range setting fall back to AUX_PORT_DEFAULTS.
      *
      * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
@@ -432,7 +432,7 @@ final class Security {
     private static void addSocketPermissionForAux(final Permissions policy, final Settings settings) {
         Set<PortsRange> portsRanges = new HashSet<>();
         for (String auxType : AUX_TRANSPORT_TYPES_SETTING.get(settings)) {
-            Setting<PortsRange> auxTypePortSettings = AUX_TRANSPORT_PORTS.getConcreteSettingForNamespace(auxType);
+            Setting<PortsRange> auxTypePortSettings = AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(auxType);
             if (auxTypePortSettings.exists(settings)) {
                 portsRanges.add(auxTypePortSettings.get(settings));
             } else {
