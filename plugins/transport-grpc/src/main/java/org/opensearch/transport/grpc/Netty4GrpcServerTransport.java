@@ -63,9 +63,9 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
 
     /**
      * Port range on which to bind.
-     * Note this setting is configured through AffixSetting AUX_TRANSPORT_PORTS where the aux transport type matches the GRPC_TRANSPORT_SETTING_KEY.
+     * Note this setting is configured through AffixSetting AUX_TRANSPORT_PORT where the aux transport type matches the GRPC_TRANSPORT_SETTING_KEY.
      */
-    public static final Setting<PortsRange> SETTING_GRPC_PORTS = AUX_TRANSPORT_PORTS.getConcreteSettingForNamespace(
+    public static final Setting<PortsRange> SETTING_GRPC_PORT = AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(
         GRPC_TRANSPORT_SETTING_KEY
     );
 
@@ -134,20 +134,21 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
      * @param networkService the bind/publish addresses.
      */
     public Netty4GrpcServerTransport(Settings settings, List<BindableService> services, NetworkService networkService) {
+        logger.debug("Initializing Netty4GrpcServerTransport with settings = {}", settings);
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
         this.networkService = Objects.requireNonNull(networkService);
 
-        final List<String> httpBindHost = SETTING_GRPC_BIND_HOST.get(settings);
-        this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : httpBindHost).toArray(
+        final List<String> grpcBindHost = SETTING_GRPC_BIND_HOST.get(settings);
+        this.bindHosts = (grpcBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : grpcBindHost).toArray(
             Strings.EMPTY_ARRAY
         );
 
-        final List<String> httpPublishHost = SETTING_GRPC_PUBLISH_HOST.get(settings);
-        this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings) : httpPublishHost)
+        final List<String> grpcPublishHost = SETTING_GRPC_PUBLISH_HOST.get(settings);
+        this.publishHosts = (grpcPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings) : grpcPublishHost)
             .toArray(Strings.EMPTY_ARRAY);
 
-        this.port = SETTING_GRPC_PORTS.get(settings);
+        this.port = SETTING_GRPC_PORT.get(settings);
         this.nettyEventLoopThreads = SETTING_GRPC_WORKER_COUNT.get(settings);
     }
 
@@ -229,7 +230,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
                     + publishInetAddress
                     + "). "
                     + "Please specify a unique port by setting "
-                    + SETTING_GRPC_PORTS.getKey()
+                    + SETTING_GRPC_PORT.getKey()
                     + " or "
                     + SETTING_GRPC_PUBLISH_PORT.getKey()
             );
