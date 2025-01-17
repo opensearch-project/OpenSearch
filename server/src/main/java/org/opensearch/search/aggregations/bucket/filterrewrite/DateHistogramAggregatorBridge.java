@@ -39,9 +39,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
          * The filter rewrite optimized path does not support bucket intervals which are not fixed.
          * For this reason we exclude non UTC timezones.
          */
-        if (config.format() instanceof DocValueFormat.DateTime &&
-            !isUTCTimeZone(((DocValueFormat.DateTime) config.format()).getZoneId())
-        ) {
+        if (config.format() instanceof DocValueFormat.DateTime && !isUTCTimeZone(((DocValueFormat.DateTime) config.format()).getZoneId())) {
             return false;
         }
 
