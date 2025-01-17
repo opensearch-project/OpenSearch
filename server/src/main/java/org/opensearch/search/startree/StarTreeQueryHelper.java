@@ -360,14 +360,20 @@ public class StarTreeQueryHelper {
         return currentNode;
     }
 
-    public static Dimension getMatchingDimensionOrError(String dimensionName, StarTreeValues starTreeValues) {
-        List<Dimension> matchingDimensions = starTreeValues.getStarTreeField()
-            .getDimensionsOrder()
-            .stream()
+    public static Dimension getMatchingDimensionOrError(String dimensionName, List<Dimension> orderedDimensions) {
+        Dimension matchingDimension = getMatchingDimensionOrNull(dimensionName, orderedDimensions);
+        if (matchingDimension == null) {
+            throw new IllegalStateException("No matching dimension found for [" + dimensionName + "]");
+        }
+        return matchingDimension;
+    }
+
+    public static Dimension getMatchingDimensionOrNull(String dimensionName, List<Dimension> orderedDimensions) {
+        List<Dimension> matchingDimensions = orderedDimensions.stream()
             .filter(x -> x.getField().equals(dimensionName))
             .collect(Collectors.toList());
         if (matchingDimensions.size() != 1) {
-            throw new IllegalStateException("Expected exactly one dimension but found " + matchingDimensions);
+            return null;
         }
         return matchingDimensions.get(0);
     }

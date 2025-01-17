@@ -8,7 +8,6 @@
 
 package org.opensearch.search.startree;
 
-import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
@@ -17,14 +16,14 @@ import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @ExperimentalApi
 public interface StarTreeFilterProvider {
 
-    public StarTreeFilter getFilter(QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType);
+    StarTreeFilter getFilter(QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType);
 
     class SingletonFactory {
 
@@ -33,57 +32,44 @@ public interface StarTreeFilterProvider {
             (rawFilter, compositeFieldType) -> {
                 TermQueryBuilder termQueryBuilder = (TermQueryBuilder) rawFilter;
                 String field = termQueryBuilder.fieldName();
-                List<Dimension> matchedDimension = compositeFieldType.getDimensions()
-                    .stream()
-                    .filter(dim -> dim.getField().equals(field))
-                    .collect(Collectors.toList());
+                Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
                 // FIXME : DocValuesType validation is field type specific and not query builder specific should happen elsewhere.
-                if (matchedDimension.size() != 1 || matchedDimension.get(0).getDocValuesType() != DocValuesType.SORTED_NUMERIC) {
-                    return null;
-                }
-                return new StarTreeFilter(Map.of(field, List.of(new ExactMatchDimFilter(field, List.of(termQueryBuilder.value())))));
+                return matchedDimension == null
+                    ? new StarTreeFilter(Collections.emptyMap())
+                    : new StarTreeFilter(Map.of(field, List.of(new ExactMatchDimFilter(field, List.of(termQueryBuilder.value())))));
             },
             TermsQueryBuilder.class,
             (rawFilter, compositeFieldType) -> {
                 TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) rawFilter;
                 String field = termsQueryBuilder.fieldName();
-                List<Dimension> matchedDimension = compositeFieldType.getDimensions()
-                    .stream()
-                    .filter(dim -> dim.getField().equals(field))
-                    .collect(Collectors.toList());
+                Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
                 // FIXME : DocValuesType validation is field type specific and not query builder specific should happen elsewhere.
-                if (matchedDimension.size() != 1 || matchedDimension.get(0).getDocValuesType() != DocValuesType.SORTED_NUMERIC) {
-                    return null;
-                }
-                return new StarTreeFilter(Map.of(field, List.of(new ExactMatchDimFilter(field, termsQueryBuilder.values()))));
+                return matchedDimension == null
+                    ? new StarTreeFilter(Collections.emptyMap())
+                    : new StarTreeFilter(Map.of(field, List.of(new ExactMatchDimFilter(field, termsQueryBuilder.values()))));
             },
             RangeQueryBuilder.class,
             (rawFilter, compositeFieldType) -> {
                 RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) rawFilter;
                 String field = rangeQueryBuilder.fieldName();
-                List<Dimension> matchedDimensions = compositeFieldType.getDimensions()
-                    .stream()
-                    .filter(dim -> dim.getField().equals(field))
-                    .collect(Collectors.toList());
+                Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
                 // FIXME : DocValuesType validation is field type specific and not query builder specific should happen elsewhere.
-                if (matchedDimensions.size() != 1 || matchedDimensions.get(0).getDocValuesType() != DocValuesType.SORTED_NUMERIC) {
-                    return null;
-                }
-                Dimension matchedDimension = matchedDimensions.get(0);
-                return new StarTreeFilter(
-                    Map.of(
-                        field,
-                        List.of(
-                            new RangeMatchDimFilter(
-                                matchedDimension.getField(),
-                                rangeQueryBuilder.from(),
-                                rangeQueryBuilder.to(),
-                                rangeQueryBuilder.includeLower(),
-                                rangeQueryBuilder.includeUpper()
+                return matchedDimension == null
+                    ? new StarTreeFilter(Collections.emptyMap())
+                    : new StarTreeFilter(
+                        Map.of(
+                            field,
+                            List.of(
+                                new RangeMatchDimFilter(
+                                    matchedDimension.getField(),
+                                    rangeQueryBuilder.from(),
+                                    rangeQueryBuilder.to(),
+                                    rangeQueryBuilder.includeLower(),
+                                    rangeQueryBuilder.includeUpper()
+                                )
                             )
                         )
-                    )
-                );
+                    );
             }
         );
 
@@ -93,6 +79,13 @@ public interface StarTreeFilterProvider {
             } else {
                 return null;
             }
+        }
+
+        private static Dimension getDimensionOrError(Dimension dimension) {
+            if (dimension == null) {
+                throw new IllegalStateException("Field [" + dimension.getField() + "] not found in star tree");
+            }
+            return dimension;
         }
 
     }

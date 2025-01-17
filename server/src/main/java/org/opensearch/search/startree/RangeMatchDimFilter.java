@@ -26,8 +26,8 @@ public class RangeMatchDimFilter implements DimensionFilter {
     private final boolean includeLow;
     private final boolean includeHigh;
 
-    private long lowOrdinal;
-    private long highOrdinal;
+    private Long lowOrdinal;
+    private Long highOrdinal;
 
     public RangeMatchDimFilter(String dimensionName, Object low, Object high, boolean includeLow, boolean includeHigh) {
         this.dimensionName = dimensionName;
@@ -39,19 +39,24 @@ public class RangeMatchDimFilter implements DimensionFilter {
 
     @Override
     public void initialiseForSegment(StarTreeValues starTreeValues) throws IOException {
-        Dimension matchedDim = StarTreeQueryHelper.getMatchingDimensionOrError(dimensionName, starTreeValues);
-        FieldToDimensionOrdinalMapper fieldToDimensionOrdinalMapper = getFieldToDimensionOrdinalMapper(matchedDim.getDocValuesType());
-        if (low != null) {
-            MatchType lowMatchType = includeLow ? MatchType.GTE : MatchType.GT;
-            lowOrdinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(dimensionName, low, starTreeValues, lowMatchType);
-        } else {
-            lowOrdinal = 0;
-        }
-        if (high != null) {
-            MatchType highMatchType = includeHigh ? MatchType.LTE : MatchType.LT;
-            highOrdinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(dimensionName, high, starTreeValues, highMatchType);
-        } else {
-            highOrdinal = Long.MAX_VALUE;
+        Dimension matchedDim = StarTreeQueryHelper.getMatchingDimensionOrError(
+            dimensionName,
+            starTreeValues.getStarTreeField().getDimensionsOrder()
+        );
+        if (lowOrdinal != null && highOrdinal != null) {
+            FieldToDimensionOrdinalMapper fieldToDimensionOrdinalMapper = getFieldToDimensionOrdinalMapper(matchedDim.getDocValuesType());
+            if (low != null) {
+                MatchType lowMatchType = includeLow ? MatchType.GTE : MatchType.GT;
+                lowOrdinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(dimensionName, low, starTreeValues, lowMatchType);
+            } else {
+                lowOrdinal = 0L;
+            }
+            if (high != null) {
+                MatchType highMatchType = includeHigh ? MatchType.LTE : MatchType.LT;
+                highOrdinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(dimensionName, high, starTreeValues, highMatchType);
+            } else {
+                highOrdinal = Long.MAX_VALUE;
+            }
         }
     }
 

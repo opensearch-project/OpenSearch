@@ -36,7 +36,10 @@ public class ExactMatchDimFilter implements DimensionFilter {
     @Override
     public void initialiseForSegment(StarTreeValues starTreeValues) {
         convertedOrdinals = new TreeSet<>();
-        Dimension matchedDim = StarTreeQueryHelper.getMatchingDimensionOrError(dimensionName, starTreeValues);
+        Dimension matchedDim = StarTreeQueryHelper.getMatchingDimensionOrError(
+            dimensionName,
+            starTreeValues.getStarTreeField().getDimensionsOrder()
+        );
         FieldToDimensionOrdinalMapper fieldToDimensionOrdinalMapper = getFieldToDimensionOrdinalMapper(matchedDim.getDocValuesType());
         for (Object rawValue : rawValues) {
             long ordinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(

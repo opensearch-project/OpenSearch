@@ -60,8 +60,8 @@ public interface FieldToDimensionOrdinalMapper {
                         TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil((BytesRef) value);
                         if (matchType == MatchType.GT || matchType == MatchType.GTE) {
                             return termsEnum.ord();
-                        } else {
-                            return (seekStatus == TermsEnum.SeekStatus.FOUND) ? termsEnum.ord() : termsEnum.ord() - 1;
+                        } else { // LT || LTE
+                            return (seekStatus == TermsEnum.SeekStatus.NOT_FOUND) ? termsEnum.ord() - 1 : termsEnum.ord();
                         }
                     }
                 } catch (IOException e) {
@@ -101,7 +101,7 @@ public interface FieldToDimensionOrdinalMapper {
         LT,
         GTE,
         LTE,
-        EXACT;
+        EXACT
     }
 
 }
