@@ -254,15 +254,15 @@ public class StarTreeQueryHelper {
     public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues)
         throws IOException {
         // TODO : Uncomment and implement caching in new STQC
-        // FixedBitSet result = context.getStarTreeQueryContext().getStarTreeValues(ctx);
-        // if (result == null) {
-        return OlderStarTreeFilter.getStarTreeResult2(
-            starTreeValues,
-            context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter()
-        );
-        // context.getStarTreeQueryContext().setStarTreeValues(ctx, result);
-        // }
-        // return result;
+        FixedBitSet result = context.getQueryShardContext().getStarTreeQueryContext().getStarTreeValues(ctx);
+        if (result == null) {
+            result = OlderStarTreeFilter.getStarTreeResult2(
+                starTreeValues,
+                context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter()
+            );
+        }
+        context.getQueryShardContext().getStarTreeQueryContext().setStarTreeValues(ctx, result);
+        return result;
     }
 
     public static Set<Integer> traverseStarTree(StarTreeValues starTreeValues, Map<String, List<DimensionFilter>> dimensionFilterMap)
@@ -358,6 +358,18 @@ public class StarTreeQueryHelper {
             currentNode = currentNode.getChildStarNode();
         }
         return currentNode;
+    }
+
+    public static Dimension getMatchingDimensionOrError(String dimensionName, StarTreeValues starTreeValues) {
+        List<Dimension> matchingDimensions = starTreeValues.getStarTreeField()
+            .getDimensionsOrder()
+            .stream()
+            .filter(x -> x.getField().equals(dimensionName))
+            .collect(Collectors.toList());
+        if (matchingDimensions.size() != 1) {
+            throw new IllegalStateException("Expected exactly one dimension but found " + matchingDimensions);
+        }
+        return matchingDimensions.get(0);
     }
 
     static class UnMatchedDocIdSet {

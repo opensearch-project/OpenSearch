@@ -150,7 +150,7 @@ import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.search.startree.StarTreeQueryContext;
+import org.opensearch.search.startree.OlderStarTreeQueryContext;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -433,9 +433,9 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.mapperService()).thenReturn(mapperService);
 
         SearchSourceBuilder sb = new SearchSourceBuilder().query(queryBuilder);
-        StarTreeQueryContext starTreeQueryContext = StarTreeQueryHelper.getStarTreeQueryContext(searchContext, sb);
+        OlderStarTreeQueryContext olderStarTreeQueryContext = StarTreeQueryHelper.getOlderStarTreeQueryContext(searchContext, sb);
 
-        when(searchContext.getStarTreeQueryContext()).thenReturn(starTreeQueryContext);
+        when(searchContext.getStarTreeQueryContext()).thenReturn(olderStarTreeQueryContext);
         return searchContext;
     }
 

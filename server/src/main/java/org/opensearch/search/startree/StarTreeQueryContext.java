@@ -38,7 +38,7 @@ public class StarTreeQueryContext {
      * This is used to cache the results for each leaf reader context
      * to avoid reading the filtered values from the leaf reader context multiple times
      */
-    private final Map<Integer, Map<String, FixedBitSet>> starTreeValues;
+    private final FixedBitSet[] starTreeValues;
 
     private final QueryBuilder baseQueryBuilder;
 
@@ -55,7 +55,7 @@ public class StarTreeQueryContext {
         boolean cacheStarTreeValues = context.aggregations().factories().getFactories().length > 1;
         int cacheSize = cacheStarTreeValues ? context.indexShard().segments(false).size() : -1;
         if (cacheSize > -1) {
-            starTreeValues = new HashMap<>(cacheSize);
+            starTreeValues = new FixedBitSet[cacheSize];
         } else {
             starTreeValues = null;
         }
@@ -65,9 +65,14 @@ public class StarTreeQueryContext {
         return new CompositeIndexFieldInfo(compositeMappedFieldType.name(), compositeMappedFieldType.getCompositeIndexType());
     }
 
-    public FixedBitSet getStarTreeValues(LeafReaderContext ctx, Aggregator aggregator) {
-        Map<String, FixedBitSet> segmentCache = starTreeValues.get(ctx.ord);
-        return segmentCache != null ? segmentCache.get(getAggregatorKey(aggregator)) : null;
+    public FixedBitSet getStarTreeValues(LeafReaderContext ctx) {
+        return starTreeValues != null ? starTreeValues[ctx.ord] : null;
+    }
+
+    public void setStarTreeValues(LeafReaderContext ctx, FixedBitSet values) {
+        if (starTreeValues != null) {
+            starTreeValues[ctx.ord] = values;
+        }
     }
 
     public void registerQuery(QueryBuilder query, AggregatorFactory aggregatorFactory) {

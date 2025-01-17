@@ -111,6 +111,14 @@ public class OlderStarTreeFilter {
     }
 
     public static FixedBitSet getStarTreeResult2(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter) throws IOException {
+
+        // Initialising all dimension filters for this segment
+        for (String dimension : starTreeFilter.getDimensions()) {
+            for (DimensionFilter dimensionFilter : starTreeFilter.getFiltersForDimension(dimension)) {
+                dimensionFilter.initialiseForSegment(starTreeValues);
+            }
+        }
+
         StarTreeResult starTreeResult = traverseStarTree2(starTreeValues, starTreeFilter);
 
         // Initialize FixedBitSet with size maxMatchedDoc + 1
