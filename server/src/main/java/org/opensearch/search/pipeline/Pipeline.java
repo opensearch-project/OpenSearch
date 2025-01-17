@@ -167,13 +167,7 @@ class Pipeline {
                     afterRequestProcessor(processor, took);
                     onRequestProcessorFailed(processor);
                     if (r.source().verbosePipeline()) {
-                        String errorMessage = "An error occurred in the request processor ["
-                            + processor.getType()
-                            + "] while executing in the search pipeline ["
-                            + id
-                            + "]: "
-                            + e.getMessage();
-                        detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, errorMessage);
+                        detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, e.getMessage());
                         requestContext.addProcessorExecutionDetail(detail);
                         nextListener.onResponse(r);
                     } else if (processor.isIgnoreFailure()) {
@@ -275,13 +269,7 @@ class Pipeline {
                     afterResponseProcessor(processor, took);
                     // If an error occurs and the pipeline is in verbose mode, the processor will not terminate the execution chain.
                     if (request.source().verbosePipeline()) {
-                        String errorMessage = "An error occurred in the response processor ["
-                            + processor.getType()
-                            + "] while executing in the search pipeline ["
-                            + id
-                            + "]: "
-                            + e.getMessage();
-                        detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, errorMessage);
+                        detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, e.getMessage());
                         requestContext.addProcessorExecutionDetail(detail);
                         r.getInternalResponse().getProcessorResult().add(detail);
                         currentFinalListener.onResponse(r);

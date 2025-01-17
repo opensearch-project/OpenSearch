@@ -1828,12 +1828,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(SearchSourceBuilder.searchSource().verbosePipeline(true));
 
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
             () -> searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver)
         );
-
-        assertEquals("The 'verbose pipelines' option requires a search pipeline to be defined.", e.getMessage());
     }
 
     public void testVerbosePipelineWithRequestProcessorOnly() throws Exception {

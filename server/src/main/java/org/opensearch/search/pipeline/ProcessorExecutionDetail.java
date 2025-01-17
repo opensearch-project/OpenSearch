@@ -273,6 +273,7 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
             + '\''
             + '}';
     }
+
     /**
      * Represents the status of a processor in the search pipeline.
      *
