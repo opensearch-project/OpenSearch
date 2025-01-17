@@ -53,11 +53,12 @@ public interface FieldToDimensionOrdinalMapper {
             if (genericIterator instanceof SortedSetStarTreeValuesIterator) {
                 SortedSetStarTreeValuesIterator sortedSetIterator = (SortedSetStarTreeValuesIterator) genericIterator;
                 try {
+                    BytesRef indexedValue = new BytesRef(value.toString().getBytes());
                     if (matchType == MatchType.EXACT) {
-                        return sortedSetIterator.lookupTerm((BytesRef) value);
+                        return sortedSetIterator.lookupTerm(indexedValue);
                     } else {
                         TermsEnum termsEnum = sortedSetIterator.termsEnum();
-                        TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil((BytesRef) value);
+                        TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(indexedValue);
                         if (matchType == MatchType.GT || matchType == MatchType.GTE) {
                             return termsEnum.ord();
                         } else { // LT || LTE

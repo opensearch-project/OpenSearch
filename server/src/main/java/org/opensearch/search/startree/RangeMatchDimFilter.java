@@ -43,20 +43,18 @@ public class RangeMatchDimFilter implements DimensionFilter {
             dimensionName,
             starTreeValues.getStarTreeField().getDimensionsOrder()
         );
-        if (lowOrdinal != null && highOrdinal != null) {
-            FieldToDimensionOrdinalMapper fieldToDimensionOrdinalMapper = getFieldToDimensionOrdinalMapper(matchedDim.getDocValuesType());
-            if (low != null) {
-                MatchType lowMatchType = includeLow ? MatchType.GTE : MatchType.GT;
-                lowOrdinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(dimensionName, low, starTreeValues, lowMatchType);
-            } else {
-                lowOrdinal = 0L;
-            }
-            if (high != null) {
-                MatchType highMatchType = includeHigh ? MatchType.LTE : MatchType.LT;
-                highOrdinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(dimensionName, high, starTreeValues, highMatchType);
-            } else {
-                highOrdinal = Long.MAX_VALUE;
-            }
+        FieldToDimensionOrdinalMapper fieldToDimensionOrdinalMapper = getFieldToDimensionOrdinalMapper(matchedDim.getDocValuesType());
+        if (low != null) {
+            MatchType lowMatchType = includeLow ? MatchType.GTE : MatchType.GT;
+            lowOrdinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(dimensionName, low, starTreeValues, lowMatchType);
+        } else {
+            lowOrdinal = 0L;
+        }
+        if (high != null) {
+            MatchType highMatchType = includeHigh ? MatchType.LTE : MatchType.LT;
+            highOrdinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(dimensionName, high, starTreeValues, highMatchType);
+        } else {
+            highOrdinal = Long.MAX_VALUE;
         }
     }
 
