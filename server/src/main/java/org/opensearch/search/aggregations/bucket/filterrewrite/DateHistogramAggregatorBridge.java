@@ -14,6 +14,7 @@ import org.apache.lucene.index.PointValues;
 import org.opensearch.common.Rounding;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -38,7 +39,9 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
          * The filter rewrite optimized path does not support bucket intervals which are not fixed.
          * For this reason we exclude non UTC timezones.
          */
-        if (!isUTCTimeZone(config.timezone())) {
+        if (config.format() instanceof DocValueFormat.DateTime &&
+            !isUTCTimeZone(((DocValueFormat.DateTime) config.format()).getZoneId())
+        ) {
             return false;
         }
 
