@@ -98,7 +98,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix Shallow copy snapshot failures on closed index ([#16868](https://github.com/opensearch-project/OpenSearch/pull/16868))
 - Fix multi-value sort for unsigned long ([#16732](https://github.com/opensearch-project/OpenSearch/pull/16732))
 - The `phone-search` analyzer no longer emits the tel/sip prefix, international calling code, extension numbers and unformatted input as a token ([#16993](https://github.com/opensearch-project/OpenSearch/pull/16993))
-- Fix `GetStats` field serialization where `getTime` is used instead of `time` ([#17008](https://github.com/opensearch-project/OpenSearch/pull/17009))
 ### Security
 
 [Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.18...2.x
