@@ -8,6 +8,8 @@
 
 package org.opensearch.plugin.kafka;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
+
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -43,6 +45,7 @@ import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 /**
  * Integration test for Kafka ingestion
  */
+@ThreadLeakLingering(linger = 5000) // wait for container pull thread to die
 public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
     static final String topicName = "test";
 
