@@ -12,8 +12,8 @@
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Pull-based ingestion plugin to consume from Kafka'
-  classname 'org.opensearch.plugin.kafka.KafkaPlugin'
+  description = 'Pull-based ingestion plugin to consume from Kafka'
+  classname = 'org.opensearch.plugin.kafka.KafkaPlugin'
 }
 
 versions << [
