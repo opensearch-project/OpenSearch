@@ -172,8 +172,8 @@ public class StarTreeFilter {
 
             String childDimension = dimensionNames.get(dimensionId + 1);
             StarTreeNode starNode = null;
-            if (globalRemainingPredicateColumns == null
-                || !globalRemainingPredicateColumns.contains(childDimension) && !remainingGroupByColumns.contains(childDimension)) {
+            if (((globalRemainingPredicateColumns == null || !globalRemainingPredicateColumns.contains(childDimension))
+                && !remainingGroupByColumns.contains(childDimension))) {
                 starNode = starTreeNode.getChildStarNode();
             }
 
