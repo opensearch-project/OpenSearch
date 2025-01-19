@@ -294,6 +294,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             return;
         }
         updateLatestReceivedCheckpoint(receivedCheckpoint, replicaShard);
+        replicator.updatePrimaryLastRefreshedCheckpoint(receivedCheckpoint, replicaShard.shardId());
         // Checks if replica shard is in the correct STARTED state to process checkpoints (avoids parallel replication events taking place)
         // This check ensures we do not try to process a received checkpoint while the shard is still recovering, yet we stored the latest
         // checkpoint to be replayed once the shard is Active.

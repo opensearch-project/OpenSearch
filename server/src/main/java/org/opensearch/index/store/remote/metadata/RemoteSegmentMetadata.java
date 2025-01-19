@@ -136,6 +136,7 @@ public class RemoteSegmentMetadata {
         out.writeLong(replicationCheckpoint.getSegmentInfosVersion());
         out.writeLong(replicationCheckpoint.getLength());
         out.writeString(replicationCheckpoint.getCodec());
+        out.writeLong(replicationCheckpoint.getCreatedTimeStamp());
     }
 
     private static ReplicationCheckpoint readCheckpointFromIndexInput(
@@ -149,7 +150,8 @@ public class RemoteSegmentMetadata {
             in.readLong(),
             in.readLong(),
             in.readString(),
-            toStoreFileMetadata(uploadedSegmentMetadataMap)
+            toStoreFileMetadata(uploadedSegmentMetadataMap),
+            in.readLong()
         );
     }
 

@@ -361,6 +361,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private final ShardMigrationState shardMigrationState;
     private DiscoveryNodes discoveryNodes;
+    private final BiFunction<ShardId, ReplicationCheckpoint, ReplicationStats> segmentReplicationStatsProvider;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -391,7 +392,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RecoverySettings recoverySettings,
         final RemoteStoreSettings remoteStoreSettings,
         boolean seedRemote,
-        final DiscoveryNodes discoveryNodes
+        final DiscoveryNodes discoveryNodes,
+        final BiFunction<ShardId, ReplicationCheckpoint, ReplicationStats> segmentReplicationStatsProvider
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -493,6 +495,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
         this.discoveryNodes = discoveryNodes;
+        this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
     }
 
     public ThreadPool getThreadPool() {
@@ -1768,7 +1771,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             segmentInfos.getVersion(),
             metadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
             getEngine().config().getCodec().getName(),
-            metadataMap
+            metadataMap,
+            System.currentTimeMillis()
         );
         logger.trace("Recomputed ReplicationCheckpoint for shard {}", checkpoint);
         return checkpoint;
@@ -3209,17 +3213,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ReplicationStats getReplicationStats() {
-        if (indexSettings.isSegRepEnabledOrRemoteNode() && routingEntry().primary()) {
-            final Set<SegmentReplicationShardStats> stats = getReplicationStatsForTrackedReplicas();
-            long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0L);
-            long totalBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).sum();
-            long maxReplicationLag = stats.stream()
-                .mapToLong(SegmentReplicationShardStats::getCurrentReplicationLagMillis)
-                .max()
-                .orElse(0L);
-            return new ReplicationStats(maxBytesBehind, totalBytesBehind, maxReplicationLag);
+        if (indexSettings.isSegRepEnabledOrRemoteNode() && !routingEntry().primary()) {
+            return segmentReplicationStatsProvider.apply(shardId, this.getLatestReplicationCheckpoint());
         }
-        return new ReplicationStats();
+        return new ReplicationStats(0, 0, 0);
     }
 
     /**

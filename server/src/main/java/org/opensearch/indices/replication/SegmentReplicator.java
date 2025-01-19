@@ -13,14 +13,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.OpenSearchCorruptionException;
+import org.opensearch.action.StepListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
@@ -29,6 +32,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This class is responsible for managing segment replication events on replicas.
@@ -43,8 +47,9 @@ public class SegmentReplicator {
 
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
     private final Map<ShardId, SegmentReplicationState> completedReplications = ConcurrentCollections.newConcurrentMap();
+    private final Map<ShardId, ReplicationCheckpoint> primaryLastRefreshedCheckpoint = ConcurrentCollections.newConcurrentMap();
+    private final Map<ShardId, ReplicationCheckpoint> lastOnGoingReplicationCheckpoint = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
-
     private final SetOnce<SegmentReplicationSourceFactory> sourceFactory;
 
     public SegmentReplicator(ThreadPool threadPool) {
@@ -102,6 +107,50 @@ public class SegmentReplicator {
         return target;
     }
 
+    public ReplicationStats getSegmentReplicationStats(ShardId shardId, ReplicationCheckpoint indexReplicationCheckPoint) {
+        assert shardId != null : "shardId cannot be null";
+        assert indexReplicationCheckPoint != null : "indexReplicationCheckPoint cannot be null";
+        ;
+        final Map<String, StoreFileMetadata> indexStoreFileMetadata = indexReplicationCheckPoint.getMetadataMap();
+        // If primaryLastRefreshedCheckpoint is null, we will default to indexReplicationCheckPoint
+        // so that we can avoid any failures
+        final ReplicationCheckpoint primaryLastRefreshedCheckpoint = Objects.requireNonNullElse(
+            this.primaryLastRefreshedCheckpoint.get(shardId),
+            indexReplicationCheckPoint
+        );
+        final Map<String, StoreFileMetadata> storeFileMetadata = primaryLastRefreshedCheckpoint.getMetadataMap();
+
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(storeFileMetadata, indexStoreFileMetadata);
+        long bytesBehindSum = diff.missing.stream().mapToLong(StoreFileMetadata::length).sum();
+
+        final ReplicationCheckpoint lastOnGoingReplicationCheckpoint = this.lastOnGoingReplicationCheckpoint.get(shardId);
+        final long replicationLag = lastOnGoingReplicationCheckpoint != null
+            ? System.currentTimeMillis() - lastOnGoingReplicationCheckpoint.getCreatedTimeStamp()
+            : 0;
+
+        return new ReplicationStats(bytesBehindSum, bytesBehindSum, bytesBehindSum > 0L ? replicationLag : 0);
+    }
+
+    public void updatePrimaryLastRefreshedCheckpoint(ReplicationCheckpoint replicationCheckpoint, ShardId shardId) {
+        updateCheckpointIfAhead(primaryLastRefreshedCheckpoint, replicationCheckpoint, shardId);
+    }
+
+    public void updateReplicationCheckpoints(ReplicationCheckpoint replicationCheckpoint, ShardId shardId) {
+        updateCheckpointIfAhead(lastOnGoingReplicationCheckpoint, replicationCheckpoint, shardId);
+        updatePrimaryLastRefreshedCheckpoint(replicationCheckpoint, shardId);
+    }
+
+    private void updateCheckpointIfAhead(
+        Map<ShardId, ReplicationCheckpoint> checkpointMap,
+        ReplicationCheckpoint newCheckpoint,
+        ShardId shardId
+    ) {
+        final ReplicationCheckpoint existingCheckpoint = checkpointMap.get(shardId);
+        if (existingCheckpoint == null || newCheckpoint.isAheadOf(existingCheckpoint)) {
+            checkpointMap.put(shardId, newCheckpoint);
+        }
+    }
+
     /**
      * Runnable implementation to trigger a replication event.
      */
@@ -153,7 +202,7 @@ public class SegmentReplicator {
                 }
                 onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), false);
             }
-        });
+        }, this::updateReplicationCheckpoints);
     }
 
     // pkg-private for integration tests
@@ -163,11 +212,26 @@ public class SegmentReplicator {
             replicationId = onGoingReplications.startSafe(target, timeout);
         } catch (ReplicationFailedException e) {
             // replication already running for shard.
+            fetchPrimaryLastRefreshedCheckpoint(target);
             target.fail(e, false);
             return;
         }
         logger.trace(() -> new ParameterizedMessage("Added new replication to collection {}", target.description()));
         threadPool.generic().execute(new ReplicationRunner(replicationId));
+    }
+
+    private void fetchPrimaryLastRefreshedCheckpoint(SegmentReplicationTarget target) {
+        // Only process search-only shards
+        if (!target.indexShard().routingEntry().isSearchOnly()) {
+            return;
+        }
+
+        final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
+        target.getSource().getCheckpointMetadata(target.getId(), target.getCheckpoint(), checkpointInfoListener);
+        checkpointInfoListener.whenComplete(
+            checkpointInfo -> updatePrimaryLastRefreshedCheckpoint(checkpointInfo.getCheckpoint(), target.indexShard().shardId()),
+            checkpointInfoListener::onFailure
+        );
     }
 
     private boolean isStoreCorrupt(SegmentReplicationTarget target) {

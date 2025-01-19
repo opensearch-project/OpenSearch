@@ -949,7 +949,8 @@ public class Node implements Closeable {
                 remoteStoreSettings,
                 fileCache,
                 compositeIndexSettings,
-                segmentReplicator::startReplication
+                segmentReplicator::startReplication,
+                segmentReplicator::getSegmentReplicationStats
             );
 
             final IngestService ingestService = new IngestService(

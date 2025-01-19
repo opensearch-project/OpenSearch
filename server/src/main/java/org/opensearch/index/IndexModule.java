@@ -59,6 +59,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
@@ -87,6 +88,7 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -653,7 +655,8 @@ public final class IndexModule {
             clusterDefaultRefreshIntervalSupplier,
             recoverySettings,
             remoteStoreSettings,
-            (s) -> {}
+            (s) -> {},
+            null
         );
     }
 
@@ -679,7 +682,8 @@ public final class IndexModule {
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        Consumer<IndexShard> replicator
+        Consumer<IndexShard> replicator,
+        BiFunction<ShardId, ReplicationCheckpoint, ReplicationStats> segmentReplicationStatsProvider
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -741,7 +745,8 @@ public final class IndexModule {
                 remoteStoreSettings,
                 fileCache,
                 compositeIndexSettings,
-                replicator
+                replicator,
+                segmentReplicationStatsProvider
             );
             success = true;
             return indexService;
