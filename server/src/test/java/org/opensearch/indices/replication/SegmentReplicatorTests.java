@@ -286,7 +286,6 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         segmentReplicator.updatePrimaryLastRefreshedCheckpoint(thirdReplicationCheckpoint, shardId);
 
         ReplicationStats replicationStats = segmentReplicator.getSegmentReplicationStats(shardId, firstReplicationCheckpoint);
-        System.out.println(replicationStats);
         assertEquals(1200, replicationStats.totalBytesBehind);
         assertEquals(1200, replicationStats.maxBytesBehind);
         // Since we use System.currentTimeMillis() directly inside the method, actual value will vary
