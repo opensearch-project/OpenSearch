@@ -44,6 +44,7 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
@@ -489,4 +490,146 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
         assertFalse(hiddenState.blocks().hasIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_READ_ONLY_BLOCK));
     }
 
+    public void testRemoteRestoreWithSearchOnlyShards() {
+        final int numOfShards = 10;
+        final int numAssignedSearchReplicas = 5;
+        final int numOfSearchReplicas = 1;
+
+        final IndexMetadata remoteMetadata = createIndexMetadata(
+            "test-remote",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numOfSearchReplicas)
+                .build()
+        );
+        // create an initial routing table where all search replicas exist and are assigned, they should get included as is in the restored
+        // routing.
+        final Index index = remoteMetadata.getIndex();
+
+        Map<ShardId, IndexShardRoutingTable> routingTable = new HashMap<>();
+        for (int shardNumber = 0; shardNumber < remoteMetadata.getNumberOfShards(); shardNumber++) {
+            ShardId shardId = new ShardId(index, shardNumber);
+            final String nodeId = "node " + shardNumber;
+            IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(
+                new ShardId(remoteMetadata.getIndex(), shardId.id())
+            );
+            // add a search replica for the shard
+            ShardRouting searchReplicaRouting = ShardRouting.newUnassigned(
+                shardId,
+                false,
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
+            );
+            if (shardNumber < numAssignedSearchReplicas) {
+                // first five shards add the SR as assigned
+                builder.addShard(searchReplicaRouting.initialize(nodeId, null, 0L));
+            } else {
+                builder.addShard(searchReplicaRouting);
+            }
+            routingTable.put(shardId, builder.build());
+        }
+        IndexRoutingTable.Builder routingTableAfterRestore = new IndexRoutingTable.Builder(remoteMetadata.getIndex())
+            .initializeAsRemoteStoreRestore(
+                remoteMetadata,
+                new RecoverySource.RemoteStoreRecoverySource(
+                    UUIDs.randomBase64UUID(),
+                    remoteMetadata.getCreationVersion(),
+                    new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
+                ),
+                routingTable,
+                true
+            );
+        for (IndexShardRoutingTable indexShardRoutingTable : routingTableAfterRestore.build()) {
+            assertEquals(numOfSearchReplicas, indexShardRoutingTable.searchOnlyReplicas().size());
+            for (ShardRouting shardRouting : indexShardRoutingTable.searchOnlyReplicas()) {
+                if (shardRouting.shardId().getId() < numAssignedSearchReplicas) {
+                    assertTrue(shardRouting.assignedToNode());
+                    assertTrue(containsSameRouting(routingTable.get(indexShardRoutingTable.getShardId()), shardRouting));
+                } else {
+                    assertTrue(shardRouting.unassigned());
+                    assertFalse(containsSameRouting(routingTable.get(indexShardRoutingTable.getShardId()), shardRouting));
+                }
+            }
+        }
+    }
+
+    private boolean containsSameRouting(IndexShardRoutingTable oldRoutingTable, ShardRouting shardRouting) {
+        return oldRoutingTable.searchOnlyReplicas().stream().anyMatch(r -> r.isSameAllocation(shardRouting));
+    }
+
+    public void testRemoteRestoreWithActivePrimaryAndSearchOnlyShards() {
+        final int numOfShards = 10;
+        final int numAssignedSearchReplicas = 5;
+        final int numOfSearchReplicas = 1;
+
+        final IndexMetadata remoteMetadata = createIndexMetadata(
+            "test-remote",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numOfSearchReplicas)
+                .build()
+        );
+        // create an initial routing table where all search replicas exist and are assigned, they should get included as is in the restored
+        // routing.
+        final Index index = remoteMetadata.getIndex();
+
+        Map<ShardId, IndexShardRoutingTable> routingTable = new HashMap<>();
+        for (int shardNumber = 0; shardNumber < remoteMetadata.getNumberOfShards(); shardNumber++) {
+            ShardId shardId = new ShardId(index, shardNumber);
+            final String nodeId = "node " + shardNumber;
+            IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(
+                new ShardId(remoteMetadata.getIndex(), shardId.id())
+            );
+            // add the primary as assigned
+            ShardRouting primary = ShardRouting.newUnassigned(
+                shardId,
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
+            );
+            builder.addShard(primary.initialize(nodeId + " Primary", null, 0L));
+
+            // add a search replica for the shard
+            ShardRouting searchReplicaRouting = ShardRouting.newUnassigned(
+                shardId,
+                false,
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
+            );
+            if (shardNumber < numAssignedSearchReplicas) {
+                // first five shards add the SR as assigned
+                builder.addShard(searchReplicaRouting.initialize(nodeId, null, 0L));
+            } else {
+                builder.addShard(searchReplicaRouting);
+            }
+            routingTable.put(shardId, builder.build());
+        }
+        IndexRoutingTable.Builder routingTableAfterRestore = new IndexRoutingTable.Builder(remoteMetadata.getIndex())
+            .initializeAsRemoteStoreRestore(
+                remoteMetadata,
+                new RecoverySource.RemoteStoreRecoverySource(
+                    UUIDs.randomBase64UUID(),
+                    remoteMetadata.getCreationVersion(),
+                    new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
+                ),
+                routingTable,
+                false
+            );
+        for (IndexShardRoutingTable indexShardRoutingTable : routingTableAfterRestore.build()) {
+            assertEquals(numOfSearchReplicas, indexShardRoutingTable.searchOnlyReplicas().size());
+            for (ShardRouting shardRouting : indexShardRoutingTable.searchOnlyReplicas()) {
+                if (shardRouting.shardId().getId() < numAssignedSearchReplicas) {
+                    assertTrue(shardRouting.assignedToNode());
+                    assertTrue(containsSameRouting(routingTable.get(indexShardRoutingTable.getShardId()), shardRouting));
+                } else {
+                    assertTrue(shardRouting.unassigned());
+                    assertFalse(containsSameRouting(routingTable.get(indexShardRoutingTable.getShardId()), shardRouting));
+                }
+            }
+        }
+    }
 }

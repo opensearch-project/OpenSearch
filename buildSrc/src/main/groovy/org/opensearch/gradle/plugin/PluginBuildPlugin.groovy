@@ -160,14 +160,14 @@ class PluginBuildPlugin implements Plugin<Project> {
                 archiveBaseName = archiveBaseName.get() +  "-client"
             }
             // always configure publishing for client jars
-            project.publishing.publications.nebula(MavenPublication).artifactId(extension.name + "-client")
+            project.publishing.publications.nebula(MavenPublication).artifactId = extension.name + "-client"
             final BasePluginExtension base = project.getExtensions().findByType(BasePluginExtension.class)
             project.tasks.withType(GenerateMavenPom.class).configureEach { GenerateMavenPom generatePOMTask ->
                 generatePOMTask.destination = "${project.buildDir}/distributions/${base.archivesName}-client-${project.versions.opensearch}.pom"
             }
         } else {
             if (project.plugins.hasPlugin(MavenPublishPlugin)) {
-                project.publishing.publications.nebula(MavenPublication).artifactId(extension.name)
+                project.publishing.publications.nebula(MavenPublication).artifactId = extension.name
             }
         }
     }

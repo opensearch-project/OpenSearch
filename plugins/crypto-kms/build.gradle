@@ -16,8 +16,8 @@ apply plugin: 'opensearch.publish'
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
-  description 'AWS KMS plugin to provide crypto keys'
-  classname 'org.opensearch.crypto.kms.CryptoKmsPlugin'
+  description = 'AWS KMS plugin to provide crypto keys'
+  classname = 'org.opensearch.crypto.kms.CryptoKmsPlugin'
 }
 
 ext {

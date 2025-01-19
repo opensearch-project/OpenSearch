@@ -3011,6 +3011,52 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(target);
     }
 
+    public void testRestoreSearchOnlyShardFromStore() throws IOException {
+        // this test indexes docs on a primary, refreshes, then recovers a new Search Replica and asserts
+        // all docs are present
+        String remoteStorePath = createTempDir().toString();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test")
+            .build();
+        IndexShard primary = newStartedShard(true, settings, new InternalEngineFactory());
+        indexDoc(primary, "_doc", "1");
+        indexDoc(primary, "_doc", "2");
+        primary.refresh("test");
+        assertDocs(primary, "1", "2");
+
+        ShardRouting searchReplicaShardRouting = TestShardRouting.newShardRouting(
+            primary.shardId,
+            randomAlphaOfLength(10),
+            false,
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        );
+        IndexShard replica = newShard(searchReplicaShardRouting, settings, new NRTReplicationEngineFactory());
+        recoverShardFromStore(replica);
+        searchReplicaShardRouting = replica.routingEntry();
+        assertDocs(replica, "1", "2");
+        assertEquals(
+            primary.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+            replica.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+        );
+
+        // move to unassigned while the replica is active, then reinit from existing store.
+        searchReplicaShardRouting = ShardRoutingHelper.moveToUnassigned(
+            searchReplicaShardRouting,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so")
+        );
+        searchReplicaShardRouting = ShardRoutingHelper.initialize(searchReplicaShardRouting, replica.routingEntry().currentNodeId());
+        assertEquals(RecoverySource.ExistingStoreRecoverySource.INSTANCE, searchReplicaShardRouting.recoverySource());
+        replica = reinitShard(replica, searchReplicaShardRouting);
+        recoverShardFromStore(replica);
+        assertDocs(replica, "1", "2");
+        closeShards(primary, replica);
+    }
+
     public void testReaderWrapperIsUsed() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");

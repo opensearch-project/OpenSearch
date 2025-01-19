@@ -141,15 +141,7 @@ public class ReplicationOperation<
         final ShardRouting primaryRouting = primary.routingEntry();
         final ShardId primaryId = primaryRouting.shardId();
         if (activeShardCountFailure != null) {
-            finishAsFailed(
-                new UnavailableShardsException(
-                    primaryId,
-                    "{} Timeout: [{}], request: [{}]",
-                    activeShardCountFailure,
-                    request.timeout(),
-                    request
-                )
-            );
+            finishAsFailed(new UnavailableShardsException(primaryId, "{} Timeout: [{}]", activeShardCountFailure, request.timeout()));
             return;
         }
 

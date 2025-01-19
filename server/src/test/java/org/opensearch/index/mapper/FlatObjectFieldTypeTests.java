@@ -9,6 +9,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -24,6 +25,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -138,39 +140,126 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
         assertEquals("field.bar=foo", searchValuesDocPath);
     }
 
-    public void testTermQuery() {
+    public void testTermQueryCaseInsensitive() {
 
-        FlatObjectFieldMapper.FlatObjectFieldType flatParentFieldType = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
-            "field",
-            null,
-            true,
-            true
-        );
+        // 1.test isSearchable=true, hasDocValues=true, mappedFieldTypeName=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType flatParentFieldType =
+                (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType("field", null, true, true);
 
-        // when searching for "foo" in "field", the term query is directed to search "foo" in field._value field
-        String searchFieldName = (flatParentFieldType).directSubfield();
-        String searchValues = (flatParentFieldType).rewriteValue("foo");
-        assertEquals("foo", searchValues);
-        assertEquals(new TermQuery(new Term(searchFieldName, searchValues)), flatParentFieldType.termQuery(searchValues, null));
+            MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType(
+                "field.bar",
+                flatParentFieldType.name(),
+                flatParentFieldType.getValueFieldType(),
+                flatParentFieldType.getValueAndPathFieldType()
+            );
+            assertEquals(
+                AutomatonQueries.caseInsensitiveTermQuery(new Term("field._valueAndPath", "field.bar=fOo")),
+                dynamicMappedFieldType.termQueryCaseInsensitive("fOo", null)
+            );
+        }
 
-        MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType(
-            "field.bar",
-            flatParentFieldType.name(),
-            flatParentFieldType.getValueFieldType(),
-            flatParentFieldType.getValueAndPathFieldType()
-        );
+        // 2.test isSearchable=true, hasDocValues=false, mappedFieldTypeName=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                null,
+                true,
+                false
+            );
+            assertEquals(
+                AutomatonQueries.caseInsensitiveTermQuery(new Term("field._value", "fOo")),
+                ft.termQueryCaseInsensitive("fOo", null)
+            );
+        }
 
-        // when searching for "foo" in "field.bar", the term query is directed to search in field._valueAndPath field
-        String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).directSubfield();
-        String searchValuesDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).rewriteValue("foo");
-        assertEquals("field.bar=foo", searchValuesDocPath);
-        assertEquals(new TermQuery(new Term(searchFieldNameDocPath, searchValuesDocPath)), dynamicMappedFieldType.termQuery("foo", null));
+        // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                "field",
+                true,
+                false
+            );
+            Query expected = new TermQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("fOo")));
+
+            assertEquals(expected, ft.termQuery("fOo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        }
+
+        // 3.test isSearchable=false, hasDocValues=true, mappedFieldTypeName=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                null,
+                false,
+                true
+            );
+            Query expected = AutomatonQueries.createAutomatonQuery(
+                new Term("field" + VALUE_SUFFIX, "field.fOo"),
+                AutomatonQueries.toCaseInsensitiveString("field.fOo", Integer.MAX_VALUE),
+                MultiTermQuery.DOC_VALUES_REWRITE
+            );
+            assertEquals(expected, ft.termQueryCaseInsensitive("fOo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        }
+
+        // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                "field",
+                false,
+                true
+            );
+            Query expected = AutomatonQueries.createAutomatonQuery(
+                new Term("field" + VALUE_AND_PATH_SUFFIX, "field.fOo"),
+                AutomatonQueries.toCaseInsensitiveString("field.fOo", Integer.MAX_VALUE),
+                MultiTermQuery.DOC_VALUES_REWRITE
+            );
+
+            assertEquals(expected, ft.termQueryCaseInsensitive("fOo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        }
+
+        // 4.test isSearchable=false, hasDocValues=false, mappedFieldTypeName=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                null,
+                false,
+                false
+            );
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ft.termQueryCaseInsensitive("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+            );
+            assertEquals(
+                "Cannot search on field [field._value] since it is both not indexed, and does not have doc_values " + "enabled.",
+                e.getMessage()
+            );
+        }
+
+        // test isSearchable=false, hasDocValues=false, mappedFieldTypeName!=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                "field",
+                false,
+                false
+            );
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+            );
+            assertEquals(
+                "Cannot search on field [field._valueAndPath] since it is both not indexed, and does not have doc_values " + "enabled.",
+                e.getMessage()
+            );
+        }
 
         MappedFieldType unsearchable = new FlatObjectFieldMapper.FlatObjectFieldType(
             "field",
             null,
             false,
-            true,
+            false,
             null,
             Collections.emptyMap()
         );
@@ -178,7 +267,157 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             IllegalArgumentException.class,
             () -> unsearchable.termQuery("bar", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals(
+            "Cannot search on field [field._value] since it is both not indexed, and does not have doc_values enabled.",
+            e.getMessage()
+        );
+    }
+
+    public void testTermQuery() {
+
+        // 1.test isSearchable=true, hasDocValues=true, mappedFieldTypeName=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType flatParentFieldType =
+                (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType("field", null, true, true);
+
+            // when searching for "foo" in "field", the term query is directed to search "foo" in field._value field
+            String searchFieldName = (flatParentFieldType).directSubfield();
+            String searchValues = (flatParentFieldType).rewriteValue("foo");
+            assertEquals("foo", searchValues);
+            assertEquals(new TermQuery(new Term(searchFieldName, searchValues)), flatParentFieldType.termQuery(searchValues, null));
+
+            MappedFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType(
+                "field.bar",
+                flatParentFieldType.name(),
+                flatParentFieldType.getValueFieldType(),
+                flatParentFieldType.getValueAndPathFieldType()
+            );
+
+            // when searching for "foo" in "field.bar", the term query is directed to search in field._valueAndPath field
+            String searchFieldNameDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).directSubfield();
+            String searchValuesDocPath = ((FlatObjectFieldMapper.FlatObjectFieldType) dynamicMappedFieldType).rewriteValue("foo");
+            assertEquals("field.bar=foo", searchValuesDocPath);
+            assertEquals(
+                new TermQuery(new Term(searchFieldNameDocPath, searchValuesDocPath)),
+                dynamicMappedFieldType.termQuery("foo", null)
+            );
+
+        }
+
+        // 2.test isSearchable=true, hasDocValues=false, mappedFieldTypeName=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                null,
+                true,
+                false
+            );
+            Query expected = new TermQuery(new Term("field" + VALUE_SUFFIX, new BytesRef("foo")));
+            assertEquals(expected, ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        }
+
+        // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                "field",
+                true,
+                false
+            );
+            Query expected = new TermQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("foo")));
+
+            assertEquals(expected, ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        }
+
+        // 3.test isSearchable=false, hasDocValues=true, mappedFieldTypeName=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                null,
+                false,
+                true
+            );
+            Query expected = SortedSetDocValuesField.newSlowRangeQuery(
+                "field" + VALUE_SUFFIX,
+                new BytesRef("field.foo"),
+                new BytesRef("field.foo"),
+                true,
+                true
+            );
+            assertEquals(expected, ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
+        }
+
+        // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                "field",
+                false,
+                true
+            );
+            Query expected = SortedSetDocValuesField.newSlowRangeQuery(
+                "field" + VALUE_AND_PATH_SUFFIX,
+                new BytesRef("field.foo"),
+                new BytesRef("field.foo"),
+                true,
+                true
+            );
+            assertEquals(expected, ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        }
+
+        // 4.test isSearchable=false, hasDocValues=false, mappedFieldTypeName=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                null,
+                false,
+                false
+            );
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+            );
+            assertEquals(
+                "Cannot search on field [field._value] since it is both not indexed, and does not have doc_values " + "enabled.",
+                e.getMessage()
+            );
+        }
+
+        // test isSearchable=false, hasDocValues=false, mappedFieldTypeName!=null
+        {
+            FlatObjectFieldMapper.FlatObjectFieldType ft = (FlatObjectFieldMapper.FlatObjectFieldType) getFlatParentFieldType(
+                "field",
+                "field",
+                false,
+                false
+            );
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+            );
+            assertEquals(
+                "Cannot search on field [field._valueAndPath] since it is both not indexed, and does not have doc_values " + "enabled.",
+                e.getMessage()
+            );
+        }
+
+        MappedFieldType unsearchable = new FlatObjectFieldMapper.FlatObjectFieldType(
+            "field",
+            null,
+            false,
+            false,
+            null,
+            Collections.emptyMap()
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.termQuery("bar", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+        );
+        assertEquals(
+            "Cannot search on field [field._value] since it is both not indexed, and does not have doc_values enabled.",
+            e.getMessage()
+        );
     }
 
     public void testExistsQuery() {
