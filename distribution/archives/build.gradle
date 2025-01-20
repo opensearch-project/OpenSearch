@@ -28,7 +28,7 @@
  * under the License.
  */
 
-import org.opensearch.gradle.JavaPackageType
+import org.opensearch.gradle.JavaPackageType 
 
 apply plugin: 'opensearch.internal-distribution-archive-setup'
 
@@ -190,7 +190,7 @@ distribution_archives {
     }
   }
 
-
+  
   linuxPpc64leTar {
     archiveClassifier = 'linux-ppc64le'
     content {

@@ -9,30 +9,29 @@
  * GitHub history for details.
  */
 
-apply plugin: 'opensearch.publish'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description 'Arrow flight based Stream implementation'
   classname 'org.opensearch.arrow.flight.FlightStreamPlugin'
 }
+evaluationDependsOn(":libs:opensearch-flight-core-shaded")
 
 dependencies {
   implementation project(':libs:opensearch-arrow-spi')
-  implementation project(':libs:opensearch-flight-core-netty-shaded')
+  implementation project(path:':libs:opensearch-flight-core-shaded', configuration: 'shadow')
   implementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
 
   implementation "io.grpc:grpc-api:${versions.grpc}"
   runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-stub:${versions.grpc}"
 
-  implementation 'org.checkerframework:checker-qual:3.44.0'
   runtimeOnly group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.2'
   compileOnly 'org.immutables:value:2.10.1'
   annotationProcessor 'org.immutables:value:2.10.1'
 
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly 'io.perfmark:perfmark-api:0.27.0'
-
   runtimeOnly 'org.apache.parquet:parquet-arrow:1.13.1'
   runtimeOnly "io.grpc:grpc-protobuf-lite:${versions.grpc}"
   runtimeOnly "io.grpc:grpc-protobuf:${versions.grpc}"
@@ -46,14 +45,15 @@ dependencies {
   }
 }
 
-javadoc {
-  exclude '**/flight-core-netty-shaded/**'
-}
-
 tasks.named('test').configure {
   jacoco {
     excludes = ['org/apache/arrow/flight/**']
   }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /grpc-.*/, to: 'grpc'
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -76,12 +76,6 @@ tasks.named('thirdPartyAudit').configure {
     'org.apache.parquet.schema.GroupType',
     'com.google.rpc.Status',
     'com.google.rpc.Status$Builder',
-    'org.slf4j.Logger',
-    'org.slf4j.LoggerFactory',
-    'org.slf4j.helpers.FormattingTuple',
-    'org.slf4j.helpers.MessageFormatter',
-    'org.slf4j.spi.LocationAwareLogger',
-
     // Parquet Schema classes
     'org.apache.parquet.schema.LogicalTypeAnnotation',
     'org.apache.parquet.schema.LogicalTypeAnnotation$DateLogicalTypeAnnotation',
@@ -118,6 +112,10 @@ tasks.named('thirdPartyAudit').configure {
     // from io.netty.logging.CommonsLoggerFactory (netty)
     'org.apache.commons.logging.Log',
     'org.apache.commons.logging.LogFactory',
+
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
 
     // from Log4j (deliberate, Netty will fallback to Log4j 2)
     'org.apache.log4j.Level',
@@ -223,9 +221,4 @@ tasks.named('thirdPartyAudit').configure {
     'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
     'io.grpc.netty.shaded.io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
   )
-}
-
-tasks.named("dependencyLicenses").configure {
-  mapping from: /netty-.*/, to: 'netty'
-  mapping from: /grpc-.*/, to: 'grpc'
 }

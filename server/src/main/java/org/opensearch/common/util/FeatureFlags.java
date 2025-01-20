@@ -129,7 +129,7 @@ public class FeatureFlags {
     );
 
     public static final String ARROW_STREAMS = "opensearch.experimental.feature.arrow.streams.enabled";
-    public static final Setting<Boolean> ARROW_STREAMS_SETTING = Setting.boolSetting(ARROW_STREAMS, false, Property.NodeScope);
+    public static final Setting<Boolean> ARROW_STREAMS_SETTING = Setting.boolSetting(ARROW_STREAMS, true, Property.NodeScope);
 
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,

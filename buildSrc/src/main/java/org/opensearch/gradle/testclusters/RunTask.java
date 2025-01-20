@@ -140,7 +140,6 @@ public class RunTask extends DefaultTestClustersTask {
         int debugPort = DEFAULT_DEBUG_PORT;
         int httpPort = DEFAULT_HTTP_PORT;
         int transportPort = DEFAULT_TRANSPORT_PORT;
-
         Map<String, String> additionalSettings = System.getProperties()
             .entrySet()
             .stream()
