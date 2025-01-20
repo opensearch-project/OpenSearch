@@ -1309,7 +1309,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         /**
          * Returns -1, 0, or 1 if the value is lower than, equal to, or greater than 0
          */
-        static double signum(Object value) {
+        public static double signum(Object value) {
             if (value instanceof Number) {
                 double doubleValue = ((Number) value).doubleValue();
                 return Math.signum(doubleValue);

@@ -13,7 +13,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 
@@ -27,41 +26,23 @@ public interface FieldToDimensionOrdinalMapper {
 
     enum SingletonFactory {
 
-        NUMERIC_FIELD_MAPPER((dimensionName, value, starTreeValues, matchType) -> {
-            StarTreeValuesIterator genericIterator = starTreeValues.getDimensionValuesIterator(dimensionName);
-            if (genericIterator instanceof SortedNumericStarTreeValuesIterator) {
-                long parsedValue = Long.parseLong(value.toString());
-                switch (matchType) {
-                    case GT:
-                        return parsedValue + 1;
-                    case GTE:
-                    case EXACT:
-                    case LTE:
-                        return parsedValue;
-                    case LT:
-                        return parsedValue - 1;
-                    default:
-                        return -(parsedValue - 1);
-                }
-            } else {
-                throw new IllegalArgumentException("Unsupported star tree values iterator " + genericIterator.getClass().getName());
-            }
-        }),
+        NUMERIC_FIELD_MAPPER((dimensionName, value, starTreeValues, matchType) -> (long) value),
 
         KEYWORD_FIELD_MAPPER((dimensionName, value, starTreeValues, matchType) -> {
             StarTreeValuesIterator genericIterator = starTreeValues.getDimensionValuesIterator(dimensionName);
             if (genericIterator instanceof SortedSetStarTreeValuesIterator) {
                 SortedSetStarTreeValuesIterator sortedSetIterator = (SortedSetStarTreeValuesIterator) genericIterator;
                 try {
-                    BytesRef indexedValue = new BytesRef(value.toString().getBytes());
                     if (matchType == MatchType.EXACT) {
-                        return sortedSetIterator.lookupTerm(indexedValue);
+                        return sortedSetIterator.lookupTerm((BytesRef) value);
                     } else {
                         TermsEnum termsEnum = sortedSetIterator.termsEnum();
-                        TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(indexedValue);
+                        TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil((BytesRef) value);
                         if (matchType == MatchType.GT || matchType == MatchType.GTE) {
-                            return termsEnum.ord();
+                            // We reached the end and couldn't match anything, else we found a term which matches.
+                            return (seekStatus == TermsEnum.SeekStatus.END) ? -1 : termsEnum.ord();
                         } else { // LT || LTE
+                            // If we found a greater term, then return ordinal of term less than it.
                             return (seekStatus == TermsEnum.SeekStatus.NOT_FOUND) ? termsEnum.ord() - 1 : termsEnum.ord();
                         }
                     }
