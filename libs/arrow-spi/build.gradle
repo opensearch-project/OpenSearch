@@ -10,19 +10,21 @@
  */
 
 testingConventions.enabled = false
+
+//evaluationDependsOn(":libs:opensearch-arrow-memory-shaded")
 dependencies {
   api project(':libs:opensearch-core')
-  api "org.apache.arrow:arrow-vector:${versions.arrow}"
-  api "org.apache.arrow:arrow-format:${versions.arrow}"
-  api project(':libs:opensearch-arrow-memory-netty-shaded')
-
-  runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-
-  implementation "commons-codec:commons-codec:${versions.commonscodec}"
+  api project(path:':libs:opensearch-arrow-memory-shaded', configuration: 'shadow')
 }
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('thirdPartyAudit').configure {
+  ignoreMissingClasses(
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.apache.commons.codec.binary.Hex'
+  )
 }

@@ -89,4 +89,4 @@ ${error.file}
 # See please https://bugs.openjdk.org/browse/JDK-8341127 (openjdk/jdk#21283)
 23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.setAsTypeCache
 23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.asTypeUncached
---add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED
+24:-add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED
