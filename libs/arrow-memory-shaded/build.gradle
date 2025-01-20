@@ -1,0 +1,74 @@
+import org.opensearch.gradle.precommit.DependencyLicensesTask
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+plugins {
+  id("com.gradleup.shadow")
+}
+
+description = '''Shading dependencies under opensearch namespace for arrow-memory-netty, netty-buffer, netty-common and other common transitive dependencies like
+sl4j, jackson, flatbuffers and common-codec to prevent pollution of server classpath'''
+
+testingConventions.enabled = false
+generatePomFileForShadowPublication.enabled = false
+
+dependencies {
+  runtimeOnly "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
+  runtimeOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  runtimeOnly "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
+  runtimeOnly "io.netty:netty-buffer:${versions.netty}"
+  runtimeOnly "io.netty:netty-common:${versions.netty}"
+  runtimeOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+  runtimeOnly "org.apache.arrow:arrow-format:${versions.arrow}"
+
+  runtimeOnly 'org.checkerframework:checker-qual:3.44.0'
+  runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+}
+
+tasks.named("shadowJar").configure {
+  dependencies {
+    include(dependency('org.apache.arrow:'))
+    include(dependency('io.netty:'))
+    include(dependency('org.checkerframework:'))
+    include(dependency('org.slf4j:'))
+    include(dependency('com.fasterxml.jackson.core:'))
+    include(dependency('commons-codec:'))
+  }
+  relocate 'io.netty', 'org.opensearch.shaded.io.netty'
+  relocate 'org.checkerframework', 'org.opensearch.shaded.org.checkerframework'
+  relocate 'org.apache.commons.codec', 'org.opensearch.shaded.commons.codec'
+  relocate 'org.slf4j', 'org.opensearch.shaded.org.slf4j'
+  relocate 'com.google.flatbuffers', 'org.opensearch.shaded.com.google.flatbuffers'
+  relocate 'com.fasterxml.jackson', 'org.opensearch.shaded.com.fasterxml.jackson'
+  mergeServiceFiles()
+  archiveClassifier.set("")
+}
+
+tasks.named('thirdPartyAudit').configure {
+  enabled = false
+}
+
+tasks.register("javadocDummyFiles") {
+  doFirst {
+    def javadocDir = layout.buildDirectory.dir('docs/javadoc').get().asFile
+    javadocDir.mkdirs()
+
+    new File(javadocDir, "element-list").text = ""
+    new File(javadocDir, "package-list").text = ""
+  }
+}
+
+tasks.named('javadoc') { javadocTask ->
+  enabled = false
+  finalizedBy(tasks.named('javadocDummyFiles'))
+}
