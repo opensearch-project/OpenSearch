@@ -38,7 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `google-auth-library-oauth2-http` from 1.7.0 to 1.29.0 in /plugins/repository-gcs ([#16520](https://github.com/opensearch-project/OpenSearch/pull/16520))
 - Bump `com.azure:azure-storage-common` from 12.25.1 to 12.28.0 ([#16521](https://github.com/opensearch-project/OpenSearch/pull/16521), [#16808](https://github.com/opensearch-project/OpenSearch/pull/16808))
 - Bump `com.google.apis:google-api-services-compute` from v1-rev20240407-2.0.0 to v1-rev20241105-2.0.0 ([#16502](https://github.com/opensearch-project/OpenSearch/pull/16502), [#16548](https://github.com/opensearch-project/OpenSearch/pull/16548), [#16613](https://github.com/opensearch-project/OpenSearch/pull/16613))
-- Bump `com.azure:azure-storage-blob` from 12.23.0 to 12.28.1 ([#16501](https://github.com/opensearch-project/OpenSearch/pull/16501))
+- Bump `com.azure:azure-storage-blob` from 12.23.0 to 12.29.0 ([#16501](https://github.com/opensearch-project/OpenSearch/pull/16501), [#17059](https://github.com/opensearch-project/OpenSearch/pull/17059))
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.0 to 3.4.1 ([#16550](https://github.com/opensearch-project/OpenSearch/pull/16550))
 - Bump `org.apache.xmlbeans:xmlbeans` from 5.2.1 to 5.3.0 ([#16612](https://github.com/opensearch-project/OpenSearch/pull/16612), [#16854](https://github.com/opensearch-project/OpenSearch/pull/16854))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 10.0.1 ([#16611](https://github.com/opensearch-project/OpenSearch/pull/16611), [#16807](https://github.com/opensearch-project/OpenSearch/pull/16807), [#17011](https://github.com/opensearch-project/OpenSearch/pull/17011))
