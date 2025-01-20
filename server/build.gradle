@@ -70,7 +70,6 @@ dependencies {
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
   implementation project(':libs:opensearch-arrow-spi')
-  implementation 'org.checkerframework:checker-qual:3.44.0'
 
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
