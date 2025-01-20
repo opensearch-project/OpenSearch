@@ -8,85 +8,30 @@
 
 package org.opensearch.search.startree.filter.provider;
 
-import org.apache.lucene.document.DoublePoint;
-import org.apache.lucene.document.FloatPoint;
-import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.lucene.BytesRefs;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
-import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.startree.filter.StarTreeFilter;
 import org.opensearch.search.startree.StarTreeQueryHelper;
-import org.opensearch.search.startree.filter.DimensionFilter;
-import org.opensearch.search.startree.filter.ExactMatchDimFilter;
-import org.opensearch.search.startree.filter.MatchNoneFilter;
-import org.opensearch.search.startree.filter.RangeMatchDimFilter;
+import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.hasDecimalPart;
-import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.signum;
 
 @ExperimentalApi
 public interface StarTreeFilterProvider {
 
     StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
         throws IOException;
-
-    private static long parseRawNumberToDVLong(Object rawValue, NumberFieldMapper.NumberType numberType) {
-        Object parsedValue;
-        switch (numberType) {
-            case BYTE:
-            case SHORT:
-            case INTEGER:
-                parsedValue = numberType.parse(rawValue, true);
-                return Long.parseLong(parsedValue.toString());
-            case LONG:
-                parsedValue = numberType.parse(rawValue, true);
-                return (long) parsedValue;
-            case HALF_FLOAT:
-                parsedValue = numberType.parse(rawValue, false);
-                return HalfFloatPoint.halfFloatToSortableShort((Float) parsedValue);
-            case FLOAT:
-                parsedValue = numberType.parse(rawValue, false);
-                return NumericUtils.floatToSortableInt((Float) parsedValue);
-            case DOUBLE:
-                parsedValue = numberType.parse(rawValue, false);
-                return NumericUtils.doubleToSortableLong((Double) parsedValue);
-            default:
-                throw new UnsupportedOperationException("Unsupported field type [" + numberType + "]");
-        }
-    }
-
-    private static Object parseRawKeyword(String field, Object rawValue, KeywordFieldMapper.KeywordFieldType keywordFieldType) {
-        Object parsedValue;
-        if (keywordFieldType.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
-            parsedValue = BytesRefs.toBytesRef(rawValue);
-        } else {
-            if (rawValue instanceof BytesRef) {
-                rawValue = ((BytesRef) rawValue).utf8ToString();
-            }
-            parsedValue = keywordFieldType.getTextSearchInfo().getSearchAnalyzer().normalize(field, rawValue.toString());
-        }
-        return parsedValue;
-    }
 
     class SingletonFactory {
 
@@ -115,25 +60,21 @@ public interface StarTreeFilterProvider {
             TermQueryBuilder termQueryBuilder = (TermQueryBuilder) rawFilter;
             String field = termQueryBuilder.fieldName();
             MappedFieldType mappedFieldType = context.mapperService().fieldType(field);
-            Object term;
+            StarTreeFilterMapper starTreeFilterMapper = StarTreeFilterMapper.Factory.fromMappedFieldType(mappedFieldType);
             Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
-            if (mappedFieldType.getClass().equals(NumberFieldMapper.NumberFieldType.class)) {
+            if (matchedDimension == null || mappedFieldType == null) {
+                return null; // Indicates Aggregators to fallback to default implementation.
+            } else {
+                // FIXME : DocValuesType validation is field type specific and not query builder specific should happen elsewhere.
                 Query query = termQueryBuilder.toQuery(context.getQueryShardContext());
                 if (query instanceof MatchNoDocsQuery) {
-                    return null; // Indicates Aggregators to fallback to default implementation.
+                    return new StarTreeFilter(Collections.emptyMap());
+                } else {
+                    return new StarTreeFilter(
+                        Map.of(field, List.of(starTreeFilterMapper.getExactMatchFilter(mappedFieldType, List.of(termQueryBuilder.value()))))
+                    );
                 }
-                NumberFieldMapper.NumberFieldType numFieldType = (NumberFieldMapper.NumberFieldType) mappedFieldType;
-                term = parseRawNumberToDVLong(termQueryBuilder.value(), numFieldType.numberType());
-            } else if (mappedFieldType.getClass().equals(KeywordFieldMapper.KeywordFieldType.class)) {
-                KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) mappedFieldType;
-                term = parseRawKeyword(field, termQueryBuilder.value(), keywordFieldType);
-            } else {
-                return null;
             }
-            // FIXME : DocValuesType validation is field type specific and not query builder specific should happen elsewhere.
-            return matchedDimension == null
-                ? null
-                : new StarTreeFilter(Map.of(field, List.of(new ExactMatchDimFilter(field, List.of(term)))));
         }
     }
 
@@ -144,29 +85,18 @@ public interface StarTreeFilterProvider {
             TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) rawFilter;
             String field = termsQueryBuilder.fieldName();
             Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
-            if (matchedDimension == null) {
+            MappedFieldType mappedFieldType = context.mapperService().fieldType(field);
+            StarTreeFilterMapper starTreeFilterMapper = StarTreeFilterMapper.Factory.fromMappedFieldType(mappedFieldType);
+            if (matchedDimension == null || mappedFieldType == null) {
                 return null; // Indicates Aggregators to fallback to default implementation.
             } else {
-                MappedFieldType mappedFieldType = context.mapperService().fieldType(field);
                 Query query = termsQueryBuilder.toQuery(context.getQueryShardContext());
                 if (query instanceof MatchNoDocsQuery) {
                     return new StarTreeFilter(Collections.emptyMap());
                 } else {
-                    List<Object> convertedValues = new ArrayList<>(termsQueryBuilder.values().size());
-                    if (mappedFieldType.getClass().equals(NumberFieldMapper.NumberFieldType.class)) {
-                        NumberFieldMapper.NumberFieldType numFieldType = (NumberFieldMapper.NumberFieldType) mappedFieldType;
-                        for (Object rawValue : termsQueryBuilder.values()) {
-                            convertedValues.add(parseRawNumberToDVLong(rawValue, numFieldType.numberType()));
-                        }
-                    } else if (mappedFieldType.getClass().equals(KeywordFieldMapper.KeywordFieldType.class)) {
-                        KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) mappedFieldType;
-                        for (Object rawValue : termsQueryBuilder.values()) {
-                            convertedValues.add(parseRawKeyword(field, rawValue, keywordFieldType));
-                        }
-                    } else {
-                        return null; // Fallback to default implementation as mapped type is not yet supported.
-                    }
-                    return new StarTreeFilter(Map.of(field, List.of(new ExactMatchDimFilter(field, convertedValues))));
+                    return new StarTreeFilter(
+                        Map.of(field, List.of(starTreeFilterMapper.getExactMatchFilter(mappedFieldType, termsQueryBuilder.values())))
+                    );
                 }
             }
         }
@@ -180,43 +110,23 @@ public interface StarTreeFilterProvider {
             RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) rawFilter;
             String field = rangeQueryBuilder.fieldName();
             Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
-            if (matchedDimension == null) {
-                return null;
-            }
             MappedFieldType mappedFieldType = context.mapperService().fieldType(field);
-            Query query = rangeQueryBuilder.toQuery(context.getQueryShardContext());
-            if (query instanceof MatchNoDocsQuery) {
-                return new StarTreeFilter(Collections.emptyMap());
+            if (matchedDimension == null || mappedFieldType == null) {
+                return null;
             } else {
-                if (mappedFieldType.getClass().equals(NumberFieldMapper.NumberFieldType.class)) {
-                    NumberFieldMapper.NumberFieldType numFieldType = (NumberFieldMapper.NumberFieldType) mappedFieldType;
-                    DimensionFilter dimensionFilter;
-                    switch (numFieldType.numberType()) {
-                        case BYTE:
-                        case SHORT:
-                        case INTEGER:
-                        case LONG:
-                            dimensionFilter = getRangeFilterForNonDecimals(rangeQueryBuilder, numFieldType.numberType());
-                            break;
-                        case HALF_FLOAT:
-                        case FLOAT:
-                        case DOUBLE:
-                            dimensionFilter = getRangeFilterForDecimals(rangeQueryBuilder, numFieldType.numberType());
-                            break;
-                        default:
-                            return null;
-                    }
-                    return new StarTreeFilter(Map.of(field, List.of(dimensionFilter)));
-                } else if (mappedFieldType.getClass().equals(KeywordFieldMapper.KeywordFieldType.class)) {
-                    KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) mappedFieldType;
+                Query query = rangeQueryBuilder.toQuery(context.getQueryShardContext());
+                if (query instanceof MatchNoDocsQuery) {
+                    return new StarTreeFilter(Collections.emptyMap());
+                } else {
+                    StarTreeFilterMapper starTreeFilterMapper = StarTreeFilterMapper.Factory.fromMappedFieldType(mappedFieldType);
                     return new StarTreeFilter(
                         Map.of(
                             field,
                             List.of(
-                                new RangeMatchDimFilter(
-                                    field,
-                                    parseRawKeyword(field, rangeQueryBuilder.from(), keywordFieldType),
-                                    parseRawKeyword(field, rangeQueryBuilder.to(), keywordFieldType),
+                                starTreeFilterMapper.getRangeMatchFilter(
+                                    mappedFieldType,
+                                    rangeQueryBuilder.from(),
+                                    rangeQueryBuilder.to(),
                                     rangeQueryBuilder.includeLower(),
                                     rangeQueryBuilder.includeUpper()
                                 )
@@ -224,77 +134,9 @@ public interface StarTreeFilterProvider {
                         )
                     );
                 }
-                return null;
             }
         }
 
-        private static DimensionFilter getRangeFilterForNonDecimals(
-            RangeQueryBuilder rangeQueryBuilder,
-            NumberFieldMapper.NumberType numFieldType
-        ) {
-            Long low = rangeQueryBuilder.from() == null ? Long.MIN_VALUE : parseRawNumberToDVLong(rangeQueryBuilder.from(), numFieldType);
-            Long high = rangeQueryBuilder.to() == null ? Long.MAX_VALUE : parseRawNumberToDVLong(rangeQueryBuilder.to(), numFieldType);
-            boolean lowerTermHasDecimalPart = hasDecimalPart(low);
-            if ((lowerTermHasDecimalPart == false && rangeQueryBuilder.includeLower() == false)
-                || (lowerTermHasDecimalPart && signum(low) > 0)) {
-                if (low.equals(Long.MAX_VALUE)) {
-                    return new MatchNoneFilter();
-                }
-                ++low;
-            }
-            boolean upperTermHasDecimalPart = hasDecimalPart(high);
-            if ((upperTermHasDecimalPart == false && rangeQueryBuilder.includeUpper() == false)
-                || (upperTermHasDecimalPart && signum(high) < 0)) {
-                if (high.equals(Long.MIN_VALUE)) {
-                    return new MatchNoneFilter();
-                }
-                --high;
-            }
-            return new RangeMatchDimFilter(rangeQueryBuilder.fieldName(), low, high, true, true);
-        }
-
-        private DimensionFilter getRangeFilterForDecimals(RangeQueryBuilder rangeQueryBuilder, NumberFieldMapper.NumberType numFieldType) {
-            Number l = Long.MIN_VALUE;
-            Number u = Long.MAX_VALUE;
-            if (rangeQueryBuilder.from() != null) {
-                l = numFieldType.parse(rangeQueryBuilder.from(), false);
-                if (rangeQueryBuilder.includeLower() == false) {
-                    l = getNextHighOrLowForDecimal(numFieldType, l, true);
-                }
-                l = parseRawNumberToDVLong(l, numFieldType);
-            }
-            if (rangeQueryBuilder.to() != null) {
-                u = numFieldType.parse(rangeQueryBuilder.to(), false);
-                if (rangeQueryBuilder.includeUpper() == false) {
-                    u = getNextHighOrLowForDecimal(numFieldType, u, false);
-                }
-                u = parseRawNumberToDVLong(u, numFieldType);
-            }
-            return new RangeMatchDimFilter(
-                rangeQueryBuilder.fieldName(),
-                l,
-                u,
-                rangeQueryBuilder.includeLower(),
-                rangeQueryBuilder.includeUpper()
-            );
-        }
-
-        private static Number getNextHighOrLowForDecimal(
-            NumberFieldMapper.NumberType numFieldType,
-            Number value,
-            boolean returnNextHighest
-        ) {
-            switch (numFieldType) {
-                case HALF_FLOAT:
-                    return returnNextHighest ? HalfFloatPoint.nextUp((Float) value) : HalfFloatPoint.nextDown((Float) value);
-                case FLOAT:
-                    return returnNextHighest ? FloatPoint.nextUp((Float) value) : FloatPoint.nextDown((Float) value);
-                case DOUBLE:
-                    return returnNextHighest ? DoublePoint.nextUp((Double) value) : DoublePoint.nextDown((Double) value);
-                default:
-                    throw new IllegalArgumentException("Invalid field type [" + numFieldType + "] for decimal");
-            }
-        }
     }
 
 }

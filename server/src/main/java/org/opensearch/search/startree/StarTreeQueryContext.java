@@ -38,10 +38,13 @@ public class StarTreeQueryContext {
      * This is used to cache the results for each leaf reader context
      * to avoid reading the filtered values from the leaf reader context multiple times
      */
+    // TODO : Change caching to be based on aggregation specific filters.
     private final FixedBitSet[] starTreeValues;
 
     private final QueryBuilder baseQueryBuilder;
     private StarTreeFilter baseStarTreeFilter;
+
+    // TODO : Implement storing and aggregating aggregation specific filters.
 
     public StarTreeQueryContext(SearchContext context, QueryBuilder baseQueryBuilder) {
         this.baseQueryBuilder = baseQueryBuilder;
