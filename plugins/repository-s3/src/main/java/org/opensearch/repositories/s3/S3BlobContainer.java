@@ -99,6 +99,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -373,17 +374,31 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     }
 
     @Override
-    public DeleteResult delete() {
+    public DeleteResult delete() throws IOException {
         PlainActionFuture<DeleteResult> future = new PlainActionFuture<>();
         deleteAsync(future);
-        return future.actionGet();
+        return getFutureValue(future);
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         deleteBlobsAsyncIgnoringIfNotExists(blobNames, future);
-        future.actionGet();
+        getFutureValue(future);
+    }
+
+    private <T> T getFutureValue(PlainActionFuture<T> future) throws IOException {
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Future got interrupted", e);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException) {
+                throw (IOException) e.getCause();
+            }
+            throw new RuntimeException(e.getCause());
+        }
     }
 
     @Override
