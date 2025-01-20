@@ -19,6 +19,8 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.filter.StarTreeFilter;
+import org.opensearch.search.startree.filter.provider.StarTreeFilterProvider;
 
 import java.io.IOException;
 import java.util.Collections;

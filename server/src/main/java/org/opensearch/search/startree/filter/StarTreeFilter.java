@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.startree;
+package org.opensearch.search.startree.filter;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
@@ -30,5 +30,11 @@ public class StarTreeFilter {
     public Set<String> getDimensions() {
         return dimensionFilterMap.keySet();
     }
+
+    // TODO : Implement Merging of 2 Star Tree Filters
+    // This would also involve merging 2 different types of dimension filters.
+    // It also brings in the challenge of sorting input values in user query for efficient merging.
+    // Merging Range with Term and Range with Range and so on.
+    // All these will be implemented post OS 2.19
 
 }

@@ -6,11 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.startree;
+package org.opensearch.search.startree.filter;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.search.startree.StarTreeNodeCollector;
 
 @ExperimentalApi
 public class MatchNoneFilter implements DimensionFilter {

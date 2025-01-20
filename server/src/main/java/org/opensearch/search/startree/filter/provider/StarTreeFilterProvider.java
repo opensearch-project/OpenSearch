@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.startree;
+package org.opensearch.search.startree.filter.provider;
 
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
@@ -28,6 +28,12 @@ import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.filter.StarTreeFilter;
+import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.ExactMatchDimFilter;
+import org.opensearch.search.startree.filter.MatchNoneFilter;
+import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,19 +51,24 @@ public interface StarTreeFilterProvider {
         throws IOException;
 
     private static long parseRawNumberToDVLong(Object rawValue, NumberFieldMapper.NumberType numberType) {
-        Object parsedValue = numberType.parse(rawValue, false);
+        Object parsedValue;
         switch (numberType) {
             case BYTE:
             case SHORT:
             case INTEGER:
+                parsedValue = numberType.parse(rawValue, true);
                 return Long.parseLong(parsedValue.toString());
             case LONG:
+                parsedValue = numberType.parse(rawValue, true);
                 return (long) parsedValue;
             case HALF_FLOAT:
+                parsedValue = numberType.parse(rawValue, false);
                 return HalfFloatPoint.halfFloatToSortableShort((Float) parsedValue);
             case FLOAT:
+                parsedValue = numberType.parse(rawValue, false);
                 return NumericUtils.floatToSortableInt((Float) parsedValue);
             case DOUBLE:
+                parsedValue = numberType.parse(rawValue, false);
                 return NumericUtils.doubleToSortableLong((Double) parsedValue);
             default:
                 throw new UnsupportedOperationException("Unsupported field type [" + numberType + "]");

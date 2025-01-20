@@ -20,6 +20,8 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeTy
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
+import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
