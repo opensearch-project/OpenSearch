@@ -755,6 +755,7 @@ public final class InternalTestCluster extends TestCluster {
         final Settings.Builder updatedSettings = Settings.builder();
 
         updatedSettings.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
+
         if (numDataPaths > 1) {
             updatedSettings.putList(
                 Environment.PATH_DATA_SETTING.getKey(),

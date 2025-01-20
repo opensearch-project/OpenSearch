@@ -1,5 +1,3 @@
-import org.opensearch.gradle.precommit.DependencyLicensesTask
-
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
