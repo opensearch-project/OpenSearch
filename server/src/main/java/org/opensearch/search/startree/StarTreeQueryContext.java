@@ -126,7 +126,7 @@ public class StarTreeQueryContext {
         CompositeDataCubeFieldType compositeMappedFieldType
     ) {
         StarTreeFilterProvider starTreeFilterProvider = StarTreeFilterProvider.SingletonFactory.getProvider(queryBuilder);
-        // A query builder's support is not implemented.
+        // The query builder's support is not implemented.
         if (starTreeFilterProvider == null) {
             return null;
         }
