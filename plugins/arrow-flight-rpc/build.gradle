@@ -12,8 +12,8 @@
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Arrow flight based Stream implementation'
-  classname 'org.opensearch.arrow.flight.FlightStreamPlugin'
+  description = 'Arrow flight based Stream implementation'
+  classname = 'org.opensearch.arrow.flight.FlightStreamPlugin'
 }
 
 dependencies {
