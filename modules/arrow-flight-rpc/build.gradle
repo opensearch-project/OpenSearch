@@ -9,16 +9,18 @@
  * GitHub history for details.
  */
 
-apply plugin: 'opensearch.publish'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description 'Arrow flight based Stream implementation'
   classname 'org.opensearch.arrow.flight.FlightStreamPlugin'
 }
+evaluationDependsOn(":libs:opensearch-flight-core-shaded")
 
 dependencies {
   implementation project(':libs:opensearch-arrow-spi')
+  implementation project(path:':libs:opensearch-flight-core-shaded', configuration: 'shadow')
+  implementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
 
   implementation "io.netty:netty-buffer:${versions.netty}"
   implementation "io.netty:netty-codec:${versions.netty}"
@@ -31,6 +33,7 @@ dependencies {
   implementation "io.netty:netty-transport-native-unix-common:${versions.netty}"
   implementation "io.netty:netty-transport-classes-epoll:${versions.netty}"
 
+<<<<<<< HEAD
   implementation 'org.checkerframework:checker-qual:3.44.0'
   implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
   implementation "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
@@ -46,6 +49,16 @@ dependencies {
   runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   runtimeOnly "io.grpc:grpc-all:${versions.grpc}"
+=======
+  runtimeOnly group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.2'
+  compileOnly 'org.immutables:value:2.10.1'
+  annotationProcessor 'org.immutables:value:2.10.1'
+
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly 'io.perfmark:perfmark-api:0.27.0'
+  runtimeOnly 'org.apache.parquet:parquet-arrow:1.13.1'
+  runtimeOnly "io.grpc:grpc-protobuf-lite:${versions.grpc}"
+>>>>>>> e62a3ed3120 (fix the shaded dependencies)
   runtimeOnly "io.grpc:grpc-protobuf:${versions.grpc}"
   runtimeOnly "io.grpc:grpc-protobuf-lite:${versions.grpc}"
   runtimeOnly 'io.perfmark:perfmark-api:0.27.0'
@@ -56,13 +69,21 @@ dependencies {
       attribute(Attribute.of('org.gradle.jvm.environment', String), 'standard-jvm')
     }
   }
+<<<<<<< HEAD
   runtimeOnly 'org.apache.parquet:parquet-arrow:1.13.1'
+=======
+>>>>>>> e62a3ed3120 (fix the shaded dependencies)
 }
 
 tasks.named('test').configure {
   jacoco {
     excludes = ['org/apache/arrow/flight/**']
   }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /grpc-.*/, to: 'grpc'
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -85,7 +106,10 @@ tasks.named('thirdPartyAudit').configure {
     'com.google.protobuf.util.Timestamps',
     'com.google.rpc.Status',
     'com.google.rpc.Status$Builder',
+<<<<<<< HEAD
     'org.apache.parquet.schema.GroupType',
+=======
+>>>>>>> e62a3ed3120 (fix the shaded dependencies)
     // Parquet Schema classes
     'org.apache.parquet.schema.LogicalTypeAnnotation',
     'org.apache.parquet.schema.LogicalTypeAnnotation$DateLogicalTypeAnnotation',
@@ -122,6 +146,10 @@ tasks.named('thirdPartyAudit').configure {
     // from io.netty.logging.CommonsLoggerFactory (netty)
     'org.apache.commons.logging.Log',
     'org.apache.commons.logging.LogFactory',
+
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
 
     // from Log4j (deliberate, Netty will fallback to Log4j 2)
     'org.apache.log4j.Level',
@@ -253,7 +281,10 @@ tasks.named('thirdPartyAudit').configure {
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5'
   )
 }
+<<<<<<< HEAD
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
 }
+=======
+>>>>>>> e62a3ed3120 (fix the shaded dependencies)
