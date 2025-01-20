@@ -20,12 +20,13 @@ import java.io.IOException;
 import java.util.Map;
 
 @ExperimentalApi
-public interface FieldToDimensionOrdinalMapper {
+public interface DimensionOrdinalMapper {
 
     long getMatchingOrdinal(String dimensionName, Object value, StarTreeValues starTreeValues, MatchType matchType);
 
     enum SingletonFactory {
 
+        // Casting to long ensures that all numeric fields have been converted to equivalent long at request parsing time.
         NUMERIC_FIELD_MAPPER((dimensionName, value, starTreeValues, matchType) -> (long) value),
 
         KEYWORD_FIELD_MAPPER((dimensionName, value, starTreeValues, matchType) -> {
@@ -42,7 +43,7 @@ public interface FieldToDimensionOrdinalMapper {
                             // We reached the end and couldn't match anything, else we found a term which matches.
                             return (seekStatus == TermsEnum.SeekStatus.END) ? -1 : termsEnum.ord();
                         } else { // LT || LTE
-                            // If we found a greater term, then return ordinal of term less than it.
+                            // If we found a term just greater, then return ordinal of the term just before it.
                             return (seekStatus == TermsEnum.SeekStatus.NOT_FOUND) ? termsEnum.ord() - 1 : termsEnum.ord();
                         }
                     }
@@ -54,24 +55,24 @@ public interface FieldToDimensionOrdinalMapper {
             }
         });
 
-        private static final Map<String, FieldToDimensionOrdinalMapper> DOC_VALUE_TYPE_TO_MAPPER = Map.of(
+        private static final Map<String, DimensionOrdinalMapper> DOC_VALUE_TYPE_TO_MAPPER = Map.of(
             DocValuesType.SORTED_NUMERIC.name(),
             NUMERIC_FIELD_MAPPER.getFieldToDimensionOrdinalMapper(),
             DocValuesType.SORTED_SET.name(),
             KEYWORD_FIELD_MAPPER.getFieldToDimensionOrdinalMapper()
         );
 
-        private final FieldToDimensionOrdinalMapper queryToDimensionOrdinalMapper;
+        private final DimensionOrdinalMapper queryToDimensionOrdinalMapper;
 
-        SingletonFactory(FieldToDimensionOrdinalMapper fieldToDimensionOrdinalMapper) {
-            this.queryToDimensionOrdinalMapper = fieldToDimensionOrdinalMapper;
+        SingletonFactory(DimensionOrdinalMapper dimensionOrdinalMapper) {
+            this.queryToDimensionOrdinalMapper = dimensionOrdinalMapper;
         }
 
-        public FieldToDimensionOrdinalMapper getFieldToDimensionOrdinalMapper() {
+        public DimensionOrdinalMapper getFieldToDimensionOrdinalMapper() {
             return queryToDimensionOrdinalMapper;
         }
 
-        public static FieldToDimensionOrdinalMapper getFieldToDimensionOrdinalMapper(DocValuesType docValuesType) {
+        public static DimensionOrdinalMapper getFieldToDimensionOrdinalMapper(DocValuesType docValuesType) {
             return DOC_VALUE_TYPE_TO_MAPPER.get(docValuesType.name());
         }
 

@@ -14,8 +14,8 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 
 import java.io.IOException;
 
-import static org.opensearch.search.startree.FieldToDimensionOrdinalMapper.MatchType;
-import static org.opensearch.search.startree.FieldToDimensionOrdinalMapper.SingletonFactory.getFieldToDimensionOrdinalMapper;
+import static org.opensearch.search.startree.DimensionOrdinalMapper.MatchType;
+import static org.opensearch.search.startree.DimensionOrdinalMapper.SingletonFactory.getFieldToDimensionOrdinalMapper;
 
 public class RangeMatchDimFilter implements DimensionFilter {
 
@@ -43,16 +43,16 @@ public class RangeMatchDimFilter implements DimensionFilter {
             dimensionName,
             starTreeValues.getStarTreeField().getDimensionsOrder()
         );
-        FieldToDimensionOrdinalMapper fieldToDimensionOrdinalMapper = getFieldToDimensionOrdinalMapper(matchedDim.getDocValuesType());
+        DimensionOrdinalMapper dimensionOrdinalMapper = getFieldToDimensionOrdinalMapper(matchedDim.getDocValuesType());
         if (low != null) {
             MatchType lowMatchType = includeLow ? MatchType.GTE : MatchType.GT;
-            lowOrdinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(dimensionName, low, starTreeValues, lowMatchType);
+            lowOrdinal = dimensionOrdinalMapper.getMatchingOrdinal(dimensionName, low, starTreeValues, lowMatchType);
         } else {
             lowOrdinal = 0L;
         }
         if (high != null) {
             MatchType highMatchType = includeHigh ? MatchType.LTE : MatchType.LT;
-            highOrdinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(dimensionName, high, starTreeValues, highMatchType);
+            highOrdinal = dimensionOrdinalMapper.getMatchingOrdinal(dimensionName, high, starTreeValues, highMatchType);
         } else {
             highOrdinal = Long.MAX_VALUE;
         }

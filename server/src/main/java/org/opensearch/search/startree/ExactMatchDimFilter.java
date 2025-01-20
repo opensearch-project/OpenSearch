@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.TreeSet;
 
-import static org.opensearch.search.startree.FieldToDimensionOrdinalMapper.SingletonFactory.getFieldToDimensionOrdinalMapper;
+import static org.opensearch.search.startree.DimensionOrdinalMapper.SingletonFactory.getFieldToDimensionOrdinalMapper;
 
 @ExperimentalApi
 public class ExactMatchDimFilter implements DimensionFilter {
@@ -40,13 +40,13 @@ public class ExactMatchDimFilter implements DimensionFilter {
             dimensionName,
             starTreeValues.getStarTreeField().getDimensionsOrder()
         );
-        FieldToDimensionOrdinalMapper fieldToDimensionOrdinalMapper = getFieldToDimensionOrdinalMapper(matchedDim.getDocValuesType());
+        DimensionOrdinalMapper dimensionOrdinalMapper = getFieldToDimensionOrdinalMapper(matchedDim.getDocValuesType());
         for (Object rawValue : rawValues) {
-            long ordinal = fieldToDimensionOrdinalMapper.getMatchingOrdinal(
+            long ordinal = dimensionOrdinalMapper.getMatchingOrdinal(
                 matchedDim.getField(),
                 rawValue,
                 starTreeValues,
-                FieldToDimensionOrdinalMapper.MatchType.EXACT
+                DimensionOrdinalMapper.MatchType.EXACT
             );
             if (ordinal >= 0) {
                 convertedOrdinals.add(ordinal);

@@ -91,9 +91,8 @@ public interface StarTreeFilterProvider {
         public static StarTreeFilterProvider getProvider(QueryBuilder query) {
             if (query != null) {
                 return QUERY_BUILDERS_TO_STF_PROVIDER.get(query.getClass());
-            } else {
-                return null;
             }
+            return null; // QueryBuilder is not yet supported for filtering in star tree.
         }
 
     }
@@ -121,7 +120,7 @@ public interface StarTreeFilterProvider {
                 return null;
             }
             // FIXME : DocValuesType validation is field type specific and not query builder specific should happen elsewhere.
-            return (matchedDimension == null || term == null)
+            return matchedDimension == null
                 ? null
                 : new StarTreeFilter(Map.of(field, List.of(new ExactMatchDimFilter(field, List.of(term)))));
         }
@@ -186,18 +185,12 @@ public interface StarTreeFilterProvider {
                         case SHORT:
                         case INTEGER:
                         case LONG:
-                            dimensionFilter = getRangeFilterForNonDecimals(
-                                rangeQueryBuilder,
-                                numFieldType.numberType()
-                            );
+                            dimensionFilter = getRangeFilterForNonDecimals(rangeQueryBuilder, numFieldType.numberType());
                             break;
                         case HALF_FLOAT:
                         case FLOAT:
                         case DOUBLE:
-                            dimensionFilter = getRangeFilterForDecimals(
-                                rangeQueryBuilder,
-                                numFieldType.numberType()
-                            );
+                            dimensionFilter = getRangeFilterForDecimals(rangeQueryBuilder, numFieldType.numberType());
                             break;
                         default:
                             return null;
@@ -249,10 +242,7 @@ public interface StarTreeFilterProvider {
             return new RangeMatchDimFilter(rangeQueryBuilder.fieldName(), low, high, true, true);
         }
 
-        private DimensionFilter getRangeFilterForDecimals(
-            RangeQueryBuilder rangeQueryBuilder,
-            NumberFieldMapper.NumberType numFieldType
-        ) {
+        private DimensionFilter getRangeFilterForDecimals(RangeQueryBuilder rangeQueryBuilder, NumberFieldMapper.NumberType numFieldType) {
             Number l = Long.MIN_VALUE;
             Number u = Long.MAX_VALUE;
             if (rangeQueryBuilder.from() != null) {
