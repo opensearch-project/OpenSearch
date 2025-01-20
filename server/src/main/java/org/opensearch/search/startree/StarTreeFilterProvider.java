@@ -77,75 +77,6 @@ public interface StarTreeFilterProvider {
         return parsedValue;
     }
 
-    private static DimensionFilter getRangeFilterForNonDecimals(
-        RangeQueryBuilder rangeQueryBuilder,
-        NumberFieldMapper.NumberType numFieldType,
-        Long defaultLow,
-        Long defaultHigh
-    ) {
-        Long low = rangeQueryBuilder.from() == null ? defaultLow : parseRawNumberToDVLong(rangeQueryBuilder.from(), numFieldType);
-        Long high = rangeQueryBuilder.to() == null ? defaultHigh : parseRawNumberToDVLong(rangeQueryBuilder.to(), numFieldType);
-        boolean lowerTermHasDecimalPart = hasDecimalPart(low);
-        if ((lowerTermHasDecimalPart == false && rangeQueryBuilder.includeLower() == false)
-            || (lowerTermHasDecimalPart && signum(low) > 0)) {
-            if (low.equals(defaultHigh)) {
-                return new MatchNoneFilter();
-            }
-            ++low;
-        }
-        boolean upperTermHasDecimalPart = hasDecimalPart(high);
-        if ((upperTermHasDecimalPart == false && rangeQueryBuilder.includeUpper() == false)
-            || (upperTermHasDecimalPart && signum(high) < 0)) {
-            if (high.equals(defaultLow)) {
-                return new MatchNoneFilter();
-            }
-            --high;
-        }
-        return new RangeMatchDimFilter(rangeQueryBuilder.fieldName(), low, high, true, true);
-    }
-
-    private static DimensionFilter getRangeFilterForDecimals(
-        RangeQueryBuilder rangeQueryBuilder,
-        NumberFieldMapper.NumberType numFieldType,
-        Double defaultLow,
-        Double defaultHigh
-    ) {
-        Number l = defaultLow;
-        Number u = defaultHigh;
-        if (rangeQueryBuilder.from() != null) {
-            l = numFieldType.parse(rangeQueryBuilder.from(), false);
-            if (rangeQueryBuilder.includeLower() == false) {
-                l = getNextHighOrLowForDecimal(numFieldType, l, true);
-            }
-        }
-        if (rangeQueryBuilder.to() != null) {
-            u = numFieldType.parse(rangeQueryBuilder.to(), false);
-            if (rangeQueryBuilder.includeUpper() == false) {
-                u = getNextHighOrLowForDecimal(numFieldType, u, false);
-            }
-        }
-        return new RangeMatchDimFilter(
-            rangeQueryBuilder.fieldName(),
-            parseRawNumberToDVLong(l, numFieldType),
-            parseRawNumberToDVLong(u, numFieldType),
-            rangeQueryBuilder.includeLower(),
-            rangeQueryBuilder.includeUpper()
-        );
-    }
-
-    private static Number getNextHighOrLowForDecimal(NumberFieldMapper.NumberType numFieldType, Number value, boolean returnNextHighest) {
-        switch (numFieldType) {
-            case HALF_FLOAT:
-                return returnNextHighest ? HalfFloatPoint.nextUp((Float) value) : HalfFloatPoint.nextDown((Float) value);
-            case FLOAT:
-                return returnNextHighest ? FloatPoint.nextUp((Float) value) : FloatPoint.nextDown((Float) value);
-            case DOUBLE:
-                return returnNextHighest ? DoublePoint.nextUp((Double) value) : DoublePoint.nextDown((Double) value);
-            default:
-                throw new IllegalArgumentException("Unsupported field type [" + numFieldType + "] for decimal");
-        }
-    }
-
     class SingletonFactory {
 
         private static final Map<Class<? extends QueryBuilder>, StarTreeFilterProvider> QUERY_BUILDERS_TO_STF_PROVIDER = Map.of(
@@ -179,7 +110,7 @@ public interface StarTreeFilterProvider {
             if (mappedFieldType.getClass().equals(NumberFieldMapper.NumberFieldType.class)) {
                 Query query = termQueryBuilder.toQuery(context.getQueryShardContext());
                 if (query instanceof MatchNoDocsQuery) {
-                    return new StarTreeFilter(Collections.emptyMap());
+                    return null; // Indicates Aggregators to fallback to default implementation.
                 }
                 NumberFieldMapper.NumberFieldType numFieldType = (NumberFieldMapper.NumberFieldType) mappedFieldType;
                 term = parseRawNumberToDVLong(termQueryBuilder.value(), numFieldType.numberType());
@@ -187,11 +118,11 @@ public interface StarTreeFilterProvider {
                 KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) mappedFieldType;
                 term = parseRawKeyword(field, termQueryBuilder.value(), keywordFieldType);
             } else {
-                throw new UnsupportedOperationException("Unsupported field type [" + mappedFieldType.getClass() + "]");
+                return null;
             }
             // FIXME : DocValuesType validation is field type specific and not query builder specific should happen elsewhere.
             return (matchedDimension == null || term == null)
-                ? new StarTreeFilter(Collections.emptyMap())
+                ? null
                 : new StarTreeFilter(Map.of(field, List.of(new ExactMatchDimFilter(field, List.of(term)))));
         }
     }
@@ -203,7 +134,6 @@ public interface StarTreeFilterProvider {
             TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) rawFilter;
             String field = termsQueryBuilder.fieldName();
             Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
-            // FIXME : DocValuesType validation is field type specific and not query builder specific should happen elsewhere.
             if (matchedDimension == null) {
                 return null; // Indicates Aggregators to fallback to default implementation.
             } else {
@@ -240,9 +170,12 @@ public interface StarTreeFilterProvider {
             RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) rawFilter;
             String field = rangeQueryBuilder.fieldName();
             Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
+            if (matchedDimension == null) {
+                return null;
+            }
             MappedFieldType mappedFieldType = context.mapperService().fieldType(field);
             Query query = rangeQueryBuilder.toQuery(context.getQueryShardContext());
-            if (query instanceof MatchNoDocsQuery || matchedDimension == null) {
+            if (query instanceof MatchNoDocsQuery) {
                 return new StarTreeFilter(Collections.emptyMap());
             } else {
                 if (mappedFieldType.getClass().equals(NumberFieldMapper.NumberFieldType.class)) {
@@ -252,40 +185,22 @@ public interface StarTreeFilterProvider {
                         case BYTE:
                         case SHORT:
                         case INTEGER:
-                            dimensionFilter = getRangeFilterForNonDecimals(
-                                rangeQueryBuilder,
-                                numFieldType.numberType(),
-                                (long) Integer.MIN_VALUE,
-                                (long) Integer.MAX_VALUE
-                            );
-                            break;
                         case LONG:
                             dimensionFilter = getRangeFilterForNonDecimals(
                                 rangeQueryBuilder,
-                                numFieldType.numberType(),
-                                Long.MIN_VALUE,
-                                Long.MAX_VALUE
+                                numFieldType.numberType()
                             );
                             break;
                         case HALF_FLOAT:
                         case FLOAT:
-                            dimensionFilter = getRangeFilterForDecimals(
-                                rangeQueryBuilder,
-                                numFieldType.numberType(),
-                                (double) Float.NEGATIVE_INFINITY,
-                                (double) Float.POSITIVE_INFINITY
-                            );
-                            break;
                         case DOUBLE:
                             dimensionFilter = getRangeFilterForDecimals(
                                 rangeQueryBuilder,
-                                numFieldType.numberType(),
-                                Double.NEGATIVE_INFINITY,
-                                Double.POSITIVE_INFINITY
+                                numFieldType.numberType()
                             );
                             break;
                         default:
-                            throw new UnsupportedOperationException("Unsupported field type [" + mappedFieldType.getClass() + "]");
+                            return null;
                     }
                     return new StarTreeFilter(Map.of(field, List.of(dimensionFilter)));
                 } else if (mappedFieldType.getClass().equals(KeywordFieldMapper.KeywordFieldType.class)) {
@@ -304,7 +219,79 @@ public interface StarTreeFilterProvider {
                             )
                         )
                     );
-                } else throw new UnsupportedOperationException("Unsupported mapped field type [" + mappedFieldType.getClass() + "]");
+                }
+                return null;
+            }
+        }
+
+        private static DimensionFilter getRangeFilterForNonDecimals(
+            RangeQueryBuilder rangeQueryBuilder,
+            NumberFieldMapper.NumberType numFieldType
+        ) {
+            Long low = rangeQueryBuilder.from() == null ? Long.MIN_VALUE : parseRawNumberToDVLong(rangeQueryBuilder.from(), numFieldType);
+            Long high = rangeQueryBuilder.to() == null ? Long.MAX_VALUE : parseRawNumberToDVLong(rangeQueryBuilder.to(), numFieldType);
+            boolean lowerTermHasDecimalPart = hasDecimalPart(low);
+            if ((lowerTermHasDecimalPart == false && rangeQueryBuilder.includeLower() == false)
+                || (lowerTermHasDecimalPart && signum(low) > 0)) {
+                if (low.equals(Long.MAX_VALUE)) {
+                    return new MatchNoneFilter();
+                }
+                ++low;
+            }
+            boolean upperTermHasDecimalPart = hasDecimalPart(high);
+            if ((upperTermHasDecimalPart == false && rangeQueryBuilder.includeUpper() == false)
+                || (upperTermHasDecimalPart && signum(high) < 0)) {
+                if (high.equals(Long.MIN_VALUE)) {
+                    return new MatchNoneFilter();
+                }
+                --high;
+            }
+            return new RangeMatchDimFilter(rangeQueryBuilder.fieldName(), low, high, true, true);
+        }
+
+        private DimensionFilter getRangeFilterForDecimals(
+            RangeQueryBuilder rangeQueryBuilder,
+            NumberFieldMapper.NumberType numFieldType
+        ) {
+            Number l = Long.MIN_VALUE;
+            Number u = Long.MAX_VALUE;
+            if (rangeQueryBuilder.from() != null) {
+                l = numFieldType.parse(rangeQueryBuilder.from(), false);
+                if (rangeQueryBuilder.includeLower() == false) {
+                    l = getNextHighOrLowForDecimal(numFieldType, l, true);
+                }
+                l = parseRawNumberToDVLong(l, numFieldType);
+            }
+            if (rangeQueryBuilder.to() != null) {
+                u = numFieldType.parse(rangeQueryBuilder.to(), false);
+                if (rangeQueryBuilder.includeUpper() == false) {
+                    u = getNextHighOrLowForDecimal(numFieldType, u, false);
+                }
+                u = parseRawNumberToDVLong(u, numFieldType);
+            }
+            return new RangeMatchDimFilter(
+                rangeQueryBuilder.fieldName(),
+                l,
+                u,
+                rangeQueryBuilder.includeLower(),
+                rangeQueryBuilder.includeUpper()
+            );
+        }
+
+        private static Number getNextHighOrLowForDecimal(
+            NumberFieldMapper.NumberType numFieldType,
+            Number value,
+            boolean returnNextHighest
+        ) {
+            switch (numFieldType) {
+                case HALF_FLOAT:
+                    return returnNextHighest ? HalfFloatPoint.nextUp((Float) value) : HalfFloatPoint.nextDown((Float) value);
+                case FLOAT:
+                    return returnNextHighest ? FloatPoint.nextUp((Float) value) : FloatPoint.nextDown((Float) value);
+                case DOUBLE:
+                    return returnNextHighest ? DoublePoint.nextUp((Double) value) : DoublePoint.nextDown((Double) value);
+                default:
+                    throw new IllegalArgumentException("Invalid field type [" + numFieldType + "] for decimal");
             }
         }
     }
