@@ -46,7 +46,7 @@ import io.grpc.netty.shaded.io.netty.util.concurrent.Future;
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.settings.Setting.intSetting;
 import static org.opensearch.common.settings.Setting.listSetting;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORTS;
+import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORT;
 import static org.opensearch.transport.Transport.resolveTransportPublishPort;
 
 final class ServerComponents implements AutoCloseable {
@@ -86,7 +86,7 @@ final class ServerComponents implements AutoCloseable {
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 5;
 
     public static final String FLIGHT_TRANSPORT_SETTING_KEY = "transport-flight";
-    public static final Setting<PortsRange> SETTING_FLIGHT_PORTS = AUX_TRANSPORT_PORTS.getConcreteSettingForNamespace(
+    public static final Setting<PortsRange> SETTING_FLIGHT_PORTS = AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(
         FLIGHT_TRANSPORT_SETTING_KEY
     );
 
