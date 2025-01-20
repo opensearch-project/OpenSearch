@@ -15,7 +15,6 @@ opensearchplugin {
   description 'Arrow flight based Stream implementation'
   classname 'org.opensearch.arrow.flight.FlightStreamPlugin'
 }
-evaluationDependsOn(":libs:opensearch-flight-core-shaded")
 
 dependencies {
   implementation project(':libs:opensearch-arrow-spi')
