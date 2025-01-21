@@ -582,7 +582,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<Long> SETTING_INDEX_CREATION_DATE = Setting.longSetting(
         SETTING_CREATION_DATE,
         -1L,
+        -1L,
         Property.IndexScope,
+        Property.NodeScope,
         Property.UnmodifiableOnRestore
     );
     /**
