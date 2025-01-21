@@ -10,7 +10,6 @@ package org.opensearch.arrow.flight.bootstrap;
 
 import org.apache.arrow.flight.FlightProducer;
 import org.apache.arrow.flight.Location;
-import org.apache.arrow.flight.NoOpFlightProducer;
 import org.apache.arrow.flight.OSFlightServer;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.AutoCloseables;
@@ -30,6 +29,8 @@ import org.opensearch.transport.BindTransportException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -102,6 +103,8 @@ final class ServerComponents implements AutoCloseable {
     private NetworkService networkService;
     private ThreadPool threadPool;
     private SslContextProvider sslContextProvider;
+    private FlightProducer flightProducer;
+
     private EventLoopGroup bossEventLoopGroup;
     EventLoopGroup workerEventLoopGroup;
     private ExecutorService serverExecutor;
@@ -137,6 +140,10 @@ final class ServerComponents implements AutoCloseable {
         this.sslContextProvider = Objects.requireNonNull(sslContextProvider);
     }
 
+    void setFlightProducer(FlightProducer flightProducer) {
+        this.flightProducer = Objects.requireNonNull(flightProducer);
+    }
+
     private OSFlightServer buildAndStartServer(Location location, FlightProducer producer) throws IOException {
         OSFlightServer server = OSFlightServer.builder(
             allocator,
@@ -148,8 +155,14 @@ final class ServerComponents implements AutoCloseable {
             workerEventLoopGroup,
             serverExecutor
         ).build();
-
-        server.start();
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            try {
+                server.start();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return null;
+        });
         return server;
     }
 
@@ -171,7 +184,10 @@ final class ServerComponents implements AutoCloseable {
 
         List<TransportAddress> boundAddresses = new ArrayList<>(hostAddresses.length);
         for (InetAddress address : hostAddresses) {
-            boundAddresses.add(bindAddress(address, port));
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                boundAddresses.add(bindAddress(address, port));
+                return null;
+            });
         }
 
         final InetAddress publishInetAddress;
@@ -207,7 +223,7 @@ final class ServerComponents implements AutoCloseable {
     @Override
     public void close() {
         try {
-            AutoCloseables.close(server, allocator);
+            AutoCloseables.close(server);
             gracefullyShutdownELG(bossEventLoopGroup, GRPC_BOSS_ELG);
             gracefullyShutdownELG(workerEventLoopGroup, GRPC_WORKER_ELG);
             if (serverExecutor != null) {
@@ -244,9 +260,8 @@ final class ServerComponents implements AutoCloseable {
         Location serverLocation = sslContextProvider.isSslEnabled()
             ? Location.forGrpcTls(address.getHostString(), address.getPort())
             : Location.forGrpcInsecure(address.getHostString(), address.getPort());
-        FlightProducer producer = new NoOpFlightProducer();
         try {
-            this.server = buildAndStartServer(serverLocation, producer);
+            this.server = buildAndStartServer(serverLocation, flightProducer);
             logger.info("Arrow Flight server started. Listening at {}", serverLocation);
             return true;
         } catch (Exception e) {

@@ -51,7 +51,7 @@ public class FlightServiceTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         FeatureFlagSetter.set(FeatureFlags.ARROW_STREAMS_SETTING.getKey());
-        int availablePort = getBaseStreamPort() + port.addAndGet(1);
+        int availablePort = generateBasePort(9500) + port.addAndGet(1);
         settings = Settings.EMPTY;
         localNode = createNode(availablePort);
 
@@ -72,12 +72,8 @@ public class FlightServiceTests extends OpenSearchTestCase {
     }
 
     public void testInitializeWithSslDisabled() throws Exception {
-        int testPort = getBaseStreamPort() + port.addAndGet(1);
 
-        Settings noSslSettings = Settings.builder()
-            .put("node.attr.transport.stream.port", String.valueOf(testPort))
-            .put("arrow.ssl.enable", false)
-            .build();
+        Settings noSslSettings = Settings.builder().put("arrow.ssl.enable", false).build();
 
         try (FlightService noSslService = new FlightService(noSslSettings)) {
             noSslService.setClusterService(clusterService);
@@ -107,7 +103,7 @@ public class FlightServiceTests extends OpenSearchTestCase {
             testService.start();
             testService.stop();
             testService.start();
-            assertNull(testService.getStreamManager());
+            assertNotNull(testService.getStreamManager());
         }
     }
 
@@ -166,14 +162,9 @@ public class FlightServiceTests extends OpenSearchTestCase {
     private DiscoveryNode createNode(int port) throws Exception {
         TransportAddress address = new TransportAddress(InetAddress.getByName("127.0.0.1"), port);
         Map<String, String> attributes = new HashMap<>();
-        attributes.put("transport.stream.port", String.valueOf(port));
         attributes.put("arrow.streams.enabled", "true");
 
         Set<DiscoveryNodeRole> roles = Collections.singleton(DiscoveryNodeRole.DATA_ROLE);
         return new DiscoveryNode("local_node", address, attributes, roles, Version.CURRENT);
-    }
-
-    protected static int getBaseStreamPort() {
-        return generateBasePort(9401);
     }
 }
