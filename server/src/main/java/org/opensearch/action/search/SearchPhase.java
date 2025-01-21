@@ -74,6 +74,10 @@ public abstract class SearchPhase implements CheckedRunnable<IOException> {
      * @return {@link SearchPhaseName}
      */
     public SearchPhaseName getSearchPhaseName() {
-        return SearchPhaseName.valueOf(name.toUpperCase(Locale.ROOT));
+        try {
+            return SearchPhaseName.valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return SearchPhaseName.OTHER_PHASE_TYPES;
+        }
     }
 }

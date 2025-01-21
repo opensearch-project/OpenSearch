@@ -205,4 +205,46 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
         }
     }
+
+    public void testOtherPhaseNamesAreIgnored() {
+        // Unrecognized phase names should not throw any error.
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
+        SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+        SearchPhase mockSearchPhase = mock(SearchPhase.class);
+        when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+
+        when(mockSearchPhase.getSearchPhaseName()).thenReturn(SearchPhaseName.OTHER_PHASE_TYPES);
+        testRequestStats.onPhaseStart(ctx);
+        int minTimeNanos = 10;
+        long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(minTimeNanos);
+        when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
+
+        assertEquals(1, testRequestStats.getPhaseCurrent(SearchPhaseName.OTHER_PHASE_TYPES));
+        testRequestStats.onPhaseEnd(
+            ctx,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest(),
+                () -> null
+            )
+        );
+
+        assertEquals(0, testRequestStats.getPhaseCurrent(SearchPhaseName.OTHER_PHASE_TYPES));
+        assertEquals(1, testRequestStats.getPhaseTotal(SearchPhaseName.OTHER_PHASE_TYPES));
+        assertTrue(minTimeNanos <= testRequestStats.getPhaseMetric(SearchPhaseName.OTHER_PHASE_TYPES));
+    }
+
+    public void testSearchPhaseCatchAll() {
+        // Test search phases with unrecognized names return the catch-all OTHER_PHASE_TYPES when getSearchPhaseName() is called.
+        // These may exist, for example, "create_pit".
+        String unrecognizedName = "unrecognized_name";
+        SearchPhase dummyPhase = new SearchPhase(unrecognizedName) {
+            @Override
+            public void run() {}
+        };
+
+        assertEquals(unrecognizedName, dummyPhase.getName());
+        assertEquals(SearchPhaseName.OTHER_PHASE_TYPES, dummyPhase.getSearchPhaseName());
+    }
 }
