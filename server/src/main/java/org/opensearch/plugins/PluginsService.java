@@ -125,6 +125,43 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
+    public PluginsService(
+        Settings settings,
+        Path modulesDirectory,
+        Path pluginsDirectory,
+        Collection<Class<? extends Plugin>> classpathPlugins
+    ) {
+        // Used for testing
+        this(
+            settings,
+            null,
+            modulesDirectory,
+            pluginsDirectory,
+            classpathPlugins.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList())
+        );
+    }
+
+    /**
+     * Constructs a new PluginService
+     * @param settings The settings of the system
+     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     * @param classpathPlugins Plugins that exist in the classpath which should be loaded
+     */
     @SuppressWarnings("unchecked")
     public PluginsService(
         Settings settings,

@@ -81,7 +81,6 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.node.InternalSettingsPreparer;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPlugin;
@@ -390,23 +389,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 throw new AssertionError("node.name must be set");
             });
             PluginsService pluginsService;
-            Collection<PluginInfo> pluginInfos = new ArrayList<>();
-            for (Class<? extends Plugin> plugin : plugins) {
-                pluginInfos.add(
-                    new PluginInfo(
-                        plugin.getName(),
-                        "classpath plugin",
-                        "NA",
-                        Version.CURRENT,
-                        "1.8",
-                        plugin.getName(),
-                        null,
-                        Collections.emptyList(),
-                        false
-                    )
-                );
-            }
-            pluginsService = new PluginsService(nodeSettings, null, env.modulesDir(), env.pluginsDir(), pluginInfos);
+            pluginsService = new PluginsService(nodeSettings, env.modulesDir(), env.pluginsDir(), plugins);
 
             client = (Client) Proxy.newProxyInstance(Client.class.getClassLoader(), new Class[] { Client.class }, clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
