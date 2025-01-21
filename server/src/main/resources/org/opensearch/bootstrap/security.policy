@@ -93,6 +93,10 @@ grant codeBase "${codebase.reactor-core}" {
   permission java.net.SocketPermission "*", "connect,resolve";
 };
 
+grant codeBase "${codebase.opensearch-arrow-memory-shaded}" {
+  permission java.security.AllPermission "modifyThreadGroup";
+};
+
 //// Everything else:
 
 grant {
@@ -197,6 +201,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
 
-  // Needed for netty based arrow flight server for netty configs related to buffer allocator
-  permission java.security.AllPermission "modifyThreadGroup";
+  // needed by arrow-memory
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
