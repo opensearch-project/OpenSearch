@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.network.NetworkService;
@@ -257,8 +256,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
             try {
 
                 final InetSocketAddress address = new InetSocketAddress(hostAddress, portNumber);
-                final NettyServerBuilder serverBuilder = NettyServerBuilder
-                    .forAddress(address, InsecureServerCredentials.create())
+                final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(address, InsecureServerCredentials.create())
                     .bossEventLoopGroup(eventLoopGroup)
                     .workerEventLoopGroup(eventLoopGroup)
                     .channelType(NioServerSocketChannel.class)

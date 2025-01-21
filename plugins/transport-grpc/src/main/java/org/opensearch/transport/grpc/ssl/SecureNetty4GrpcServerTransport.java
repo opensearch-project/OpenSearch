@@ -8,29 +8,23 @@
 
 package org.opensearch.transport.grpc.ssl;
 
-import io.grpc.BindableService;
-import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
-import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
+
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Optional;
+
+import io.grpc.BindableService;
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 
 /**
  * Netty4GrpcServerTransport with TLS enabled.
@@ -53,25 +47,20 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         List<BindableService> services,
         NetworkService networkService,
         SecureAuxTransportSettingsProvider secureTransportSettingsProvider
-        ) {
+    ) {
         super(settings, services, networkService);
         this.secureAuxTransportSettingsProvider = secureTransportSettingsProvider;
-        this.addServerConfig(
-            (NettyServerBuilder builder) -> {
-                try {
-                    return builder.sslContext(buildSslContext());
-                } catch (SSLException | NoSuchAlgorithmException e) {
-                    throw new RuntimeException(e);
-                }
+        this.addServerConfig((NettyServerBuilder builder) -> {
+            try {
+                return builder.sslContext(buildSslContext());
+            } catch (SSLException | NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
             }
-        );
+        });
     }
 
     private SslContext buildSslContext() throws SSLException, NoSuchAlgorithmException {
-        Optional<SSLContext> SSLCtxt = secureAuxTransportSettingsProvider.buildSecureAuxServerSSLContext(
-            this.settings,
-            this
-        );
+        Optional<SSLContext> SSLCtxt = secureAuxTransportSettingsProvider.buildSecureAuxServerSSLContext(this.settings, this);
 
         if (SSLCtxt.isPresent()) {
             return new SSLContextWrapper(SSLCtxt.get(), false);
