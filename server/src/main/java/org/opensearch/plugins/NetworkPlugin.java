@@ -79,9 +79,9 @@ public interface NetworkPlugin {
         public static final String AUX_SETTINGS_PREFIX = "aux.transport.";
         public static final String AUX_TRANSPORT_TYPES_KEY = AUX_SETTINGS_PREFIX + "types";
         public static final String AUX_PORT_DEFAULTS = "9400-9500";
-        public static final Setting.AffixSetting<PortsRange> AUX_TRANSPORT_PORTS = affixKeySetting(
+        public static final Setting.AffixSetting<PortsRange> AUX_TRANSPORT_PORT = affixKeySetting(
             AUX_SETTINGS_PREFIX,
-            "ports",
+            "port",
             key -> new Setting<>(key, AUX_PORT_DEFAULTS, PortsRange::new, Setting.Property.NodeScope)
         );
 
