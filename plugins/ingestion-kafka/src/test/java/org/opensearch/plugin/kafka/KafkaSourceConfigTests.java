@@ -19,7 +19,7 @@ public class KafkaSourceConfigTests extends OpenSearchTestCase {
     public void testConstructorAndGetters() {
         Map<String, Object> params = new HashMap<>();
         params.put("topic", "topic");
-        params.put("bootstrapServers", "bootstrap");
+        params.put("bootstrap_servers", "bootstrap");
 
         KafkaSourceConfig config = new KafkaSourceConfig(params);
 

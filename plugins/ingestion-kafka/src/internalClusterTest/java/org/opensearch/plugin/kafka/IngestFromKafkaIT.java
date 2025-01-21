@@ -85,7 +85,7 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
                 .put("ingestion_source.type", "kafka")
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.param.topic", "test")
-                .put("ingestion_source.param.bootstrapServers", kafka.getBootstrapServers())
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
         );

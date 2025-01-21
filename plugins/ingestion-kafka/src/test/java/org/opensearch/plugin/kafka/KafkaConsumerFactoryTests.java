@@ -19,7 +19,7 @@ public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
         KafkaConsumerFactory factory = new KafkaConsumerFactory();
         Map<String, Object> params = new HashMap<>();
         params.put("topic", "test-topic");
-        params.put("bootstrapServers", "localhost:9092");
+        params.put("bootstrap_servers", "localhost:9092");
 
         factory.initialize(params);
 

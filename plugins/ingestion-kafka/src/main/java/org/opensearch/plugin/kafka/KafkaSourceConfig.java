@@ -25,7 +25,7 @@ public class KafkaSourceConfig {
     public KafkaSourceConfig(Map<String, Object> params) {
         // TODO: better parsing and validation
         this.topic = (String) Objects.requireNonNull(params.get("topic"));
-        this.bootstrapServers = (String) Objects.requireNonNull(params.get("bootstrapServers"));
+        this.bootstrapServers = (String) Objects.requireNonNull(params.get("bootstrap_servers"));
         assert this.bootstrapServers != null;
     }
 

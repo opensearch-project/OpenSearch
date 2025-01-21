@@ -42,7 +42,7 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         super.setUp();
         Map<String, Object> params = new HashMap<>();
         params.put("topic", "test-topic");
-        params.put("bootstrapServers", "localhost:9092");
+        params.put("bootstrap_servers", "localhost:9092");
 
         config = new KafkaSourceConfig(params);
         mockConsumer = mock(KafkaConsumer.class);
@@ -93,7 +93,7 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
     public void testTopicDoesNotExist() {
         Map<String, Object> params = new HashMap<>();
         params.put("topic", "non-existent-topic");
-        params.put("bootstrapServers", "localhost:9092");
+        params.put("bootstrap_servers", "localhost:9092");
         var kafkaSourceConfig = new KafkaSourceConfig(params);
         when(mockConsumer.partitionsFor(eq("non-existent-topic"), any(Duration.class))).thenReturn(null);
         try {
