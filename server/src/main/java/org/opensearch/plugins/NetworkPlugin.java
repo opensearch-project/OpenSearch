@@ -75,6 +75,7 @@ public interface NetworkPlugin {
      * bootstrap. To allow pluggable AuxTransports access to configurable port ranges we require the port range be provided
      * through an {@link org.opensearch.common.settings.Setting.AffixSetting} of the form 'AUX_SETTINGS_PREFIX.{aux-transport-key}.ports'.
      */
+    @ExperimentalApi
     abstract class AuxTransport extends AbstractLifecycleComponent {
         public static final String AUX_SETTINGS_PREFIX = "aux.transport.";
         public static final String AUX_TRANSPORT_TYPES_KEY = AUX_SETTINGS_PREFIX + "types";
@@ -154,6 +155,23 @@ public interface NetworkPlugin {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
+        Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns a map of secure {@link AuxTransport} suppliers.
+     * See {@link org.opensearch.plugins.NetworkPlugin.AuxTransport#AUX_TRANSPORT_TYPES_SETTING} to configure a specific implementation.
+     */
+    @ExperimentalApi
+    default Map<String, Supplier<AuxTransport>> getSecureAuxTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        CircuitBreakerService circuitBreakerService,
+        NetworkService networkService,
+        ClusterSettings clusterSettings,
+        SecureAuxTransportSettingsProvider secureAuxTransportSettingsProvider,
         Tracer tracer
     ) {
         return Collections.emptyMap();

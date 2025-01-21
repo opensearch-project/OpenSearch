@@ -14,8 +14,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 
 import java.util.Collections;
 import java.util.List;
@@ -52,6 +54,27 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin {
         return Collections.singletonMap(
             GRPC_TRANSPORT_SETTING_KEY,
             () -> new Netty4GrpcServerTransport(settings, Collections.emptyList(), networkService)
+        );
+    }
+
+    @Override
+    public Map<String, Supplier<AuxTransport>> getSecureAuxTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        CircuitBreakerService circuitBreakerService,
+        NetworkService networkService,
+        ClusterSettings clusterSettings,
+        SecureAuxTransportSettingsProvider secureAuxTransportSettingsProvider,
+        Tracer tracer
+    ) {
+        return Collections.singletonMap(
+            GRPC_TRANSPORT_SETTING_KEY,
+            () -> new SecureNetty4GrpcServerTransport(
+                settings,
+                Collections.emptyList(),
+                networkService,
+                secureAuxTransportSettingsProvider
+            )
         );
     }
 

@@ -32,7 +32,7 @@ public interface TransportAdapterProvider<T> {
      * Provides a new transport adapter of required transport adapter class and transport instance.
      * @param <C> transport adapter class
      * @param settings settings
-     * @param transport HTTP transport instance
+     * @param transport transport instance
      * @param adapterClass required transport adapter class
      * @return the non-empty {@link Optional} if the transport adapter could be created, empty one otherwise
      */
