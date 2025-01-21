@@ -17,20 +17,29 @@ import org.opensearch.common.annotation.PublicApi;
  */
 @PublicApi(since = "2.9.0")
 public enum SearchPhaseName {
-    DFS_PRE_QUERY("dfs_pre_query"),
-    QUERY("query"),
-    FETCH("fetch"),
-    DFS_QUERY("dfs_query"),
-    EXPAND("expand"),
-    CAN_MATCH("can_match");
+    DFS_PRE_QUERY("dfs_pre_query", true),
+    QUERY("query", true),
+    FETCH("fetch", true),
+    DFS_QUERY("dfs_query", true),
+    EXPAND("expand", true),
+    CAN_MATCH("can_match", true),
+
+    // A catch-all for other phase types which shouldn't appear in the search phase stats API.
+    OTHER_PHASE_TYPES("other_phase_types", false);
 
     private final String name;
+    private final boolean shouldTrack;
 
-    SearchPhaseName(final String name) {
+    SearchPhaseName(final String name, final boolean shouldTrack) {
         this.name = name;
+        this.shouldTrack = shouldTrack;
     }
 
     public String getName() {
         return name;
+    }
+
+    public boolean shouldTrack() {
+        return shouldTrack;
     }
 }

@@ -524,7 +524,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
                 for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
                     PhaseStatsLongHolder statsLongHolder = requestStatsLongHolder.requestStatsHolder.get(searchPhaseName.getName());
-                    if (statsLongHolder == null) {
+                    if (statsLongHolder == null || !searchPhaseName.shouldTrack()) {
                         continue;
                     }
                     builder.startObject(searchPhaseName.getName());

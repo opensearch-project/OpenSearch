@@ -83,6 +83,7 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         SearchPhaseContext ctx = mock(SearchPhaseContext.class);
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            if (!searchPhaseName.shouldTrack()) continue;
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
             when(mockSearchPhase.getStartTimeInNanos()).thenReturn(System.nanoTime() - TimeUnit.SECONDS.toNanos(paramValue));
@@ -94,6 +95,7 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         }
         searchStats1.setSearchRequestStats(testRequestStats);
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            if (!searchPhaseName.shouldTrack()) continue;
             assertEquals(
                 0,
                 searchStats1.getTotal().getRequestStatsLongHolder().getRequestStatsHolder().get(searchPhaseName.getName()).current

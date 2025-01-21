@@ -13,6 +13,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SearchRequestStatsTests extends OpenSearchTestCase {
+
+    static List<SearchPhaseName> trackablePhases;
+
+    static {
+        trackablePhases = new ArrayList<>();
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            if (searchPhaseName.shouldTrack()) {
+                trackablePhases.add(searchPhaseName);
+            }
+        }
+    }
+
     public void testSearchRequestStats_OnRequestFailure() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
@@ -67,7 +80,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         SearchPhase mockSearchPhase = mock(SearchPhase.class);
         when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
 
-        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+        for (SearchPhaseName searchPhaseName : trackablePhases) {
             when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             testRequestStats.onPhaseStart(ctx);
             assertEquals(1, testRequestStats.getPhaseCurrent(searchPhaseName));
@@ -84,7 +97,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         SearchPhase mockSearchPhase = mock(SearchPhase.class);
         when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
 
-        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+        for (SearchPhaseName searchPhaseName : trackablePhases) {
             when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             long tookTimeInMillis = randomIntBetween(1, 10);
             testRequestStats.onPhaseStart(ctx);
@@ -109,10 +122,10 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         int numTasks = randomIntBetween(5, 50);
-        Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
-        Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks * SearchPhaseName.values().length);
-        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+        Thread[] threads = new Thread[numTasks * trackablePhases.size()];
+        Phaser phaser = new Phaser(numTasks * trackablePhases.size() + 1);
+        CountDownLatch countDownLatch = new CountDownLatch(numTasks * trackablePhases.size());
+        for (SearchPhaseName searchPhaseName : trackablePhases) {
             SearchPhaseContext ctx = mock(SearchPhaseContext.class);
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
@@ -128,7 +141,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         }
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
-        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+        for (SearchPhaseName searchPhaseName : trackablePhases) {
             assertEquals(numTasks, testRequestStats.getPhaseCurrent(searchPhaseName));
         }
     }
@@ -137,11 +150,11 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         int numTasks = randomIntBetween(5, 50);
-        Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
-        Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks * SearchPhaseName.values().length);
+        Thread[] threads = new Thread[numTasks * trackablePhases.size()];
+        Phaser phaser = new Phaser(numTasks * trackablePhases.size() + 1);
+        CountDownLatch countDownLatch = new CountDownLatch(numTasks * trackablePhases.size());
         Map<SearchPhaseName, Long> searchPhaseNameLongMap = new HashMap<>();
-        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+        for (SearchPhaseName searchPhaseName : trackablePhases) {
             SearchPhaseContext ctx = mock(SearchPhaseContext.class);
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
@@ -168,7 +181,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         }
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
-        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+        for (SearchPhaseName searchPhaseName : trackablePhases) {
             assertEquals(numTasks, testRequestStats.getPhaseTotal(searchPhaseName));
             assertThat(
                 testRequestStats.getPhaseMetric(searchPhaseName),
@@ -181,10 +194,10 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         int numTasks = randomIntBetween(5, 50);
-        Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
-        Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(numTasks * SearchPhaseName.values().length);
-        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+        Thread[] threads = new Thread[numTasks * trackablePhases.size()];
+        Phaser phaser = new Phaser(numTasks * trackablePhases.size() + 1);
+        CountDownLatch countDownLatch = new CountDownLatch(numTasks * trackablePhases.size());
+        for (SearchPhaseName searchPhaseName : trackablePhases) {
             SearchPhaseContext ctx = mock(SearchPhaseContext.class);
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
@@ -201,7 +214,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         }
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
-        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+        for (SearchPhaseName searchPhaseName : trackablePhases) {
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
         }
     }
@@ -211,12 +224,15 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         SearchPhaseContext ctx = mock(SearchPhaseContext.class);
-        SearchPhase mockSearchPhase = new SearchPhase("unrecognized_phase") {
-            @Override
-            public void run() {}
-        };
+        SearchPhase mockSearchPhase = mock(SearchPhase.class);
         when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+
+        when(mockSearchPhase.getSearchPhaseName()).thenReturn(SearchPhaseName.OTHER_PHASE_TYPES);
         testRequestStats.onPhaseStart(ctx);
+        long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(10);
+        when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
+        // All values should return 0 for untracked phase types
+        assertEquals(0, testRequestStats.getPhaseCurrent(SearchPhaseName.OTHER_PHASE_TYPES));
         testRequestStats.onPhaseEnd(
             ctx,
             new SearchRequestContext(
@@ -225,5 +241,21 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
                 () -> null
             )
         );
+        assertEquals(0, testRequestStats.getPhaseCurrent(SearchPhaseName.OTHER_PHASE_TYPES));
+        assertEquals(0, testRequestStats.getPhaseTotal(SearchPhaseName.OTHER_PHASE_TYPES));
+        assertEquals(0, testRequestStats.getPhaseMetric(SearchPhaseName.OTHER_PHASE_TYPES));
+    }
+
+    public void testSearchPhaseCatchAll() {
+        // Test search phases with unrecognized names return the catch-all OTHER_PHASE_TYPES when getSearchPhaseName() is called.
+        // These may exist, for example, "create_pit".
+        String unrecognizedName = "unrecognized_name";
+        SearchPhase dummyPhase = new SearchPhase(unrecognizedName) {
+            @Override
+            public void run() {}
+        };
+
+        assertEquals(unrecognizedName, dummyPhase.getName());
+        assertEquals(SearchPhaseName.OTHER_PHASE_TYPES, dummyPhase.getSearchPhaseName());
     }
 }
