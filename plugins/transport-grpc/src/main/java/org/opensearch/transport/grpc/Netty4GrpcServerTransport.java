@@ -8,6 +8,7 @@
 
 package org.opensearch.transport.grpc;
 
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.network.NetworkService;
@@ -32,6 +33,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import io.grpc.BindableService;
 import io.grpc.InsecureServerCredentials;
@@ -115,7 +117,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         Setting.Property.NodeScope
     );
 
-    private final Settings settings;
+    protected final Settings settings;
     private final NetworkService networkService;
     private final List<BindableService> services;
     private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
@@ -126,6 +128,8 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
 
     private volatile BoundTransportAddress boundAddress;
     private volatile EventLoopGroup eventLoopGroup;
+
+    private final List<UnaryOperator<NettyServerBuilder>> serverBuilderConfigs = new ArrayList<>();
 
     /**
      * Creates a new Netty4GrpcServerTransport instance.
@@ -154,6 +158,10 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
 
     BoundTransportAddress boundAddress() {
         return this.boundAddress;
+    }
+
+    protected void addServerConfig(UnaryOperator<NettyServerBuilder> configModifier) {
+        serverBuilderConfigs.add(configModifier);
     }
 
     @Override
@@ -249,12 +257,17 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
             try {
 
                 final InetSocketAddress address = new InetSocketAddress(hostAddress, portNumber);
-                final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(address, InsecureServerCredentials.create())
+                final NettyServerBuilder serverBuilder = NettyServerBuilder
+                    .forAddress(address, InsecureServerCredentials.create())
                     .bossEventLoopGroup(eventLoopGroup)
                     .workerEventLoopGroup(eventLoopGroup)
                     .channelType(NioServerSocketChannel.class)
                     .addService(new HealthStatusManager().getHealthService())
                     .addService(ProtoReflectionService.newInstance());
+
+                for (UnaryOperator<NettyServerBuilder> op : serverBuilderConfigs) {
+                    op.apply(serverBuilder);
+                }
 
                 services.forEach(serverBuilder::addService);
 
