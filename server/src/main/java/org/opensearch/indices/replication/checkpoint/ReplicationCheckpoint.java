@@ -100,7 +100,11 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         } else {
             this.metadataMap = Collections.emptyMap();
         }
-        this.createdTimeStamp = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_2_19_0)) {
+            this.createdTimeStamp = in.readLong();
+        } else {
+            this.createdTimeStamp = 0;
+        }
     }
 
     /**
@@ -164,7 +168,9 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeMap(metadataMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
         }
-        out.writeLong(createdTimeStamp);
+        if (out.getVersion().onOrAfter(Version.V_2_19_0)) {
+            out.writeLong(createdTimeStamp);
+        }
     }
 
     @Override

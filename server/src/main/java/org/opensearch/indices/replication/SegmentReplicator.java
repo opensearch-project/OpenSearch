@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.OpenSearchCorruptionException;
-import org.opensearch.action.StepListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -226,12 +225,17 @@ public class SegmentReplicator {
             return;
         }
 
-        final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
-        target.getSource().getCheckpointMetadata(target.getId(), target.getCheckpoint(), checkpointInfoListener);
-        checkpointInfoListener.whenComplete(
-            checkpointInfo -> updatePrimaryLastRefreshedCheckpoint(checkpointInfo.getCheckpoint(), target.indexShard().shardId()),
-            checkpointInfoListener::onFailure
-        );
+        sourceFactory.get().get(target.indexShard()).getCheckpointMetadata(target.getId(), target.getCheckpoint(), new ActionListener<>() {
+            @Override
+            public void onResponse(CheckpointInfoResponse checkpointInfoResponse) {
+                updatePrimaryLastRefreshedCheckpoint(checkpointInfoResponse.getCheckpoint(), target.indexShard().shardId());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Failed to fetch primary last refreshed checkpoint", e);
+            }
+        });
     }
 
     private boolean isStoreCorrupt(SegmentReplicationTarget target) {

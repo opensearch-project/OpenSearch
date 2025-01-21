@@ -141,10 +141,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return this.checkpoint;
     }
 
-    public SegmentReplicationSource getSource() {
-        return source;
-    }
-
     @Override
     public void writeFileChunk(
         StoreFileMetadata metadata,
