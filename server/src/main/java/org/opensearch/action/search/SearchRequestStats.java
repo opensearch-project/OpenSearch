@@ -73,29 +73,20 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
 
     @Override
     protected void onPhaseStart(SearchPhaseContext context) {
-        SearchPhaseName phaseName = context.getCurrentPhase().getSearchPhaseName();
-        if (phaseName.shouldTrack()) {
-            phaseStatsMap.get(phaseName).current.inc();
-        }
+        phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.inc();
     }
 
     @Override
     protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-        SearchPhaseName phaseName = context.getCurrentPhase().getSearchPhaseName();
-        if (phaseName.shouldTrack()) {
-            StatsHolder phaseStats = phaseStatsMap.get(phaseName);
-            phaseStats.current.dec();
-            phaseStats.total.inc();
-            phaseStats.timing.inc(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - context.getCurrentPhase().getStartTimeInNanos()));
-        }
+        StatsHolder phaseStats = phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName());
+        phaseStats.current.dec();
+        phaseStats.total.inc();
+        phaseStats.timing.inc(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - context.getCurrentPhase().getStartTimeInNanos()));
     }
 
     @Override
     protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
-        SearchPhaseName phaseName = context.getCurrentPhase().getSearchPhaseName();
-        if (phaseName.shouldTrack()) {
-            phaseStatsMap.get(phaseName).current.dec();
-        }
+        phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
     }
 
     @Override

@@ -69,13 +69,11 @@ public abstract class SearchPhase implements CheckedRunnable<IOException> {
     }
 
     /**
-     * Returns the SearchPhase name as {@link SearchPhaseName}. If unrecognized, returns the catch-all OTHER_PHASE_TYPES.
+     * Returns the SearchPhase name as {@link SearchPhaseName}. Exception will come if SearchPhase name is not defined
+     * in {@link SearchPhaseName}
+     * @return {@link SearchPhaseName}
      */
     public SearchPhaseName getSearchPhaseName() {
-        try {
-            return SearchPhaseName.valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            return SearchPhaseName.OTHER_PHASE_TYPES;
-        }
+        return SearchPhaseName.valueOf(name.toUpperCase(Locale.ROOT));
     }
 }
