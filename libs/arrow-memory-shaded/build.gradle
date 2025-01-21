@@ -28,6 +28,7 @@ dependencies {
   runtimeOnly 'org.checkerframework:checker-qual:3.44.0'
   runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
@@ -39,6 +40,7 @@ tasks.named("shadowJar").configure {
     include(dependency('io.netty:'))
     include(dependency('org.checkerframework:'))
     include(dependency('org.slf4j:'))
+    include(dependency('com.google.flatbuffers:'))
     include(dependency('com.fasterxml.jackson.core:'))
     include(dependency('commons-codec:'))
   }
@@ -69,4 +71,8 @@ tasks.register("javadocDummyFiles") {
 tasks.named('javadoc') { javadocTask ->
   enabled = false
   finalizedBy(tasks.named('javadocDummyFiles'))
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
 }
