@@ -42,7 +42,7 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        settings = Settings.builder().put("node.attr.transport.stream.port", "9880").put(ARROW_STREAMS_SETTING.getKey(), true).build();
+        settings = Settings.builder().put(ARROW_STREAMS_SETTING.getKey(), true).build();
         clusterService = mock(ClusterService.class);
         ClusterState clusterState = mock(ClusterState.class);
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
@@ -53,10 +53,7 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
 
     public void testPluginEnableAndDisable() throws IOException {
 
-        Settings disabledSettings = Settings.builder()
-            .put("node.attr.transport.stream.port", "9880")
-            .put(ARROW_STREAMS_SETTING.getKey(), false)
-            .build();
+        Settings disabledSettings = Settings.builder().put(ARROW_STREAMS_SETTING.getKey(), false).build();
         FeatureFlags.initializeFeatureFlags(disabledSettings);
         FlightStreamPlugin disabledPlugin = new FlightStreamPlugin(disabledSettings);
 
