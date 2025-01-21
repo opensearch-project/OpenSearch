@@ -60,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.re2j:re2j` from 1.7 to 1.8 ([#17012](https://github.com/opensearch-project/OpenSearch/pull/17012))
 - Bump `org.apache.commons:commons-lang3` from 3.14.0 to 3.17.0 ([#15580](https://github.com/opensearch-project/OpenSearch/pull/15580))
 - Bump `com.squareup.okio:okio` from 3.9.1 to 3.10.2 ([#17060](https://github.com/opensearch-project/OpenSearch/pull/17060))
+- Bump `com.diffplug.spotless` from 6.25.0 to 7.0.2 ([#17058](https://github.com/opensearch-project/OpenSearch/pull/17058))
 
 ### Changed
 - Indexed IP field supports `terms_query` with more than 1025 IP masks [#16391](https://github.com/opensearch-project/OpenSearch/pull/16391)
