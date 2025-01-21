@@ -9,11 +9,14 @@
 package org.opensearch.search.pipeline;
 
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.XContentUtils;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -40,12 +43,14 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
     private Object outputData;
     private ProcessorStatus status;
     private String errorMessage;
+    private String tag;
     private static final ParseField PROCESSOR_NAME_FIELD = new ParseField("processor_name");
     private static final ParseField DURATION_MILLIS_FIELD = new ParseField("duration_millis");
     private static final ParseField INPUT_DATA_FIELD = new ParseField("input_data");
     private static final ParseField OUTPUT_DATA_FIELD = new ParseField("output_data");
     private static final ParseField STATUS_FIELD = new ParseField("status");
     private static final ParseField ERROR_MESSAGE_FIELD = new ParseField("error");
+    private static final ParseField TAG_FIELD = new ParseField("tag");
     // Key for processor execution details
     public static final String PROCESSOR_EXECUTION_DETAILS_KEY = "processorExecutionDetails";
 
@@ -58,7 +63,8 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         Object inputData,
         Object outputData,
         ProcessorStatus status,
-        String errorMessage
+        String errorMessage,
+        String tag
     ) {
         this.processorName = processorName;
         this.durationMillis = durationMillis;
@@ -66,11 +72,15 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         this.outputData = outputData;
         this.status = status;
         this.errorMessage = errorMessage;
+        this.tag = tag;
     }
 
     public ProcessorExecutionDetail(String processorName) {
-        this(processorName, 0, null, null, ProcessorStatus.SUCCESS, "");
+        this(processorName, 0, null, null, ProcessorStatus.SUCCESS, null, null);
+    }
 
+    public ProcessorExecutionDetail(String processorName, String tag) {
+        this(processorName, 0, null, null, ProcessorStatus.SUCCESS, null, tag);
     }
 
     public ProcessorExecutionDetail(StreamInput in) throws IOException {
@@ -80,6 +90,7 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         this.outputData = in.readGenericValue();
         this.status = in.readEnum(ProcessorStatus.class);
         this.errorMessage = in.readString();
+        this.tag = in.readString();
     }
 
     @Override
@@ -90,6 +101,7 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         out.writeGenericValue(outputData);
         out.writeEnum(status);
         out.writeString(errorMessage);
+        out.writeString(tag);
     }
 
     public String getProcessorName() {
@@ -153,6 +165,10 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(PROCESSOR_NAME_FIELD.getPreferredName(), processorName);
+        // tag is optional when setting up processor
+        if (tag != null) {
+            builder.field(TAG_FIELD.getPreferredName(), tag);
+        }
         builder.field(DURATION_MILLIS_FIELD.getPreferredName(), durationMillis);
         builder.field(STATUS_FIELD.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
         if (status == ProcessorStatus.FAIL) {
@@ -186,6 +202,27 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         } else if (data instanceof ToXContentObject) {
             builder.field(fieldName);
             ((ToXContentObject) data).toXContent(builder, params);
+        } else if (data instanceof String) {
+            // If the data is a String, attempt to parse it as JSON
+            String jsonString = (String) data;
+            try {
+                // check if its json string
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, jsonString)
+                ) {
+                    Map<String, Object> parsedMap = parser.map();
+
+                    builder.startObject(fieldName);
+                    for (Map.Entry<String, Object> entry : parsedMap.entrySet()) {
+                        addFieldToXContent(builder, entry.getKey(), entry.getValue(), params);
+                    }
+                    builder.endObject();
+                }
+            } catch (IOException e) {
+                // If parsing fails, write the string as a plain field
+                builder.field(fieldName, jsonString);
+            }
         } else {
             builder.field(fieldName, data);
         }
@@ -199,24 +236,14 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
         }
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ProcessorExecutionDetail that = (ProcessorExecutionDetail) o;
-        return durationMillis == that.durationMillis
-            && Objects.equals(processorName, that.processorName)
-            && Objects.equals(inputData, that.inputData)
-            && Objects.equals(outputData, that.outputData);
-    }
-
     public static ProcessorExecutionDetail fromXContent(XContentParser parser) throws IOException {
         String processorName = null;
         long durationMillis = 0;
         Object inputData = null;
         Object outputData = null;
         ProcessorStatus status = null;
-        String errorMessage = "";
+        String errorMessage = null;
+        String tag = null;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             parser.nextToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
@@ -227,6 +254,8 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
 
             if (PROCESSOR_NAME_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                 processorName = parser.text();
+            } else if (TAG_FIELD.match(fieldName, parser.getDeprecationHandler())) {
+                tag = parser.text();
             } else if (DURATION_MILLIS_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                 durationMillis = parser.longValue();
             } else if (STATUS_FIELD.match(fieldName, parser.getDeprecationHandler())) {
@@ -246,32 +275,12 @@ public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Processor name is required");
         }
 
-        return new ProcessorExecutionDetail(processorName, durationMillis, inputData, outputData, status, errorMessage);
+        return new ProcessorExecutionDetail(processorName, durationMillis, inputData, outputData, status, errorMessage, tag);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(processorName, durationMillis, inputData, outputData, status, errorMessage);
-    }
-
-    @Override
-    public String toString() {
-        return "ProcessorExecutionDetail{"
-            + "processorName='"
-            + processorName
-            + '\''
-            + ", durationMillis="
-            + durationMillis
-            + ", inputData="
-            + inputData
-            + ", outputData="
-            + outputData
-            + ", status="
-            + status
-            + ", errorMessage='"
-            + errorMessage
-            + '\''
-            + '}';
+        return Objects.hash(processorName, durationMillis, inputData, outputData, status, errorMessage, tag);
     }
 
     /**

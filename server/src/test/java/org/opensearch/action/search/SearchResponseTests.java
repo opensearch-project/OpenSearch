@@ -77,6 +77,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -314,8 +315,24 @@ public class SearchResponseTests extends OpenSearchTestCase {
         SearchHit[] hits = new SearchHit[] { hit };
         String dummyId = UUID.randomUUID().toString();
         List<ProcessorExecutionDetail> processorResults = List.of(
-            new ProcessorExecutionDetail("processor1", 50, List.of(1), List.of(1), ProcessorExecutionDetail.ProcessorStatus.SUCCESS, ""),
-            new ProcessorExecutionDetail("processor2", 30, List.of(3), List.of(3), ProcessorExecutionDetail.ProcessorStatus.SUCCESS, "")
+            new ProcessorExecutionDetail(
+                "processor1",
+                50,
+                List.of(1),
+                List.of(1),
+                ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+                null,
+                null
+            ),
+            new ProcessorExecutionDetail(
+                "processor2",
+                30,
+                List.of(3),
+                List.of(3),
+                ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+                null,
+                null
+            )
         );
         {
             SearchResponse response = new SearchResponse(
@@ -368,6 +385,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
                     expectedString.append("{");
                     expectedString.append("\"processor_name\":\"").append(detail.getProcessorName()).append("\",");
                     expectedString.append("\"duration_millis\":").append(detail.getDurationMillis()).append(",");
+                    expectedString.append("\"status\":\"").append(detail.getStatus().toString().toLowerCase(Locale.ROOT)).append("\",");
                     expectedString.append("\"input_data\":").append(detail.getInputData()).append(",");
                     expectedString.append("\"output_data\":").append(detail.getOutputData());
                     expectedString.append("}");

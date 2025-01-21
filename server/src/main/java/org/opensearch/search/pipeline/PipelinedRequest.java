@@ -8,12 +8,16 @@
 
 package org.opensearch.search.pipeline;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchPhaseResult;
+
+import java.util.List;
 
 /**
  * Groups a search pipeline based on a request and the request after being transformed by the pipeline.
@@ -23,6 +27,7 @@ import org.opensearch.search.SearchPhaseResult;
 public final class PipelinedRequest extends SearchRequest {
     private final Pipeline pipeline;
     private final PipelineProcessingContext requestContext;
+    private static final Logger logger = LogManager.getLogger(Pipeline.class);
 
     PipelinedRequest(Pipeline pipeline, SearchRequest transformedRequest, PipelineProcessingContext requestContext) {
         super(transformedRequest);
@@ -35,7 +40,18 @@ public final class PipelinedRequest extends SearchRequest {
     }
 
     public ActionListener<SearchResponse> transformResponseListener(ActionListener<SearchResponse> responseListener) {
-        return pipeline.transformResponseListener(this, responseListener, requestContext);
+        return pipeline.transformResponseListener(this, ActionListener.wrap(response -> {
+            // Extract processor execution details
+            List<ProcessorExecutionDetail> details = requestContext.getProcessorExecutionDetails();
+            logger.info("it is going to be executed in [{}]", details);
+            // Add details to the response's InternalResponse if available
+            if (!details.isEmpty() && response.getInternalResponse() != null) {
+                response.getInternalResponse().getProcessorResult().addAll(details);
+            }
+
+            // Pass the modified response to the original listener
+            responseListener.onResponse(response);
+        }, responseListener::onFailure), requestContext);
     }
 
     public <Result extends SearchPhaseResult> void transformSearchPhaseResults(

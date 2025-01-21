@@ -23,7 +23,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.SearchPhaseResult;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -145,32 +144,23 @@ class Pipeline {
         ActionListener<SearchRequest> currentListener = finalListener;
         for (int i = searchRequestProcessors.size() - 1; i >= 0; i--) {
             final ActionListener<SearchRequest> nextListener = currentListener;
-            SearchRequestProcessor processor = searchRequestProcessors.get(i);
+            // Conditionally wrap the current processor with a TrackingSearchRequestProcessorWrapper
+            // if verbosePipeline mode is enabled. This allows detailed execution tracking for debugging purposes.
+            final SearchRequestProcessor processor = request.source().verbosePipeline()
+                ? new TrackingSearchRequestProcessorWrapper(searchRequestProcessors.get(i))
+                : searchRequestProcessors.get(i);
             currentListener = ActionListener.wrap(r -> {
-                ProcessorExecutionDetail detail = new ProcessorExecutionDetail(processor.getType());
-                if (r.source().verbosePipeline()) {
-                    detail.addInput(r.source().shallowCopy());
-                }
                 long start = relativeTimeSupplier.getAsLong();
                 beforeRequestProcessor(processor);
                 processor.processRequestAsync(r, requestContext, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterRequestProcessor(processor, took);
-                    if (rr.source().verbosePipeline()) {
-                        detail.addOutput(rr.source().shallowCopy());
-                        detail.addTook(took);
-                        requestContext.addProcessorExecutionDetail(detail);
-                    }
                     nextListener.onResponse(rr);
                 }, e -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterRequestProcessor(processor, took);
                     onRequestProcessorFailed(processor);
-                    if (r.source().verbosePipeline()) {
-                        detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, e.getMessage());
-                        requestContext.addProcessorExecutionDetail(detail);
-                        nextListener.onResponse(r);
-                    } else if (processor.isIgnoreFailure()) {
+                    if (processor.isIgnoreFailure() || r.source().verbosePipeline()) {
                         logger.warn(
                             "The exception from request processor ["
                                 + processor.getType()
@@ -214,16 +204,8 @@ class Pipeline {
         ActionListener<SearchResponse> responseListener,
         PipelineProcessingContext requestContext
     ) {
+        // If there are no response processors, directly check requestContext for execution details
         if (searchResponseProcessors.isEmpty()) {
-            // No response transformation necessary
-            if (request.source() != null && request.source().verbosePipeline()) {
-                ActionListener<SearchResponse> finalResponseListener = responseListener;
-                return ActionListener.wrap(r -> {
-                    List<ProcessorExecutionDetail> details = requestContext.getProcessorExecutionDetails();
-                    r.getInternalResponse().getProcessorResult().addAll(details);
-                    finalResponseListener.onResponse(r);
-                }, responseListener::onFailure);
-            }
             return responseListener;
         }
 
@@ -244,23 +226,14 @@ class Pipeline {
 
         for (int i = searchResponseProcessors.size() - 1; i >= 0; i--) {
             final ActionListener<SearchResponse> currentFinalListener = responseListener;
-            final SearchResponseProcessor processor = searchResponseProcessors.get(i);
-
+            final SearchResponseProcessor processor = request.source().verbosePipeline()
+                ? new TrackingSearchResponseProcessorWrapper(searchResponseProcessors.get(i))
+                : searchResponseProcessors.get(i);
             responseListener = ActionListener.wrap(r -> {
-                ProcessorExecutionDetail detail = new ProcessorExecutionDetail(processor.getType());
-                if (request.source().verbosePipeline()) {
-                    detail.addInput(Arrays.asList(r.getHits().deepCopy().getHits()));
-                }
                 beforeResponseProcessor(processor);
                 final long start = relativeTimeSupplier.getAsLong();
                 processor.processResponseAsync(request, r, requestContext, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
-                    if (request.source().verbosePipeline()) {
-                        detail.addOutput(Arrays.asList(rr.getHits().deepCopy().getHits()));
-                        detail.addTook(took);
-                        requestContext.addProcessorExecutionDetail(detail);
-                        rr.getInternalResponse().getProcessorResult().add(detail);
-                    }
                     afterResponseProcessor(processor, took);
                     currentFinalListener.onResponse(rr);
                 }, e -> {
@@ -268,12 +241,7 @@ class Pipeline {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterResponseProcessor(processor, took);
                     // If an error occurs and the pipeline is in verbose mode, the processor will not terminate the execution chain.
-                    if (request.source().verbosePipeline()) {
-                        detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, e.getMessage());
-                        requestContext.addProcessorExecutionDetail(detail);
-                        r.getInternalResponse().getProcessorResult().add(detail);
-                        currentFinalListener.onResponse(r);
-                    } else if (processor.isIgnoreFailure()) {
+                    if (processor.isIgnoreFailure() || request.source().verbosePipeline()) {
                         logger.warn(
                             "The exception from response processor ["
                                 + processor.getType()
@@ -292,9 +260,6 @@ class Pipeline {
         }
         final ActionListener<SearchResponse> chainListener = responseListener;
         return ActionListener.wrap(r -> {
-            // Adding all the request processor detail
-            List<ProcessorExecutionDetail> details = requestContext.getProcessorExecutionDetails();
-            r.getInternalResponse().getProcessorResult().addAll(details);
             beforeTransformResponse();
             pipelineStart[0] = relativeTimeSupplier.getAsLong();
             chainListener.onResponse(r);

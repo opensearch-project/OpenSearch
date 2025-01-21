@@ -34,6 +34,7 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
             Map.of("key", "value"),
             List.of(1, 2, 3),
             ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+            "",
             ""
         );
         ProcessorExecutionDetail deserialized;
@@ -59,52 +60,6 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
         assertEquals(List.of(4, 5, 6), detail.getOutputData());
     }
 
-    public void testEqualsAndHashCode() {
-        ProcessorExecutionDetail detail1 = new ProcessorExecutionDetail(
-            "processor1",
-            100L,
-            "input1",
-            "output1",
-            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
-            ""
-        );
-        ProcessorExecutionDetail detail2 = new ProcessorExecutionDetail(
-            "processor1",
-            100L,
-            "input1",
-            "output1",
-            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
-            ""
-        );
-        ProcessorExecutionDetail detail3 = new ProcessorExecutionDetail(
-            "processor2",
-            200L,
-            "input2",
-            "output2",
-            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
-            ""
-        );
-
-        assertEquals(detail1, detail2);
-        assertNotEquals(detail1, detail3);
-        assertEquals(detail1.hashCode(), detail2.hashCode());
-        assertNotEquals(detail1.hashCode(), detail3.hashCode());
-    }
-
-    public void testToString() {
-        ProcessorExecutionDetail detail = new ProcessorExecutionDetail(
-            "processorZ",
-            500L,
-            "inputData",
-            "outputData",
-            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
-            ""
-        );
-        String expected =
-            "ProcessorExecutionDetail{processorName='processorZ', durationMillis=500, inputData=inputData, outputData=outputData, status=SUCCESS, errorMessage=''}";
-        assertEquals(expected, detail.toString());
-    }
-
     public void testToXContent() throws IOException {
         ProcessorExecutionDetail detail = new ProcessorExecutionDetail(
             "testProcessor",
@@ -112,7 +67,8 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
             Map.of("key1", "value1"),
             List.of(1, 2, 3),
             ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
-            ""
+            "",
+            null
         );
 
         XContentBuilder actualBuilder = XContentBuilder.builder(JsonXContent.jsonXContent);
@@ -147,7 +103,8 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
             Map.of("key1", "value1"),
             List.of(1, 2, 3),
             ProcessorExecutionDetail.ProcessorStatus.FAIL,
-            "processor 1 fail"
+            "processor 1 fail",
+            "123"
         );
 
         XContentBuilder actualBuilder = XContentBuilder.builder(JsonXContent.jsonXContent);
@@ -155,6 +112,7 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
 
         String expected = "{"
             + "  \"processor_name\": \"testProcessor\","
+            + "  \"tag\": \"123\","
             + "  \"duration_millis\": 123,"
             + "  \"status\": \"fail\","
             + "  \"error\": \"processor 1 fail\","

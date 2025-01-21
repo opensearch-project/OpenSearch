@@ -14,13 +14,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.search.pipeline.ProcessorExecutionDetail.PROCESSOR_EXECUTION_DETAILS_KEY;
-
 /**
  * A holder for state that is passed through each processor in the pipeline.
  */
 public class PipelineProcessingContext {
     private final Map<String, Object> attributes = new HashMap<>();
+    private final List<ProcessorExecutionDetail> processorExecutionDetails = new ArrayList<>();
 
     /**
      * Set a generic attribute in the state for this request. Overwrites any existing value.
@@ -47,12 +46,7 @@ public class PipelineProcessingContext {
      * @param detail the ProcessorExecutionDetail to add
      */
     public void addProcessorExecutionDetail(ProcessorExecutionDetail detail) {
-        @SuppressWarnings("unchecked")
-        List<ProcessorExecutionDetail> details = (List<ProcessorExecutionDetail>) attributes.computeIfAbsent(
-            PROCESSOR_EXECUTION_DETAILS_KEY,
-            k -> new ArrayList<>()
-        );
-        details.add(detail);
+        processorExecutionDetails.add(detail);
     }
 
     /**
@@ -60,8 +54,7 @@ public class PipelineProcessingContext {
      *
      * @return a list of ProcessorExecutionDetails
      */
-    @SuppressWarnings("unchecked")
     public List<ProcessorExecutionDetail> getProcessorExecutionDetails() {
-        return (List<ProcessorExecutionDetail>) attributes.getOrDefault(PROCESSOR_EXECUTION_DETAILS_KEY, Collections.emptyList());
+        return Collections.unmodifiableList(processorExecutionDetails);
     }
 }

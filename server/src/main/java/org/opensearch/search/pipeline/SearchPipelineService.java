@@ -425,7 +425,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 pipeline = pipelineHolder.pipeline;
             }
         }
-        if (searchRequest.source().verbosePipeline() && pipeline.getId().equals(NOOP_PIPELINE_ID)) {
+        if (searchRequest.source() != null && searchRequest.source().verbosePipeline() && pipeline.getId().equals(NOOP_PIPELINE_ID)) {
             throw new IllegalArgumentException("The 'verbose pipelines' option requires a search pipeline to be defined.");
         }
         PipelineProcessingContext requestContext = new PipelineProcessingContext();
