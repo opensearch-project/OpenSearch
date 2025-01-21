@@ -305,7 +305,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             searchPipeline = in.readOptionalString();
         }
-        // Todo: change version to 2_19_0
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             verbosePipeline = in.readOptionalBoolean();
         }
@@ -392,7 +391,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalString(searchPipeline);
         }
-        // Todo: change version to 2_19_0
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalBoolean(verbosePipeline);
         }
@@ -1674,6 +1672,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         if (searchPipeline != null) {
             builder.field(SEARCH_PIPELINE.getPreferredName(), searchPipeline);
+        }
+
+        if (verbosePipeline != null) {
+            builder.field(VERBOSE_SEARCH_PIPELINE.getPreferredName(), verbosePipeline);
         }
 
         return builder;
