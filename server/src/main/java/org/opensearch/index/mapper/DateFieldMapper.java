@@ -56,6 +56,7 @@ import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -819,16 +820,29 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected String[] deriveSource(LeafReader leafReader, int docId) throws IOException {
+    protected void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        validateDerivedSourceAllowed();
         SortedNumericDocValues sortedNumericDocValues = leafReader.getSortedNumericDocValues(name());
-        if (sortedNumericDocValues.advanceExact(docId)) {
+        if (sortedNumericDocValues != null && sortedNumericDocValues.advanceExact(docId)) {
             int size = sortedNumericDocValues.docValueCount();
             String[] values = new String[size];
             DateFormatter dateFormatter = fieldType().dateTimeFormatter;
             for (int i = 0; i < size; i++)
                 values[i] = dateFormatter.formatMillis(sortedNumericDocValues.nextValue());
-            return values;
+            if (size == 1) {
+                builder.field(name(), values[0]);
+            } else {
+                builder.array(name(), values);
+            }
         }
-        return null;
+    }
+
+    private void validateDerivedSourceAllowed() {
+        if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with copyTo parameter set");
+        }
+        if (mappedFieldType.hasDocValues() == false) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with docValues disabled");
+        }
     }
 }

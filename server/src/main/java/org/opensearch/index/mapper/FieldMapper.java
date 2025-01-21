@@ -572,16 +572,23 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected abstract String contentType();
 
-    public Object getDerivedSource(LeafReader leafReader, int docId) throws IOException {
+    /**
+     * Method used for deriving source and building it to XContentBuilder object
+     * @param builder - builder to store the derived source filed
+     * @param leafReader - leafReader to read data from
+     * @param docId - docId for which we want to derive the source
+     * @throws IOException
+     */
+    public void buildDerivedSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
         if (mappedFieldType.isDerivedSourceSupported() == false) throw new UnsupportedOperationException(
             "Derived source field is not supported for [" + name() + "] field"
         );
-        return deriveSource(leafReader, docId);
+        deriveSource(builder, leafReader, docId);
     }
 
     // generic implementation, override in subclasses for specific implementation
-    protected Object deriveSource(LeafReader leafReader, int docId) throws IOException {
-        return null;
+    protected void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
     }
 
     /**
