@@ -232,7 +232,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
@@ -276,7 +277,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
@@ -348,7 +350,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
@@ -389,7 +392,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
@@ -426,7 +430,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();
@@ -458,7 +463,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             int numSlicesForPit = maxSlicesPerPit + randomIntBetween(1, 100);
             when(sliceBuilder.getMax()).thenReturn(numSlicesForPit);
@@ -564,7 +570,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});
@@ -678,7 +685,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
 
             // Case1: if sort is on timestamp field, non-concurrent path is used
@@ -704,7 +712,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             context.sort(
                 new SortAndFormats(new Sort(new SortField("test2", SortField.Type.INT)), new DocValueFormat[] { DocValueFormat.RAW })
@@ -732,7 +741,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             context.evaluateRequestShouldUseConcurrentSearch();
             if (executor == null) {
@@ -765,7 +775,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             context.evaluateRequestShouldUseConcurrentSearch();
             assertFalse(context.shouldUseConcurrentSearch());
@@ -794,7 +805,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             context.evaluateRequestShouldUseConcurrentSearch();
             assertFalse(context.shouldUseConcurrentSearch());
@@ -911,7 +923,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
 
             // Case1: if there is no agg in the query, non-concurrent path is used
@@ -939,7 +952,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
 
             // add un-supported agg operation
@@ -971,7 +985,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                Collections.emptyList()
+                Collections.emptyList(),
+                null
             );
             // create a supported agg operation
             context.aggregations(mockAggregations);
@@ -1029,7 +1044,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                concurrentSearchRequestDeciders
+                concurrentSearchRequestDeciders,
+                null
             );
             // create a supported agg operation
             context.aggregations(mockAggregations);
@@ -1067,7 +1083,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                concurrentSearchRequestDeciders
+                concurrentSearchRequestDeciders,
+                null
             );
 
             // create a supported agg operation
@@ -1109,7 +1126,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                concurrentSearchRequestDeciders
+                concurrentSearchRequestDeciders,
+                null
             );
 
             // create a supported agg operation
@@ -1152,7 +1170,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                concurrentSearchRequestDeciders
+                concurrentSearchRequestDeciders,
+                null
             );
 
             // create a supported agg operation

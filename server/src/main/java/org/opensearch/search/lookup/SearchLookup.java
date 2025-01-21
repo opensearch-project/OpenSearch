@@ -51,7 +51,7 @@ import java.util.function.Supplier;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class SearchLookup {
+public class /**/ SearchLookup {
     /**
      * The maximum depth of field dependencies.
      * When a runtime field's doc values depends on another runtime field's doc values,

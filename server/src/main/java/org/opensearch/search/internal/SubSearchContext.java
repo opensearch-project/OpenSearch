@@ -32,6 +32,7 @@
 package org.opensearch.search.internal;
 
 import org.apache.lucene.search.Query;
+import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.search.aggregations.SearchContextAggregations;
@@ -178,6 +179,11 @@ public class SubSearchContext extends FilteredSearchContext {
     public SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
         this.fetchFieldsContext = fetchFieldsContext;
         return this;
+    }
+
+    @Override
+    public StreamManager streamManager() {
+        return null;
     }
 
     @Override

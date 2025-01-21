@@ -37,6 +37,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
@@ -77,6 +78,7 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.startree.StarTreeQueryContext;
+import org.opensearch.search.stream.StreamSearchResult;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collection;
@@ -280,6 +282,8 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SimilarityService similarityService();
 
+    public abstract StreamManager streamManager();
+
     public abstract BigArrays bigArrays();
 
     public abstract BitsetFilterCache bitsetFilterCache();
@@ -417,6 +421,8 @@ public abstract class SearchContext implements Releasable {
     public abstract DfsSearchResult dfsResult();
 
     public abstract QuerySearchResult queryResult();
+
+    public abstract StreamSearchResult streamSearchResult();
 
     public abstract FetchPhase fetchPhase();
 

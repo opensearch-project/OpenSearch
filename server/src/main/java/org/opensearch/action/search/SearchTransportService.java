@@ -60,6 +60,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ScrollQuerySearchResult;
+import org.opensearch.search.stream.StreamSearchResult;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
@@ -94,6 +95,7 @@ public class SearchTransportService {
     public static final String QUERY_ACTION_NAME = "indices:data/read/search[phase/query]";
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
     public static final String QUERY_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query/scroll]";
+    public static final String QUERY_STREAM_ACTION_NAME = "indices:data/read/search[phase/query/stream]";
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
@@ -240,17 +242,29 @@ public class SearchTransportService {
     ) {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
-        final boolean fetchDocuments = request.numberOfShards() == 1;
-        Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
-        final ActionListener handler = responseWrapper.apply(connection, listener);
-        transportService.sendChildRequest(
-            connection,
-            QUERY_ACTION_NAME,
-            request,
-            task,
-            new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId())
-        );
+        if (request.isStreamRequest()) {
+            Writeable.Reader<SearchPhaseResult> reader = StreamSearchResult::new;
+            final ActionListener handler = responseWrapper.apply(connection, listener);
+            transportService.sendChildRequest(
+                connection,
+                QUERY_STREAM_ACTION_NAME,
+                request,
+                task,
+                new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId())
+            );
+        } else {
+            final boolean fetchDocuments = request.numberOfShards() == 1;
+            Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+            final ActionListener handler = responseWrapper.apply(connection, listener);
+            transportService.sendChildRequest(
+                connection,
+                QUERY_ACTION_NAME,
+                request,
+                task,
+                new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId())
+            );
+        }
     }
 
     public void sendExecuteQuery(
@@ -609,6 +623,28 @@ public class SearchTransportService {
             }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
+
+        transportService.registerRequestHandler(
+            QUERY_STREAM_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
+            ShardSearchRequest::new,
+            (request, channel, task) -> {
+                searchService.executeStreamPhase(
+                    request,
+                    false,
+                    (SearchShardTask) task,
+                    new ChannelActionListener<>(channel, QUERY_STREAM_ACTION_NAME, request)
+                );
+            }
+        );
+        TransportActionProxy.registerProxyActionWithDynamicResponseType(
+            transportService,
+            QUERY_STREAM_ACTION_NAME,
+            (request) -> StreamSearchResult::new
+        );
 
         transportService.registerRequestHandler(
             QUERY_FETCH_SCROLL_ACTION_NAME,

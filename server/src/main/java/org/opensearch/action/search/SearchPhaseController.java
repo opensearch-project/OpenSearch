@@ -67,6 +67,8 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.SortedWiderNumericSortField;
+import org.opensearch.search.stream.OSTicket;
+import org.opensearch.search.stream.StreamSearchResult;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.Suggest.Suggestion;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
@@ -471,7 +473,8 @@ public final class SearchPhaseController {
                 numReducePhases,
                 0,
                 0,
-                true
+                true,
+                null
             );
         }
         int total = queryResults.size();
@@ -493,8 +496,12 @@ public final class SearchPhaseController {
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
+        List<OSTicket> tickets = new ArrayList<>();
         for (SearchPhaseResult entry : queryResults) {
             QuerySearchResult result = entry.queryResult();
+            if (entry instanceof StreamSearchResult) {
+                tickets.addAll(((StreamSearchResult) entry).getFlightTickets());
+            }
             from = result.from();
             // sorted queries can set the size to 0 if they have enough competitive hits.
             size = Math.max(result.size(), size);
@@ -544,7 +551,8 @@ public final class SearchPhaseController {
             numReducePhases,
             size,
             from,
-            false
+            false,
+            tickets
         );
     }
 
@@ -700,6 +708,8 @@ public final class SearchPhaseController {
         // sort value formats used to sort / format the result
         final DocValueFormat[] sortValueFormats;
 
+        final List<OSTicket> osTickets;
+
         ReducedQueryPhase(
             TotalHits totalHits,
             long fetchHits,
@@ -714,7 +724,8 @@ public final class SearchPhaseController {
             int numReducePhases,
             int size,
             int from,
-            boolean isEmptyResult
+            boolean isEmptyResult,
+            List<OSTicket> osTickets
         ) {
             if (numReducePhases <= 0) {
                 throw new IllegalArgumentException("at least one reduce phase must have been applied but was: " + numReducePhases);
@@ -733,6 +744,7 @@ public final class SearchPhaseController {
             this.from = from;
             this.isEmptyResult = isEmptyResult;
             this.sortValueFormats = sortValueFormats;
+            this.osTickets = osTickets;
         }
 
         /**

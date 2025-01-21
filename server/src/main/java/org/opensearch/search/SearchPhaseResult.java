@@ -41,6 +41,7 @@ import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.stream.StreamSearchResult;
 
 import java.io.IOException;
 
@@ -106,6 +107,10 @@ public abstract class SearchPhaseResult extends TransportResponse {
      * Returns the query result iff it's included in this response otherwise <code>null</code>
      */
     public QuerySearchResult queryResult() {
+        return QuerySearchResult.nullInstance();
+    }
+
+    public StreamSearchResult streamSearchResult() {
         return null;
     }
 

@@ -680,6 +680,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return source != null && source.isSuggestOnly();
     }
 
+    public boolean isStreamRequest() {
+        return searchType == SearchType.STREAM;
+    }
+
     public int resolveTrackTotalHitsUpTo() {
         return resolveTrackTotalHitsUpTo(scroll, source);
     }

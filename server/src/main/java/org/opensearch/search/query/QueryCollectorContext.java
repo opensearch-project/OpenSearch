@@ -145,7 +145,7 @@ public abstract class QueryCollectorContext {
      * Creates the collector tree from the provided <code>collectors</code>
      * @param collectors Ordered list of collector context
      */
-    static Collector createQueryCollector(List<QueryCollectorContext> collectors) throws IOException {
+    public static Collector createQueryCollector(List<QueryCollectorContext> collectors) throws IOException {
         Collector collector = null;
         for (QueryCollectorContext ctx : collectors) {
             collector = ctx.create(collector);

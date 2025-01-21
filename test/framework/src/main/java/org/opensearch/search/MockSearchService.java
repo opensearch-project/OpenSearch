@@ -32,6 +32,7 @@
 
 package org.opensearch.search;
 
+import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -42,6 +43,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.query.StreamSearchPhase;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -99,7 +101,8 @@ public class MockSearchService extends SearchService {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
-        TaskResourceTrackingService taskResourceTrackingService
+        TaskResourceTrackingService taskResourceTrackingService,
+        StreamManager streamManager
     ) {
         super(
             clusterService,
@@ -109,11 +112,13 @@ public class MockSearchService extends SearchService {
             bigArrays,
             queryPhase,
             fetchPhase,
+            new StreamSearchPhase(),
             null,
             circuitBreakerService,
             indexSearcherExecutor,
             taskResourceTrackingService,
-            Collections.emptyList()
+            Collections.emptyList(),
+            streamManager
         );
     }
 

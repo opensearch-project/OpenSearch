@@ -38,6 +38,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.shard.ShardId;
@@ -76,6 +77,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.stream.StreamSearchResult;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collections;
@@ -123,6 +125,8 @@ public class TestSearchContext extends SearchContext {
     private BucketCollectorProcessor bucketCollectorProcessor = NO_OP_BUCKET_COLLECTOR_PROCESSOR;
     private int maxSliceCount;
 
+    private StreamManager streamManager;
+
     /**
      * Sets the concurrent segment search enabled field
      */
@@ -166,6 +170,16 @@ public class TestSearchContext extends SearchContext {
         ContextIndexSearcher searcher,
         ScrollContext scrollContext
     ) {
+        this(queryShardContext, indexShard, searcher, scrollContext, null);
+    }
+
+    public TestSearchContext(
+        QueryShardContext queryShardContext,
+        IndexShard indexShard,
+        ContextIndexSearcher searcher,
+        ScrollContext scrollContext,
+        StreamManager streamManager
+    ) {
         this.bigArrays = null;
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
@@ -175,6 +189,7 @@ public class TestSearchContext extends SearchContext {
         this.concurrentSegmentSearchEnabled = searcher != null; /* executor is always set */
         this.maxSliceCount = randomIntBetween(0, 2);
         this.scrollContext = scrollContext;
+        this.streamManager = streamManager;
     }
 
     public void setSearcher(ContextIndexSearcher searcher) {
@@ -342,6 +357,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public SimilarityService similarityService() {
         return null;
+    }
+
+    @Override
+    public StreamManager streamManager() {
+        return streamManager;
     }
 
     @Override
@@ -599,6 +619,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public QuerySearchResult queryResult() {
         return queryResult;
+    }
+
+    @Override
+    public StreamSearchResult streamSearchResult() {
+        return null;
     }
 
     @Override

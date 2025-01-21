@@ -22,7 +22,8 @@ public enum SearchPhaseName {
     FETCH("fetch"),
     DFS_QUERY("dfs_query"),
     EXPAND("expand"),
-    CAN_MATCH("can_match");
+    CAN_MATCH("can_match"),
+    STREAM_REDUCE("stream_reduce");
 
     private final String name;
 

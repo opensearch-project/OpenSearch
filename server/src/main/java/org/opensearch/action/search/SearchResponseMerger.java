@@ -50,6 +50,7 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.search.stream.OSTicket;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 
@@ -139,6 +140,7 @@ final class SearchResponseMerger {
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Map<String, ProfileShardResult> profileResults = new HashMap<>();
+        List<OSTicket> tickets = new ArrayList<>();
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
@@ -156,7 +158,9 @@ final class SearchResponseMerger {
             Collections.addAll(failures, searchResponse.getShardFailures());
 
             profileResults.putAll(searchResponse.getProfileResults());
-
+            if (searchResponse.getTickets() != null && !searchResponse.getTickets().isEmpty()) {
+                tickets.addAll(searchResponse.getTickets());
+            }
             if (searchResponse.getAggregations() != null) {
                 InternalAggregations internalAggs = (InternalAggregations) searchResponse.getAggregations();
                 aggs.add(internalAggs);
@@ -217,6 +221,7 @@ final class SearchResponseMerger {
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
         SearchProfileShardResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
+
         // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
         InternalSearchResponse response = new InternalSearchResponse(
@@ -226,7 +231,9 @@ final class SearchResponseMerger {
             profileShardResults,
             topDocsStats.timedOut,
             topDocsStats.terminatedEarly,
-            numReducePhases
+            numReducePhases,
+            Collections.emptyList(),
+            (tickets.isEmpty() ? null : tickets)
         );
         long tookInMillis = searchTimeProvider.buildTookInMillis();
         return new SearchResponse(

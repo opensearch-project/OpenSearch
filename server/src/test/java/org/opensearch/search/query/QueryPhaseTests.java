@@ -550,6 +550,27 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
+    public void testArrow() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
+        final int numDocs = scaledRandomIntBetween(100, 200);
+        for (int i = 0; i < numDocs; ++i) {
+            Document doc = new Document();
+            doc.add(new StringField("joinField", Integer.toString(i % 10), Store.NO));
+            doc.add(new SortedSetDocValuesField("joinField", new BytesRef(Integer.toString(i % 10))));
+            w.addDocument(doc);
+        }
+        w.close();
+
+        final IndexReader reader = DirectoryReader.open(dir);
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
+        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        QueryPhase.executeInternal(context, queryPhaseSearcher);
+        assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+    }
+
     public void testIndexSortingEarlyTermination() throws Exception {
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));

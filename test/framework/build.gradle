@@ -39,6 +39,8 @@ dependencies {
   api project(":server")
   api project(":libs:opensearch-cli")
   api project(":test:telemetry")
+  api project(':libs:opensearch-arrow-spi')
+
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"

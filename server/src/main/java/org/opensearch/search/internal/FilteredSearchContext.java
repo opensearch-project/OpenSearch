@@ -67,6 +67,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.stream.StreamSearchResult;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
@@ -466,6 +467,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public QuerySearchResult queryResult() {
         return in.queryResult();
+    }
+
+    @Override
+    public StreamSearchResult streamSearchResult() {
+        return in.streamSearchResult();
     }
 
     @Override

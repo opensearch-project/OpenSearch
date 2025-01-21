@@ -229,6 +229,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.query.StreamSearchPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
@@ -2333,11 +2334,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     bigArrays,
                     new QueryPhase(),
                     new FetchPhase(Collections.emptyList()),
+                    new StreamSearchPhase(),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
                     null,
                     new TaskResourceTrackingService(settings, clusterSettings, threadPool),
-                    Collections.emptyList()
+                    Collections.emptyList(),
+                    null
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),

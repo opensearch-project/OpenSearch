@@ -32,6 +32,7 @@
 
 package org.opensearch.node;
 
+import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.MockInternalClusterInfoService;
@@ -60,6 +61,7 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.query.StreamSearchPhase;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.MockHttpTransport;
@@ -154,11 +156,13 @@ public class MockNode extends Node {
         BigArrays bigArrays,
         QueryPhase queryPhase,
         FetchPhase fetchPhase,
+        StreamSearchPhase streamSearchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        StreamManager streamManager
     ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(
@@ -169,11 +173,13 @@ public class MockNode extends Node {
                 bigArrays,
                 queryPhase,
                 fetchPhase,
+                null,
                 responseCollectorService,
                 circuitBreakerService,
                 indexSearcherExecutor,
                 taskResourceTrackingService,
-                concurrentSearchDeciderFactories
+                concurrentSearchDeciderFactories,
+                streamManager
             );
         }
         return new MockSearchService(
@@ -186,7 +192,8 @@ public class MockNode extends Node {
             fetchPhase,
             circuitBreakerService,
             indexSearcherExecutor,
-            taskResourceTrackingService
+            taskResourceTrackingService,
+            streamManager
         );
     }
 

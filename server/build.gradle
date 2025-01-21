@@ -76,7 +76,6 @@ dependencies {
 
   api libs.bundles.lucene
 
-  // utilities
   api project(":libs:opensearch-cli")
 
   // time handling, remove with java 8 time
@@ -382,7 +381,6 @@ tasks.test {
         jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
     }
 }
-
 tasks.named("sourcesJar").configure {
   // Ignore duplicates for protobuf generated code (main and generatedSources).
   filesMatching("**/proto/*") {

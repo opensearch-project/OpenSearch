@@ -62,6 +62,7 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.pipeline.ProcessorExecutionDetail;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.search.stream.OSTicket;
 import org.opensearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -75,6 +76,7 @@ import java.util.function.Supplier;
 
 import static org.opensearch.action.search.SearchResponseSections.EXT_FIELD;
 import static org.opensearch.action.search.SearchResponseSections.PROCESSOR_RESULT_FIELD;
+import static org.opensearch.action.search.SearchResponseSections.TICKET_FIELD;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -320,6 +322,11 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return internalResponse.profile();
     }
 
+    @Nullable
+    public List<OSTicket> getTickets() {
+        return internalResponse.tickets();
+    }
+
     /**
      * Returns info about what clusters the search was executed against. Available only in responses obtained
      * from a Cross Cluster Search request, otherwise <code>null</code>
@@ -383,6 +390,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         Aggregations aggs = null;
         Suggest suggest = null;
         SearchProfileShardResults profile = null;
+        List<OSTicket> tickets = null;
         boolean timedOut = false;
         Boolean terminatedEarly = null;
         int numReducePhases = 1;
@@ -425,6 +433,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                     suggest = Suggest.fromXContent(parser);
                 } else if (SearchProfileShardResults.PROFILE_FIELD.equals(currentFieldName)) {
                     profile = SearchProfileShardResults.fromXContent(parser);
+                } else if (TICKET_FIELD.equals(currentFieldName)) {
+                    tickets = null;
                 } else if (RestActions._SHARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != Token.END_OBJECT) {
                         if (token == Token.FIELD_NAME) {
@@ -539,7 +549,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             profile,
             numReducePhases,
             extBuilders,
-            processorResult
+            processorResult,
+            tickets
         );
         return new SearchResponse(
             searchResponseSections,

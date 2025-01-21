@@ -425,6 +425,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return preference;
     }
 
+    public boolean isStreamRequest() {
+        return searchType == SearchType.STREAM;
+    }
+
     /**
      * Sets the bottom sort values that can be used by the searcher to filter documents
      * that are after it. This value is computed by coordinating nodes that throttles the
