@@ -174,7 +174,7 @@ public class Setting<T> implements ToXContentObject {
         ExtensionScope,
 
         /**
-         * Mark this setting as immutable on restore snapshot
+         * Mark this setting as immutable on snapshot restore
          */
         UnmodifiableOnRestore
     }

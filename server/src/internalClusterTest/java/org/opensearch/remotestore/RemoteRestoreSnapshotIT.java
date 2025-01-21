@@ -767,6 +767,23 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         );
         assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.enabled] on restore"));
 
+        // try index restore with index.uuid setting modified
+        Settings uuidSetting = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE).build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(uuidSetting)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify setting [index.uuid]" + " on restore"));
+
         // try index restore with index.number_of_shards setting modified
         Settings numberOfShardsSettingsDiff = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build();
 
@@ -824,9 +841,9 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
         // try index restore with multiple UnmodifiableOnRestore settings on restore
         Settings unmodifiableSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_CREATION_DATE, -1L)
-            .put(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)
-            .put(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_EMPTY)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
             .build();
 
         exception = expectThrows(
@@ -841,7 +858,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
                 .setRenameReplacement(restoredIndex)
                 .get()
         );
-        assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.creation_date]" + " on restore"));
+        assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.number_of_shards]" + " on restore"));
 
         // try index restore with remote store repository and translog store repository disabled
         exception = expectThrows(
