@@ -22,7 +22,6 @@ public class ServerConfigTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         settings = Settings.builder()
-            .put("node.attr.transport.stream.port", 9880)
             .put("arrow.allocation.manager.type", "Netty")
             .put("arrow.enable_null_check_for_get", false)
             .put("arrow.enable_unsafe_memory_access", true)
