@@ -87,11 +87,7 @@ public class PhoneNumberAnalyzerTests extends OpenSearchTokenStreamTestCase {
      * Test for all tokens which are emitted by the "phone" analyzer.
      */
     public void testEuropeDetailledSearch() throws IOException {
-        assertTokensAreInAnyOrder(
-            phoneSearchAnalyzer,
-            "tel:+441344840400",
-            Arrays.asList("tel:+441344840400", "tel:", "441344840400", "44", "1344840400")
-        );
+        assertTokensAreInAnyOrder(phoneSearchAnalyzer, "tel:+441344840400", Arrays.asList("tel:+441344840400", "441344840400"));
     }
 
     public void testEurope() throws IOException {
@@ -163,7 +159,11 @@ public class PhoneNumberAnalyzerTests extends OpenSearchTokenStreamTestCase {
     }
 
     public void testTelPrefix() throws IOException {
-        assertTokensInclude("tel:+1228", Arrays.asList("1228", "122", "228"));
+        assertTokensInclude(phoneAnalyzer, "tel:+1228", Arrays.asList("tel:+1228", "tel:", "1228", "122", "228"));
+    }
+
+    public void testTelPrefixSearch() throws IOException {
+        assertTokensAreInAnyOrder(phoneSearchAnalyzer, "tel:+1228", Arrays.asList("tel:+1228", "1228"));
     }
 
     public void testNumberPrefix() throws IOException {
@@ -189,21 +189,21 @@ public class PhoneNumberAnalyzerTests extends OpenSearchTokenStreamTestCase {
     }
 
     public void testSearchInternationalPrefixWithZZ() throws IOException {
-        assertTokensInclude(phoneSearchAnalyzer, "+41583161010", Arrays.asList("41", "41583161010", "583161010"));
+        assertTokensAreInAnyOrder(phoneSearchAnalyzer, "+41583161010", Arrays.asList("+41583161010", "41583161010"));
     }
 
     public void testSearchInternationalPrefixWithCH() throws IOException {
-        assertTokensInclude(phoneSearchCHAnalyzer, "+41583161010", Arrays.asList("41", "41583161010", "583161010"));
+        assertTokensAreInAnyOrder(phoneSearchCHAnalyzer, "+41583161010", Arrays.asList("+41583161010", "41583161010"));
     }
 
     public void testSearchNationalPrefixWithCH() throws IOException {
         // + is equivalent to 00 in Switzerland
-        assertTokensInclude(phoneSearchCHAnalyzer, "0041583161010", Arrays.asList("41", "41583161010", "583161010"));
+        assertTokensAreInAnyOrder(phoneSearchCHAnalyzer, "0041583161010", Arrays.asList("0041583161010", "41583161010"));
     }
 
     public void testSearchLocalNumberWithCH() throws IOException {
         // when omitting the international prefix swiss numbers must start with '0'
-        assertTokensInclude(phoneSearchCHAnalyzer, "0583161010", Arrays.asList("41", "41583161010", "583161010"));
+        assertTokensAreInAnyOrder(phoneSearchCHAnalyzer, "0583161010", Arrays.asList("0583161010", "41583161010"));
     }
 
     /**

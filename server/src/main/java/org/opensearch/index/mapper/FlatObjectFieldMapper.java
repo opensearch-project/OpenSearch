@@ -15,7 +15,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -28,6 +27,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.JsonToStringXContentParser;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
@@ -36,11 +36,13 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -63,6 +65,7 @@ import static org.opensearch.index.mapper.FlatObjectFieldMapper.FlatObjectFieldT
 public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     public static final String CONTENT_TYPE = "flat_object";
+    public static final Object DOC_VALUE_NO_MATCH = new Object();
 
     /**
      * In flat_object field mapper, field type is similar to keyword field type
@@ -272,7 +275,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(valueFieldType().name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -302,6 +305,30 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                     }
                 }
             };
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+            }
+            if (timeZone != null) {
+                throw new IllegalArgumentException(
+                    "Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones"
+                );
+            }
+            if (mappedFieldTypeName != null) {
+                return new FlatObjectDocValueFormat(mappedFieldTypeName + DOT_SYMBOL + name() + EQUAL_SYMBOL);
+            } else {
+                throw new IllegalArgumentException(
+                    "Field [" + name() + "] of type [" + typeName() + "] does not support doc_value in root field"
+                );
+            }
+        }
+
+        @Override
+        public boolean isAggregatable() {
+            return false;
         }
 
         @Override
@@ -336,23 +363,17 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return (mappedFieldTypeName == null) ? valueFieldType : valueAndPathFieldType;
         }
 
+        @Override
+        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+            return valueFieldType().termQueryCaseInsensitive(rewriteValue(inputToString(value)), context);
+        }
+
         /**
          * redirect queries with rewrite value to rewriteSearchValue and directSubFieldName
          */
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-
-            String searchValueString = inputToString(value);
-            String directSubFieldName = directSubfield();
-            String rewriteSearchValue = rewriteValue(searchValueString);
-
-            failIfNotIndexed();
-            Query query;
-            query = new TermQuery(new Term(directSubFieldName, indexedValueForSearch(rewriteSearchValue)));
-            if (boost() != 1f) {
-                query = new BoostQuery(query, boost());
-            }
-            return query;
+            return valueFieldType().termQuery(rewriteValue(inputToString(value)), context);
         }
 
         @Override
@@ -530,6 +551,39 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return valueFieldType().wildcardQuery(rewriteValue(value), method, caseInsensitve, context);
         }
 
+        /**
+         * A doc_value formatter for flat_object field.
+         */
+        public class FlatObjectDocValueFormat implements DocValueFormat {
+            private static final String NAME = "flat_object";
+            private final String prefix;
+
+            public FlatObjectDocValueFormat(String prefix) {
+                this.prefix = prefix;
+            }
+
+            @Override
+            public String getWriteableName() {
+                return NAME;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+
+            @Override
+            public Object format(BytesRef value) {
+                String parsedValue = inputToString(value);
+                if (parsedValue.startsWith(prefix) == false) {
+                    return DOC_VALUE_NO_MATCH;
+                }
+                return parsedValue.substring(prefix.length());
+            }
+
+            @Override
+            public BytesRef parseBytesRef(String value) {
+                return new BytesRef((String) valueFieldType.rewriteForDocValue(rewriteValue(value)));
+            }
+        }
     }
 
     private final ValueFieldMapper valueFieldMapper;

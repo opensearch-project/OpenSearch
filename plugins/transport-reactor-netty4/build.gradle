@@ -23,8 +23,8 @@ apply plugin: 'opensearch.internal-cluster-test'
 apply plugin: 'opensearch.publish'
 
 opensearchplugin {
-  description 'Reactor Netty 4 based transport implementation'
-  classname 'org.opensearch.transport.reactor.ReactorNetty4Plugin'
+  description = 'Reactor Netty 4 based transport implementation'
+  classname = 'org.opensearch.transport.reactor.ReactorNetty4Plugin'
   hasClientJar = true
 }
 

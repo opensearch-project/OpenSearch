@@ -544,7 +544,7 @@ final class StoreRecovery {
             // got closed on us, just ignore this recovery
             return false;
         }
-        if (indexShard.routingEntry().primary() == false) {
+        if (indexShard.routingEntry().primary() == false && indexShard.routingEntry().isSearchOnly() == false) {
             throw new IndexShardRecoveryException(shardId, "Trying to recover when the shard is in backup state", null);
         }
         return true;
@@ -747,7 +747,17 @@ final class StoreRecovery {
                 writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
             }
-            indexShard.openEngineAndRecoverFromTranslog();
+            if (indexShard.routingEntry().isSearchOnly() == false) {
+                indexShard.openEngineAndRecoverFromTranslog();
+            } else {
+                // Opens the engine for pull based replica copies that are
+                // not primary eligible. This will skip any checkpoint tracking and ensure
+                // that the shards are sync'd with remote store before opening.
+                //
+                // first bootstrap new history / translog so that the TranslogUUID matches the UUID from the latest commit.
+                bootstrapForSnapshot(indexShard, store);
+                indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
+            }
             if (indexShard.shouldSeedRemoteStore()) {
                 indexShard.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(() -> {
                     logger.info("Attempting to seed Remote Store via local recovery for {}", indexShard.shardId());
@@ -878,6 +888,7 @@ final class StoreRecovery {
         store.bootstrapNewHistory();
         final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
         final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+
         final String translogUUID = Translog.createEmptyTranslog(
             indexShard.shardPath().resolveTranslog(),
             localCheckpoint,
