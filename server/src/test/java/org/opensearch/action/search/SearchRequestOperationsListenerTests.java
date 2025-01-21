@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -31,18 +30,18 @@ public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
 
             @Override
             public void onPhaseStart(SearchPhaseContext context) {
-                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName().get()).current.inc();
+                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).current.inc();
             }
 
             @Override
             public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName().get()).current.dec();
-                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName().get()).total.inc();
+                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
+                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).total.inc();
             }
 
             @Override
             public void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
-                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName().get()).current.dec();
+                searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
             }
         };
 
@@ -62,7 +61,7 @@ public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
 
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             when(ctx.getCurrentPhase()).thenReturn(searchPhase);
-            when(searchPhase.getSearchPhaseName()).thenReturn(Optional.of(searchPhaseName));
+            when(searchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             compositeListener.onPhaseStart(ctx);
             assertEquals(totalListeners, searchPhaseMap.get(searchPhaseName).current.count());
         }

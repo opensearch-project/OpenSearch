@@ -44,7 +44,6 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -87,7 +86,7 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
             when(mockSearchPhase.getStartTimeInNanos()).thenReturn(System.nanoTime() - TimeUnit.SECONDS.toNanos(paramValue));
-            when(mockSearchPhase.getSearchPhaseName()).thenReturn(Optional.of(searchPhaseName));
+            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             for (int iterator = 0; iterator < paramValue; iterator++) {
                 onPhaseStart(testRequestStats, ctx);
                 onPhaseEnd(testRequestStats, ctx);

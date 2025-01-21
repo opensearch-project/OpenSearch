@@ -73,22 +73,32 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
 
     @Override
     protected void onPhaseStart(SearchPhaseContext context) {
-        context.getCurrentPhase().getSearchPhaseName().ifPresent(name -> phaseStatsMap.get(name).current.inc());
+        try {
+            phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.inc();
+        } catch (IllegalArgumentException ignored) {
+            // Do nothing if the phase isn't found in SearchPhaseName.
+        }
     }
 
     @Override
     protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-        context.getCurrentPhase().getSearchPhaseName().ifPresent(name -> {
-            StatsHolder phaseStats = phaseStatsMap.get(name);
+        try {
+            StatsHolder phaseStats = phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName());
             phaseStats.current.dec();
             phaseStats.total.inc();
             phaseStats.timing.inc(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - context.getCurrentPhase().getStartTimeInNanos()));
-        });
+        } catch (IllegalArgumentException ignored) {
+            // Do nothing if the phase isn't found in SearchPhaseName.
+        }
     }
 
     @Override
     protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
-        context.getCurrentPhase().getSearchPhaseName().ifPresent(name -> phaseStatsMap.get(name).current.dec());
+        try {
+            phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
+        } catch (IllegalArgumentException ignored) {
+            // Do nothing if the phase isn't found in SearchPhaseName.
+        }
     }
 
     @Override
