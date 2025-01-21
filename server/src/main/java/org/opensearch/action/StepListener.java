@@ -33,6 +33,7 @@
 package org.opensearch.action;
 
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -64,9 +65,10 @@ import java.util.function.Consumer;
  *  }
  * }</pre>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 
+@PublicApi(since = "2.19.0")
 public final class StepListener<Response> extends NotifyOnceListener<Response> {
     private final ListenableFuture<Response> delegate;
 
