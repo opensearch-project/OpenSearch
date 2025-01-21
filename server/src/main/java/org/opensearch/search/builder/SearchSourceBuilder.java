@@ -227,7 +227,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private String searchPipeline;
 
-    private Boolean verbosePipeline = false;
+    private Boolean verbosePipeline;
 
     /**
      * Constructs a new search source builder.
@@ -1167,7 +1167,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return this;
     }
 
-    public boolean verbosePipeline() {
+    public Boolean verbosePipeline() {
         return verbosePipeline;
     }
 
