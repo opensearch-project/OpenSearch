@@ -104,6 +104,6 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     }
 
     public String getField() {
-        return config.fieldContext().field();
+        return config.fieldContext() != null ? config.fieldContext().field() : null;
     }
 }

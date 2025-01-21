@@ -285,6 +285,8 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
                             + opaqueId
                             + "\\]\\["
                             + (badRequest ? "BAD_REQUEST" : "OK")
+                            + "\\]\\["
+                            + (badRequest ? "400" : "200")
                             + "\\]\\[null\\]\\[0\\] sent response to \\[.*"
                     )
                 );

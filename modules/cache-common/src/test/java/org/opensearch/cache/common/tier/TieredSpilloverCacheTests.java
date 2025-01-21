@@ -58,6 +58,7 @@ import java.util.function.Predicate;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCache.ZERO_SEGMENT_COUNT_EXCEPTION_MESSAGE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.MIN_DISK_CACHE_SIZE_IN_BYTES;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
@@ -2166,6 +2167,134 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), tieredSpilloverCache.stats().getTotalStats());
     }
 
+    public void testSegmentSizesWhenUsingFactory() {
+        // The TSC's tier size settings, TIERED_SPILLOVER_ONHEAP_STORE_SIZE and TIERED_SPILLOVER_DISK_STORE_SIZE,
+        // should always be respected, overriding the individual implementation's size settings if present
+        long expectedHeapSize = 256L * between(10, 20);
+        long expectedDiskSize = MIN_DISK_CACHE_SIZE_IN_BYTES + 256L * between(30, 40);
+        long heapSizeFromImplSetting = 50;
+        int diskSizeFromImplSetting = 50;
+        int numSegments = getNumberOfSegments();
+
+        int keyValueSize = 1;
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
+            )
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_NAME.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME
+            )
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                MockDiskCache.MockDiskCacheFactory.NAME
+            )
+            // These two size settings should be honored
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                expectedHeapSize + "b"
+            )
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_SIZE.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                expectedDiskSize
+            )
+            // The size setting from the OpenSearchOnHeap implementation should not be honored
+            .put(
+                OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                heapSizeFromImplSetting + "b"
+            )
+            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
+            .put(
+                TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(),
+                numSegments
+            )
+            .build();
+        String storagePath = getStoragePath(settings);
+
+        TieredSpilloverCache<String, String> tieredSpilloverCache = (TieredSpilloverCache<
+            String,
+            String>) new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
+                new CacheConfig.Builder<String, String>().setKeyType(String.class)
+                    .setKeyType(String.class)
+                    .setWeigher((k, v) -> keyValueSize)
+                    .setRemovalListener(removalListener)
+                    .setKeySerializer(new StringSerializer())
+                    .setValueSerializer(new StringSerializer())
+                    .setSettings(settings)
+                    .setDimensionNames(dimensionNames)
+                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(20_000_000L)) // Values will always appear to have taken
+                    // 20_000_000 ns = 20 ms to compute
+                    .setClusterSettings(clusterSettings)
+                    .setStoragePath(storagePath)
+                    .build(),
+                CacheType.INDICES_REQUEST_CACHE,
+                Map.of(
+                    OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
+                    new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
+                    MockDiskCache.MockDiskCacheFactory.NAME,
+                    // The size value passed in here acts as the "implementation setting" for the disk tier, and should also be ignored
+                    new MockDiskCache.MockDiskCacheFactory(0, diskSizeFromImplSetting, false, keyValueSize)
+                )
+            );
+        checkSegmentSizes(tieredSpilloverCache, expectedHeapSize, expectedDiskSize);
+    }
+
+    public void testSegmentSizesWhenNotUsingFactory() {
+        long expectedHeapSize = 256L * between(10, 20);
+        long expectedDiskSize = MIN_DISK_CACHE_SIZE_IN_BYTES + 256L * between(30, 40);
+        int heapSizeFromImplSetting = 50;
+        int diskSizeFromImplSetting = 50;
+
+        Settings settings = Settings.builder()
+            .put(
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
+            )
+            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
+            // The size setting from the OpenSearchOnHeapCache implementation should not be honored
+            .put(
+                OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                heapSizeFromImplSetting + "b"
+            )
+            .build();
+
+        int keyValueSize = 1;
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        int numSegments = getNumberOfSegments();
+        CacheConfig<String, String> cacheConfig = getCacheConfig(1, settings, removalListener, numSegments);
+        TieredSpilloverCache<String, String> tieredSpilloverCache = getTieredSpilloverCache(
+            new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
+            new MockDiskCache.MockDiskCacheFactory(0, diskSizeFromImplSetting, true, keyValueSize),
+            cacheConfig,
+            null,
+            removalListener,
+            numSegments,
+            expectedHeapSize,
+            expectedDiskSize
+        );
+        checkSegmentSizes(tieredSpilloverCache, expectedHeapSize, expectedDiskSize);
+    }
+
+    private void checkSegmentSizes(TieredSpilloverCache<String, String> cache, long expectedHeapSize, long expectedDiskSize) {
+        TieredSpilloverCache.TieredSpilloverCacheSegment<String, String> segment = cache.tieredSpilloverCacheSegments[0];
+        assertEquals(expectedHeapSize / cache.getNumberOfSegments(), segment.getOnHeapCacheMaxWeight());
+        assertEquals(expectedDiskSize / cache.getNumberOfSegments(), segment.getDiskCacheMaxWeight());
+    }
+
     private List<String> getMockDimensions() {
         List<String> dims = new ArrayList<>();
         for (String dimensionName : dimensionNames) {
@@ -2455,9 +2584,9 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
         Settings settings = Settings.builder()
             .put(
-                OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
-                    .get(MAXIMUM_SIZE_IN_BYTES_KEY)
-                    .getKey(),
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
                 onHeapCacheSize * keyValueSize + "b"
             )
             .build();

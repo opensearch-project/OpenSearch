@@ -10,7 +10,6 @@ package org.opensearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
@@ -24,6 +23,8 @@ import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
+import org.opensearch.index.fielddata.LongToSortedNumericUnsignedLongValues;
+import org.opensearch.index.fielddata.SortedNumericUnsignedLongValues;
 import org.opensearch.index.search.comparators.UnsignedLongComparator;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
@@ -57,14 +58,13 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
         return SortField.Type.LONG;
     }
 
-    private SortedNumericDocValues loadDocValues(LeafReaderContext context) {
+    private SortedNumericUnsignedLongValues loadDocValues(LeafReaderContext context) {
         final LeafNumericFieldData data = indexFieldData.load(context);
-        SortedNumericDocValues values = data.getLongValues();
-        return values;
+        return new LongToSortedNumericUnsignedLongValues(data.getLongValues());
     }
 
     private NumericDocValues getNumericDocValues(LeafReaderContext context, BigInteger missingValue) throws IOException {
-        final SortedNumericDocValues values = loadDocValues(context);
+        final SortedNumericUnsignedLongValues values = loadDocValues(context);
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
         }
