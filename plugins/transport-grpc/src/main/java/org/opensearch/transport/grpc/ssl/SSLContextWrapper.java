@@ -10,15 +10,16 @@
  */
 package org.opensearch.transport.grpc.ssl;
 
-import io.grpc.netty.shaded.io.netty.buffer.ByteBufAllocator;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNegotiator;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
-
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSessionContext;
+
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+
+import io.grpc.netty.shaded.io.netty.buffer.ByteBufAllocator;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNegotiator;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 
 /**
  * A light wrapper intended to negotiate the difference between two ssl context implementations.
@@ -85,6 +86,6 @@ public class SSLContextWrapper extends SslContext {
 
     @Override
     public SSLSessionContext sessionContext() {
-        return this.client? ctxt.getClientSessionContext() : ctxt.getServerSessionContext();
+        return this.client ? ctxt.getClientSessionContext() : ctxt.getServerSessionContext();
     }
 }
