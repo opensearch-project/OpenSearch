@@ -65,6 +65,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `opentelemetry` from 1.41.0 to 1.46.0 ([#16700](https://github.com/opensearch-project/OpenSearch/pull/16700))
 - Bump `opentelemetry-semconv` from 1.27.0-alpha to 1.29.0-alpha ([#16700](https://github.com/opensearch-project/OpenSearch/pull/16700))
 - Bump `com.google.re2j:re2j` from 1.7 to 1.8 ([#17012](https://github.com/opensearch-project/OpenSearch/pull/17012))
+- Bump `com.squareup.okio:okio` from 3.9.1 to 3.10.2 ([#17060](https://github.com/opensearch-project/OpenSearch/pull/17060))
 - Bump `org.jruby.jcodings:jcodings` from 1.0.58 to 1.0.61 ([#17061](https://github.com/opensearch-project/OpenSearch/pull/17061))
 
 ### Changed
