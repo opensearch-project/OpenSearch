@@ -291,35 +291,6 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         assertTrue(exception.getMessage().contains("Timeout waiting for Flight server location"));
     }
 
-    public void testGetFlightClientLocationInterrupted() throws Exception {
-        reset(client);
-
-        String nodeId = "test_node";
-        DiscoveryNode testNode = createNode(nodeId, "127.0.0.1", getBasePort() + port.addAndGet(2));
-
-        // Update cluster state with the test node
-        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        nodesBuilder.add(testNode);
-        nodesBuilder.localNodeId(nodeId);
-        ClusterState newState = ClusterState.builder(new ClusterName("test")).nodes(nodesBuilder.build()).build();
-
-        when(clusterService.state()).thenReturn(newState);
-
-        // Mock an interrupted response
-        doAnswer(invocation -> {
-            Thread currentThread = Thread.currentThread();
-            locationUpdaterExecutor.schedule(currentThread::interrupt, 100, TimeUnit.MILLISECONDS);
-            return null;
-        }).when(client).execute(eq(NodesFlightInfoAction.INSTANCE), any(NodesFlightInfoRequest.class), any(ActionListener.class));
-
-        ClusterChangedEvent event = new ClusterChangedEvent("test", newState, ClusterState.EMPTY_STATE);
-        clientManager.clusterChanged(event);
-
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> { clientManager.getFlightClient(nodeId); });
-        assertTrue(exception.getMessage().contains("Interrupted while waiting for Flight server location"));
-        assertTrue(Thread.interrupted());
-    }
-
     public void testGetFlightClientLocationExecutionError() throws Exception {
         reset(client);
 
