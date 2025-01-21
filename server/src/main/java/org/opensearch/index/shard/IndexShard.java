@@ -1788,7 +1788,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             metadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
             getEngine().config().getCodec().getName(),
             metadataMap,
-            System.currentTimeMillis()
+            System.nanoTime()
         );
         logger.trace("Recomputed ReplicationCheckpoint for shard {}", checkpoint);
         return checkpoint;

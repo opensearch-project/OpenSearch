@@ -32,6 +32,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class is responsible for managing segment replication events on replicas.
@@ -124,7 +125,7 @@ public class SegmentReplicator {
 
         final ReplicationCheckpoint lastOnGoingReplicationCheckpoint = this.lastOnGoingReplicationCheckpoint.get(shardId);
         final long replicationLag = lastOnGoingReplicationCheckpoint != null
-            ? System.currentTimeMillis() - lastOnGoingReplicationCheckpoint.getCreatedTimeStamp()
+            ? TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lastOnGoingReplicationCheckpoint.getCreatedTimeStamp())
             : 0;
 
         return new ReplicationStats(bytesBehindSum, bytesBehindSum, bytesBehindSum > 0L ? replicationLag : 0);

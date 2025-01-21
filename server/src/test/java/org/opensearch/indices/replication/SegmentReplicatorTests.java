@@ -234,7 +234,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             1000,
             "",
             stringStoreFileMetadataMap,
-            System.currentTimeMillis()
+            System.nanoTime()
         );
 
         segmentReplicator.updateReplicationCheckpoints(secondReplicationCheckpoint, shardId);
@@ -265,7 +265,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             1000,
             "",
             stringStoreFileMetadataMap,
-            System.currentTimeMillis()
+            System.nanoTime()
         );
 
         StoreFileMetadata storeFileMetadata3 = new StoreFileMetadata("test-3", 200, "1", Version.LATEST, bytesRef);
@@ -279,7 +279,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             1200,
             "",
             stringStoreFileMetadataMap,
-            System.currentTimeMillis()
+            System.nanoTime()
         );
 
         segmentReplicator.updateReplicationCheckpoints(secondReplicationCheckpoint, shardId);

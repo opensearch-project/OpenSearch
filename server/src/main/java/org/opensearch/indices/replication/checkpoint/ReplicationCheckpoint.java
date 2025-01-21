@@ -56,11 +56,11 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         length = 0L;
         this.codec = codec;
         this.metadataMap = Collections.emptyMap();
-        this.createdTimeStamp = System.currentTimeMillis();
+        this.createdTimeStamp = System.nanoTime();
     }
 
     public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion, String codec) {
-        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec, Collections.emptyMap(), System.currentTimeMillis());
+        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec, Collections.emptyMap(), System.nanoTime());
     }
 
     public ReplicationCheckpoint(
