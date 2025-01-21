@@ -68,7 +68,7 @@ import java.util.function.Consumer;
  * @opensearch.api
  */
 
-@PublicApi(since = "2.19.0")
+@PublicApi(since = "1.0.0")
 public final class StepListener<Response> extends NotifyOnceListener<Response> {
     private final ListenableFuture<Response> delegate;
 
