@@ -192,7 +192,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 logger.error("Failed to load classpath plugin: " + pluginInfo.getClassname());
             }
         }
-        loadExtensions(pluginsLoaded);
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();
         List<PluginInfo> modulesList = new ArrayList<>();
@@ -229,6 +228,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(seenBundles);
         pluginsLoaded.addAll(loaded);
+        loadExtensions(pluginsLoaded);
 
         this.info = new PluginsAndModules(pluginsList, modulesList);
         this.plugins = Collections.unmodifiableList(pluginsLoaded);
@@ -585,7 +585,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
 
-        loadExtensions(plugins);
         return Collections.unmodifiableList(plugins);
     }
 
