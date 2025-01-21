@@ -39,11 +39,14 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.startree.OlderStarTreeFilter;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.ExactMatchDimFilter;
+import org.opensearch.search.startree.filter.StarTreeFilter;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -129,49 +132,83 @@ public class OlderStarTreeFilterTests extends AggregatorTestCase {
         long starTreeDocCount, docCount;
 
         // assert that all documents are included if no filters are given
-        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(), context);
+        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, new StarTreeFilter(Collections.emptyMap()), context);
         docCount = getDocCount(docs, Map.of());
         assertEquals(totalDocs, starTreeDocCount);
         assertEquals(docCount, starTreeDocCount);
 
         // single filter - matches docs
-        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(SNDV, 0L), context);
+        starTreeDocCount = getDocCountFromStarTree(
+            starTreeDocValuesReader,
+            new StarTreeFilter(Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))))),
+            context
+        );
         docCount = getDocCount(docs, Map.of(SNDV, 0L));
         assertEquals(1, docCount);
         assertEquals(docCount, starTreeDocCount);
 
         // single filter on 3rd field in ordered dimension - matches docs
-        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(DV, 0L), context);
+        starTreeDocCount = getDocCountFromStarTree(
+            starTreeDocValuesReader,
+            new StarTreeFilter(Map.of(DV, List.of(new ExactMatchDimFilter(DV, List.of(0L))))),
+            context
+        );
         docCount = getDocCount(docs, Map.of(DV, 0L));
         assertEquals(1, docCount);
         assertEquals(docCount, starTreeDocCount);
 
         // single filter - does not match docs
-        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(SNDV, 101L), context);
+        starTreeDocCount = getDocCountFromStarTree(
+            starTreeDocValuesReader,
+            new StarTreeFilter(Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(101L))))),
+            context
+        );
         docCount = getDocCount(docs, Map.of(SNDV, 101L));
         assertEquals(0, docCount);
         assertEquals(docCount, starTreeDocCount);
 
         // single filter on 3rd field in ordered dimension - does not match docs
-        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(DV, -101L), context);
+        starTreeDocCount = getDocCountFromStarTree(
+            starTreeDocValuesReader,
+            new StarTreeFilter(Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(-101L))))),
+            context
+        );
         docCount = getDocCount(docs, Map.of(SNDV, -101L));
         assertEquals(0, docCount);
         assertEquals(docCount, starTreeDocCount);
 
         // multiple filters - matches docs
-        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(SNDV, 0L, DV, 0L), context);
+        starTreeDocCount = getDocCountFromStarTree(
+            starTreeDocValuesReader,
+            new StarTreeFilter(
+                Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, List.of(new ExactMatchDimFilter(DV, List.of(0L))))
+            ),
+            context
+        );
         docCount = getDocCount(docs, Map.of(SNDV, 0L, DV, 0L));
         assertEquals(1, docCount);
         assertEquals(docCount, starTreeDocCount);
 
         // no document should match the filter
-        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(SNDV, 0L, DV, -11L), context);
+        starTreeDocCount = getDocCountFromStarTree(
+            starTreeDocValuesReader,
+            new StarTreeFilter(
+                Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, List.of(new ExactMatchDimFilter(DV, List.of(-11L))))
+            ),
+            context
+        );
         docCount = getDocCount(docs, Map.of(SNDV, 0L, DV, -11L));
         assertEquals(0, docCount);
         assertEquals(docCount, starTreeDocCount);
 
         // Only the first filter should match some documents, second filter matches none
-        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(SNDV, 0L, DV, -100L), context);
+        starTreeDocCount = getDocCountFromStarTree(
+            starTreeDocValuesReader,
+            new StarTreeFilter(
+                Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, List.of(new ExactMatchDimFilter(DV, List.of(-100L))))
+            ),
+            context
+        );
         docCount = getDocCount(docs, Map.of(SNDV, 0L, DV, -100L));
         assertEquals(0, docCount);
         assertEquals(docCount, starTreeDocCount);
@@ -179,18 +216,30 @@ public class OlderStarTreeFilterTests extends AggregatorTestCase {
         // non-dimension fields in filter - should throw IllegalArgumentException
         expectThrows(
             IllegalArgumentException.class,
-            () -> getDocCountFromStarTree(starTreeDocValuesReader, Map.of(FIELD_NAME, 0L), context)
+            () -> getDocCountFromStarTree(
+                starTreeDocValuesReader,
+                new StarTreeFilter(Map.of(FIELD_NAME, List.of(new ExactMatchDimFilter(FIELD_NAME, List.of(0L))))),
+                context
+            )
         );
 
         if (skipStarNodeCreationForSDVDimension == true) {
             // Documents are not indexed
-            starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(SDV, 4L), context);
+            starTreeDocCount = getDocCountFromStarTree(
+                starTreeDocValuesReader,
+                new StarTreeFilter(Map.of(SDV, List.of(new ExactMatchDimFilter(SDV, List.of(4L))))),
+                context
+            );
             docCount = getDocCount(docs, Map.of(SDV, 4L));
             assertEquals(1, docCount);
             assertEquals(docCount, starTreeDocCount);
         } else {
             // Documents are indexed
-            starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, Map.of(SDV, 4L), context);
+            starTreeDocCount = getDocCountFromStarTree(
+                starTreeDocValuesReader,
+                new StarTreeFilter(Map.of(SDV, List.of(new ExactMatchDimFilter(SDV, List.of(4L))))),
+                context
+            );
             docCount = getDocCount(docs, Map.of(SDV, 4L));
             assertEquals(0, docCount);
             assertEquals(docCount, starTreeDocCount);
@@ -224,12 +273,15 @@ public class OlderStarTreeFilterTests extends AggregatorTestCase {
     }
 
     // Returns count of documents in the star tree having field SNDV & applied filters
-    private long getDocCountFromStarTree(CompositeIndexReader starTreeDocValuesReader, Map<String, Long> filters, LeafReaderContext context)
-        throws IOException {
+    private long getDocCountFromStarTree(
+        CompositeIndexReader starTreeDocValuesReader,
+        StarTreeFilter starTreeFilter,
+        LeafReaderContext context
+    ) throws IOException {
         List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
         CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(context, starTree);
-        FixedBitSet filteredValues = OlderStarTreeFilter.getStarTreeResult(starTreeValues, filters);
+        FixedBitSet filteredValues = OlderStarTreeFilter.getStarTreeResult2(starTreeValues, starTreeFilter);
 
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
             StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(

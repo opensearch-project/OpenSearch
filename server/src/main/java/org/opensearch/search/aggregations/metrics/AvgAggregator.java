@@ -61,7 +61,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.opensearch.search.startree.StarTreeQueryHelper.getStarTreeFilteredValues;
-import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree2;
 
 /**
  * Aggregate all docs into an average
@@ -106,7 +106,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree2(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
         }

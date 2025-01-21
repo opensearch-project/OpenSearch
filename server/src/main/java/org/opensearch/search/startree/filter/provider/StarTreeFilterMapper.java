@@ -26,7 +26,15 @@ import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.BYTE;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.FLOAT;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.HALF_FLOAT;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.INTEGER;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.hasDecimalPart;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.signum;
 
@@ -42,28 +50,30 @@ public interface StarTreeFilterMapper {
     );
 
     class Factory {
-        // TODO : Reuse instances.
+
+        private static final Map<NumberFieldMapper.NumberType, StarTreeFilterMapper> NUMERIC_SINGLETON_MAPPINGS = Map.of(
+            BYTE,
+            new IntegerFieldMapperNumeric(),
+            SHORT,
+            new IntegerFieldMapperNumeric(),
+            INTEGER,
+            new IntegerFieldMapperNumeric(),
+            LONG,
+            new SignedLongFieldMapperNumeric(),
+            HALF_FLOAT,
+            new HalfFloatFieldMapperNumeric(),
+            FLOAT,
+            new FloatFieldMapperNumeric(),
+            DOUBLE,
+            new DoubleFieldMapperNumeric()
+        );
+
         public static StarTreeFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType) {
-            if (mappedFieldType instanceof org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType) {
-                return new org.opensearch.search.startree.filter.provider.KeywordFieldMapper();
-            } else if (mappedFieldType instanceof NumberFieldMapper.NumberFieldType) {
+            if (mappedFieldType instanceof KeywordFieldType) {
+                return new KeywordFieldMapper();
+            } else if (mappedFieldType instanceof NumberFieldType) {
                 NumberFieldMapper.NumberType numberType = ((NumberFieldMapper.NumberFieldType) mappedFieldType).numberType();
-                switch (numberType) {
-                    case BYTE:
-                    case SHORT:
-                    case INTEGER:
-                        return new IntegerFieldMapper();
-                    case LONG:
-                        return new SignedLongFieldMapper();
-                    case HALF_FLOAT:
-                        return new HalfFloatFieldMapper();
-                    case FLOAT:
-                        return new FloatFieldMapper();
-                    case DOUBLE:
-                        return new DoubleFieldMapper();
-                    default:
-                        return null;
-                }
+                return NUMERIC_SINGLETON_MAPPINGS.get(numberType);
             } else {
                 return null;
             }
@@ -72,7 +82,7 @@ public interface StarTreeFilterMapper {
 
 }
 
-abstract class NonDecimalNumberFieldMapper implements StarTreeFilterMapper {
+abstract class NumericNonDecimalMapper implements StarTreeFilterMapper {
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
@@ -126,7 +136,7 @@ abstract class NonDecimalNumberFieldMapper implements StarTreeFilterMapper {
 
 }
 
-class IntegerFieldMapper extends NonDecimalNumberFieldMapper {
+class IntegerFieldMapperNumeric extends NumericNonDecimalMapper {
     @Override
     Long defaultMinimum() {
         return (long) Integer.MIN_VALUE;
@@ -138,7 +148,7 @@ class IntegerFieldMapper extends NonDecimalNumberFieldMapper {
     }
 }
 
-class SignedLongFieldMapper extends NonDecimalNumberFieldMapper {
+class SignedLongFieldMapperNumeric extends NumericNonDecimalMapper {
     @Override
     Long defaultMinimum() {
         return Long.MIN_VALUE;
@@ -150,7 +160,7 @@ class SignedLongFieldMapper extends NonDecimalNumberFieldMapper {
     }
 }
 
-abstract class DecimalNumberFieldMapper implements StarTreeFilterMapper {
+abstract class NumericDecimalFieldMapper implements StarTreeFilterMapper {
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
@@ -202,7 +212,7 @@ abstract class DecimalNumberFieldMapper implements StarTreeFilterMapper {
 
 }
 
-class HalfFloatFieldMapper extends DecimalNumberFieldMapper {
+class HalfFloatFieldMapperNumeric extends NumericDecimalFieldMapper {
     @Override
     long convertToDocValues(Number parsedValue) {
         return HalfFloatPoint.halfFloatToSortableShort((Float) parsedValue);
@@ -214,7 +224,7 @@ class HalfFloatFieldMapper extends DecimalNumberFieldMapper {
     }
 }
 
-class FloatFieldMapper extends DecimalNumberFieldMapper {
+class FloatFieldMapperNumeric extends NumericDecimalFieldMapper {
     @Override
     long convertToDocValues(Number parsedValue) {
         return NumericUtils.floatToSortableInt((Float) parsedValue);
@@ -226,7 +236,7 @@ class FloatFieldMapper extends DecimalNumberFieldMapper {
     }
 }
 
-class DoubleFieldMapper extends DecimalNumberFieldMapper {
+class DoubleFieldMapperNumeric extends NumericDecimalFieldMapper {
     @Override
     long convertToDocValues(Number parsedValue) {
         return NumericUtils.doubleToSortableLong((Double) parsedValue);
@@ -274,7 +284,7 @@ class KeywordFieldMapper implements StarTreeFilterMapper {
         return null;
     }
 
-    // TODO : Think around making TermBasedFT#indexedValueForSearch() public for reuse here.
+    // TODO : Think around making TermBasedFT#indexedValueForSearch() accessor public for reuse here.
     private Object parseRawKeyword(String field, Object rawValue, KeywordFieldType keywordFieldType) {
         Object parsedValue;
         if (keywordFieldType.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {

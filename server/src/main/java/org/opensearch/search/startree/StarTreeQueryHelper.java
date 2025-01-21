@@ -167,11 +167,6 @@ public class StarTreeQueryHelper {
         return (starTreeQueryContext != null) ? starTreeQueryContext.getStarTree() : null;
     }
 
-    public static CompositeIndexFieldInfo getSupportedStarTree(SearchContext context) {
-        OlderStarTreeQueryContext olderStarTreeQueryContext = context.getStarTreeQueryContext();
-        return (olderStarTreeQueryContext != null) ? olderStarTreeQueryContext.getStarTree() : null;
-    }
-
     public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
         SegmentReader reader = Lucene.segmentReader(context.reader());
         if (!(reader.getDocValuesReader() instanceof CompositeIndexReader)) {

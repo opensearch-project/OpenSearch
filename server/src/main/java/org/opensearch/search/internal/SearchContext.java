@@ -532,11 +532,6 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    public SearchContext starTreeQueryContext(OlderStarTreeQueryContext olderStarTreeQueryContext) {
-        this.olderStarTreeQueryContext = olderStarTreeQueryContext;
-        return this;
-    }
-
     public OlderStarTreeQueryContext getStarTreeQueryContext() {
         return this.olderStarTreeQueryContext;
     }

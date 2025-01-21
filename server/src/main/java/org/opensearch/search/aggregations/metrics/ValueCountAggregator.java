@@ -53,7 +53,7 @@ import org.opensearch.search.startree.StarTreeQueryHelper;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree2;
 
 /**
  * A field data based aggregator that counts the number of values a specific field has within the aggregation context.
@@ -94,7 +94,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
         if (valuesSource instanceof ValuesSource.Numeric) {
 
-            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree2(this.context.getQueryShardContext());
             if (supportedStarTree != null) {
                 return getStarTreeCollector(ctx, sub, supportedStarTree);
             }
