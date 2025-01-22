@@ -294,9 +294,13 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
     public void collectChildrenInRange(Long low, Long high, StarTreeNodeCollector collector) throws IOException {
         FixedLengthStarTreeNode lowStarTreeNode = binarySearchChild(low, true, null);
         FixedLengthStarTreeNode highStarTreeNode = binarySearchChild(high, false, lowStarTreeNode);
-        if (lowStarTreeNode != null && highStarTreeNode != null) {
-            for (int lowNodeId = lowStarTreeNode.nodeId(); lowNodeId <= highStarTreeNode.nodeId(); ++lowNodeId) {
-                collector.collectStarNode(new FixedLengthStarTreeNode(in, lowNodeId));
+        if (lowStarTreeNode != null) {
+            if (highStarTreeNode != null) {
+                for (int lowNodeId = lowStarTreeNode.nodeId(); lowNodeId <= highStarTreeNode.nodeId(); ++lowNodeId) {
+                    collector.collectStarNode(new FixedLengthStarTreeNode(in, lowNodeId));
+                }
+            } else { // Low StarTreeNode is the last default node for that dimension.
+                collector.collectStarNode(lowStarTreeNode);
             }
         }
     }

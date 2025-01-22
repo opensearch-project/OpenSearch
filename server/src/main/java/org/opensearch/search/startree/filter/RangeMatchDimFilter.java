@@ -72,6 +72,7 @@ public class RangeMatchDimFilter implements DimensionFilter {
 
     @Override
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
+        // FIXME : Needs to be based on Match Type.
         return lowOrdinal <= ordinal && ordinal <= highOrdinal;
     }
 
