@@ -227,7 +227,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private String searchPipeline;
 
-    private Boolean verbosePipeline;
+    private boolean verbosePipeline = false;
 
     /**
      * Constructs a new search source builder.
@@ -306,7 +306,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             searchPipeline = in.readOptionalString();
         }
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            verbosePipeline = in.readOptionalBoolean();
+            verbosePipeline = in.readBoolean();
         }
     }
 
@@ -392,7 +392,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeOptionalString(searchPipeline);
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalBoolean(verbosePipeline);
+            out.writeBoolean(verbosePipeline);
         }
     }
 
@@ -1162,7 +1162,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * to track how data flows and transforms through the search pipeline.
      *
      */
-    public SearchSourceBuilder verbosePipeline(boolean verbosePipeline) {
+    public SearchSourceBuilder verbosePipeline(Boolean verbosePipeline) {
         this.verbosePipeline = verbosePipeline;
         return this;
     }
@@ -1674,7 +1674,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(SEARCH_PIPELINE.getPreferredName(), searchPipeline);
         }
 
-        if (verbosePipeline != null) {
+        if (verbosePipeline) {
             builder.field(VERBOSE_SEARCH_PIPELINE.getPreferredName(), verbosePipeline);
         }
 

@@ -722,7 +722,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             String restContent = "{ \"query\": { \"match_all\": {} } }";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
-                assertNull(searchSourceBuilder.verbosePipeline());
+                assertFalse(searchSourceBuilder.verbosePipeline());
             }
         }
     }
