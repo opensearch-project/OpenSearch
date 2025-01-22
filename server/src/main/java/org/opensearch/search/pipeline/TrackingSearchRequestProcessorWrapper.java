@@ -56,20 +56,9 @@ public class TrackingSearchRequestProcessorWrapper implements SearchRequestProce
 
     @Override
     public SearchRequest processRequest(SearchRequest request, PipelineProcessingContext requestContext) throws Exception {
-        ProcessorExecutionDetail detail = new ProcessorExecutionDetail(getType(), getTag());
-
-        long start = System.nanoTime();
         try {
-            detail.addInput(request.source().toString());
-            SearchRequest result = wrappedProcessor.processRequest(request, requestContext);
-            detail.addOutput(result.source().toString());
-            long took = System.nanoTime() - start;
-            detail.addTook(took);
-            requestContext.addProcessorExecutionDetail(detail);
-            return result;
-        } catch (Exception e) {
-            detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, e.getMessage());
-            requestContext.addProcessorExecutionDetail(detail);
+            return wrappedProcessor.processRequest(request, requestContext);
+        } catch (UnsupportedOperationException e) {
             throw e;
         }
     }
@@ -81,26 +70,18 @@ public class TrackingSearchRequestProcessorWrapper implements SearchRequestProce
         ActionListener<SearchRequest> requestListener
     ) {
         ProcessorExecutionDetail detail = new ProcessorExecutionDetail(getType(), getTag());
-
         long start = System.nanoTime();
-        try {
-            detail.addInput(request.source().toString());
-            wrappedProcessor.processRequestAsync(request, requestContext, ActionListener.wrap(result -> {
-                detail.addOutput(result.source().toString());
-                long took = System.nanoTime() - start;
-                detail.addTook(took);
-                requestContext.addProcessorExecutionDetail(detail);
-                requestListener.onResponse(result);
-            }, e -> {
-                detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, e.getMessage());
-                requestContext.addProcessorExecutionDetail(detail);
-                requestListener.onFailure(e);
-            }));
-        } catch (Exception e) {
+        detail.addInput(request.source().toString());
+        wrappedProcessor.processRequestAsync(request, requestContext, ActionListener.wrap(result -> {
+            detail.addOutput(result.source().toString());
+            long took = System.nanoTime() - start;
+            detail.addTook(took);
+            requestContext.addProcessorExecutionDetail(detail);
+            requestListener.onResponse(result);
+        }, e -> {
             detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, e.getMessage());
             requestContext.addProcessorExecutionDetail(detail);
             requestListener.onFailure(e);
-        }
+        }));
     }
-
 }

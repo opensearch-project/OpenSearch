@@ -12,6 +12,7 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.action.ActionListener;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -63,20 +64,9 @@ public class TrackingSearchResponseProcessorWrapper implements SearchResponsePro
     @Override
     public SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelineProcessingContext requestContext)
         throws Exception {
-        ProcessorExecutionDetail detail = new ProcessorExecutionDetail(getType(), getTag());
-
-        long start = System.nanoTime();
         try {
-            detail.addInput(Arrays.asList(response.getHits().deepCopy().getHits()));
-            SearchResponse result = wrappedProcessor.processResponse(request, response, requestContext);
-            detail.addOutput(Arrays.asList(result.getHits().deepCopy().getHits()));
-            long took = System.nanoTime() - start;
-            detail.addTook(took);
-            requestContext.addProcessorExecutionDetail(detail);
-            return result;
-        } catch (Exception e) {
-            detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, e.getMessage());
-            requestContext.addProcessorExecutionDetail(detail);
+            return wrappedProcessor.processResponse(request, response, requestContext);
+        } catch (UnsupportedOperationException e) {
             throw e;
         }
     }
@@ -89,25 +79,23 @@ public class TrackingSearchResponseProcessorWrapper implements SearchResponsePro
         ActionListener<SearchResponse> responseListener
     ) {
         ProcessorExecutionDetail detail = new ProcessorExecutionDetail(getType(), getTag());
-
         long start = System.nanoTime();
         try {
             detail.addInput(Arrays.asList(response.getHits().deepCopy().getHits()));
-            wrappedProcessor.processResponseAsync(request, response, requestContext, ActionListener.wrap(result -> {
-                detail.addOutput(Arrays.asList(result.getHits().deepCopy().getHits()));
-                long took = System.nanoTime() - start;
-                detail.addTook(took);
-                requestContext.addProcessorExecutionDetail(detail);
-                responseListener.onResponse(result);
-            }, e -> {
-                detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, e.getMessage());
-                requestContext.addProcessorExecutionDetail(detail);
-                responseListener.onFailure(e);
-            }));
-        } catch (Exception e) {
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        wrappedProcessor.processResponseAsync(request, response, requestContext, ActionListener.wrap(result -> {
+            detail.addOutput(Arrays.asList(result.getHits().deepCopy().getHits()));
+            long took = System.nanoTime() - start;
+            detail.addTook(took);
+            requestContext.addProcessorExecutionDetail(detail);
+            responseListener.onResponse(result);
+        }, e -> {
             detail.markProcessorAsFailed(ProcessorExecutionDetail.ProcessorStatus.FAIL, e.getMessage());
             requestContext.addProcessorExecutionDetail(detail);
             responseListener.onFailure(e);
-        }
+        }));
     }
+
 }

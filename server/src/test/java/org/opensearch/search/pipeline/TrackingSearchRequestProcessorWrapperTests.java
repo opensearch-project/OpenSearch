@@ -36,30 +36,26 @@ public class TrackingSearchRequestProcessorWrapperTests extends OpenSearchTestCa
         context = new PipelineProcessingContext();
     }
 
-    public void testProcessRequest() throws Exception {
+    public void testProcessRequestSuccess() throws Exception {
         SearchRequest inputRequest = new SearchRequest();
         inputRequest.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
 
         SearchRequest outputRequest = new SearchRequest();
         outputRequest.source(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
+
         when(mockProcessor.processRequest(any(SearchRequest.class), eq(context))).thenReturn(outputRequest);
 
         SearchRequest result = wrapper.processRequest(inputRequest, context);
         assertEquals(outputRequest, result);
-        verify(mockProcessor).processRequest(inputRequest, context);
 
-        assertFalse(context.getProcessorExecutionDetails().isEmpty());
-        ProcessorExecutionDetail detail = context.getProcessorExecutionDetails().get(0);
-        assertEquals(wrapper.getType(), detail.getProcessorName());
-        assertNotNull(detail.getInputData());
-        assertNotNull(detail.getOutputData());
-        assertEquals(ProcessorExecutionDetail.ProcessorStatus.SUCCESS, detail.getStatus());
+        verify(mockProcessor).processRequest(inputRequest, context);
     }
 
     public void testProcessRequestException() throws Exception {
         SearchRequest inputRequest = new SearchRequest();
         inputRequest.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
-        Exception processorException = new RuntimeException("Processor failed");
+
+        RuntimeException processorException = new UnsupportedOperationException("Processor failed");
 
         when(mockProcessor.processRequest(any(SearchRequest.class), eq(context))).thenThrow(processorException);
 
@@ -69,10 +65,6 @@ public class TrackingSearchRequestProcessorWrapperTests extends OpenSearchTestCa
         } catch (Exception e) {
             assertEquals("Processor failed", e.getMessage());
         }
-
-        ProcessorExecutionDetail detail = context.getProcessorExecutionDetails().get(0);
-        assertEquals(wrapper.getType(), detail.getProcessorName());
-        assertEquals(ProcessorExecutionDetail.ProcessorStatus.FAIL, detail.getStatus());
     }
 
     public void testProcessRequestAsyncSuccess() {

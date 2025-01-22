@@ -15,6 +15,8 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
+
 import org.mockito.Mockito;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -35,28 +37,6 @@ public class TrackingSearchResponseProcessorWrapperTests extends OpenSearchTestC
         context = new PipelineProcessingContext();
     }
 
-    public void testProcessResponse() throws Exception {
-        SearchRequest mockRequest = new SearchRequest();
-        SearchResponse inputResponse = Mockito.mock(SearchResponse.class);
-        SearchResponse outputResponse = Mockito.mock(SearchResponse.class);
-
-        when(inputResponse.getHits()).thenReturn(SearchHits.empty());
-        when(outputResponse.getHits()).thenReturn(SearchHits.empty());
-        when(mockProcessor.processResponse(eq(mockRequest), eq(inputResponse), eq(context))).thenReturn(outputResponse);
-
-        SearchResponse result = wrapper.processResponse(mockRequest, inputResponse, context);
-
-        assertEquals(outputResponse, result);
-        verify(mockProcessor).processResponse(mockRequest, inputResponse, context);
-
-        assertFalse(context.getProcessorExecutionDetails().isEmpty());
-        ProcessorExecutionDetail detail = context.getProcessorExecutionDetails().get(0);
-        assertEquals(wrapper.getType(), detail.getProcessorName());
-        assertNotNull(detail.getInputData());
-        assertNotNull(detail.getOutputData());
-        assertEquals(ProcessorExecutionDetail.ProcessorStatus.SUCCESS, detail.getStatus());
-    }
-
     public void testConstructorThrowsExceptionWhenProcessorIsNull() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -66,7 +46,7 @@ public class TrackingSearchResponseProcessorWrapperTests extends OpenSearchTestC
         assertEquals("Wrapped processor cannot be null.", exception.getMessage());
     }
 
-    public void testProcessResponseAsync() {
+    public void testProcessResponseAsync(){
         SearchRequest mockRequest = new SearchRequest();
         SearchResponse inputResponse = Mockito.mock(SearchResponse.class);
         SearchResponse outputResponse = Mockito.mock(SearchResponse.class);

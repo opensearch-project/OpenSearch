@@ -160,6 +160,8 @@ class Pipeline {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterRequestProcessor(processor, took);
                     onRequestProcessorFailed(processor);
+                    // When verbosePipeline is enabled, all processor failures are ignored to ensure the execution chain continues without
+                    // interruption.TrackingSearchResponseProcessorWrapper will log all errors in detail for debugging purposes
                     if (processor.isIgnoreFailure() || r.source().verbosePipeline()) {
                         logger.warn(
                             "The exception from request processor ["
@@ -239,7 +241,8 @@ class Pipeline {
                     onResponseProcessorFailed(processor);
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterResponseProcessor(processor, took);
-                    // If an error occurs and the pipeline is in verbose mode, the processor will not terminate the execution chain.
+                    // When verbosePipeline is enabled, all processor failures are ignored to ensure the execution chain continues without
+                    // interruption.TrackingSearchResponseProcessorWrapper will log all errors in detail for debugging purposes
                     if (processor.isIgnoreFailure() || request.source().verbosePipeline()) {
                         logger.warn(
                             "The exception from response processor ["
