@@ -609,7 +609,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 new PrefixQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field1=foo"), CONSTANT_SCORE_REWRITE),
                 new PrefixQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field.field1=foo"), DOC_VALUES_REWRITE)
             );
-            assertEquals(expected, ft.prefixQuery("foo", CONSTANT_SCORE_BLENDED_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            assertEquals(expected, ft.prefixQuery("foo", CONSTANT_SCORE_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
         // 2.test isSearchable=true, hasDocValues=false, mappedFieldTypeName=null
