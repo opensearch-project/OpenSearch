@@ -82,7 +82,6 @@ import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -94,7 +93,6 @@ import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.Rounding.isUTCTimeZone;
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 import static org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
 
@@ -188,12 +186,8 @@ public final class CompositeAggregator extends BucketsAggregator {
                      * The filter rewrite optimized path does not support bucket intervals which are not fixed.
                      * For this reason we exclude non UTC timezones.
                      */
-                    Rounding round = this.valuesSource.getRounding();
-                    if (round instanceof Rounding.TimeUnitRounding) {
-                        ZoneId tz = ((Rounding.TimeUnitRounding) round).getTimeZone();
-                        if (!isUTCTimeZone(tz)) {
-                            return false;
-                        }
+                    if (valuesSource.getRounding().isUTC() == false) {
+                        return false;
                     }
 
                     // bucketOrds is used for saving the date histogram results got from the optimization path
