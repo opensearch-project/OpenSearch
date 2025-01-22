@@ -359,7 +359,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
                         FixedLengthStarTreeNode nodeLessThanMid = new FixedLengthStarTreeNode(in, tempHigh);
                         if (matchNextHighest && (nodeLessThanMid.getDimensionValue() < dimensionValue)) {
                             return midNode;
-                        } else if (!matchNextHighest && (nodeLessThanMid.getDimensionValue() > dimensionValue)) {
+                        } else if (!matchNextHighest && (nodeLessThanMid.getDimensionValue() < dimensionValue)) {
                             return nodeLessThanMid;
                         }
                     }
