@@ -60,12 +60,26 @@ public class StarTreeQueryContext {
         }
     }
 
+    public StarTreeQueryContext(CompositeDataCubeFieldType compositeMappedFieldType, QueryBuilder baseQueryBuilder, int cacheSize) {
+        this.compositeMappedFieldType = compositeMappedFieldType;
+        this.baseQueryBuilder = baseQueryBuilder;
+        if (cacheSize > -1) {
+            starTreeValues = new FixedBitSet[cacheSize];
+        } else {
+            starTreeValues = null;
+        }
+    }
+
     public CompositeIndexFieldInfo getStarTree() {
         return new CompositeIndexFieldInfo(compositeMappedFieldType.name(), compositeMappedFieldType.getCompositeIndexType());
     }
 
-    public FixedBitSet getStarTreeValues(LeafReaderContext ctx) {
+    public FixedBitSet getStarTreeValue(LeafReaderContext ctx) {
         return starTreeValues != null ? starTreeValues[ctx.ord] : null;
+    }
+
+    public FixedBitSet[] getStarTreeValues() {
+        return starTreeValues;
     }
 
     public void setStarTreeValues(LeafReaderContext ctx, FixedBitSet values) {

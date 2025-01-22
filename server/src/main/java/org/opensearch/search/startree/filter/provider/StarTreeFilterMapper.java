@@ -90,7 +90,7 @@ abstract class NumericNonDecimalMapper implements StarTreeFilterMapper {
             NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
             List<Object> convertedValues = new ArrayList<>(rawValues.size());
             for (Object rawValue : rawValues) {
-                convertedValues.add(numberFieldType.numberType().parse(rawValue, true));
+                convertedValues.add(numberFieldType.numberType().parse(rawValue, true).longValue());
             }
             return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
         }
@@ -190,14 +190,14 @@ abstract class NumericDecimalFieldMapper implements StarTreeFilterMapper {
             if (rawLow != null) {
                 l = numberFieldType.numberType().parse(rawLow, false);
                 if (includeLow == false) {
-                    l = getNextLowOrHigh(l, true);
+                    l = getNextHigh(l);
                 }
                 l = convertToDocValues(l);
             }
             if (rawHigh != null) {
                 u = numberFieldType.numberType().parse(rawHigh, false);
                 if (includeHigh == false) {
-                    u = getNextLowOrHigh(u, false);
+                    u = getNextLow(u);
                 }
                 u = convertToDocValues(u);
             }
@@ -208,7 +208,9 @@ abstract class NumericDecimalFieldMapper implements StarTreeFilterMapper {
 
     abstract long convertToDocValues(Number parsedValue);
 
-    abstract Number getNextLowOrHigh(Number parsedValue, boolean nextHighest);
+    abstract Number getNextLow(Number parsedValue);
+
+    abstract Number getNextHigh(Number parsedValue);
 
 }
 
@@ -219,8 +221,13 @@ class HalfFloatFieldMapperNumeric extends NumericDecimalFieldMapper {
     }
 
     @Override
-    Number getNextLowOrHigh(Number parsedValue, boolean nextHighest) {
-        return nextHighest ? HalfFloatPoint.nextUp((Float) parsedValue) : HalfFloatPoint.nextDown((Float) parsedValue);
+    Number getNextLow(Number parsedValue) {
+        return HalfFloatPoint.nextDown((Float) parsedValue);
+    }
+
+    @Override
+    Number getNextHigh(Number parsedValue) {
+        return HalfFloatPoint.nextUp((Float) parsedValue);
     }
 }
 
@@ -231,8 +238,13 @@ class FloatFieldMapperNumeric extends NumericDecimalFieldMapper {
     }
 
     @Override
-    Number getNextLowOrHigh(Number parsedValue, boolean nextHighest) {
-        return nextHighest ? FloatPoint.nextUp((Float) parsedValue) : FloatPoint.nextDown((Float) parsedValue);
+    Number getNextLow(Number parsedValue) {
+        return FloatPoint.nextDown((Float) parsedValue);
+    }
+
+    @Override
+    Number getNextHigh(Number parsedValue) {
+        return FloatPoint.nextUp((Float) parsedValue);
     }
 }
 
@@ -243,8 +255,13 @@ class DoubleFieldMapperNumeric extends NumericDecimalFieldMapper {
     }
 
     @Override
-    Number getNextLowOrHigh(Number parsedValue, boolean nextHighest) {
-        return nextHighest ? DoublePoint.nextUp((Double) parsedValue) : DoublePoint.nextDown((Double) parsedValue);
+    Number getNextLow(Number parsedValue) {
+        return DoublePoint.nextDown((Double) parsedValue);
+    }
+
+    @Override
+    Number getNextHigh(Number parsedValue) {
+        return DoublePoint.nextUp((Double) parsedValue);
     }
 }
 

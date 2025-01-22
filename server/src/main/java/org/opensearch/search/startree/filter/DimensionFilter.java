@@ -25,4 +25,34 @@ public interface DimensionFilter {
 
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues);
 
+    DimensionFilter MATCH_ALL_FILTER = new DimensionFilter() {
+        @Override
+        public void initialiseForSegment(StarTreeValues starTreeValues) {}
+
+        @Override
+        public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
+            throws IOException {
+            parentNode.getChildrenIterator().forEachRemaining(collector::collectStarNode);
+        }
+
+        @Override
+        public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
+            return true;
+        }
+    };
+
+    DimensionFilter MATCH_NONE = new DimensionFilter() {
+        @Override
+        public void initialiseForSegment(StarTreeValues starTreeValues) {}
+
+        @Override
+        public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
+            throws IOException {}
+
+        @Override
+        public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
+            return false;
+        }
+    };
+
 }

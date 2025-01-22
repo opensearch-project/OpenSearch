@@ -8,7 +8,6 @@
 
 package org.opensearch.search.startree;
 
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -18,28 +17,17 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.compositeindex.datacube.Dimension;
-import org.opensearch.index.compositeindex.datacube.Metric;
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
-import org.opensearch.index.mapper.CompositeDataCubeFieldType;
-import org.opensearch.index.query.MatchAllQueryBuilder;
-import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.TermQueryBuilder;
-import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
-import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSource;
-import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -58,108 +46,6 @@ public class StarTreeQueryHelper {
      */
     public static boolean isStarTreeSupported(SearchContext context) {
         return context.aggregations() != null && context.mapperService().isCompositeIndexPresent() && context.parsedPostFilter() == null;
-    }
-
-    /**
-     * Gets StarTreeQueryContext from the search context and source builder.
-     * Returns null if the query and aggregation cannot be supported.
-     */
-    public static OlderStarTreeQueryContext getOlderStarTreeQueryContext(SearchContext context, SearchSourceBuilder source)
-        throws IOException {
-        // Current implementation assumes only single star-tree is supported
-        CompositeDataCubeFieldType compositeMappedFieldType = (CompositeDataCubeFieldType) context.mapperService()
-            .getCompositeFieldTypes()
-            .iterator()
-            .next();
-        CompositeIndexFieldInfo starTree = new CompositeIndexFieldInfo(
-            compositeMappedFieldType.name(),
-            compositeMappedFieldType.getCompositeIndexType()
-        );
-
-        for (AggregatorFactory aggregatorFactory : context.aggregations().factories().getFactories()) {
-            MetricStat metricStat = validateStarTreeMetricSupport(compositeMappedFieldType, aggregatorFactory);
-            if (metricStat == null) {
-                return null;
-            }
-        }
-
-        // need to cache star tree values only for multiple aggregations
-        boolean cacheStarTreeValues = context.aggregations().factories().getFactories().length > 1;
-        int cacheSize = cacheStarTreeValues ? context.indexShard().segments(false).size() : -1;
-
-        return StarTreeQueryHelper.tryCreateStarTreeQueryContext(starTree, compositeMappedFieldType, source.query(), cacheSize);
-    }
-
-    /**
-     * Uses query builder and composite index info to form star-tree query context
-     */
-    private static OlderStarTreeQueryContext tryCreateStarTreeQueryContext(
-        CompositeIndexFieldInfo compositeIndexFieldInfo,
-        CompositeDataCubeFieldType compositeFieldType,
-        QueryBuilder queryBuilder,
-        int cacheStarTreeValuesSize
-    ) {
-        Map<String, Long> queryMap;
-        if (queryBuilder == null || queryBuilder instanceof MatchAllQueryBuilder) {
-            queryMap = null;
-        } else if (queryBuilder instanceof TermQueryBuilder) {
-            // TODO: Add support for keyword fields
-            if (compositeFieldType.getDimensions().stream().anyMatch(d -> d.getDocValuesType() != DocValuesType.SORTED_NUMERIC)) {
-                // return null for non-numeric fields
-                return null;
-            }
-
-            List<String> supportedDimensions = compositeFieldType.getDimensions()
-                .stream()
-                .map(Dimension::getField)
-                .collect(Collectors.toList());
-            queryMap = getStarTreePredicates(queryBuilder, supportedDimensions);
-            if (queryMap == null) {
-                return null;
-            }
-        } else {
-            return null;
-        }
-        return new OlderStarTreeQueryContext(compositeIndexFieldInfo, queryMap, cacheStarTreeValuesSize);
-    }
-
-    /**
-     * Parse query body to star-tree predicates
-     * @param queryBuilder to match star-tree supported query shape
-     * @return predicates to match
-     */
-    private static Map<String, Long> getStarTreePredicates(QueryBuilder queryBuilder, List<String> supportedDimensions) {
-        TermQueryBuilder tq = (TermQueryBuilder) queryBuilder;
-        String field = tq.fieldName();
-        if (!supportedDimensions.contains(field)) {
-            return null;
-        }
-        long inputQueryVal = Long.parseLong(tq.value().toString());
-
-        // Create a map with the field and the value
-        Map<String, Long> predicateMap = new HashMap<>();
-        predicateMap.put(field, inputQueryVal);
-        return predicateMap;
-    }
-
-    private static MetricStat validateStarTreeMetricSupport(
-        CompositeDataCubeFieldType compositeIndexFieldInfo,
-        AggregatorFactory aggregatorFactory
-    ) {
-        if (aggregatorFactory instanceof MetricAggregatorFactory && aggregatorFactory.getSubFactories().getFactories().length == 0) {
-            String field;
-            Map<String, List<MetricStat>> supportedMetrics = compositeIndexFieldInfo.getMetrics()
-                .stream()
-                .collect(Collectors.toMap(Metric::getField, Metric::getMetrics));
-
-            MetricStat metricStat = ((MetricAggregatorFactory) aggregatorFactory).getMetricStat();
-            field = ((MetricAggregatorFactory) aggregatorFactory).getField();
-
-            if (field != null && supportedMetrics.containsKey(field) && supportedMetrics.get(field).contains(metricStat)) {
-                return metricStat;
-            }
-        }
-        return null;
     }
 
     public static CompositeIndexFieldInfo getSupportedStarTree2(QueryShardContext context) {
@@ -242,7 +128,7 @@ public class StarTreeQueryHelper {
     public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues)
         throws IOException {
         // TODO : Uncomment and implement caching in new STQC
-        FixedBitSet result = context.getQueryShardContext().getStarTreeQueryContext().getStarTreeValues(ctx);
+        FixedBitSet result = context.getQueryShardContext().getStarTreeQueryContext().getStarTreeValue(ctx);
         if (result == null) {
             result = OlderStarTreeFilter.getStarTreeResult2(
                 starTreeValues,

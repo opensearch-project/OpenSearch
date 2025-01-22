@@ -14,6 +14,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -33,9 +34,14 @@ public interface StarTreeFilterProvider {
     StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
         throws IOException;
 
+    StarTreeFilterProvider MATCH_ALL_PROVIDER = (context, rawFilter, compositeFieldType) -> new StarTreeFilter(Collections.emptyMap());
+
     class SingletonFactory {
 
+        // TODO : Implement MatchAll and MatchNone Queries
         private static final Map<Class<? extends QueryBuilder>, StarTreeFilterProvider> QUERY_BUILDERS_TO_STF_PROVIDER = Map.of(
+            MatchAllQueryBuilder.class,
+            MATCH_ALL_PROVIDER,
             TermQueryBuilder.class,
             new TermStarTreeFilterProvider(),
             TermsQueryBuilder.class,
@@ -48,7 +54,7 @@ public interface StarTreeFilterProvider {
             if (query != null) {
                 return QUERY_BUILDERS_TO_STF_PROVIDER.get(query.getClass());
             }
-            return null; // QueryBuilder is not yet supported for filtering in star tree.
+            return MATCH_ALL_PROVIDER;
         }
 
     }

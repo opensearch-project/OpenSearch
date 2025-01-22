@@ -76,7 +76,6 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.search.startree.OlderStarTreeQueryContext;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collection;
@@ -126,7 +125,6 @@ public abstract class SearchContext implements Releasable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
     private volatile boolean searchTimedOut;
-    private OlderStarTreeQueryContext olderStarTreeQueryContext;
 
     protected SearchContext() {}
 
@@ -532,7 +530,4 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    public OlderStarTreeQueryContext getStarTreeQueryContext() {
-        return this.olderStarTreeQueryContext;
-    }
 }

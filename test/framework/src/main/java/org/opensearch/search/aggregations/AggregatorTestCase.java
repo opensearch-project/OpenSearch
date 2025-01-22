@@ -62,6 +62,8 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
@@ -95,10 +97,10 @@ import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
-import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.index.compositeindex.datacube.NumericDimension;
+import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
-import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
@@ -129,7 +131,6 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.indices.IndicesModule;
-import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.ScriptService;
@@ -143,18 +144,15 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTr
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
-import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.search.startree.OlderStarTreeQueryContext;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -175,7 +173,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
@@ -183,6 +180,7 @@ import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 /**
  * Base class for testing {@link Aggregator} implementations.
@@ -432,10 +430,27 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(mapperService.getCompositeFieldTypes()).thenReturn(compositeFieldTypes);
         when(searchContext.mapperService()).thenReturn(mapperService);
 
-        SearchSourceBuilder sb = new SearchSourceBuilder().query(queryBuilder);
-        OlderStarTreeQueryContext olderStarTreeQueryContext = StarTreeQueryHelper.getOlderStarTreeQueryContext(searchContext, sb);
+        for (Dimension dimension : supportedDimensions) {
+            if (dimension instanceof OrdinalDimension) {
+                MappedFieldType mappedFieldType = mock(KeywordFieldMapper.KeywordFieldType.class);
+                when(mappedFieldType.name()).thenReturn(dimension.getField());
+                when(mapperService.fieldType(dimension.getField())).thenReturn(mappedFieldType);
+            } else if (dimension instanceof NumericDimension) {
+                NumberFieldMapper.NumberFieldType mappedFieldType = mock(NumberFieldMapper.NumberFieldType.class);
+                when(mappedFieldType.name()).thenReturn(dimension.getField());
+                // TODO : Number type should be supplied as parameter to create function
+                when(mappedFieldType.numberType()).thenReturn(NumberFieldMapper.NumberType.INTEGER);
+                when(mapperService.fieldType(dimension.getField())).thenReturn(mappedFieldType);
+                when(searchContext.getQueryShardContext().fieldMapper(dimension.getField())).thenReturn(mappedFieldType);
+            }
+        }
 
-        when(searchContext.getStarTreeQueryContext()).thenReturn(olderStarTreeQueryContext);
+        StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(searchContext, queryBuilder);
+        boolean consolidated = starTreeQueryContext.consolidateAllFilters(searchContext);
+        if (consolidated) {
+            searchContext.getQueryShardContext().setStarTreeQueryContext(starTreeQueryContext);
+        }
+
         return searchContext;
     }
 
@@ -495,13 +510,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
         when(searchContext.mapperService()).thenReturn(mapperService);
-        IndexFieldDataService ifds = new IndexFieldDataService(
-            indexSettings,
-            new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
-            }),
-            circuitBreakerService,
-            mapperService
-        );
         QueryShardContext queryShardContext = queryShardContextMock(
             contextIndexSearcher,
             mapperService,

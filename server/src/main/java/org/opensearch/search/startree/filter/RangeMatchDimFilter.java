@@ -16,6 +16,7 @@ import org.opensearch.search.startree.StarTreeNodeCollector;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.opensearch.search.startree.DimensionOrdinalMapper.MatchType;
 import static org.opensearch.search.startree.DimensionOrdinalMapper.SingletonFactory.getFieldToDimensionOrdinalMapper;
@@ -72,5 +73,21 @@ public class RangeMatchDimFilter implements DimensionFilter {
     @Override
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
         return lowOrdinal <= ordinal && ordinal <= highOrdinal;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof RangeMatchDimFilter)) return false;
+        RangeMatchDimFilter that = (RangeMatchDimFilter) o;
+        return includeLow == that.includeLow
+            && includeHigh == that.includeHigh
+            && Objects.equals(dimensionName, that.dimensionName)
+            && Objects.equals(low, that.low)
+            && Objects.equals(high, that.high);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(dimensionName, low, high, includeLow, includeHigh);
     }
 }

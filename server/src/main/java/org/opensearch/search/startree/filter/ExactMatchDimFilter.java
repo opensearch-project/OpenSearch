@@ -18,6 +18,7 @@ import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.TreeSet;
 
 import static org.opensearch.search.startree.DimensionOrdinalMapper.SingletonFactory.getFieldToDimensionOrdinalMapper;
@@ -51,9 +52,10 @@ public class ExactMatchDimFilter implements DimensionFilter {
                 starTreeValues,
                 DimensionOrdinalMapper.MatchType.EXACT
             );
-            if (ordinal >= 0) {
-                convertedOrdinals.add(ordinal);
-            }
+            // TODO : Ordinals cannot be negative for keyword whereas numeric can have negatives as it will be their value.
+            // if (ordinal >= 0) {
+            convertedOrdinals.add(ordinal);
+            // }
         }
     }
 
@@ -70,6 +72,18 @@ public class ExactMatchDimFilter implements DimensionFilter {
                 }
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof ExactMatchDimFilter)) return false;
+        ExactMatchDimFilter that = (ExactMatchDimFilter) o;
+        return Objects.equals(dimensionName, that.dimensionName) && Objects.equals(rawValues, that.rawValues);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(dimensionName, rawValues);
     }
 
     @Override
