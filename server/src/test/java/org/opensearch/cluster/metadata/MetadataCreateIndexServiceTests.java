@@ -32,9 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
@@ -107,6 +104,9 @@ import org.opensearch.test.VersionUtils;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -137,17 +137,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasValue;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -189,6 +178,17 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasValue;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
@@ -1971,11 +1971,12 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_NUMBER_OF_SEARCH_REPLICAS, "1");
-        requestSettings.put(IndexMetadata.SETTING_REPLICATION_TYPE,  ReplicationType.SEGMENT);
+        requestSettings.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
         request.settings(requestSettings.build());
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, ()->
-            aggregateIndexSettings(
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> aggregateIndexSettings(
                 ClusterState.EMPTY_STATE,
                 request,
                 Settings.EMPTY,
@@ -1985,10 +1986,11 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 randomShardLimitService(),
                 Collections.emptySet(),
                 clusterSettings
-            ));
+            )
+        );
 
-        assertEquals("To set index.number_of_search_only_replicas, " +
-                "index.remote_store.enabled must be set to true",
+        assertEquals(
+            "To set index.number_of_search_only_replicas, " + "index.remote_store.enabled must be set to true",
             exception.getMessage()
         );
     }
@@ -2003,7 +2005,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_NUMBER_OF_SEARCH_REPLICAS, "1");
-        requestSettings.put(IndexMetadata.SETTING_REPLICATION_TYPE,  ReplicationType.SEGMENT);
+        requestSettings.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
         request.settings(requestSettings.build());
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(
