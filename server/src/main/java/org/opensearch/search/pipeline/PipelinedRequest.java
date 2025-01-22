@@ -43,13 +43,10 @@ public final class PipelinedRequest extends SearchRequest {
         return pipeline.transformResponseListener(this, ActionListener.wrap(response -> {
             // Extract processor execution details
             List<ProcessorExecutionDetail> details = requestContext.getProcessorExecutionDetails();
-            logger.info("it is going to be executed in [{}]", details);
             // Add details to the response's InternalResponse if available
             if (!details.isEmpty() && response.getInternalResponse() != null) {
                 response.getInternalResponse().getProcessorResult().addAll(details);
             }
-
-            // Pass the modified response to the original listener
             responseListener.onResponse(response);
         }, responseListener::onFailure), requestContext);
     }
