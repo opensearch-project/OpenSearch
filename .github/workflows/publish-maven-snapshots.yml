@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -37,4 +37,5 @@ jobs:
           export SONATYPE_PASSWORD=$(aws secretsmanager get-secret-value --secret-id maven-snapshots-password --query SecretString --output text)
           echo "::add-mask::$SONATYPE_USERNAME"
           echo "::add-mask::$SONATYPE_PASSWORD"
-          ./gradlew publishNebulaPublicationToSnapshotsRepository
+          QUALIFIER=`cat buildSrc/version.properties | grep -v '#' | head -n 1 | cut -d- -f2`
+          ./gradlew publishNebulaPublicationToSnapshotsRepository -Dbuild.version_qualifier=$QUALIFIER
