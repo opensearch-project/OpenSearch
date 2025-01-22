@@ -156,10 +156,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
 
         Node node = new MockNode(
             settings,
-            Arrays.asList(MockNioTransportPlugin.class, MockHttpTransport.TestPlugin.class, InternalSettingsPlugin.class),
-            null,
-            true,
-            Collections.emptyMap()
+            Arrays.asList(MockNioTransportPlugin.class, MockHttpTransport.TestPlugin.class, InternalSettingsPlugin.class)
         );
         node.start();
         return node;

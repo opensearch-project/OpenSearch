@@ -74,7 +74,6 @@ import org.opensearch.transport.TransportService;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -90,31 +89,33 @@ import java.util.stream.Collectors;
  */
 public class MockNode extends Node {
 
-    private final Collection<Class<? extends Plugin>> classpathPlugins;
+    private final Collection<PluginInfo> classpathPlugins;
+
+    private MockNode(
+        final Environment environment,
+        final Collection<PluginInfo> classpathPlugins,
+        final boolean forbidPrivateIndexSettings
+    ) {
+        super(environment, classpathPlugins, forbidPrivateIndexSettings);
+        this.classpathPlugins = classpathPlugins;
+    }
 
     public MockNode(
         final Settings settings,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
+        final Collection<PluginInfo> classpathPlugins,
         final Path configPath,
-        final boolean forbidPrivateIndexSettings,
-        final Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins
+        final boolean forbidPrivateIndexSettings
     ) {
         this(
             InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
             classpathPlugins,
-            forbidPrivateIndexSettings,
-            extendedPlugins
+            forbidPrivateIndexSettings
         );
     }
 
-    private MockNode(
-        final Environment environment,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings,
-        final Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins
-    ) {
-        super(
-            environment,
+    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
+        this(
+            InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), null, () -> "mock_ node"),
             classpathPlugins.stream()
                 .map(
                     p -> new PluginInfo(
@@ -125,26 +126,19 @@ public class MockNode extends Node {
                         "1.8",
                         p.getName(),
                         null,
-                        (extendedPlugins != null && extendedPlugins.containsKey(p))
-                            ? List.of(extendedPlugins.get(p).getName())
-                            : Collections.emptyList(),
+                        Collections.emptyList(),
                         false
                     )
                 )
                 .collect(Collectors.toList()),
-            forbidPrivateIndexSettings
+            true
         );
-        this.classpathPlugins = classpathPlugins;
-    }
-
-    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, null, true, Collections.emptyMap());
     }
 
     /**
      * The classpath plugins this node was constructed with.
      */
-    public Collection<Class<? extends Plugin>> getClasspathPlugins() {
+    public Collection<PluginInfo> getClasspathPlugins() {
         return classpathPlugins;
     }
 
