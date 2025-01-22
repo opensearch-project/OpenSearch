@@ -32,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support object fields in star-tree index([#16728](https://github.com/opensearch-project/OpenSearch/pull/16728/))
 - Support searching from doc_value using termQueryCaseInsensitive/termQuery in flat_object/keyword field([#16974](https://github.com/opensearch-project/OpenSearch/pull/16974/))
 - Added a new `time` field to replace the deprecated `getTime` field in `GetStats`. ([#17009](https://github.com/opensearch-project/OpenSearch/pull/17009))
+- Improve flat_object field parsing performance by reducing two passes to a single pass ([#16297](https://github.com/opensearch-project/OpenSearch/pull/16297))
 - Improve performance of the bitmap filtering([#16936](https://github.com/opensearch-project/OpenSearch/pull/16936/))
 
 ### Dependencies
