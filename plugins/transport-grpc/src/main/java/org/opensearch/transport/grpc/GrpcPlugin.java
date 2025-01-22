@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PORT;
@@ -52,7 +51,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin {
         Tracer tracer
     ) {
         return Collections.singletonMap(
-            GRPC_TRANSPORT_SETTING_KEY,
+            Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY,
             () -> new Netty4GrpcServerTransport(settings, Collections.emptyList(), networkService)
         );
     }
@@ -68,7 +67,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin {
         Tracer tracer
     ) {
         return Collections.singletonMap(
-            GRPC_TRANSPORT_SETTING_KEY,
+            SecureNetty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY,
             () -> new SecureNetty4GrpcServerTransport(settings, Collections.emptyList(), networkService, secureAuxTransportSettingsProvider)
         );
     }

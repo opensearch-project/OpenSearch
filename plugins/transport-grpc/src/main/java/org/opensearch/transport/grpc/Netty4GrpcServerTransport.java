@@ -116,19 +116,19 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         Setting.Property.NodeScope
     );
 
+    protected PortsRange port;
     protected final Settings settings;
+
     private final NetworkService networkService;
     private final List<BindableService> services;
-    private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
     private final String[] bindHosts;
     private final String[] publishHosts;
-    private final PortsRange port;
     private final int nettyEventLoopThreads;
+    private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
+    private final List<UnaryOperator<NettyServerBuilder>> serverBuilderConfigs = new ArrayList<>();
 
     private volatile BoundTransportAddress boundAddress;
     private volatile EventLoopGroup eventLoopGroup;
-
-    private final List<UnaryOperator<NettyServerBuilder>> serverBuilderConfigs = new ArrayList<>();
 
     /**
      * Creates a new Netty4GrpcServerTransport instance.
