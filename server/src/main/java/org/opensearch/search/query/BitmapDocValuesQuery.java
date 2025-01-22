@@ -30,6 +30,8 @@ import java.util.Objects;
 
 import org.roaringbitmap.RoaringBitmap;
 
+import static org.opensearch.search.query.BitmapIndexQuery.checkArgs;
+
 /**
  * Filter with bitmap
  * <p>
@@ -43,6 +45,7 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
     final long max;
 
     public BitmapDocValuesQuery(String field, RoaringBitmap bitmap) {
+        checkArgs(field, bitmap);
         this.field = field;
         this.bitmap = bitmap;
         if (!bitmap.isEmpty()) {
@@ -111,8 +114,7 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
 
     @Override
     public String toString(String field) {
-        // bitmap may contain high cardinality, so choose to not show the actual values in it
-        return field + " cardinality: " + bitmap.getLongCardinality();
+        return "BitmapDocValuesQuery(field=" + this.field + ")";
     }
 
     @Override
@@ -139,8 +141,8 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOfInstance(BitmapDocValuesQuery.class) + RamUsageEstimator.sizeOfObject(field)
-            + RamUsageEstimator.sizeOfObject(bitmap);
+        return RamUsageEstimator.shallowSizeOfInstance(BitmapIndexQuery.class) + RamUsageEstimator.sizeOf(field) + bitmap
+            .getLongSizeInBytes();
     }
 
     @Override
