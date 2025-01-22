@@ -47,6 +47,7 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
 import org.opensearch.http.NullDispatcher;
 import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
@@ -61,6 +62,7 @@ import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 
@@ -126,6 +128,16 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                         Settings settings,
                         HttpServerTransport transport
                     ) {
+                        return Optional.empty();
+                    }
+                });
+            }
+
+            @Override
+            public Optional<SecureAuxTransportSettingsProvider> getSecureAuxTransportSettingsProvider(Settings settings) {
+                return Optional.of(new SecureAuxTransportSettingsProvider() {
+                    @Override
+                    public Optional<SSLContext> buildSecureAuxServerSSLContext(Settings settings, NetworkPlugin.AuxTransport transport) throws SSLException {
                         return Optional.empty();
                     }
                 });
