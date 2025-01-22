@@ -29,6 +29,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
@@ -39,12 +40,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 interface CompilerSupport {
-    default CompilerResult compile(String name, String... names) {
-        return compileWithPackage(ApiAnnotationProcessorTests.class.getPackageName(), name, names);
+    default CompilerResult compile(Path outputDirectory, String name, String... names) {
+        return compileWithPackage(outputDirectory, ApiAnnotationProcessorTests.class.getPackageName(), name, names);
     }
 
     @SuppressWarnings("removal")
-    default CompilerResult compileWithPackage(String pck, String name, String... names) {
+    default CompilerResult compileWithPackage(Path outputDirectory, String pck, String name, String... names) {
         final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         final DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();
 
@@ -54,11 +55,18 @@ interface CompilerSupport {
                 .map(f -> asSource(pck, f))
                 .collect(Collectors.toList());
 
-            final CompilationTask task = compiler.getTask(out, fileManager, collector, null, null, files);
+            final CompilationTask task = compiler.getTask(
+                out,
+                fileManager,
+                collector,
+                List.of("-d", outputDirectory.toString()),
+                null,
+                files
+            );
             task.setProcessors(Collections.singleton(new ApiAnnotationProcessor()));
 
             if (AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> task.call())) {
-                return new Success();
+                return new Success(collector.getDiagnostics());
             } else {
                 return new Failure(collector.getDiagnostics());
             }
@@ -81,21 +89,27 @@ interface CompilerSupport {
         };
     }
 
-    class CompilerResult {}
-
-    class Success extends CompilerResult {
-
-    }
-
-    class Failure extends CompilerResult {
+    class CompilerResult {
         private final List<Diagnostic<? extends JavaFileObject>> diagnotics;
 
-        Failure(List<Diagnostic<? extends JavaFileObject>> diagnotics) {
+        CompilerResult(List<Diagnostic<? extends JavaFileObject>> diagnotics) {
             this.diagnotics = diagnotics;
         }
 
         List<Diagnostic<? extends JavaFileObject>> diagnotics() {
             return diagnotics;
+        }
+    }
+
+    class Success extends CompilerResult {
+        Success(List<Diagnostic<? extends JavaFileObject>> diagnotics) {
+            super(diagnotics);
+        }
+    }
+
+    class Failure extends CompilerResult {
+        Failure(List<Diagnostic<? extends JavaFileObject>> diagnotics) {
+            super(diagnotics);
         }
     }
 

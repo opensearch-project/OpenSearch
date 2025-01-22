@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add search replica stats to segment replication stats API ([#16678](https://github.com/opensearch-project/OpenSearch/pull/16678))
 - Introduce framework for auxiliary transports and an experimental gRPC transport plugin ([#16534](https://github.com/opensearch-project/OpenSearch/pull/16534))
 - Support searching from doc_value using termQueryCaseInsensitive/termQuery in flat_object/keyword field([#16974](https://github.com/opensearch-project/OpenSearch/pull/16974/))
+- Added a new `time` field to replace the deprecated `getTime` field in `GetStats`. ([#17009](https://github.com/opensearch-project/OpenSearch/pull/17009))
+- Improve performance of the bitmap filtering([#16936](https://github.com/opensearch-project/OpenSearch/pull/16936/))
 
 ### Dependencies
 - Bump `com.google.cloud:google-cloud-core-http` from 2.23.0 to 2.47.0 ([#16504](https://github.com/opensearch-project/OpenSearch/pull/16504))
@@ -58,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `opentelemetry-semconv` from 1.27.0-alpha to 1.29.0-alpha ([#16700](https://github.com/opensearch-project/OpenSearch/pull/16700))
 - Bump `com.google.re2j:re2j` from 1.7 to 1.8 ([#17012](https://github.com/opensearch-project/OpenSearch/pull/17012))
 - Bump `org.apache.commons:commons-lang3` from 3.14.0 to 3.17.0 ([#15580](https://github.com/opensearch-project/OpenSearch/pull/15580))
+- Bump `com.squareup.okio:okio` from 3.9.1 to 3.10.2 ([#17060](https://github.com/opensearch-project/OpenSearch/pull/17060))
 
 ### Changed
 - Indexed IP field supports `terms_query` with more than 1025 IP masks [#16391](https://github.com/opensearch-project/OpenSearch/pull/16391)
@@ -66,9 +69,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow extended plugins to be optional ([#16909](https://github.com/opensearch-project/OpenSearch/pull/16909))
 - Use the correct type to widen the sort fields when merging top docs ([#16881](https://github.com/opensearch-project/OpenSearch/pull/16881))
 - Limit reader writer separation to remote store enabled clusters [#16760](https://github.com/opensearch-project/OpenSearch/pull/16760)
+- Optimize innerhits query performance [#16937](https://github.com/opensearch-project/OpenSearch/pull/16937)
 
 ### Deprecated
 - Performing update operation with default pipeline or final pipeline is deprecated ([#16712](https://github.com/opensearch-project/OpenSearch/pull/16712))
+- Marked `getTime` field as deprecated in favor of the new `time` field. ([#17009](https://github.com/opensearch-project/OpenSearch/pull/17009))
 
 ### Removed
 
@@ -83,6 +88,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix `doc_values` only (`index:false`) IP field searching for masks ([#16628](https://github.com/opensearch-project/OpenSearch/pull/16628))
 - Fix stale cluster state custom file deletion ([#16670](https://github.com/opensearch-project/OpenSearch/pull/16670))
 - Bound the size of cache in deprecation logger ([16702](https://github.com/opensearch-project/OpenSearch/issues/16702))
+- [Tiered Caching] Fix bug in cache stats API ([#16560](https://github.com/opensearch-project/OpenSearch/pull/16560))
 - Ensure consistency of system flag on IndexMetadata after diff is applied ([#16644](https://github.com/opensearch-project/OpenSearch/pull/16644))
 - Skip remote-repositories validations for node-joins when RepositoriesService is not in sync with cluster-state ([#16763](https://github.com/opensearch-project/OpenSearch/pull/16763))
 - Fix _list/shards API failing when closed indices are present ([#16606](https://github.com/opensearch-project/OpenSearch/pull/16606))
@@ -92,6 +98,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix Shallow copy snapshot failures on closed index ([#16868](https://github.com/opensearch-project/OpenSearch/pull/16868))
 - Fix multi-value sort for unsigned long ([#16732](https://github.com/opensearch-project/OpenSearch/pull/16732))
 - The `phone-search` analyzer no longer emits the tel/sip prefix, international calling code, extension numbers and unformatted input as a token ([#16993](https://github.com/opensearch-project/OpenSearch/pull/16993))
+- Fix GRPC AUX_TRANSPORT_PORT and SETTING_GRPC_PORT settings and remove lingering HTTP terminology ([#17037](https://github.com/opensearch-project/OpenSearch/pull/17037))
 
 ### Security
 
