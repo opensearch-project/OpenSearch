@@ -57,6 +57,15 @@ public class TrackingSearchResponseProcessorWrapperTests extends OpenSearchTestC
         assertEquals(ProcessorExecutionDetail.ProcessorStatus.SUCCESS, detail.getStatus());
     }
 
+    public void testConstructorThrowsExceptionWhenProcessorIsNull() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TrackingSearchResponseProcessorWrapper(null)
+        );
+
+        assertEquals("Wrapped processor cannot be null.", exception.getMessage());
+    }
+
     public void testProcessResponseAsync() {
         SearchRequest mockRequest = new SearchRequest();
         SearchResponse inputResponse = Mockito.mock(SearchResponse.class);

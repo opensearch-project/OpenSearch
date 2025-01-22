@@ -13,6 +13,8 @@ import org.opensearch.core.action.ActionListener;
 
 /**
  * Wrapper for SearchRequestProcessor to track execution details.
+ *
+ *  @opensearch.internal
  */
 public class TrackingSearchRequestProcessorWrapper implements SearchRequestProcessor {
 

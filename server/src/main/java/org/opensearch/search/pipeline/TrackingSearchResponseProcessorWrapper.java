@@ -8,8 +8,6 @@
 
 package org.opensearch.search.pipeline;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.action.ActionListener;
@@ -18,11 +16,12 @@ import java.util.Arrays;
 
 /**
  * Wrapper for SearchResponseProcessor to track execution details.
+ *
+ *  @opensearch.internal
  */
 public class TrackingSearchResponseProcessorWrapper implements SearchResponseProcessor {
 
     private final SearchResponseProcessor wrappedProcessor;
-    private static final Logger logger = LogManager.getLogger(TrackingSearchResponseProcessorWrapper.class);
 
     /**
      * Constructor for the wrapper.
