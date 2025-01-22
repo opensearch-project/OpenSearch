@@ -32,7 +32,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * Detailed information about a processor execution in a search pipeline.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 @PublicApi(since = "2.19.0")
 public class ProcessorExecutionDetail implements Writeable, ToXContentObject {
