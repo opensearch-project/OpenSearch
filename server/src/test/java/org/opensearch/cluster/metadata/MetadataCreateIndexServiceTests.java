@@ -32,6 +32,9 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
@@ -98,14 +101,12 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.ClusterServiceUtils;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -136,12 +137,24 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasValue;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
@@ -155,6 +168,7 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.cluster
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
+import static org.opensearch.common.util.FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_MERGE_POLICY;
@@ -175,17 +189,6 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasValue;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
@@ -1961,6 +1964,61 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             "Translog retention settings [index.translog.retention.age] "
                 + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version."
         );
+    }
+
+    public void testValidateSearchOnlySettingsWhenRemoteRepoNotConfiguredThrowsException() {
+        FeatureFlagSetter.set(READER_WRITER_SPLIT_EXPERIMENTAL);
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(SETTING_NUMBER_OF_SEARCH_REPLICAS, "1");
+        requestSettings.put(IndexMetadata.SETTING_REPLICATION_TYPE,  ReplicationType.SEGMENT);
+        request.settings(requestSettings.build());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, ()->
+            aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                Settings.EMPTY,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet(),
+                clusterSettings
+            ));
+
+        assertEquals("To set index.number_of_search_only_replicas, " +
+                "index.remote_store.enabled must be set to true",
+            exception.getMessage()
+        );
+    }
+
+    public void testValidateSearchOnlySettingsWhenRemoteRepoConfigured() {
+        FeatureFlagSetter.set(READER_WRITER_SPLIT_EXPERIMENTAL);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(getRemoteNode()).build())
+            .build();
+        Settings settings = Settings.builder().put(translogRepositoryNameAttributeKey, "my-translog-repo-1").build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(SETTING_NUMBER_OF_SEARCH_REPLICAS, "1");
+        requestSettings.put(IndexMetadata.SETTING_REPLICATION_TYPE,  ReplicationType.SEGMENT);
+        request.settings(requestSettings.build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertEquals("1", aggregatedIndexSettings.get(SETTING_NUMBER_OF_SEARCH_REPLICAS));
     }
 
     public void testIndexLifecycleNameSetting() {
