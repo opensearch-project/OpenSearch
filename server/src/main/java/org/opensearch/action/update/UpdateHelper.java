@@ -58,6 +58,7 @@ import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
 import org.opensearch.script.UpdateScript;
 import org.opensearch.search.lookup.SourceLookup;
 
@@ -128,7 +129,11 @@ public class UpdateHelper {
 
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
-            logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
+            if (logger.isDebugEnabled() || ScriptType.STORED.equals(script.getType())) {
+                logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
+            } else {
+                logger.warn("Invalid upsert operation [{}] for given script", operation);
+            }
             operation = UpdateOpType.NONE;
         }
 
