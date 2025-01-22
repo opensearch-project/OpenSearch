@@ -513,7 +513,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private AllocationConstraints constraints;
         private RebalanceConstraints rebalanceConstraints;
 
-        WeightFunction(float indexBalance, float shardBalance, float preferPrimaryBalanceBuffer, long primaryConstraintThreshold, boolean preferPrimaryShardBalance) {
+        WeightFunction(
+            float indexBalance,
+            float shardBalance,
+            float preferPrimaryBalanceBuffer,
+            long primaryConstraintThreshold,
+            boolean preferPrimaryShardBalance
+        ) {
             float sum = indexBalance + shardBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);

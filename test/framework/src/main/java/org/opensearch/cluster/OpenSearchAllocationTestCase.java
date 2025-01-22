@@ -142,6 +142,21 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
         );
     }
 
+    public static MockAllocationService createAllocationService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        GatewayAllocator gatewayAllocator,
+        SnapshotsInfoService snapshotsInfoService
+    ) {
+        return new MockAllocationService(
+            randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
+            gatewayAllocator,
+            new BalancedShardsAllocator(settings, clusterSettings),
+            EmptyClusterInfoService.INSTANCE,
+            snapshotsInfoService
+        );
+    }
+
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings, Random random) {
         List<AllocationDecider> deciders = new ArrayList<>(
             ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList())
