@@ -95,14 +95,6 @@ public class MockNode extends Node {
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
-    ) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
-    }
-
-    public MockNode(
-        final Settings settings,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
         final Path configPath,
         final boolean forbidPrivateIndexSettings,
         final Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins
@@ -112,20 +104,6 @@ public class MockNode extends Node {
             classpathPlugins,
             forbidPrivateIndexSettings,
             extendedPlugins
-        );
-    }
-
-    public MockNode(
-        final Settings settings,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
-        final Path configPath,
-        final boolean forbidPrivateIndexSettings
-    ) {
-        this(
-            InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
-            classpathPlugins,
-            forbidPrivateIndexSettings,
-            Collections.emptyMap()
         );
     }
 
@@ -160,20 +138,7 @@ public class MockNode extends Node {
     }
 
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, true);
-    }
-
-    public MockNode(
-        final Settings settings,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
-        final Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins
-    ) {
-        this(
-            InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), null, () -> "mock_ node"),
-            classpathPlugins,
-            true,
-            extendedPlugins
-        );
+        this(settings, classpathPlugins, null, true, Collections.emptyMap());
     }
 
     /**

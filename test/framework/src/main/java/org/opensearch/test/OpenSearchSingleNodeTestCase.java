@@ -272,7 +272,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         plugins.add(MockScriptService.TestPlugin.class);
 
         plugins.add(MockTelemetryPlugin.class);
-        Node node = new MockNode(settingsBuilder.build(), plugins, forbidPrivateIndexSettings());
+        Node node = new MockNode(settingsBuilder.build(), plugins, null, forbidPrivateIndexSettings(), Collections.emptyMap());
         try {
             node.start();
         } catch (NodeValidationException e) {
