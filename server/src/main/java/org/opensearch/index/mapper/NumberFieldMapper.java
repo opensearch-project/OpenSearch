@@ -46,10 +46,8 @@ import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -73,6 +71,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.query.BitmapDocValuesQuery;
+import org.opensearch.search.query.BitmapIndexQuery;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -81,7 +80,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -888,10 +886,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
 
                 if (isSearchable && hasDocValues) {
-                    return new IndexOrDocValuesQuery(bitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
+                    return new IndexOrDocValuesQuery(new BitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
                 }
                 if (isSearchable) {
-                    return bitmapIndexQuery(field, bitmap);
+                    return new BitmapIndexQuery(field, bitmap);
                 }
                 return new BitmapDocValuesQuery(field, bitmap);
             }
@@ -1506,40 +1504,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return new MatchNoDocsQuery();
             }
             return builder.apply(l, u);
-        }
-
-        static PointInSetQuery bitmapIndexQuery(String field, RoaringBitmap bitmap) {
-            final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
-            return new PointInSetQuery(field, 1, Integer.BYTES, new PointInSetQuery.Stream() {
-
-                final Iterator<Integer> iterator = bitmap.iterator();
-
-                @Override
-                public BytesRef next() {
-                    int value;
-                    if (iterator.hasNext()) {
-                        value = iterator.next();
-                    } else {
-                        return null;
-                    }
-                    IntPoint.encodeDimension(value, encoded.bytes, 0);
-                    return encoded;
-                }
-            }) {
-                @Override
-                public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-                    if (bitmap.isEmpty()) {
-                        return new MatchNoDocsQuery();
-                    }
-                    return super.rewrite(indexSearcher);
-                }
-
-                @Override
-                protected String toString(byte[] value) {
-                    assert value.length == Integer.BYTES;
-                    return Integer.toString(IntPoint.decodeDimension(value, 0));
-                }
-            };
         }
     }
 
