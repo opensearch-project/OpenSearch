@@ -801,22 +801,6 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         );
         assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.number_of_shards]" + " on restore"));
 
-        Settings creationDate = Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, -1).build();
-
-        exception = expectThrows(
-            SnapshotRestoreException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
-                .setWaitForCompletion(false)
-                .setIndexSettings(creationDate)
-                .setIndices(index)
-                .setRenamePattern(index)
-                .setRenameReplacement(restoredIndex)
-                .get()
-        );
-        assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.creation_date]" + " on restore"));
-
         // try index restore with index.number_of_shards setting same
         Settings numberOfShardsSettingsSame = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
 

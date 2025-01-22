@@ -164,10 +164,7 @@ public class RestoreService implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
 
     private static final Set<String> USER_UNMODIFIABLE_SETTINGS = unmodifiableSet(
-        newHashSet(
-            SETTING_INDEX_UUID,
-//            SETTING_CREATION_DATE,
-            SETTING_HISTORY_UUID)
+        newHashSet(SETTING_INDEX_UUID, SETTING_CREATION_DATE, SETTING_HISTORY_UUID)
     );
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
