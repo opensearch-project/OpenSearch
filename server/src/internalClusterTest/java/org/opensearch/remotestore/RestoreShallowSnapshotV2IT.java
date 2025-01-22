@@ -970,7 +970,8 @@ public class RestoreShallowSnapshotV2IT extends AbstractSnapshotIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value;
+                    .getTotalHits()
+                    .value();
 
                 assertEquals(snapshots.get(snapshot), hits);
             });
@@ -1078,7 +1079,8 @@ public class RestoreShallowSnapshotV2IT extends AbstractSnapshotIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value;
+                    .getTotalHits()
+                    .value();
 
                 assertEquals(snapshots.get(snapshot), hits);
             });

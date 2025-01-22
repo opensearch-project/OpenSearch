@@ -446,12 +446,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                     BytesRef upperTermBytes = upperTerm == null ? null : indexedValueForSearch(rewriteSearchValue(upperTerm));
                     Automaton a2 = TermRangeQuery.toAutomaton(lowerTermBytes, upperTermBytes, includeLower, includeUpper);
                     Automaton termAutomaton = Operations.intersection(a1, a2);
-                    indexQuery = new AutomatonQuery(
-                        new Term(getSearchField()),
-                        termAutomaton,
-                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                        true
-                    );
+                    indexQuery = new AutomatonQuery(new Term(getSearchField()), termAutomaton, true);
                 }
             }
             if (hasDocValues()) {
@@ -462,13 +457,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 BytesRef upperDvBytes = upperTerm == null ? null : indexedValueForSearch(dvPrefix + rewriteSearchValue(upperTerm));
                 Automaton a2 = TermRangeQuery.toAutomaton(lowerDvBytes, upperDvBytes, includeLower, includeUpper);
                 Automaton dvAutomaton = Operations.intersection(a1, a2);
-                dvQuery = new AutomatonQuery(
-                    new Term(getSearchField()),
-                    dvAutomaton,
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    true,
-                    DOC_VALUES_REWRITE
-                );
+                dvQuery = new AutomatonQuery(new Term(getSearchField()), dvAutomaton, true, DOC_VALUES_REWRITE);
             }
 
             assert indexQuery != null || dvQuery != null;

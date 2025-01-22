@@ -534,7 +534,7 @@ public class XPackedInts {
      */
     public static Mutable getMutable(int valueCount, int bitsPerValue, float acceptableOverheadRatio) {
         final FormatAndBits formatAndBits = fastestFormatAndBits(valueCount, bitsPerValue, acceptableOverheadRatio);
-        return getMutable(valueCount, formatAndBits.bitsPerValue, formatAndBits.format);
+        return getMutable(valueCount, formatAndBits.bitsPerValue(), formatAndBits.format());
     }
 
     /**
@@ -629,7 +629,13 @@ public class XPackedInts {
         assert valueCount >= 0;
 
         final FormatAndBits formatAndBits = fastestFormatAndBits(valueCount, bitsPerValue, acceptableOverheadRatio);
-        final XWriter writer = getWriterNoHeader(out, formatAndBits.format, valueCount, formatAndBits.bitsPerValue, DEFAULT_BUFFER_SIZE);
+        final XWriter writer = getWriterNoHeader(
+            out,
+            formatAndBits.format(),
+            valueCount,
+            formatAndBits.bitsPerValue(),
+            DEFAULT_BUFFER_SIZE
+        );
         writer.writeHeader();
         return writer;
     }

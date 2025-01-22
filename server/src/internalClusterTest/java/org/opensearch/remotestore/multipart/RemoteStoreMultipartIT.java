@@ -142,6 +142,6 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
             assertThat(uploadPauseTime, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(5, 10)).nanos()));
         }, 30, TimeUnit.SECONDS);
 
-        assertThat(client.prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value, equalTo(10L));
+        assertThat(client.prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value(), equalTo(10L));
     }
 }

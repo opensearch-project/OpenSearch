@@ -8,6 +8,7 @@
 
 package org.opensearch.index.codec.composite;
 
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
@@ -40,6 +41,7 @@ public class SortedSetDocValuesWriterWrapperTests extends OpenSearchTestCase {
             true,
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -89,10 +91,10 @@ public class SortedSetDocValuesWriterWrapperTests extends OpenSearchTestCase {
         assertEquals(0, docValues.nextDoc());
         assertEquals(0, docValues.nextOrd());
         assertEquals(1, docValues.nextOrd());
-        assertEquals(-1, docValues.nextOrd());
+        assertEquals(2, docValues.docValueCount());
 
         assertEquals(1, docValues.nextDoc());
         assertEquals(2, docValues.nextOrd());
-        assertEquals(-1, docValues.nextOrd());
+        assertEquals(1, docValues.docValueCount());
     }
 }
