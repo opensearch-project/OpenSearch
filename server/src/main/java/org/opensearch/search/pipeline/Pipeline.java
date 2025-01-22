@@ -204,7 +204,6 @@ class Pipeline {
         ActionListener<SearchResponse> responseListener,
         PipelineProcessingContext requestContext
     ) {
-        // If there are no response processors, directly check requestContext for execution details
         if (searchResponseProcessors.isEmpty()) {
             return responseListener;
         }

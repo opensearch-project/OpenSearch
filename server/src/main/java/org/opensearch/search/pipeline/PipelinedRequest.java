@@ -8,8 +8,6 @@
 
 package org.opensearch.search.pipeline;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
@@ -27,7 +25,6 @@ import java.util.List;
 public final class PipelinedRequest extends SearchRequest {
     private final Pipeline pipeline;
     private final PipelineProcessingContext requestContext;
-    private static final Logger logger = LogManager.getLogger(Pipeline.class);
 
     PipelinedRequest(Pipeline pipeline, SearchRequest transformedRequest, PipelineProcessingContext requestContext) {
         super(transformedRequest);
