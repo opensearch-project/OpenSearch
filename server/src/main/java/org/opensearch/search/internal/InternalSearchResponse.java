@@ -42,6 +42,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.pipeline.ProcessorExecutionDetail;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.suggest.Suggest;
 
@@ -73,7 +74,17 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         Boolean terminatedEarly,
         int numReducePhases
     ) {
-        this(hits, aggregations, suggest, profileResults, timedOut, terminatedEarly, numReducePhases, Collections.emptyList());
+        this(
+            hits,
+            aggregations,
+            suggest,
+            profileResults,
+            timedOut,
+            terminatedEarly,
+            numReducePhases,
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
     }
 
     public InternalSearchResponse(
@@ -84,9 +95,20 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         boolean timedOut,
         Boolean terminatedEarly,
         int numReducePhases,
-        List<SearchExtBuilder> searchExtBuilderList
+        List<SearchExtBuilder> searchExtBuilderList,
+        List<ProcessorExecutionDetail> processorResult
     ) {
-        super(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases, searchExtBuilderList);
+        super(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            searchExtBuilderList,
+            processorResult
+        );
     }
 
     public InternalSearchResponse(StreamInput in) throws IOException {
@@ -98,7 +120,8 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             in.readOptionalBoolean(),
             in.readOptionalWriteable(SearchProfileShardResults::new),
             in.readVInt(),
-            readSearchExtBuildersOnOrAfter(in)
+            readSearchExtBuildersOnOrAfter(in),
+            readProcessorResultOnOrAfter(in)
         );
     }
 
@@ -112,6 +135,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         out.writeOptionalWriteable(profileResults);
         out.writeVInt(numReducePhases);
         writeSearchExtBuildersOnOrAfter(out, searchExtBuilders);
+        writeProcessorResultOnOrAfter(out, processorResult);
     }
 
     private static List<SearchExtBuilder> readSearchExtBuildersOnOrAfter(StreamInput in) throws IOException {
@@ -123,4 +147,15 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             out.writeNamedWriteableList(searchExtBuilders);
         }
     }
+
+    private static List<ProcessorExecutionDetail> readProcessorResultOnOrAfter(StreamInput in) throws IOException {
+        return (in.getVersion().onOrAfter(Version.V_3_0_0)) ? in.readList(ProcessorExecutionDetail::new) : Collections.emptyList();
+    }
+
+    private static void writeProcessorResultOnOrAfter(StreamOutput out, List<ProcessorExecutionDetail> processorResult) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeList(processorResult);
+        }
+    }
+
 }
