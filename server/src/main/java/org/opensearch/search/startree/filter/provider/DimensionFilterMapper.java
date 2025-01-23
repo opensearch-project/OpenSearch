@@ -352,7 +352,9 @@ class KeywordFieldMapper implements DimensionFilterMapper {
                         if (seekStatus == TermsEnum.SeekStatus.NOT_FOUND) {
                             long ordGreaterThanValue = termsEnum.ord();
                             // Checking if we are in bounds for satisfying LT
-                            return ((ordGreaterThanValue - 1) < sortedSetIterator.getValueCount()) ? Optional.of(ordGreaterThanValue - 1) : Optional.empty();
+                            return ((ordGreaterThanValue - 1) < sortedSetIterator.getValueCount())
+                                ? Optional.of(ordGreaterThanValue - 1)
+                                : Optional.empty();
                         } else {
                             return Optional.of(termsEnum.ord());
                         }
@@ -362,7 +364,7 @@ class KeywordFieldMapper implements DimensionFilterMapper {
                 throw new RuntimeException(e);
             }
         } else {
-            throw new IllegalArgumentException("Unsupported star tree values iterator " + genericIterator.getClass().getName());
+            throw new IllegalStateException("Unsupported star tree values iterator " + genericIterator.getClass().getName());
         }
     }
 

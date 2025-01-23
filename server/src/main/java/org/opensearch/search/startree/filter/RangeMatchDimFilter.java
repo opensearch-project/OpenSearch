@@ -30,6 +30,8 @@ public class RangeMatchDimFilter implements DimensionFilter {
     private Long lowOrdinal;
     private Long highOrdinal;
 
+    private boolean skipRangeCollection = false;
+
     public RangeMatchDimFilter(String dimensionName, Object low, Object high, boolean includeLow, boolean includeHigh) {
         this.dimensionName = dimensionName;
         this.low = low;
@@ -40,6 +42,7 @@ public class RangeMatchDimFilter implements DimensionFilter {
 
     @Override
     public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
+        skipRangeCollection = false;
         DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
             searchContext.mapperService().fieldType(dimensionName)
         );
@@ -51,6 +54,7 @@ public class RangeMatchDimFilter implements DimensionFilter {
                 lowOrdinal = lowOrdinalFound.get();
             } else { // This is only valid for Non-numeric fields.
                 lowOrdinal = highOrdinal = Long.MAX_VALUE;
+                skipRangeCollection = true;
                 return; // High can't be found since nothing >= low exists.
             }
         }
@@ -65,7 +69,7 @@ public class RangeMatchDimFilter implements DimensionFilter {
     @Override
     public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
         throws IOException {
-        if (parentNode != null) {
+        if (parentNode != null && !skipRangeCollection) {
             parentNode.collectChildrenInRange(lowOrdinal, highOrdinal, collector);
         }
     }
