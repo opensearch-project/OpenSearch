@@ -111,8 +111,12 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         clientManager = new FlightClientManager(allocator, clusterService, sslContextProvider, elg, threadPool, client);
         ClusterChangedEvent event = new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
-
         clientManager.updateFlightClients();
+        assertBusy(
+            () -> { assertFalse("Flight client isn't built in time limit", clientManager.getClients().isEmpty()); },
+            2,
+            TimeUnit.SECONDS
+        );
     }
 
     private void mockFlightInfoResponse(DiscoveryNodes nodes, int sleepDuration) {
@@ -217,7 +221,11 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         clientManager.updateFlightClients();
 
         for (DiscoveryNode node : newState.nodes()) {
-            assertNotNull(clientManager.getFlightClient(node.getId()));
+            assertBusy(
+                () -> { assertNotNull("Flight client isn't built in time limit", clientManager.getFlightClient(node.getId())); },
+                2,
+                TimeUnit.SECONDS
+            );
         }
     }
 
@@ -286,9 +294,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
-
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> { clientManager.getFlightClient(nodeId); });
-        assertTrue(exception.getMessage().contains("Timeout waiting for Flight server location"));
+        assertNull(clientManager.getFlightClient(nodeId));
     }
 
     public void testGetFlightClientLocationExecutionError() throws Exception {
@@ -315,10 +321,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> { clientManager.getFlightClient(nodeId); });
-        assertTrue(exception.getMessage().contains("Error getting Flight server location"));
-        assertTrue(exception.getCause() instanceof RuntimeException);
-        assertEquals("Test execution error", exception.getCause().getMessage());
+        assertNull(clientManager.getFlightClient(nodeId));
     }
 
     public void testFailedClusterUpdateButSuccessfulDirectRequest() throws Exception {
@@ -378,9 +381,15 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         clientManager.clusterChanged(event);
 
         // Verify that the client can still be created successfully on direct request
-        OSFlightClient flightClient = clientManager.getFlightClient(nodeId);
+        clientManager.buildClientAsync(nodeId);
+        assertBusy(
+            () -> {
+                assertNotNull("Flight client should be created successfully on direct request", clientManager.getFlightClient(nodeId));
+            },
+            2,
+            TimeUnit.SECONDS
+        );
         assertFalse("first call should be invoked", firstCall.get());
-        assertNotNull("Flight client should be created successfully on direct request", flightClient);
     }
 
     private void validateNodes() {

@@ -12,6 +12,7 @@ import org.opensearch.arrow.flight.bootstrap.FlightStreamPluginImpl;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -138,6 +139,11 @@ public class FlightStreamPlugin extends BaseFlightStreamPlugin {
                 @Override
                 public List<ActionHandler<?, ?>> getActions() {
                     return List.of();
+                }
+
+                @Override
+                public void onNodeStarted(DiscoveryNode localNode) {
+
                 }
             };
         }
@@ -282,6 +288,16 @@ public class FlightStreamPlugin extends BaseFlightStreamPlugin {
     @Override
     public List<ActionHandler<?, ?>> getActions() {
         return delegate.getActions();
+    }
+
+    /**
+     * Called when node is started. DiscoveryNode argument is passed to allow referring localNode value inside plugin
+     *
+     * @param localNode local Node info
+     */
+    @Override
+    public void onNodeStarted(DiscoveryNode localNode) {
+        delegate.onNodeStarted(localNode);
     }
 
     /**

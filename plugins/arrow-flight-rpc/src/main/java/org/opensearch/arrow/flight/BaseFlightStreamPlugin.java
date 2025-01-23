@@ -11,6 +11,7 @@ package org.opensearch.arrow.flight;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
@@ -26,6 +27,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
@@ -49,7 +51,7 @@ import java.util.function.Supplier;
  * BaseFlightStreamPlugin is a plugin that implements the StreamManagerPlugin interface.
  * It provides the necessary components for handling flight streams in the OpenSearch cluster.
  */
-public abstract class BaseFlightStreamPlugin extends Plugin implements StreamManagerPlugin, NetworkPlugin, ActionPlugin {
+public abstract class BaseFlightStreamPlugin extends Plugin implements StreamManagerPlugin, NetworkPlugin, ActionPlugin, ClusterPlugin {
 
     /**
      * Constructor for BaseFlightStreamPlugin.
@@ -178,4 +180,11 @@ public abstract class BaseFlightStreamPlugin extends Plugin implements StreamMan
      */
     @Override
     public abstract List<ActionHandler<?, ?>> getActions();
+
+    /**
+     * Called when node is started. DiscoveryNode argument is passed to allow referring localNode value inside plugin
+     *
+     * @param localNode local Node info
+     */
+    public abstract void onNodeStarted(DiscoveryNode localNode);
 }

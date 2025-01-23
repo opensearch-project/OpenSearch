@@ -15,6 +15,7 @@ import org.opensearch.arrow.flight.api.TransportNodesFlightInfoAction;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
@@ -179,6 +180,16 @@ public class FlightStreamPluginImpl extends BaseFlightStreamPlugin {
     @Override
     public List<ActionHandler<?, ?>> getActions() {
         return List.of(new ActionHandler<>(NodesFlightInfoAction.INSTANCE, TransportNodesFlightInfoAction.class));
+    }
+
+    /**
+     * Called when node is started. DiscoveryNode argument is passed to allow referring localNode value inside plugin
+     *
+     * @param localNode local Node info
+     */
+    @Override
+    public void onNodeStarted(DiscoveryNode localNode) {
+        flightService.getFlightClientManager().buildClientAsync(localNode.getId());
     }
 
     /**
