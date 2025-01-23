@@ -20,6 +20,7 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeTy
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 
@@ -45,12 +46,12 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class OlderStarTreeFilter {
     private static final Logger logger = LogManager.getLogger(OlderStarTreeFilter.class);
 
-    public static FixedBitSet getStarTreeResult2(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter) throws IOException {
+    public static FixedBitSet getStarTreeResult2(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter, SearchContext searchContext) throws IOException {
 
         // Initialising all dimension filters for this segment
         for (String dimension : starTreeFilter.getDimensions()) {
             for (DimensionFilter dimensionFilter : starTreeFilter.getFiltersForDimension(dimension)) {
-                dimensionFilter.initialiseForSegment(starTreeValues);
+                dimensionFilter.initialiseForSegment(starTreeValues, searchContext);
             }
         }
 
@@ -80,11 +81,8 @@ public class OlderStarTreeFilter {
             logger.debug("remainingPredicateColumn : {}, maxMatchedDoc : {} ", remainingPredicateColumn, starTreeResult.maxMatchedDoc);
 
             StarTreeValuesIterator valuesIterator = starTreeValues.getDimensionValuesIterator(remainingPredicateColumn);
-
-            SequentialDocValuesIterator ndv = new SequentialDocValuesIterator(valuesIterator);
-
-            List<DimensionFilter> dimensionFilters = starTreeFilter.getFiltersForDimension(remainingPredicateColumn); // Get the query value
-                                                                                                                      // directly
+            // Get the query value directly
+            List<DimensionFilter> dimensionFilters = starTreeFilter.getFiltersForDimension(remainingPredicateColumn);
 
             // Clear the temporary bit set before reuse
             tempBitSet.clear(0, starTreeResult.maxMatchedDoc + 1);
@@ -95,7 +93,7 @@ public class OlderStarTreeFilter {
                     ? bitSet.nextSetBit(entryId + 1)
                     : DocIdSetIterator.NO_MORE_DOCS) {
                     if (valuesIterator.advance(entryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
-                        long value = ndv.value(entryId);
+                        long value = valuesIterator.value();
                         for (DimensionFilter dimensionFilter : dimensionFilters) {
                             if (dimensionFilter.matchDimValue(value, starTreeValues)) {
                                 tempBitSet.set(entryId);  // Set bit for the matching entryId

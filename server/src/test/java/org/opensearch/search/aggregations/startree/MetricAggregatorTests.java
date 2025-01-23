@@ -104,7 +104,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);
         MapperService mapperService;
         try {
-            mapperService = StarTreeDocValuesFormatTests.createMapperService(OlderStarTreeFilterTests.getExpandedMapping(1, false));
+            mapperService = StarTreeDocValuesFormatTests.createMapperService(StarTreeQueryTests.getExpandedMapping(1, false));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

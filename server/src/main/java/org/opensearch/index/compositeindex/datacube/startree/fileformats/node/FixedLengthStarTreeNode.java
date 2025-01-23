@@ -343,10 +343,8 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
                         return matchNextHighest ? null : midNode;
                     } else {
                         FixedLengthStarTreeNode nodeGreaterThanMid = new FixedLengthStarTreeNode(in, tempLow);
-                        if (matchNextHighest && nodeGreaterThanMid.getDimensionValue() > dimensionValue) {
-                            return nodeGreaterThanMid;
-                        } else if (!matchNextHighest && nodeGreaterThanMid.getDimensionValue() > dimensionValue) {
-                            return midNode;
+                        if (nodeGreaterThanMid.getDimensionValue() > dimensionValue) {
+                            return matchNextHighest ? nodeGreaterThanMid : midNode;
                         }
                     }
                 } else {  // Going to the left from mid to search next
@@ -357,10 +355,8 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
                         return matchNextHighest ? midNode : null;
                     } else {
                         FixedLengthStarTreeNode nodeLessThanMid = new FixedLengthStarTreeNode(in, tempHigh);
-                        if (matchNextHighest && (nodeLessThanMid.getDimensionValue() < dimensionValue)) {
-                            return midNode;
-                        } else if (!matchNextHighest && (nodeLessThanMid.getDimensionValue() < dimensionValue)) {
-                            return nodeLessThanMid;
+                        if (nodeLessThanMid.getDimensionValue() < dimensionValue) {
+                            return matchNextHighest ? midNode : nodeLessThanMid;
                         }
                     }
                 }

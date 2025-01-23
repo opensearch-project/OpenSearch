@@ -11,6 +11,7 @@ package org.opensearch.search.startree.filter;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.DimensionOrdinalMapper;
 import org.opensearch.search.startree.StarTreeNodeCollector;
 import org.opensearch.search.startree.StarTreeQueryHelper;
@@ -42,7 +43,7 @@ public class RangeMatchDimFilter implements DimensionFilter {
     }
 
     @Override
-    public void initialiseForSegment(StarTreeValues starTreeValues) throws IOException {
+    public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException {
         Dimension matchedDim = StarTreeQueryHelper.getMatchingDimensionOrError(
             dimensionName,
             starTreeValues.getStarTreeField().getDimensionsOrder()

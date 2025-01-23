@@ -12,13 +12,16 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.DimensionOrdinalMapper;
 import org.opensearch.search.startree.StarTreeNodeCollector;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.provider.StarTreeFilterMapper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeSet;
 
 import static org.opensearch.search.startree.DimensionOrdinalMapper.SingletonFactory.getFieldToDimensionOrdinalMapper;
@@ -38,24 +41,23 @@ public class ExactMatchDimFilter implements DimensionFilter {
     }
 
     @Override
-    public void initialiseForSegment(StarTreeValues starTreeValues) {
+    public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
         convertedOrdinals = new TreeSet<>();
         Dimension matchedDim = StarTreeQueryHelper.getMatchingDimensionOrError(
             dimensionName,
             starTreeValues.getStarTreeField().getDimensionsOrder()
         );
-        DimensionOrdinalMapper dimensionOrdinalMapper = getFieldToDimensionOrdinalMapper(matchedDim.getDocValuesType());
+        StarTreeFilterMapper starTreeFilterMapper = StarTreeFilterMapper.Factory.fromMappedFieldType(searchContext.mapperService().fieldType(dimensionName));
         for (Object rawValue : rawValues) {
-            long ordinal = dimensionOrdinalMapper.getMatchingOrdinal(
+            Optional<Long> ordinal = starTreeFilterMapper.getMatchingOrdinal(
                 matchedDim.getField(),
                 rawValue,
                 starTreeValues,
                 DimensionOrdinalMapper.MatchType.EXACT
             );
-            // TODO : Ordinals cannot be negative for keyword whereas numeric can have negatives as it will be their value.
-            // if (ordinal >= 0) {
-            convertedOrdinals.add(ordinal);
-            // }
+            // Numeric type returning negative ordinal ( same as their value ) is valid
+            // Whereas Keyword type returning -ve ordinal indicates it doesn't exist in Star Tree Dimension values.
+            ordinal.ifPresent(aLong -> convertedOrdinals.add(aLong));
         }
     }
 

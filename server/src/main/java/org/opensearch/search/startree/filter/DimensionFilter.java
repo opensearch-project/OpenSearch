@@ -11,6 +11,7 @@ package org.opensearch.search.startree.filter;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeNodeCollector;
 
 import java.io.IOException;
@@ -18,7 +19,7 @@ import java.io.IOException;
 @ExperimentalApi
 public interface DimensionFilter {
 
-    public void initialiseForSegment(StarTreeValues starTreeValues) throws IOException;
+    public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException;
 
     public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
         throws IOException;
@@ -27,7 +28,7 @@ public interface DimensionFilter {
 
     DimensionFilter MATCH_ALL_FILTER = new DimensionFilter() {
         @Override
-        public void initialiseForSegment(StarTreeValues starTreeValues) {}
+        public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {}
 
         @Override
         public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
@@ -43,7 +44,7 @@ public interface DimensionFilter {
 
     DimensionFilter MATCH_NONE = new DimensionFilter() {
         @Override
-        public void initialiseForSegment(StarTreeValues starTreeValues) {}
+        public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {}
 
         @Override
         public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)

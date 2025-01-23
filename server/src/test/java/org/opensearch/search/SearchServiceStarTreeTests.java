@@ -35,7 +35,7 @@ import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.SearchContextAggregations;
-import org.opensearch.search.aggregations.startree.OlderStarTreeFilterTests;
+import org.opensearch.search.aggregations.startree.StarTreeQueryTests;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
@@ -69,7 +69,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(settings)
-            .setMapping(OlderStarTreeFilterTests.getExpandedMapping(1, false));
+            .setMapping(StarTreeQueryTests.getExpandedMapping(1, false));
         createIndex("test", builder);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);

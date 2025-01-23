@@ -11,12 +11,13 @@ package org.opensearch.search.startree.filter;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeNodeCollector;
 
 @ExperimentalApi
 public class MatchNoneFilter implements DimensionFilter {
     @Override
-    public void initialiseForSegment(StarTreeValues starTreeValues) {
+    public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
         // Nothing to do as we won't match anything.
     }
 

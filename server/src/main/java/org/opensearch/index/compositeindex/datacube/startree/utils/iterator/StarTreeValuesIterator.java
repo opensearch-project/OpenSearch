@@ -45,4 +45,7 @@ public abstract class StarTreeValuesIterator {
     public long cost() {
         return docIdSetIterator.cost();
     }
+
+    public abstract long value() throws IOException;
+
 }

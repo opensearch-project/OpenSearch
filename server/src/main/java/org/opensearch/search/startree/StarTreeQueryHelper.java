@@ -132,7 +132,8 @@ public class StarTreeQueryHelper {
         if (result == null) {
             result = OlderStarTreeFilter.getStarTreeResult2(
                 starTreeValues,
-                context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter()
+                context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
+                context
             );
         }
         context.getQueryShardContext().getStarTreeQueryContext().setStarTreeValues(ctx, result);
