@@ -17,7 +17,6 @@ import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
-import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.search.internal.SearchContext;
@@ -43,10 +42,11 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  *  @opensearch.experimental
  *  @opensearch.internal
  */
-public class OlderStarTreeFilter {
-    private static final Logger logger = LogManager.getLogger(OlderStarTreeFilter.class);
+public class StarTreeTraversalUtil {
+    private static final Logger logger = LogManager.getLogger(StarTreeTraversalUtil.class);
 
-    public static FixedBitSet getStarTreeResult2(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter, SearchContext searchContext) throws IOException {
+    public static FixedBitSet getStarTreeResult(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter, SearchContext searchContext)
+        throws IOException {
 
         // Initialising all dimension filters for this segment
         for (String dimension : starTreeFilter.getDimensions()) {
@@ -55,7 +55,7 @@ public class OlderStarTreeFilter {
             }
         }
 
-        StarTreeResult starTreeResult = traverseStarTree2(starTreeValues, starTreeFilter);
+        StarTreeResult starTreeResult = traverseStarTree(starTreeValues, starTreeFilter);
 
         // Initialize FixedBitSet with size maxMatchedDoc + 1
         FixedBitSet bitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
@@ -111,7 +111,7 @@ public class OlderStarTreeFilter {
         return bitSet;  // Return the final FixedBitSet with all matches
     }
 
-    private static StarTreeResult traverseStarTree2(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter) throws IOException {
+    private static StarTreeResult traverseStarTree(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter) throws IOException {
         DocIdSetBuilder docsWithField = new DocIdSetBuilder(starTreeValues.getStarTreeDocumentCount());
         DocIdSetBuilder.BulkAdder adder;
         Set<String> globalRemainingPredicateColumns = null;

@@ -13,18 +13,15 @@ import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.startree.DimensionOrdinalMapper;
 import org.opensearch.search.startree.StarTreeNodeCollector;
 import org.opensearch.search.startree.StarTreeQueryHelper;
-import org.opensearch.search.startree.filter.provider.StarTreeFilterMapper;
+import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeSet;
-
-import static org.opensearch.search.startree.DimensionOrdinalMapper.SingletonFactory.getFieldToDimensionOrdinalMapper;
 
 @ExperimentalApi
 public class ExactMatchDimFilter implements DimensionFilter {
@@ -47,13 +44,15 @@ public class ExactMatchDimFilter implements DimensionFilter {
             dimensionName,
             starTreeValues.getStarTreeField().getDimensionsOrder()
         );
-        StarTreeFilterMapper starTreeFilterMapper = StarTreeFilterMapper.Factory.fromMappedFieldType(searchContext.mapperService().fieldType(dimensionName));
+        DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
+            searchContext.mapperService().fieldType(dimensionName)
+        );
         for (Object rawValue : rawValues) {
-            Optional<Long> ordinal = starTreeFilterMapper.getMatchingOrdinal(
+            Optional<Long> ordinal = dimensionFilterMapper.getMatchingOrdinal(
                 matchedDim.getField(),
                 rawValue,
                 starTreeValues,
-                DimensionOrdinalMapper.MatchType.EXACT
+                DimensionFilter.MatchType.EXACT
             );
             // Numeric type returning negative ordinal ( same as their value ) is valid
             // Whereas Keyword type returning -ve ordinal indicates it doesn't exist in Star Tree Dimension values.

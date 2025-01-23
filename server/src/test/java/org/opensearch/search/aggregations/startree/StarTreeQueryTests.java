@@ -23,7 +23,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.FixedBitSet;
-import org.mockito.Mockito;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -40,8 +39,8 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.startree.OlderStarTreeFilter;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.StarTreeTraversalUtil;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 import org.junit.After;
@@ -52,6 +51,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 
@@ -138,12 +139,20 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         SearchContext searchContext = Mockito.mock(SearchContext.class);
 
         Mockito.when(searchContext.mapperService()).thenReturn(mapperService);
-        Mockito.when(mapperService.fieldType(SNDV)).thenReturn(new NumberFieldMapper.NumberFieldType(SNDV, NumberFieldMapper.NumberType.INTEGER));
-        Mockito.when(mapperService.fieldType(DV)).thenReturn(new NumberFieldMapper.NumberFieldType(DV, NumberFieldMapper.NumberType.INTEGER));
-        Mockito.when(mapperService.fieldType(SDV)).thenReturn(new NumberFieldMapper.NumberFieldType(SDV, NumberFieldMapper.NumberType.INTEGER));
+        Mockito.when(mapperService.fieldType(SNDV))
+            .thenReturn(new NumberFieldMapper.NumberFieldType(SNDV, NumberFieldMapper.NumberType.INTEGER));
+        Mockito.when(mapperService.fieldType(DV))
+            .thenReturn(new NumberFieldMapper.NumberFieldType(DV, NumberFieldMapper.NumberType.INTEGER));
+        Mockito.when(mapperService.fieldType(SDV))
+            .thenReturn(new NumberFieldMapper.NumberFieldType(SDV, NumberFieldMapper.NumberType.INTEGER));
 
         // assert that all documents are included if no filters are given
-        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, new StarTreeFilter(Collections.emptyMap()), context, searchContext);
+        starTreeDocCount = getDocCountFromStarTree(
+            starTreeDocValuesReader,
+            new StarTreeFilter(Collections.emptyMap()),
+            context,
+            searchContext
+        );
         docCount = getDocCount(docs, Map.of());
         assertEquals(totalDocs, starTreeDocCount);
         assertEquals(docCount, starTreeDocCount);
@@ -304,7 +313,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(context, starTree);
 
-        FixedBitSet filteredValues = OlderStarTreeFilter.getStarTreeResult2(starTreeValues, starTreeFilter, searchContext);
+        FixedBitSet filteredValues = StarTreeTraversalUtil.getStarTreeResult(starTreeValues, starTreeFilter, searchContext);
 
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
             StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(

@@ -130,7 +130,7 @@ public class StarTreeQueryHelper {
         // TODO : Uncomment and implement caching in new STQC
         FixedBitSet result = context.getQueryShardContext().getStarTreeQueryContext().getStarTreeValue(ctx);
         if (result == null) {
-            result = OlderStarTreeFilter.getStarTreeResult2(
+            result = StarTreeTraversalUtil.getStarTreeResult(
                 starTreeValues,
                 context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
                 context

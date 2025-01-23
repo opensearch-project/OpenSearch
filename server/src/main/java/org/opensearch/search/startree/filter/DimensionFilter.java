@@ -56,4 +56,12 @@ public interface DimensionFilter {
         }
     };
 
+    @ExperimentalApi
+    enum MatchType {
+        GT,
+        LT,
+        GTE,
+        LTE,
+        EXACT
+    }
 }

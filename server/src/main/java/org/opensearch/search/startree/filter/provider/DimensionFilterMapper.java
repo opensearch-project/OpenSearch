@@ -23,7 +23,6 @@ import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.opensearch.search.startree.DimensionOrdinalMapper;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.MatchNoneFilter;
@@ -45,7 +44,7 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.hasDecimalPart;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.signum;
 
-public interface StarTreeFilterMapper {
+public interface DimensionFilterMapper {
     DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues);
 
     DimensionFilter getRangeMatchFilter(
@@ -56,11 +55,16 @@ public interface StarTreeFilterMapper {
         boolean includeHigh
     );
 
-    Optional<Long> getMatchingOrdinal(String dimensionName, Object value, StarTreeValues starTreeValues, DimensionOrdinalMapper.MatchType matchType);
+    Optional<Long> getMatchingOrdinal(
+        String dimensionName,
+        Object value,
+        StarTreeValues starTreeValues,
+        DimensionFilter.MatchType matchType
+    );
 
     class Factory {
 
-        private static final Map<NumberFieldMapper.NumberType, StarTreeFilterMapper> NUMERIC_SINGLETON_MAPPINGS = Map.of(
+        private static final Map<NumberFieldMapper.NumberType, DimensionFilterMapper> NUMERIC_SINGLETON_MAPPINGS = Map.of(
             BYTE,
             new IntegerFieldMapperNumeric(),
             SHORT,
@@ -77,7 +81,7 @@ public interface StarTreeFilterMapper {
             new DoubleFieldMapperNumeric()
         );
 
-        public static StarTreeFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType) {
+        public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType) {
             if (mappedFieldType instanceof KeywordFieldType) {
                 return new KeywordFieldMapper();
             } else if (mappedFieldType instanceof NumberFieldType) {
@@ -91,10 +95,15 @@ public interface StarTreeFilterMapper {
 
 }
 
-abstract class NumericMapper implements StarTreeFilterMapper {
+abstract class NumericMapper implements DimensionFilterMapper {
 
     @Override
-    public Optional<Long> getMatchingOrdinal(String dimensionName, Object value, StarTreeValues starTreeValues, DimensionOrdinalMapper.MatchType matchType) {
+    public Optional<Long> getMatchingOrdinal(
+        String dimensionName,
+        Object value,
+        StarTreeValues starTreeValues,
+        DimensionFilter.MatchType matchType
+    ) {
         // Casting to long ensures that all numeric fields have been converted to equivalent long at request parsing time.
         return Optional.of((long) value);
     }
@@ -283,7 +292,7 @@ class DoubleFieldMapperNumeric extends NumericDecimalFieldMapper {
     }
 }
 
-class KeywordFieldMapper implements StarTreeFilterMapper {
+class KeywordFieldMapper implements DimensionFilterMapper {
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
@@ -320,30 +329,35 @@ class KeywordFieldMapper implements StarTreeFilterMapper {
     }
 
     @Override
-    public Optional<Long> getMatchingOrdinal(String dimensionName, Object value, StarTreeValues starTreeValues, DimensionOrdinalMapper.MatchType matchType) {
-            StarTreeValuesIterator genericIterator = starTreeValues.getDimensionValuesIterator(dimensionName);
-            if (genericIterator instanceof SortedSetStarTreeValuesIterator) {
-                SortedSetStarTreeValuesIterator sortedSetIterator = (SortedSetStarTreeValuesIterator) genericIterator;
-                try {
-                    if (matchType == DimensionOrdinalMapper.MatchType.EXACT) {
-                        return Optional.of(sortedSetIterator.lookupTerm((BytesRef) value));
-                    } else {
-                        TermsEnum termsEnum = sortedSetIterator.termsEnum();
-                        TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil((BytesRef) value);
-                        if (matchType == DimensionOrdinalMapper.MatchType.GT || matchType == DimensionOrdinalMapper.MatchType.GTE) {
-                            // We reached the end and couldn't match anything, else we found a term which matches.
-                            return (seekStatus == TermsEnum.SeekStatus.END) ? Optional.empty() : Optional.of(termsEnum.ord());
-                        } else { // LT || LTE
-                            // If we found a term just greater, then return ordinal of the term just before it.
-                            return Optional.of((seekStatus == TermsEnum.SeekStatus.NOT_FOUND) ? termsEnum.ord() - 1 : termsEnum.ord());
-                        }
+    public Optional<Long> getMatchingOrdinal(
+        String dimensionName,
+        Object value,
+        StarTreeValues starTreeValues,
+        DimensionFilter.MatchType matchType
+    ) {
+        StarTreeValuesIterator genericIterator = starTreeValues.getDimensionValuesIterator(dimensionName);
+        if (genericIterator instanceof SortedSetStarTreeValuesIterator) {
+            SortedSetStarTreeValuesIterator sortedSetIterator = (SortedSetStarTreeValuesIterator) genericIterator;
+            try {
+                if (matchType == DimensionFilter.MatchType.EXACT) {
+                    return Optional.of(sortedSetIterator.lookupTerm((BytesRef) value));
+                } else {
+                    TermsEnum termsEnum = sortedSetIterator.termsEnum();
+                    TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil((BytesRef) value);
+                    if (matchType == DimensionFilter.MatchType.GT || matchType == DimensionFilter.MatchType.GTE) {
+                        // We reached the end and couldn't match anything, else we found a term which matches.
+                        return (seekStatus == TermsEnum.SeekStatus.END) ? Optional.empty() : Optional.of(termsEnum.ord());
+                    } else { // LT || LTE
+                        // If we found a term just greater, then return ordinal of the term just before it.
+                        return Optional.of((seekStatus == TermsEnum.SeekStatus.NOT_FOUND) ? termsEnum.ord() - 1 : termsEnum.ord());
                     }
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
                 }
-            } else {
-                throw new IllegalArgumentException("Unsupported star tree values iterator " + genericIterator.getClass().getName());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
+        } else {
+            throw new IllegalArgumentException("Unsupported star tree values iterator " + genericIterator.getClass().getName());
+        }
     }
 
     // TODO : Think around making TermBasedFT#indexedValueForSearch() accessor public for reuse here.
