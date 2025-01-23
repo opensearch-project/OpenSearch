@@ -35,6 +35,7 @@ package org.opensearch.test;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
@@ -50,6 +51,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.node.MockNode;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
@@ -59,6 +61,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -98,6 +102,7 @@ public final class ExternalTestCluster extends TestCluster {
         Function<Client, Client> clientWrapper,
         String clusterName,
         Collection<Class<? extends Plugin>> pluginClasses,
+        Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins,
         TransportAddress... transportAddresses
     ) {
         super(0);
@@ -129,7 +134,28 @@ public final class ExternalTestCluster extends TestCluster {
         pluginClasses = new ArrayList<>(pluginClasses);
         pluginClasses.add(MockHttpTransport.TestPlugin.class);
         Settings clientSettings = clientSettingsBuilder.build();
-        MockNode node = new MockNode(clientSettings, pluginClasses);
+        MockNode node = new MockNode(
+            clientSettings,
+            pluginClasses.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        (extendedPlugins != null && extendedPlugins.containsKey(p))
+                            ? List.of(extendedPlugins.get(p).getName())
+                            : Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList()),
+            null,
+            true
+        );
         Client client = clientWrapper.apply(node.client());
         try {
             node.start();

@@ -40,6 +40,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -113,6 +114,7 @@ import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.node.NodeService;
 import org.opensearch.node.NodeValidationException;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;
@@ -518,6 +520,10 @@ public final class InternalTestCluster extends TestCluster {
         return plugins;
     }
 
+    public Map<Class<? extends Plugin>, Class<? extends Plugin>> getExtendedPlugins() {
+        return nodeConfigurationSource.extendedPlugins();
+    }
+
     private static Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.builder();
@@ -803,6 +809,7 @@ public final class InternalTestCluster extends TestCluster {
         assert Thread.holdsLock(this);
         ensureOpen();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
+        Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins = getExtendedPlugins();
         String name = settings.get("node.name");
 
         final NodeAndClient nodeAndClient = nodes.get(name);
@@ -817,7 +824,28 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        MockNode node = new MockNode(settings, plugins, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
+        MockNode node = new MockNode(
+            settings,
+            plugins.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        (extendedPlugins != null && extendedPlugins.containsKey(p))
+                            ? List.of(extendedPlugins.get(p).getName())
+                            : Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList()),
+            nodeConfigurationSource.nodeConfigPath(nodeId),
+            forbidPrivateIndexSettings
+        );
         node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -1109,8 +1137,13 @@ public final class InternalTestCluster extends TestCluster {
                 .put(newSettings)
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                 .build();
-            Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
-            node = new MockNode(finalSettings, plugins);
+            Collection<PluginInfo> plugins = node.getClasspathPlugins();
+            node = new MockNode(
+                finalSettings,
+                plugins,
+                nodeConfigurationSource.nodeConfigPath((int) newIdSeed),
+                forbidPrivateIndexSettings
+            );
             node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
                 @Override
                 public void afterStart() {

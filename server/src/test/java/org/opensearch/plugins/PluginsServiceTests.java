@@ -100,13 +100,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
-        return new PluginsService(
-            settings,
-            null,
-            null,
-            TestEnvironment.newEnvironment(settings).pluginsDir(),
-            Arrays.asList(classpathPlugins)
-        );
+        return new PluginsService(settings, null, TestEnvironment.newEnvironment(settings).pluginsDir(), Arrays.asList(classpathPlugins));
     }
 
     public void testAdditionalSettings() {
