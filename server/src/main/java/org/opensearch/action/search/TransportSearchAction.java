@@ -476,7 +476,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } else {
                     Rewriteable.rewriteAndFetch(
                         sr.source(),
-                        searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis),
+                        searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis, searchRequest),
                         rewriteListener
                     );
                 }
