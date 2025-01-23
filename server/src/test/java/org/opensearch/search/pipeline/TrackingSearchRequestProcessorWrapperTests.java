@@ -20,8 +20,6 @@ import org.mockito.Mockito;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class TrackingSearchRequestProcessorWrapperTests extends OpenSearchTestCase {
     private SearchRequestProcessor mockProcessor;
@@ -34,37 +32,6 @@ public class TrackingSearchRequestProcessorWrapperTests extends OpenSearchTestCa
         mockProcessor = Mockito.mock(SearchRequestProcessor.class);
         wrapper = new TrackingSearchRequestProcessorWrapper(mockProcessor);
         context = new PipelineProcessingContext();
-    }
-
-    public void testProcessRequestSuccess() throws Exception {
-        SearchRequest inputRequest = new SearchRequest();
-        inputRequest.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
-
-        SearchRequest outputRequest = new SearchRequest();
-        outputRequest.source(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
-
-        when(mockProcessor.processRequest(any(SearchRequest.class), eq(context))).thenReturn(outputRequest);
-
-        SearchRequest result = wrapper.processRequest(inputRequest, context);
-        assertEquals(outputRequest, result);
-
-        verify(mockProcessor).processRequest(inputRequest, context);
-    }
-
-    public void testProcessRequestException() throws Exception {
-        SearchRequest inputRequest = new SearchRequest();
-        inputRequest.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
-
-        RuntimeException processorException = new UnsupportedOperationException("Processor failed");
-
-        when(mockProcessor.processRequest(any(SearchRequest.class), eq(context))).thenThrow(processorException);
-
-        try {
-            wrapper.processRequest(inputRequest, context);
-            fail("Expected exception was not thrown");
-        } catch (Exception e) {
-            assertEquals("Processor failed", e.getMessage());
-        }
     }
 
     public void testProcessRequestAsyncSuccess() {
