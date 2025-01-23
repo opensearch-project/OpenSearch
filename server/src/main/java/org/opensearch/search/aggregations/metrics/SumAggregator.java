@@ -147,8 +147,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
         throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
-        if (parent != null && subAggregators.length == 0) {
-        }
 
         return StarTreeQueryHelper.getStarTreeLeafCollector(
             context,

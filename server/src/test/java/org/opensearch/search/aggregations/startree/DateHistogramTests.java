@@ -13,8 +13,9 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene912.Lucene912Codec;
+import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -32,7 +33,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.composite912.Composite912Codec;
+import org.opensearch.index.codec.composite.composite101.Composite101Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
@@ -43,12 +44,10 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.search.aggregations.AggregatorTestCase;
-import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregatorTestCase;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogram;
-import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.junit.After;
 import org.junit.Before;
@@ -58,18 +57,17 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
-public class DateHistogramTests extends AggregatorTestCase {
-    private static final String FIELD_NAME = "field";
+public class DateHistogramTests extends DateHistogramAggregatorTestCase {
+    private static final String TIMESTAMP_FIELD = "@timestamp";
+    private static final MappedFieldType TIMESTAMP_FIELD_TYPE = new DateFieldMapper.DateFieldType(TIMESTAMP_FIELD);
+
+    private static final String FIELD_NAME = "status";
     private static final NumberFieldMapper.NumberType DEFAULT_FIELD_TYPE = NumberFieldMapper.NumberType.LONG;
     private static final MappedFieldType DEFAULT_MAPPED_FIELD = new NumberFieldMapper.NumberFieldType(FIELD_NAME, DEFAULT_FIELD_TYPE);
 
@@ -91,7 +89,7 @@ public class DateHistogramTests extends AggregatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new Composite912Codec(Lucene912Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
     public void testStarTreeDateHistogram() throws IOException {
@@ -121,14 +119,14 @@ public class DateHistogramTests extends AggregatorTestCase {
                 doc.add(new SortedNumericDocValuesField(SIZE, val));
             }
             date = random.nextInt(180) * 24 * 60 * 60 * 1000L; // Random date within 180 days
-            doc.add(new SortedNumericDocValuesField("@timestamp", date));
+            doc.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, date));
+            doc.add(new LongPoint(TIMESTAMP_FIELD, date));
             iw.addDocument(doc);
             docs.add(doc);
         }
 
-        if (randomBoolean()) {
-            iw.forceMerge(1);
-        }
+        iw.forceMerge(1);
+
         iw.close();
 
         DirectoryReader ir = DirectoryReader.open(directory);
@@ -147,11 +145,17 @@ public class DateHistogramTests extends AggregatorTestCase {
         List<Dimension> supportedDimensions = new LinkedList<>();
         supportedDimensions.add(new NumericDimension(STATUS));
         supportedDimensions.add(new NumericDimension(SIZE));
-        supportedDimensions.add(new DateDimension("@timestamp",
-                List.of(new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR), new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR)),
-                DateFieldMapper.Resolution.MILLISECONDS));
+        supportedDimensions.add(
+            new DateDimension(
+                "@timestamp",
+                List.of(
+                    new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR),
+                    new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR)
+                ),
+                DateFieldMapper.Resolution.MILLISECONDS
+            )
+        );
 
-        // Date histogram aggregation
         DateHistogramAggregationBuilder dateHistogramAggregationBuilder = dateHistogram("by_hour").field("@timestamp")
             .calendarInterval(DateHistogramInterval.MONTH)
             .subAggregation(sumAggregationBuilder);
@@ -160,56 +164,44 @@ public class DateHistogramTests extends AggregatorTestCase {
         QueryBuilder queryBuilder = null;
 
         InternalDateHistogram starTreeAggregation = searchAndReduceStarTree(
-                createIndexSettings(),
-                indexSearcher,
-                query,
-                queryBuilder,
-                dateHistogramAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                DEFAULT_MAX_BUCKETS,
-                false,
-                DEFAULT_MAPPED_FIELD
+            createIndexSettings(),
+            indexSearcher,
+            query,
+            queryBuilder,
+            dateHistogramAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            null,
+            DEFAULT_MAX_BUCKETS,
+            false,
+            null,
+            true,
+            TIMESTAMP_FIELD_TYPE,
+            DEFAULT_MAPPED_FIELD
         );
 
-        assertNotNull(starTreeAggregation);
+        InternalDateHistogram defaultAggregation = searchAndReduceStarTree(
+            createIndexSettings(),
+            indexSearcher,
+            query,
+            queryBuilder,
+            dateHistogramAggregationBuilder,
+            null,
+            null,
+            null,
+            DEFAULT_MAX_BUCKETS,
+            false,
+            null,
+            false,
+            TIMESTAMP_FIELD_TYPE,
+            DEFAULT_MAPPED_FIELD
+        );
 
-//        testCase(
-//            indexSearcher,
-//            query,
-//            queryBuilder,
-//            dateHistogramAggregationBuilder,
-//            starTree,
-//            supportedDimensions,
-//
-//        );
+        assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
+        assertEquals(defaultAggregation.getBuckets(), starTreeAggregation.getBuckets());
 
         ir.close();
         directory.close();
-    }
-
-    <B extends InternalMultiBucketAggregation.InternalBucket, R extends Number>
-    BiConsumer<List<B>, List<B>> verifyAggregation(
-            Function<List<B>, List<B>> bucketsExtractor,
-            BiFunction<B, B, R> valueExtractor) {
-
-        return (expectedBuckets, actualBuckets) -> {
-            List<B> expectedValues = bucketsExtractor.apply(expectedBuckets);
-            List<B> actualValues = bucketsExtractor.apply(actualBuckets);
-
-            assertEquals(expectedValues.size(), actualValues.size());
-
-            for (int i = 0; i < expectedValues.size(); i++) {
-                B expectedBucket = expectedValues.get(i);
-                B actualBucket = actualValues.get(i);
-
-                assertEquals(
-                        valueExtractor.apply(expectedBucket, actualBucket).doubleValue(),
-                        valueExtractor.apply(actualBucket, expectedBucket).doubleValue(), // Switched order here
-                        0.0f
-                );
-            }
-        };
     }
 
     public static XContentBuilder getExpandedMapping(int maxLeafDocs, boolean skipStarNodeCreationForStatusDimension) throws IOException {
@@ -253,7 +245,7 @@ public class DateHistogramTests extends AggregatorTestCase {
             b.field("name", "status");
             b.startArray("stats");
             b.value("sum");
-            b.value("value_count"); // Use lowercase "value_count" for consistency
+            b.value("value_count");
             b.value("min");
             b.value("max");
             b.endArray();

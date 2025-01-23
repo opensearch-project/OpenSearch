@@ -192,7 +192,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
             if (preComputeWithStarTree(ctx, supportedStarTree) == true) {
-                return LeafBucketCollector.NO_OP_COLLECTOR;
+                throw new CollectionTerminatedException();
             }
         }
 
