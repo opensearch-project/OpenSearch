@@ -133,14 +133,16 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
         }
 
         // Convert Map<String, Object> to Map<String, String> with proper JSON escaping
-        Map<String, String> variablesMap = contextVariables.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> {
-            try {
-                return JsonXContent.contentBuilder().value(entry.getValue()).toString();
-            } catch (IOException e) {
-                throw new RuntimeException("Error converting contextVariables to JSON string", e);
-            }
-        }));
-
+        Map<String, String> variablesMap = null;
+        if (contextVariables != null) {
+            variablesMap = contextVariables.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> {
+                try {
+                    return JsonXContent.contentBuilder().value(entry.getValue()).toString();
+                } catch (IOException e) {
+                    throw new RuntimeException("Error converting contextVariables to JSON string", e);
+                }
+            }));
+        }
         String newQueryContent = replaceVariables(queryString, variablesMap);
 
         try {
@@ -159,6 +161,16 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     private String replaceVariables(String template, Map<String, String> variables) {
+        if (template == null || template.equals("null")) {
+            throw new IllegalArgumentException("Template string cannot be null. A valid template must be provided.");
+        }
+        if (template.isEmpty() || template.equals("{}")) {
+            throw new IllegalArgumentException("Template string cannot be empty. A valid template must be provided.");
+        }
+        if (variables == null || variables.isEmpty()) {
+            return template;
+        }
+
         StringBuilder result = new StringBuilder();
         int start = 0;
         while (true) {

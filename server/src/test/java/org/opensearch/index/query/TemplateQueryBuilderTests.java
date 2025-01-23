@@ -728,6 +728,85 @@ public class TemplateQueryBuilderTests extends OpenSearchTestCase {
     }
 
     /**
+     * Tests the replaceVariables method when the template is null.
+     * Verifies that an IllegalArgumentException is thrown with the appropriate error message.
+     */
+
+    public void testReplaceVariablesWithNullTemplate() {
+        TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder((Map<String, Object>) null);
+
+        QueryCoordinatorContext queryRewriteContext = mockQueryRewriteContext();
+        Map<String, Object> contextVariables = new HashMap<>();
+        contextVariables.put("response", "foo");
+        when(queryRewriteContext.getContextVariables()).thenReturn(contextVariables);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> templateQueryBuilder.doRewrite(queryRewriteContext)
+        );
+        assertEquals("Template string cannot be null. A valid template must be provided.", exception.getMessage());
+    }
+
+    /**
+     * Tests the replaceVariables method when the template is empty.
+     * Verifies that an IllegalArgumentException is thrown with the appropriate error message.
+     */
+
+    public void testReplaceVariablesWithEmptyTemplate() {
+        Map<String, Object> template = new HashMap<>();
+        TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(template);
+
+        QueryCoordinatorContext queryRewriteContext = mockQueryRewriteContext();
+        Map<String, Object> contextVariables = new HashMap<>();
+        contextVariables.put("response", "foo");
+        when(queryRewriteContext.getContextVariables()).thenReturn(contextVariables);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> templateQueryBuilder.doRewrite(queryRewriteContext)
+        );
+        assertEquals("Template string cannot be empty. A valid template must be provided.", exception.getMessage());
+
+    }
+
+    /**
+     * Tests the replaceVariables method when the variables map is null.
+     * Verifies that the method returns the original template unchanged,
+     * since a null variables map is treated as no replacement.
+     */
+    public void testReplaceVariablesWithNullVariables() throws IOException {
+
+        Map<String, Object> template = new HashMap<>();
+        Map<String, Object> term = new HashMap<>();
+        Map<String, Object> message = new HashMap<>();
+
+        message.put("value", "foo");
+        term.put("message", message);
+        template.put("term", term);
+        TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(template);
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("message", "foo");
+
+        QueryCoordinatorContext queryRewriteContext = mockQueryRewriteContext();
+
+        when(queryRewriteContext.getContextVariables()).thenReturn(null);
+
+        TermQueryBuilder newQuery = (TermQueryBuilder) templateQueryBuilder.doRewrite(queryRewriteContext);
+
+        assertEquals(newQuery, termQueryBuilder);
+        assertEquals(
+            "{\n"
+                + "  \"term\" : {\n"
+                + "    \"message\" : {\n"
+                + "      \"value\" : \"foo\",\n"
+                + "      \"boost\" : 1.0\n"
+                + "    }\n"
+                + "  }\n"
+                + "}",
+            newQuery.toString()
+        );
+    }
+
+    /**
      * Helper method to create a mock QueryCoordinatorContext for testing.
      */
     private QueryCoordinatorContext mockQueryRewriteContext() {
