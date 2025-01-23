@@ -43,22 +43,22 @@ public class RangeMatchDimFilter implements DimensionFilter {
         DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
             searchContext.mapperService().fieldType(dimensionName)
         );
-        lowOrdinal = 0L; // Unspecified from so start from beginning
-        Optional<Long> lowOrdinalFound = Optional.of(0L), highOrdinalFound = Optional.of(Long.MAX_VALUE);
+        lowOrdinal = 0L;
         if (low != null) {
             MatchType lowMatchType = includeLow ? MatchType.GTE : MatchType.GT;
-            lowOrdinalFound = dimensionFilterMapper.getMatchingOrdinal(dimensionName, low, starTreeValues, lowMatchType);
-            lowOrdinalFound.ifPresent(ord -> lowOrdinal = ord); // If we found the ord or something greater than it, continue
+            Optional<Long> lowOrdinalFound = dimensionFilterMapper.getMatchingOrdinal(dimensionName, low, starTreeValues, lowMatchType);
+            if (lowOrdinalFound.isPresent()) {
+                lowOrdinal = lowOrdinalFound.get();
+            } else { // This is only valid for Non-numeric fields.
+                lowOrdinal = highOrdinal = Long.MAX_VALUE;
+                return; // High can't be found since nothing >= low exists.
+            }
         }
         highOrdinal = Long.MAX_VALUE;
         if (high != null) {
             MatchType highMatchType = includeHigh ? MatchType.LTE : MatchType.LT;
-            highOrdinalFound = dimensionFilterMapper.getMatchingOrdinal(dimensionName, high, starTreeValues, highMatchType);
+            Optional<Long> highOrdinalFound = dimensionFilterMapper.getMatchingOrdinal(dimensionName, high, starTreeValues, highMatchType);
             highOrdinalFound.ifPresent(ord -> highOrdinal = ord);
-        }
-        // Both low and high were not found, so not point in searching.
-        if ((lowOrdinalFound.isEmpty() && highOrdinalFound.isEmpty()) || (lowOrdinal > highOrdinal)) {
-            lowOrdinal = highOrdinal = Long.MAX_VALUE;
         }
     }
 

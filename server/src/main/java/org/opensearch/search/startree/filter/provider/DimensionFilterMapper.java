@@ -349,7 +349,13 @@ class KeywordFieldMapper implements DimensionFilterMapper {
                         return (seekStatus == TermsEnum.SeekStatus.END) ? Optional.empty() : Optional.of(termsEnum.ord());
                     } else { // LT || LTE
                         // If we found a term just greater, then return ordinal of the term just before it.
-                        return Optional.of((seekStatus == TermsEnum.SeekStatus.NOT_FOUND) ? termsEnum.ord() - 1 : termsEnum.ord());
+                        if (seekStatus == TermsEnum.SeekStatus.NOT_FOUND) {
+                            long ordGreaterThanValue = termsEnum.ord();
+                            // Checking if we are in bounds for satisfying LT
+                            return ((ordGreaterThanValue - 1) < sortedSetIterator.getValueCount()) ? Optional.of(ordGreaterThanValue - 1) : Optional.empty();
+                        } else {
+                            return Optional.of(termsEnum.ord());
+                        }
                     }
                 }
             } catch (IOException e) {

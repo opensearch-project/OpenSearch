@@ -292,15 +292,17 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
 
     @Override
     public void collectChildrenInRange(Long low, Long high, StarTreeNodeCollector collector) throws IOException {
-        FixedLengthStarTreeNode lowStarTreeNode = binarySearchChild(low, true, null);
-        FixedLengthStarTreeNode highStarTreeNode = binarySearchChild(high, false, lowStarTreeNode);
-        if (lowStarTreeNode != null) {
-            if (highStarTreeNode != null) {
-                for (int lowNodeId = lowStarTreeNode.nodeId(); lowNodeId <= highStarTreeNode.nodeId(); ++lowNodeId) {
-                    collector.collectStarNode(new FixedLengthStarTreeNode(in, lowNodeId));
+        if (low <= high) {
+            FixedLengthStarTreeNode lowStarTreeNode = binarySearchChild(low, true, null);
+            if (lowStarTreeNode != null) {
+                FixedLengthStarTreeNode highStarTreeNode = binarySearchChild(high, false, lowStarTreeNode);
+                if (highStarTreeNode != null) {
+                    for (int lowNodeId = lowStarTreeNode.nodeId(); lowNodeId <= highStarTreeNode.nodeId(); ++lowNodeId) {
+                        collector.collectStarNode(new FixedLengthStarTreeNode(in, lowNodeId));
+                    }
+                } else { // Low StarTreeNode is the last default node for that dimension.
+                    collector.collectStarNode(lowStarTreeNode);
                 }
-            } else { // Low StarTreeNode is the last default node for that dimension.
-                collector.collectStarNode(lowStarTreeNode);
             }
         }
     }
@@ -316,15 +318,19 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
             tempLow++;
         }
 
-        if (lastMatchedNode instanceof FixedLengthStarTreeNode) {
-            tempLow = ((FixedLengthStarTreeNode) lastMatchedNode).nodeId();
-        }
-
         int high = getInt(LAST_CHILD_ID_OFFSET);
         int tempHigh = high;
         // if the current node is null node, decrement the tempHigh to reduce the search space
         if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, tempHigh), StarTreeNodeType.NULL) != null) {
             tempHigh--;
+        }
+
+        if (lastMatchedNode instanceof FixedLengthStarTreeNode) {
+            int lastMatchedNodeId = ((FixedLengthStarTreeNode) lastMatchedNode).nodeId();
+            // Start the binary search from node after the last matched as low.
+            if ((lastMatchedNodeId + 1) <= high) {
+                low = lastMatchedNodeId + 1;
+            }
         }
 
         while (tempLow <= tempHigh) {
