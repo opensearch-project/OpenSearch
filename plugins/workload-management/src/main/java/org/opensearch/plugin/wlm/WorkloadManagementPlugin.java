@@ -18,21 +18,26 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
-import org.opensearch.plugin.wlm.action.CreateQueryGroupAction;
-import org.opensearch.plugin.wlm.action.DeleteQueryGroupAction;
-import org.opensearch.plugin.wlm.action.GetQueryGroupAction;
-import org.opensearch.plugin.wlm.action.TransportCreateQueryGroupAction;
-import org.opensearch.plugin.wlm.action.TransportDeleteQueryGroupAction;
-import org.opensearch.plugin.wlm.action.TransportGetQueryGroupAction;
-import org.opensearch.plugin.wlm.action.TransportUpdateQueryGroupAction;
-import org.opensearch.plugin.wlm.action.UpdateQueryGroupAction;
-import org.opensearch.plugin.wlm.rest.RestCreateQueryGroupAction;
-import org.opensearch.plugin.wlm.rest.RestDeleteQueryGroupAction;
-import org.opensearch.plugin.wlm.rest.RestGetQueryGroupAction;
-import org.opensearch.plugin.wlm.rest.RestUpdateQueryGroupAction;
-import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
+import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.plugin.wlm.querygroup.action.CreateQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.action.GetQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.action.TransportCreateQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.action.TransportDeleteQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.action.TransportGetQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.action.TransportUpdateQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.action.UpdateQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.rest.RestCreateQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.rest.RestDeleteQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.rest.RestGetQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.rest.RestUpdateQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService;
+import org.opensearch.plugin.wlm.rule.action.CreateRuleAction;
+import org.opensearch.plugin.wlm.rule.action.TransportCreateRuleAction;
+import org.opensearch.plugin.wlm.rule.rest.RestCreateRuleAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 
@@ -40,10 +45,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.opensearch.plugin.wlm.rule.service.RulePersistenceService.RULE_INDEX;
+
 /**
  * Plugin class for WorkloadManagement
  */
-public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
+public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
 
     /**
      * Default constructor
@@ -56,8 +63,17 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
             new ActionPlugin.ActionHandler<>(CreateQueryGroupAction.INSTANCE, TransportCreateQueryGroupAction.class),
             new ActionPlugin.ActionHandler<>(GetQueryGroupAction.INSTANCE, TransportGetQueryGroupAction.class),
             new ActionPlugin.ActionHandler<>(DeleteQueryGroupAction.INSTANCE, TransportDeleteQueryGroupAction.class),
-            new ActionPlugin.ActionHandler<>(UpdateQueryGroupAction.INSTANCE, TransportUpdateQueryGroupAction.class)
+            new ActionPlugin.ActionHandler<>(UpdateQueryGroupAction.INSTANCE, TransportUpdateQueryGroupAction.class),
+            new ActionPlugin.ActionHandler<>(CreateRuleAction.INSTANCE, TransportCreateRuleAction.class)
         );
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        List<SystemIndexDescriptor> descriptors = List.of(
+            new SystemIndexDescriptor(RULE_INDEX, "System index used for storing rules")
+        );
+        return descriptors;
     }
 
     @Override
@@ -74,7 +90,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
             new RestCreateQueryGroupAction(),
             new RestGetQueryGroupAction(),
             new RestDeleteQueryGroupAction(),
-            new RestUpdateQueryGroupAction()
+            new RestUpdateQueryGroupAction(),
+            new RestCreateRuleAction()
         );
     }
 
