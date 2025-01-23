@@ -390,8 +390,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         },
         Property.IndexScope,
         Property.PrivateIndex,
-        Property.Dynamic,
-        Property.UnmodifiableOnRestore
+        Property.Dynamic
     );
 
     /**
@@ -425,8 +424,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         },
         Property.IndexScope,
         Property.PrivateIndex,
-        Property.Dynamic,
-        Property.UnmodifiableOnRestore
+        Property.Dynamic
     );
 
     private static void validateRemoteStoreSettingEnabled(final Map<Setting<?>, Object> settings, Setting<?> setting) {
@@ -477,8 +475,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         },
         Property.IndexScope,
         Property.PrivateIndex,
-        Property.Dynamic,
-        Property.UnmodifiableOnRestore
+        Property.Dynamic
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";

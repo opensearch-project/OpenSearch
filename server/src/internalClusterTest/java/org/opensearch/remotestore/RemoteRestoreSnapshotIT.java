@@ -73,7 +73,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
@@ -752,14 +751,14 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         indexDocuments(client, index, numDocsInIndex, numDocsInIndex + randomIntBetween(2, 5));
         ensureGreen(index);
 
-        // try index restore with remote store disabled
+        // try index restore with USER_UNREMOVABLE_SETTINGS setting disabled
         SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
             () -> client().admin()
                 .cluster()
                 .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
                 .setWaitForCompletion(false)
-                .setIgnoreIndexSettings(SETTING_REMOTE_STORE_ENABLED)
+                .setIgnoreIndexSettings(IndexMetadata.SETTING_REMOTE_STORE_ENABLED)
                 .setIndices(index)
                 .setRenamePattern(index)
                 .setRenameReplacement(restoredIndex)
@@ -767,24 +766,99 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         );
         assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.enabled] on restore"));
 
-        // try index restore with index.uuid setting modified
-        Settings uuidSetting = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE).build();
-
+        // try index restore with UnmodifiableOnRestore setting disabled
         exception = expectThrows(
             SnapshotRestoreException.class,
             () -> client().admin()
                 .cluster()
                 .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
                 .setWaitForCompletion(false)
-                .setIndexSettings(uuidSetting)
+                .setIgnoreIndexSettings(IndexMetadata.SETTING_NUMBER_OF_SHARDS)
                 .setIndices(index)
                 .setRenamePattern(index)
                 .setRenameReplacement(restoredIndex)
                 .get()
         );
-        assertTrue(exception.getMessage().contains("cannot modify setting [index.uuid]" + " on restore"));
+        assertTrue(exception.getMessage().contains("cannot remove UnmodifiableOnRestore setting [index.number_of_shards] on restore"));
 
-        // try index restore with index.number_of_shards setting modified
+        // try index restore with mix of removable and UnmodifiableOnRestore settings disabled
+        // index.version.created is UnmodifiableOnRestore, index.number_of_search_only_replicas is removable
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIgnoreIndexSettings(IndexMetadata.SETTING_VERSION_CREATED, IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot remove UnmodifiableOnRestore setting [index.version.created] on restore"));
+
+        // try index restore with mix of removable and USER_UNREMOVABLE_SETTINGS settings disabled
+        // index.number_of_replicas is USER_UNREMOVABLE_SETTINGS, index.number_of_search_only_replicas is removable
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIgnoreIndexSettings(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot remove setting [index.number_of_replicas] on restore"));
+
+        // try index restore with multiple UnmodifiableOnRestore settings disabled
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIgnoreIndexSettings(IndexMetadata.SETTING_NUMBER_OF_SHARDS, IndexMetadata.SETTING_VERSION_CREATED)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot remove UnmodifiableOnRestore setting [index.number_of_shards]" + " on restore"));
+
+        // try index restore with multiple USER_UNREMOVABLE_SETTINGS settings disabled
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIgnoreIndexSettings(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot remove setting [index.number_of_replicas]" + " on restore"));
+
+        // try index restore with mix of UnmodifiableOnRestore and USER_UNREMOVABLE_SETTINGS settings disabled
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIgnoreIndexSettings(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, IndexMetadata.SETTING_NUMBER_OF_SHARDS)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot remove setting [index.number_of_replicas]" + " on restore"));
+
+        // try index restore with UnmodifiableOnRestore setting modified
         Settings numberOfShardsSettingsDiff = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build();
 
         exception = expectThrows(
@@ -801,7 +875,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         );
         assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.number_of_shards]" + " on restore"));
 
-        // try index restore with index.number_of_shards setting same
+        // try index restore with UnmodifiableOnRestore setting same
         Settings numberOfShardsSettingsSame = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
 
         exception = expectThrows(
@@ -818,11 +892,70 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         );
         assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.number_of_shards]" + " on restore"));
 
-        // try index restore with mix of modifiable and unmodifiable settings on restore
-        // index.version.created is unmodifiable, index.number_of_replicas is modifiable
-        Settings mixedSettings = Settings.builder()
+        // try index restore with USER_UNMODIFIABLE_SETTINGS setting modified
+        Settings remoteStoreEnabledSetting = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false).build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(remoteStoreEnabledSetting)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.enabled]" + " on restore"));
+
+        // try index restore with mix of modifiable and UnmodifiableOnRestore settings modified
+        // index.version.created is UnmodifiableOnRestore, index.number_of_search_only_replicas is modifiable
+        Settings mixedSettingsUnmodifiableOnRestore = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_EMPTY)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(mixedSettingsUnmodifiableOnRestore)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.version.created]" + " on restore"));
+
+        // try index restore with mix of modifiable and USER_UNMODIFIABLE_SETTINGS settings modified
+        // index.remote_store.enabled is USER_UNMODIFIABLE_SETTINGS, index.number_of_search_only_replicas is modifiable
+        Settings mixedSettingsUserUnmodifiableSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(mixedSettingsUserUnmodifiableSettings)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.enabled]" + " on restore"));
+
+        // try index restore with mix of UnmodifiableOnRestore and USER_UNMODIFIABLE_SETTINGS settings modified
+        // index.remote_store.enabled is USER_UNMODIFIABLE_SETTINGS, index.version.created is UnmodifiableOnRestore
+        Settings mixedSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_EMPTY)
             .build();
 
         exception = expectThrows(
@@ -837,13 +970,12 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
                 .setRenameReplacement(restoredIndex)
                 .get()
         );
-        assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.version.created]" + " on restore"));
+        assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.enabled]" + " on restore"));
 
-        // try index restore with multiple UnmodifiableOnRestore settings on restore
-        Settings unmodifiableSettings = Settings.builder()
+        // try index restore with multiple UnmodifiableOnRestore settings modified
+        Settings unmodifiableOnRestoreSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_EMPTY)
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
             .build();
 
         exception = expectThrows(
@@ -852,7 +984,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
                 .cluster()
                 .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
                 .setWaitForCompletion(false)
-                .setIndexSettings(unmodifiableSettings)
+                .setIndexSettings(unmodifiableOnRestoreSettings)
                 .setIndices(index)
                 .setRenamePattern(index)
                 .setRenameReplacement(restoredIndex)
@@ -860,23 +992,25 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         );
         assertTrue(exception.getMessage().contains("cannot modify UnmodifiableOnRestore setting [index.number_of_shards]" + " on restore"));
 
-        // try index restore with remote store repository and translog store repository disabled
+        // try index restore with multiple USER_UNMODIFIABLE_SETTINGS settings modified
+        Settings userUnmodifiableSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .build();
+
         exception = expectThrows(
             SnapshotRestoreException.class,
             () -> client().admin()
                 .cluster()
                 .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
                 .setWaitForCompletion(false)
-                .setIgnoreIndexSettings(
-                    IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-                    IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
-                )
+                .setIndexSettings(userUnmodifiableSettings)
                 .setIndices(index)
                 .setRenamePattern(index)
                 .setRenameReplacement(restoredIndex)
                 .get()
         );
-        assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.segment.repository]" + " on restore"));
+        assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.enabled]" + " on restore"));
     }
 
     public void testCreateSnapshotV2_Orphan_Timestamp_Cleanup() throws Exception {

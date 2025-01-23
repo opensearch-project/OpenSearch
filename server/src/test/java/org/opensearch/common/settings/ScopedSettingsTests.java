@@ -794,10 +794,10 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
             Settings.EMPTY,
             new HashSet<>(
                 Arrays.asList(
-                    Setting.intSetting("foo.int", 1, Property.UnmodifiableOnRestore, Property.NodeScope),
-                    Setting.groupSetting("foo.group.", Property.UnmodifiableOnRestore, Property.NodeScope),
-                    Setting.groupSetting("foo.list.", Property.UnmodifiableOnRestore, Property.NodeScope),
-                    Setting.intSetting("foo.int.baz", 1, Property.NodeScope)
+                    Setting.intSetting("foo.int", 1, Property.UnmodifiableOnRestore, Property.IndexScope, Property.NodeScope),
+                    Setting.groupSetting("foo.group.", Property.UnmodifiableOnRestore, Property.IndexScope, Property.NodeScope),
+                    Setting.groupSetting("foo.list.", Property.UnmodifiableOnRestore, Property.IndexScope, Property.NodeScope),
+                    Setting.intSetting("foo.int.baz", 1, Property.IndexScope, Property.NodeScope)
                 )
             )
         );

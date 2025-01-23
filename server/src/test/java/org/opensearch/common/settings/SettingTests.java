@@ -1439,6 +1439,32 @@ public class SettingTests extends OpenSearchTestCase {
         assertThat(ex.getMessage(), containsString("final setting [foo.bar] cannot be dynamic"));
     }
 
+    public void testRejectConflictingDynamicAndUnmodifiableOnRestoreProperties() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.UnmodifiableOnRestore, Property.Dynamic)
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "unmodifiableOnRestore setting [foo.bar] cannot be dynamic, or unmodifiableOnRestore setting [foo.bar] must have indexScope"
+            )
+        );
+    }
+
+    public void testRejectMissingIndexScopeAndUnmodifiableOnRestoreProperties() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.UnmodifiableOnRestore)
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "unmodifiableOnRestore setting [foo.bar] cannot be dynamic, or unmodifiableOnRestore setting [foo.bar] must have indexScope"
+            )
+        );
+    }
+
     public void testRejectNonIndexScopedNotCopyableOnResizeSetting() {
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

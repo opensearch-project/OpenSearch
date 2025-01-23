@@ -213,7 +213,16 @@ public class Setting<T> implements ToXContentObject {
             final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
-            }
+            } else if (propertiesAsSet.contains(Property.UnmodifiableOnRestore)
+                && (propertiesAsSet.contains(Property.Dynamic) || !propertiesAsSet.contains(Property.IndexScope))) {
+                    throw new IllegalArgumentException(
+                        "unmodifiableOnRestore setting ["
+                            + key
+                            + "] cannot be dynamic, or unmodifiableOnRestore setting ["
+                            + key
+                            + "] must have indexScope"
+                    );
+                }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
