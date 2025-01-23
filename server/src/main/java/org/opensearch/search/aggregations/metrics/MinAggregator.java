@@ -61,7 +61,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree2;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * Aggregate all docs into a min value
@@ -127,7 +127,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             }
         }
 
-        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree2(this.context.getQueryShardContext());
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             return getStarTreeCollector(ctx, sub, supportedStarTree);
         }

@@ -48,7 +48,7 @@ public class StarTreeQueryHelper {
         return context.aggregations() != null && context.mapperService().isCompositeIndexPresent() && context.parsedPostFilter() == null;
     }
 
-    public static CompositeIndexFieldInfo getSupportedStarTree2(QueryShardContext context) {
+    public static CompositeIndexFieldInfo getSupportedStarTree(QueryShardContext context) {
         StarTreeQueryContext starTreeQueryContext = context.getStarTreeQueryContext();
         return (starTreeQueryContext != null) ? starTreeQueryContext.getStarTree() : null;
     }

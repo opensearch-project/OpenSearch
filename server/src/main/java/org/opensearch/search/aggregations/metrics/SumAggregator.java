@@ -53,7 +53,7 @@ import org.opensearch.search.startree.StarTreeQueryHelper;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree2;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * Aggregate all docs into a single sum value
@@ -96,7 +96,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree2(this.context.getQueryShardContext());
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             return getStarTreeCollector(ctx, sub, supportedStarTree);
         }
