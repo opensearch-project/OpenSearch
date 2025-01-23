@@ -111,6 +111,29 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         );
     }
 
+    public InternalSearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        SearchProfileShardResults profileResults,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        int numReducePhases,
+        List<SearchExtBuilder> searchExtBuilderList
+    ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            profileResults,
+            timedOut,
+            terminatedEarly,
+            numReducePhases,
+            searchExtBuilderList,
+            Collections.emptyList()
+        );
+    }
+
     public InternalSearchResponse(StreamInput in) throws IOException {
         super(
             new SearchHits(in),
