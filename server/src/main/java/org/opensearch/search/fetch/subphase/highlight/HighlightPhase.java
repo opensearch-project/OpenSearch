@@ -152,7 +152,8 @@ public class HighlightPhase implements FetchSubPhase {
                     continue;
                 }
 
-                // We should prevent highlighting if a field is anything but a text or keyword field.
+                // We should prevent highlighting if a field is anything but a text, match_only_text 
+                // or keyword field.
                 // However, someone might implement a custom field type that has text and still want to
                 // highlight on that. We cannot know in advance if the highlighter will be able to
                 // highlight such a field and so we do the following:
@@ -162,7 +163,8 @@ public class HighlightPhase implements FetchSubPhase {
                 // what they were doing and try to highlight anyway.
                 if (fieldNameContainsWildcards) {
                     if (fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false
-                        && fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false) {
+                        && fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false
+                        && fieldType.typeName().equals("match_only_text") == false) {
                         continue;
                     }
                     if (highlighter.canHighlight(fieldType) == false) {
