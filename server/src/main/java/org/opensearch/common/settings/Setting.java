@@ -175,6 +175,7 @@ public class Setting<T> implements ToXContentObject {
 
         /**
          * Mark this setting as immutable on snapshot restore
+         * i.e. the setting will not be allowed to be removed or modified during restore
          */
         UnmodifiableOnRestore
     }
@@ -213,19 +214,13 @@ public class Setting<T> implements ToXContentObject {
             final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
-            } else if (propertiesAsSet.contains(Property.UnmodifiableOnRestore)
-                && (propertiesAsSet.contains(Property.Dynamic) || !propertiesAsSet.contains(Property.IndexScope))) {
-                    throw new IllegalArgumentException(
-                        "unmodifiableOnRestore setting ["
-                            + key
-                            + "] cannot be dynamic, or unmodifiableOnRestore setting ["
-                            + key
-                            + "] must have indexScope"
-                    );
-                }
+            } else if (propertiesAsSet.contains(Property.UnmodifiableOnRestore) && propertiesAsSet.contains(Property.Dynamic)) {
+                throw new IllegalArgumentException("UnmodifiableOnRestore setting [" + key + "] cannot be dynamic");
+            }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.UnmodifiableOnRestore);
             checkPropertyRequiresNodeScope(propertiesAsSet, Property.Consistent);
             this.properties = propertiesAsSet;
         }
