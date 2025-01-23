@@ -106,11 +106,20 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         clientManager = new FlightClientManager(allocator, clusterService, sslContextProvider, elg, threadPool, client);
         ClusterChangedEvent event = new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
+<<<<<<< HEAD
         assertBusy(() -> {
             assertEquals("Flight client isn't built in time limit", 2, clientManager.getClients().size());
             assertNotNull("local_node should exist", clientManager.getFlightClient("local_node"));
             assertNotNull("remote_node should exist", clientManager.getFlightClient("remote_node"));
         }, 2, TimeUnit.SECONDS);
+=======
+        clientManager.updateFlightClients();
+        assertBusy(
+            () -> { assertFalse("Flight client isn't built in time limit", clientManager.getClients().isEmpty()); },
+            2,
+            TimeUnit.SECONDS
+        );
+>>>>>>> 8cc555604ef (Fix the issue with single node ClientManager)
     }
 
     private void mockFlightInfoResponse(DiscoveryNodes nodes, int sleepDuration) {
