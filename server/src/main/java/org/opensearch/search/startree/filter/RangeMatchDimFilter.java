@@ -57,7 +57,7 @@ public class RangeMatchDimFilter implements DimensionFilter {
             highOrdinalFound.ifPresent(ord -> highOrdinal = ord);
         }
         // Both low and high were not found, so not point in searching.
-        if (lowOrdinalFound.isEmpty() && highOrdinalFound.isEmpty()) {
+        if ((lowOrdinalFound.isEmpty() && highOrdinalFound.isEmpty()) || (lowOrdinal > highOrdinal)) {
             lowOrdinal = highOrdinal = Long.MAX_VALUE;
         }
     }
