@@ -22,7 +22,6 @@ public class WorkloadManagementPluginModule extends AbstractModule {
      */
     public WorkloadManagementPluginModule() {}
 
-    @Override
     protected void configure() {
         // Bind WorkloadGroupPersistenceService as a singleton to ensure a single instance is used,
         // preventing multiple throttling key registrations in the constructor.

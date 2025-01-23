@@ -63,6 +63,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.opensearch.plugin.wlm.rule.service.RulePersistenceService.RULE_INDEX;
+
 /**
  * Plugin class for WorkloadManagement
  */
@@ -125,7 +127,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new ActionPlugin.ActionHandler<>(CreateWorkloadGroupAction.INSTANCE, TransportCreateWorkloadGroupAction.class),
             new ActionPlugin.ActionHandler<>(GetWorkloadGroupAction.INSTANCE, TransportGetWorkloadGroupAction.class),
             new ActionPlugin.ActionHandler<>(DeleteWorkloadGroupAction.INSTANCE, TransportDeleteWorkloadGroupAction.class),
-            new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class)
+            new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class),
+            new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class)
         );
     }
 
@@ -148,7 +151,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new RestCreateWorkloadGroupAction(),
             new RestGetWorkloadGroupAction(),
             new RestDeleteWorkloadGroupAction(),
-            new RestUpdateWorkloadGroupAction()
+            new RestUpdateWorkloadGroupAction(),
+            new RestGetRuleAction()
         );
     }
 
