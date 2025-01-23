@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.service;
+package org.opensearch.plugin.wlm.querygroup.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,11 +27,19 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
+<<<<<<<< HEAD:plugins/workload-management/src/main/java/org/opensearch/plugin/wlm/service/WorkloadGroupPersistenceService.java
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupResponse;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
+========
+import org.opensearch.plugin.wlm.querygroup.action.CreateQueryGroupResponse;
+import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupRequest;
+import org.opensearch.plugin.wlm.querygroup.action.UpdateQueryGroupRequest;
+import org.opensearch.plugin.wlm.querygroup.action.UpdateQueryGroupResponse;
+import org.opensearch.wlm.MutableQueryGroupFragment;
+>>>>>>>> eaf11b7f929 (add get rule api logic):plugins/workload-management/src/main/java/org/opensearch/plugin/wlm/querygroup/service/QueryGroupPersistenceService.java
 import org.opensearch.wlm.ResourceType;
 
 import java.util.Collection;
