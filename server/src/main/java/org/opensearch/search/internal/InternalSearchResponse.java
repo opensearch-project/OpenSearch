@@ -149,11 +149,11 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
     }
 
     private static List<ProcessorExecutionDetail> readProcessorResultOnOrAfter(StreamInput in) throws IOException {
-        return (in.getVersion().onOrAfter(Version.V_3_0_0)) ? in.readList(ProcessorExecutionDetail::new) : Collections.emptyList();
+        return (in.getVersion().onOrAfter(Version.V_2_19_0)) ? in.readList(ProcessorExecutionDetail::new) : Collections.emptyList();
     }
 
     private static void writeProcessorResultOnOrAfter(StreamOutput out, List<ProcessorExecutionDetail> processorResult) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_19_0)) {
             out.writeList(processorResult);
         }
     }
