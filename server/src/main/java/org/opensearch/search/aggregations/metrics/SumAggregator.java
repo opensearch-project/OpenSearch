@@ -53,12 +53,10 @@ import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.startree.StarTreeFilter;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getStarTreeValues;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
@@ -164,14 +162,13 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
      * The parent aggregator invokes this method to get a StarTreeBucketCollector,
      * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
      */
-    public StarTreeBucketCollector getStarTreeBucketCollector(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        return new StarTreeBucketCollector() {
-            {
-                this.starTreeValues = getStarTreeValues(ctx, starTree);
-                this.matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, "@timestamp_month");
-                this.setSubCollectors();
-            }
-
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
+    ) throws IOException {
+        assert parentCollector != null;
+        return new StarTreeBucketCollector(parentCollector) {
             String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
                 starTree.getField(),
                 ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
@@ -179,10 +176,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
             );
             SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
                 .getMetricValuesIterator(metricName);
-
-            public void setSubCollectors() throws IOException {
-                return;
-            }
 
             @Override
             public void collectStarTreeEntry(int starTreeEntryBit, long bucket) throws IOException {
@@ -192,13 +185,9 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
                     return; // Skip if no entries for this document
                 }
                 double metricValue = NumericUtils.sortableLongToDouble(metricValuesIterator.nextValue());
-
                 double sum = sums.get(bucket);
-
-                // sums = context.bigArrays().grow(sums, bucket + 1);
                 sums.set(bucket, metricValue + sum);
             }
-
         };
     }
 
@@ -227,37 +216,4 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     public void doClose() {
         Releasables.close(sums, compensations);
     }
-    //
-    // public StarTreeBucketCollector getStarTreeBucketCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo
-    // starTree) throws IOException {
-    // return new StarTreeBucketCollector() {
-    // StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
-    // // assert starTreeValues != null;
-    //
-    // // FixedBitSet matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, "@timestamp_month");
-    //
-    // SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
-    // .getMetricValuesIterator("startree1_status_sum_metric");
-    //
-    // @Override
-    // public void setSubCollectors() throws IOException {
-    // return;
-    // }
-    //
-    // @Override
-    // public void collectStarEntry(int starTreeEntryBit, long bucket) throws IOException {
-    // sums = context.bigArrays().grow(sums, bucket + 1);
-    // // Advance the valuesIterator to the current bit
-    // if (!metricValuesIterator.advanceExact(starTreeEntryBit)) {
-    // return; // Skip if no entries for this document
-    // }
-    // double metricValue = NumericUtils.sortableLongToDouble(metricValuesIterator.nextValue());
-    //
-    // double sum = sums.get(bucket);
-    //
-    // // sums = context.bigArrays().grow(sums, bucket + 1);
-    // sums.set(bucket, metricValue + sum);
-    // }
-    // };
-    // }
 }

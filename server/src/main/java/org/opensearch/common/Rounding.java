@@ -85,10 +85,6 @@ import java.util.concurrent.TimeUnit;
 public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
-    public DateTimeUnit unit() {
-        return null;
-    }
-
     /**
      * A Date Time Unit
      *
@@ -273,6 +269,10 @@ public abstract class Rounding implements Writeable {
     }
 
     public abstract byte id();
+
+    public DateTimeUnit unit() {
+        return null;
+    }
 
     /**
      * A strategy for rounding milliseconds since epoch.
@@ -511,11 +511,6 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        public DateTimeUnit unit() {
-            return unit;
-        }
-
-        @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
             out.writeZoneId(timeZone);
@@ -524,6 +519,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public byte id() {
             return ID;
+        }
+
+        @Override
+        public DateTimeUnit unit() {
+            return unit;
         }
 
         private LocalDateTime truncateLocalDateTime(LocalDateTime localDateTime) {

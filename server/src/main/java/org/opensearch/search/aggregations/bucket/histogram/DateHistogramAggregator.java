@@ -44,6 +44,8 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
@@ -74,7 +76,6 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getStarTreeValues;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 import static org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
 
@@ -248,21 +249,25 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     }
 
     @Override
-    public StarTreeBucketCollector getStarTreeBucketCollector(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        return new StarTreeBucketCollector() {
-            {
-                this.starTreeValues = getStarTreeValues(ctx, starTree);
-                this.matchingDocsBitSet = StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, starTreeDateDimension);
-                this.setSubCollectors();
-            }
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
+    ) throws IOException {
+        assert parentCollector == null;
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        return new StarTreeBucketCollector(
+            starTreeValues,
+            StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, starTreeDateDimension)
+        ) {
 
+            @Override
             public void setSubCollectors() throws IOException {
                 for (Aggregator aggregator : subAggregators) {
-                    this.subCollectors.add(((StarTreePreComputeCollector) aggregator).getStarTreeBucketCollector(ctx, starTree));
+                    this.subCollectors.add(((StarTreePreComputeCollector) aggregator).getStarTreeBucketCollector(ctx, starTree, this));
                 }
             }
 
-            // TODO: fetch dimension name
             SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
                 .getDimensionValuesIterator(starTreeDateDimension);
 
@@ -271,7 +276,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 "_doc_count",
                 MetricStat.DOC_COUNT.getTypeName()
             );
-            SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+            SortedNumericStarTreeValuesIterator docCountsIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
                 .getMetricValuesIterator(metricName);
 
             @Override
@@ -286,8 +291,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         ? preparedRounding.round(valuesIterator.nextValue())
                         : valuesIterator.nextValue();
 
-                    if (metricValuesIterator.advanceExact(starTreeEntry)) {
-                        long metricValue = metricValuesIterator.nextValue();
+                    if (docCountsIterator.advanceExact(starTreeEntry)) {
+                        long metricValue = docCountsIterator.nextValue();
 
                         long bucketOrd = bucketOrds.add(owningBucketOrd, dimensionValue);
                         if (bucketOrd < 0) {
@@ -371,8 +376,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
     }
 
-    public boolean preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree);
+    private boolean preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
         FixedBitSet matchingDocsBitSet = starTreeBucketCollector.getMatchingDocsBitSet();
 
         int numBits = matchingDocsBitSet.length();

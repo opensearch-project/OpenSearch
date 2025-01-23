@@ -130,6 +130,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
         subCollector.collect(doc, bucketOrd);
     }
 
+    /**
+     * Utility method to collect doc count in the given bucket (identified by the bucket ordinal)
+     * After collecting doc count, invoke collectStarTreeEntry() for sub-collectors to update their relevant buckets
+     */
     public final void collectStarTreeBucket(StarTreeBucketCollector collector, long docCount, long bucketOrd, int entryBit)
         throws IOException {
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
@@ -138,7 +142,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
         for (StarTreeBucketCollector subCollector : collector.getSubCollectors()) {
             subCollector.collectStarTreeEntry(entryBit, bucketOrd);
         }
-
     }
 
     /**

@@ -126,7 +126,6 @@ public class DateHistogramTests extends DateHistogramAggregatorTestCase {
         }
 
         iw.forceMerge(1);
-
         iw.close();
 
         DirectoryReader ir = DirectoryReader.open(directory);

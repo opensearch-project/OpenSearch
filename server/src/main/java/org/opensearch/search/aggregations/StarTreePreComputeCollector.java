@@ -21,5 +21,12 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public interface StarTreePreComputeCollector {
-    StarTreeBucketCollector getStarTreeBucketCollector(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException;
+    /**
+     * Get the star tree bucket collector for the specified segment/leaf
+     */
+    StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
+    ) throws IOException;
 }

@@ -153,14 +153,15 @@ public class StarTreeQueryHelper {
         CompositeDataCubeFieldType compositeIndexFieldInfo,
         AggregatorFactory aggregatorFactory
     ) {
-        if (aggregatorFactory instanceof MetricAggregatorFactory && aggregatorFactory.getSubFactories().getFactories().length == 0) {
+        if (aggregatorFactory instanceof MetricAggregatorFactory metricAggregatorFactory
+            && metricAggregatorFactory.getSubFactories().getFactories().length == 0) {
             String field;
             Map<String, List<MetricStat>> supportedMetrics = compositeIndexFieldInfo.getMetrics()
                 .stream()
                 .collect(Collectors.toMap(Metric::getField, Metric::getMetrics));
 
-            MetricStat metricStat = ((MetricAggregatorFactory) aggregatorFactory).getMetricStat();
-            field = ((MetricAggregatorFactory) aggregatorFactory).getField();
+            MetricStat metricStat = metricAggregatorFactory.getMetricStat();
+            field = metricAggregatorFactory.getField();
 
             return supportedMetrics.containsKey(field) && supportedMetrics.get(field).contains(metricStat);
         }
@@ -171,18 +172,31 @@ public class StarTreeQueryHelper {
         CompositeDataCubeFieldType compositeIndexFieldInfo,
         AggregatorFactory aggregatorFactory
     ) {
-        if ((aggregatorFactory instanceof DateHistogramAggregatorFactory) == false
-            && aggregatorFactory.getSubFactories().getFactories().length != 1
-            && (compositeIndexFieldInfo.getDimensions().get(0) instanceof DateDimension) == false) {
+        if (!(aggregatorFactory instanceof DateHistogramAggregatorFactory dateHistogramAggregatorFactory)
+            || aggregatorFactory.getSubFactories().getFactories().length != 1) {
             return false;
         }
 
-        DateHistogramAggregatorFactory dateHistogramAggregatorFactory = (DateHistogramAggregatorFactory) aggregatorFactory;
-        // date fields are indexed at top of tree
-        DateDimension starTreeDateDimension = (DateDimension) compositeIndexFieldInfo.getDimensions().get(0);
+        // Find the DateDimension in the dimensions list
+        DateDimension starTreeDateDimension = null;
+        for (Dimension dimension : compositeIndexFieldInfo.getDimensions()) {
+            if (dimension instanceof DateDimension) {
+                starTreeDateDimension = (DateDimension) dimension;
+                break;
+            }
+        }
 
-        if (dateHistogramAggregatorFactory.getRounding() == null) return false;
-        // find the closest interval in the DateTimeUnitRounding class associated with star tree
+        // If no DateDimension is found, validation fails
+        if (starTreeDateDimension == null) {
+            return false;
+        }
+
+        // Ensure the rounding is not null
+        if (dateHistogramAggregatorFactory.getRounding() == null) {
+            return false;
+        }
+
+        // Find the closest valid interval in the DateTimeUnitRounding class associated with star tree
         DateTimeUnitRounding rounding = starTreeDateDimension.findClosestValidInterval(
             new DateTimeUnitAdapter(dateHistogramAggregatorFactory.getRounding())
         );
@@ -190,8 +204,11 @@ public class StarTreeQueryHelper {
             return false;
         }
 
+        // Validate all sub-factories
         for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
-            if (validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory) == false) return false;
+            if (!validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory)) {
+                return false;
+            }
         }
         return true;
     }
