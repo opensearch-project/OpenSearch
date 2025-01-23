@@ -56,11 +56,7 @@ public class TrackingSearchRequestProcessorWrapper implements SearchRequestProce
 
     @Override
     public SearchRequest processRequest(SearchRequest request, PipelineProcessingContext requestContext) throws Exception {
-        try {
-            return wrappedProcessor.processRequest(request, requestContext);
-        } catch (UnsupportedOperationException e) {
-            throw e;
-        }
+        throw new UnsupportedOperationException();
     }
 
     @Override

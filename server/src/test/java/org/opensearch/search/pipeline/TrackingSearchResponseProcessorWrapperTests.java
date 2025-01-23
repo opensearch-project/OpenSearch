@@ -15,8 +15,6 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
-import java.io.IOException;
-
 import org.mockito.Mockito;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -46,7 +44,7 @@ public class TrackingSearchResponseProcessorWrapperTests extends OpenSearchTestC
         assertEquals("Wrapped processor cannot be null.", exception.getMessage());
     }
 
-    public void testProcessResponseAsync(){
+    public void testProcessResponseAsync() {
         SearchRequest mockRequest = new SearchRequest();
         SearchResponse inputResponse = Mockito.mock(SearchResponse.class);
         SearchResponse outputResponse = Mockito.mock(SearchResponse.class);

@@ -62,13 +62,8 @@ public class TrackingSearchResponseProcessorWrapper implements SearchResponsePro
     }
 
     @Override
-    public SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelineProcessingContext requestContext)
-        throws Exception {
-        try {
-            return wrappedProcessor.processResponse(request, response, requestContext);
-        } catch (UnsupportedOperationException e) {
-            throw e;
-        }
+    public SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelineProcessingContext requestContext) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -83,7 +78,8 @@ public class TrackingSearchResponseProcessorWrapper implements SearchResponsePro
         try {
             detail.addInput(Arrays.asList(response.getHits().deepCopy().getHits()));
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            responseListener.onFailure(e);
+            return;
         }
         wrappedProcessor.processResponseAsync(request, response, requestContext, ActionListener.wrap(result -> {
             detail.addOutput(Arrays.asList(result.getHits().deepCopy().getHits()));
