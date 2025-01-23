@@ -576,6 +576,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
 
+    public static final Setting<Long> SETTING_INDEX_CREATION_DATE = Setting.longSetting(
+        SETTING_CREATION_DATE,
+        -1,
+        -1,
+        Property.IndexScope,
+        Property.NodeScope,
+        Property.PrivateIndex,
+        Property.UnmodifiableOnRestore
+    );
+
     /**
      * The user provided name for an index. This is the plain string provided by the user when the index was created.
      * It might still contain date math expressions etc. (added in 5.0)
@@ -601,6 +611,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String INDEX_UUID_NA_VALUE = Strings.UNKNOWN_UUID_VALUE;
+
+    public static final Setting<String> INDEX_UUID_SETTING = Setting.simpleString(
+        SETTING_INDEX_UUID,
+        INDEX_UUID_NA_VALUE,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.UnmodifiableOnRestore
+    );
+
+    public static final Setting<String> SETTING_INDEX_HISTORY_UUID = Setting.simpleString(
+        SETTING_HISTORY_UUID,
+        INDEX_UUID_NA_VALUE,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.UnmodifiableOnRestore
+    );
 
     public static final String INDEX_ROUTING_REQUIRE_GROUP_PREFIX = "index.routing.allocation.require";
     public static final String INDEX_ROUTING_INCLUDE_GROUP_PREFIX = "index.routing.allocation.include";
