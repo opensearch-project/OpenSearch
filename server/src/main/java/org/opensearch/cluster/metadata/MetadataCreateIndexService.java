@@ -231,6 +231,10 @@ public class MetadataCreateIndexService {
             : null;
     }
 
+    public IndexScopedSettings getIndexScopedSettings() {
+        return indexScopedSettings;
+    }
+
     /**
      * Add a provider to be invoked to get additional index settings prior to an index being created
      */
