@@ -230,7 +230,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     + "]"
             );
         }
-        return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, defaultNumShards, 1, maxNumShards, Property.IndexScope, Property.Final);
+        return Setting.intSetting(
+            SETTING_NUMBER_OF_SHARDS,
+            defaultNumShards,
+            1,
+            maxNumShards,
+            Property.IndexScope,
+            Property.Final,
+            Property.UnmodifiableOnRestore
+        );
     }
 
     public static final String INDEX_SETTING_PREFIX = "index.";
@@ -559,13 +567,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         SETTING_VERSION_CREATED,
         Version.V_EMPTY,
         Property.IndexScope,
-        Property.PrivateIndex
+        Property.PrivateIndex,
+        Property.UnmodifiableOnRestore
     );
 
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
+
     /**
      * The user provided name for an index. This is the plain string provided by the user when the index was created.
      * It might still contain date math expressions etc. (added in 5.0)
@@ -589,6 +599,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Function.identity(),
         Property.IndexScope
     );
+
     public static final String INDEX_UUID_NA_VALUE = Strings.UNKNOWN_UUID_VALUE;
 
     public static final String INDEX_ROUTING_REQUIRE_GROUP_PREFIX = "index.routing.allocation.require";
