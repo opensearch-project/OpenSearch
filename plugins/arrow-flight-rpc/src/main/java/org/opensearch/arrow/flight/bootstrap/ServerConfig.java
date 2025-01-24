@@ -186,11 +186,11 @@ public class ServerConfig {
     }
 
     static Class<? extends Channel> serverChannelType() {
-        return Epoll.isAvailable() ? EpollSocketChannel.class : NioServerSocketChannel.class;
+        return Epoll.isAvailable() ? EpollServerSocketChannel.class : NioServerSocketChannel.class;
     }
 
     static Class<? extends Channel> clientChannelType() {
-        return Epoll.isAvailable() ? EpollServerSocketChannel.class : NioSocketChannel.class;
+        return Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class;
     }
 
     private static class Netty4Configs {
