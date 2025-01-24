@@ -37,7 +37,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MatchOnlyTextFieldMapper
+import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.search.fetch.FetchContext;
