@@ -98,6 +98,11 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
 
             CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
             if (supportedStarTree != null) {
+                if (parent != null && subAggregators.length == 0) {
+                    // If this a child aggregator, then the parent will trigger star-tree pre-computation.
+                    // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
+                    return LeafBucketCollector.NO_OP_COLLECTOR;
+                }
                 return getStarTreeCollector(ctx, sub, supportedStarTree);
             }
 
