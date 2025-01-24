@@ -271,20 +271,12 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             MetricStat.MAX.getTypeName(),
             valuesSource,
             parentCollector,
-            (bucket) -> maxes = context.bigArrays().grow(maxes, bucket + 1),
-            // (bucket, metricValue) -> maxes.set(bucket, Math.max(maxes.get(bucket), ))
-            (bucket, metricValue) -> {
-                // Retrieve the current bucket value (it could be NaN initially)
-                double currentMax = maxes.get(bucket);
-
-                // Check if the currentMax is NaN or not set, and initialize it with the first metric value
-                if (Double.isNaN(currentMax)) {
-                    maxes.set(bucket, NumericUtils.sortableLongToDouble(metricValue));  // Set the first value if the bucket was
-                                                                                        // uninitialized
-                } else {
-                    maxes.set(bucket, Math.max(currentMax, NumericUtils.sortableLongToDouble(metricValue)));  // Perform the max comparison
-                }
-            }
+            (bucket) -> {
+                long from = maxes.size();
+                maxes = context.bigArrays().grow(maxes, bucket + 1);
+                maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+            },
+            (bucket, metricValue) -> maxes.set(bucket, Math.max(maxes.get(bucket), (NumericUtils.sortableLongToDouble(metricValue))))
         );
     }
 }

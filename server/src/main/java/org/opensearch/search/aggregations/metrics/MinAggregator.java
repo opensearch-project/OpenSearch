@@ -265,8 +265,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             MetricStat.MIN.getTypeName(),
             valuesSource,
             parentCollector,
-            (bucket) -> mins = context.bigArrays().grow(mins, bucket + 1),
-            (bucket, metricValue) -> mins.set(bucket, Math.max(mins.get(bucket), NumericUtils.sortableLongToDouble(metricValue)))
+            (bucket) -> {
+                long from = mins.size();
+                mins = context.bigArrays().grow(mins, bucket + 1);
+                mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+            },
+            (bucket, metricValue) -> mins.set(bucket, Math.min(mins.get(bucket), NumericUtils.sortableLongToDouble(metricValue)))
         );
     }
 }
