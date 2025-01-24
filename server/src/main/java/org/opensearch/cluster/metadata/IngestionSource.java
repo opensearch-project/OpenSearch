@@ -40,10 +40,6 @@ public class IngestionSource {
         return params;
     }
 
-    public void params(Map<String, Object> params) {
-        this.params = params;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

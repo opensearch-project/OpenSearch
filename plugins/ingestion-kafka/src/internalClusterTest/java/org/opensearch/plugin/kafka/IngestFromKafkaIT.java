@@ -45,7 +45,7 @@ import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 /**
  * Integration test for Kafka ingestion
  */
-@ThreadLeakLingering(linger = 5000) // wait for container pull thread to die
+@ThreadLeakLingering(linger = 15000) // wait for container pull thread to die
 public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
     static final String topicName = "test";
 

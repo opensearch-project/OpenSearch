@@ -677,8 +677,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 // TODO: validate this with the ingestion source params
             }
         },
-        Property.IndexScope,
-        Property.Dynamic
+        Property.IndexScope
     );
 
     /**
@@ -714,11 +713,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return value;
         }, Property.IndexScope)
     );
-
-    /**
-     * Used to specify the params for the ingestion index.
-     */
-    public static final String SETTING_INGESTION_SOURCE_PARAMS = "index.ingestion_source.params";
 
     /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading

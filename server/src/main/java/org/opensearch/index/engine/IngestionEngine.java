@@ -80,7 +80,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
 
-import static org.opensearch.index.engine.NoOpEngine.EMPTY_TRANSLOG_SNAPSHOT;
+import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
 
 /**
  * IngestionEngine is an engine that ingests data from a stream source.

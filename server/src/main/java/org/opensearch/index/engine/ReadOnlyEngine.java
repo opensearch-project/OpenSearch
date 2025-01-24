@@ -66,7 +66,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.opensearch.index.engine.NoOpEngine.EMPTY_TRANSLOG_SNAPSHOT;
+import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
 
 /**
  * A basic read-only engine that allows switching a shard to be true read-only temporarily or permanently.

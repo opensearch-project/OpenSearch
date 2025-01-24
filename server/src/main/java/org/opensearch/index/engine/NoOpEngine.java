@@ -58,6 +58,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
+
 /**
  * NoOpEngine is an engine implementation that does nothing but the bare minimum
  * required in order to have an engine. All attempts to do something (search,
@@ -71,21 +73,6 @@ public final class NoOpEngine extends ReadOnlyEngine {
 
     private final SegmentsStats segmentsStats;
     private final DocsStats docsStats;
-
-    static final Translog.Snapshot EMPTY_TRANSLOG_SNAPSHOT = new Translog.Snapshot() {
-        @Override
-        public void close() {}
-
-        @Override
-        public int totalOperations() {
-            return 0;
-        }
-
-        @Override
-        public Translog.Operation next() {
-            return null;
-        }
-    };
 
     public NoOpEngine(EngineConfig config) {
         super(config, null, null, true, Function.identity(), true);
