@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.wlm.rest;
 
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;

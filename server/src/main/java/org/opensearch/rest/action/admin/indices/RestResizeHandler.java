@@ -53,7 +53,7 @@ import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.opensearch.action.support.master.AcknowledgedRequest.DEFAULT_TASK_EXECUTION_TIMEOUT;
+import static org.opensearch.action.support.clustermanager.AcknowledgedRequest.DEFAULT_TASK_EXECUTION_TIMEOUT;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 

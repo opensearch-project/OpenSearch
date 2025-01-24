@@ -35,7 +35,7 @@ package org.opensearch.action.admin.cluster.repositories.put;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.crypto.CryptoSettings;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;

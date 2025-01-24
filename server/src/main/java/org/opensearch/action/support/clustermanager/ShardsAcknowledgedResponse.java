@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.action.support.master;
+package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
