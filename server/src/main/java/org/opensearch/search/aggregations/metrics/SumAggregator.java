@@ -40,8 +40,6 @@ import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -56,8 +54,6 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 
@@ -165,17 +161,17 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
      * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
      */
     public StarTreeBucketCollector getStarTreeBucketCollector(
-            LeafReaderContext ctx,
-            CompositeIndexFieldInfo starTree,
-            StarTreeBucketCollector parentCollector
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
     ) throws IOException {
         return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
-                starTree,
-                MetricStat.SUM.getTypeName(),
-                valuesSource,
-                parentCollector,
-                (bucket) -> sums = context.bigArrays().grow(sums, bucket + 1),
-                (bucket, metricValue) -> sums.set(bucket, NumericUtils.sortableLongToDouble(metricValue) + sums.get(bucket))
+            starTree,
+            MetricStat.SUM.getTypeName(),
+            valuesSource,
+            parentCollector,
+            (bucket) -> sums = context.bigArrays().grow(sums, bucket + 1),
+            (bucket, metricValue) -> sums.set(bucket, NumericUtils.sortableLongToDouble(metricValue) + sums.get(bucket))
         );
     }
 

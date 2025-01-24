@@ -14,7 +14,6 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -284,22 +283,22 @@ public class StarTreeQueryHelper {
     }
 
     public static StarTreeBucketCollector getStarTreeBucketMetricCollector(
-            CompositeIndexFieldInfo starTree,
-            String metric,
-            ValuesSource.Numeric valuesSource,
-            StarTreeBucketCollector parentCollector,
-            Consumer<Long> growArrays,
-            BiConsumer<Long, Long> updateBucket
+        CompositeIndexFieldInfo starTree,
+        String metric,
+        ValuesSource.Numeric valuesSource,
+        StarTreeBucketCollector parentCollector,
+        Consumer<Long> growArrays,
+        BiConsumer<Long, Long> updateBucket
     ) throws IOException {
         assert parentCollector != null;
         return new StarTreeBucketCollector(parentCollector) {
             String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-                    starTree.getField(),
-                    ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
-                    metric
+                starTree.getField(),
+                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                metric
             );
             SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
-                    .getMetricValuesIterator(metricName);
+                .getMetricValuesIterator(metricName);
 
             @Override
             public void collectStarTreeEntry(int starTreeEntryBit, long bucket) throws IOException {

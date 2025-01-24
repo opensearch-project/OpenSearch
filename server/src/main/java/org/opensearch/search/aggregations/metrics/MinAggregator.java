@@ -256,17 +256,17 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
      * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
      */
     public StarTreeBucketCollector getStarTreeBucketCollector(
-            LeafReaderContext ctx,
-            CompositeIndexFieldInfo starTree,
-            StarTreeBucketCollector parentCollector
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
     ) throws IOException {
         return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
-                starTree,
-                MetricStat.MIN.getTypeName(),
-                valuesSource,
-                parentCollector,
-                (bucket) -> mins = context.bigArrays().grow(mins, bucket + 1),
-                (bucket, metricValue) -> mins.set(bucket, Math.max(mins.get(bucket), NumericUtils.sortableLongToDouble(metricValue)))
+            starTree,
+            MetricStat.MIN.getTypeName(),
+            valuesSource,
+            parentCollector,
+            (bucket) -> mins = context.bigArrays().grow(mins, bucket + 1),
+            (bucket, metricValue) -> mins.set(bucket, Math.max(mins.get(bucket), NumericUtils.sortableLongToDouble(metricValue)))
         );
     }
 }

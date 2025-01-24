@@ -192,16 +192,17 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
      * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
      */
     public StarTreeBucketCollector getStarTreeBucketCollector(
-            LeafReaderContext ctx,
-            CompositeIndexFieldInfo starTree,
-            StarTreeBucketCollector parentCollector
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
     ) throws IOException {
         return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
-                starTree,
-                MetricStat.VALUE_COUNT.getTypeName(),
-                (ValuesSource.Numeric) valuesSource,
-                parentCollector,
-                (bucket) -> counts = context.bigArrays().grow(counts, bucket + 1),
-                (bucket, metricValue) -> counts.increment(bucket, metricValue));
+            starTree,
+            MetricStat.VALUE_COUNT.getTypeName(),
+            (ValuesSource.Numeric) valuesSource,
+            parentCollector,
+            (bucket) -> counts = context.bigArrays().grow(counts, bucket + 1),
+            (bucket, metricValue) -> counts.increment(bucket, metricValue)
+        );
     }
 }

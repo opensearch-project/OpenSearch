@@ -44,8 +44,6 @@ import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
@@ -64,8 +62,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
@@ -266,17 +262,29 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
      * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
      */
     public StarTreeBucketCollector getStarTreeBucketCollector(
-            LeafReaderContext ctx,
-            CompositeIndexFieldInfo starTree,
-            StarTreeBucketCollector parentCollector
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
     ) throws IOException {
         return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
-                starTree,
-                MetricStat.MAX.getTypeName(),
-                valuesSource,
-                parentCollector,
-                (bucket) -> maxes = context.bigArrays().grow(maxes, bucket + 1),
-                (bucket, metricValue) -> maxes.set(bucket, Math.max(maxes.get(bucket), NumericUtils.sortableLongToDouble(metricValue)))
+            starTree,
+            MetricStat.MAX.getTypeName(),
+            valuesSource,
+            parentCollector,
+            (bucket) -> maxes = context.bigArrays().grow(maxes, bucket + 1),
+            // (bucket, metricValue) -> maxes.set(bucket, Math.max(maxes.get(bucket), ))
+            (bucket, metricValue) -> {
+                // Retrieve the current bucket value (it could be NaN initially)
+                double currentMax = maxes.get(bucket);
+
+                // Check if the currentMax is NaN or not set, and initialize it with the first metric value
+                if (Double.isNaN(currentMax)) {
+                    maxes.set(bucket, NumericUtils.sortableLongToDouble(metricValue));  // Set the first value if the bucket was
+                                                                                        // uninitialized
+                } else {
+                    maxes.set(bucket, Math.max(currentMax, NumericUtils.sortableLongToDouble(metricValue)));  // Perform the max comparison
+                }
+            }
         );
     }
 }

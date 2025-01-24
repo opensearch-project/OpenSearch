@@ -237,23 +237,61 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
      * The parent aggregator invokes this method to get a StarTreeBucketCollector,
      * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
      */
-    public StarTreeBucketCollector getStarTreeBucketCollector(
-            LeafReaderContext ctx,
-            CompositeIndexFieldInfo starTree,
-            StarTreeBucketCollector parentCollector
+    public StarTreeBucketCollector getStarTreeBucketCollector1(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
     ) throws IOException {
         return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
-                starTree,
-                MetricStat.VALUE_COUNT.getTypeName(),
-                valuesSource,
-                parentCollector,
-                (bucket) -> {
-                    counts = context.bigArrays().grow(counts, bucket + 1);
-                    sums = context.bigArrays().grow(sums, bucket + 1);
-                },
-                (bucket, metricValue) -> {
-                    counts.increment(bucket, metricValue);
-                    sums.set(bucket, NumericUtils.sortableLongToDouble(metricValue) + sums.get(bucket));
-                });
+            starTree,
+            MetricStat.VALUE_COUNT.getTypeName(),
+            valuesSource,
+            parentCollector,
+            (bucket) -> {
+                counts = context.bigArrays().grow(counts, bucket + 1);
+                sums = context.bigArrays().grow(sums, bucket + 1);
+            },
+            (bucket, metricValue) -> {
+                counts.increment(bucket, metricValue);
+                sums.set(bucket, NumericUtils.sortableLongToDouble(metricValue) + sums.get(bucket));
+            }
+        );
+    }
+
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
+    ) throws IOException {
+        assert parentCollector != null;
+        return new StarTreeBucketCollector(parentCollector) {
+            String sumMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                MetricStat.SUM.getTypeName()
+            );
+            String valueCountMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                MetricStat.VALUE_COUNT.getTypeName()
+            );
+            SortedNumericStarTreeValuesIterator sumMetricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator(sumMetricName);
+            SortedNumericStarTreeValuesIterator valueCountMetricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator(valueCountMetricName);
+
+            @Override
+            public void collectStarTreeEntry(int starTreeEntryBit, long bucket) throws IOException {
+                counts = context.bigArrays().grow(counts, bucket + 1);
+                sums = context.bigArrays().grow(sums, bucket + 1);
+                // Advance the valuesIterator to the current bit
+                if (!sumMetricValuesIterator.advanceExact(starTreeEntryBit)
+                    || !valueCountMetricValuesIterator.advanceExact(starTreeEntryBit)) {
+                    return; // Skip if no entries for this document
+                }
+                counts.increment(bucket, valueCountMetricValuesIterator.nextValue());
+                sums.set(bucket, NumericUtils.sortableLongToDouble(sumMetricValuesIterator.nextValue()) + sums.get(bucket));
+            }
+        };
     }
 }
