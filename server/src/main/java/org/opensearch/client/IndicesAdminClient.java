@@ -128,7 +128,7 @@ import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.admin.indices.view.CreateViewAction;
 import org.opensearch.action.admin.indices.view.DeleteViewAction;
 import org.opensearch.action.admin.indices.view.GetViewAction;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.action.ActionFuture;
