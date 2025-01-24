@@ -233,31 +233,6 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
         Releasables.close(counts, sums, compensations);
     }
 
-    /**
-     * The parent aggregator invokes this method to get a StarTreeBucketCollector,
-     * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
-     */
-    public StarTreeBucketCollector getStarTreeBucketCollector1(
-        LeafReaderContext ctx,
-        CompositeIndexFieldInfo starTree,
-        StarTreeBucketCollector parentCollector
-    ) throws IOException {
-        return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
-            starTree,
-            MetricStat.VALUE_COUNT.getTypeName(),
-            valuesSource,
-            parentCollector,
-            (bucket) -> {
-                counts = context.bigArrays().grow(counts, bucket + 1);
-                sums = context.bigArrays().grow(sums, bucket + 1);
-            },
-            (bucket, metricValue) -> {
-                counts.increment(bucket, metricValue);
-                sums.set(bucket, NumericUtils.sortableLongToDouble(metricValue) + sums.get(bucket));
-            }
-        );
-    }
-
     public StarTreeBucketCollector getStarTreeBucketCollector(
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,

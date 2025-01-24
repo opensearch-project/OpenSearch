@@ -209,6 +209,16 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         sourceBuilder = new SearchSourceBuilder().size(0).query(new MatchAllQueryBuilder()).aggregation(dateHistogramAggregationBuilder);
         assertStarTreeContext(request, sourceBuilder, null, -1);
 
+        // Case 6: NumericTermQuery and date-histogram aggregation present, should use star tree
+        dateHistogramAggregationBuilder = dateHistogram("by_day").field(TIMESTAMP_FIELD)
+            .calendarInterval(DateHistogramInterval.DAY)
+            .subAggregation(maxAggNoSub);
+        sourceBuilder = new SearchSourceBuilder().size(0)
+            .query(new TermQueryBuilder(FIELD_NAME, 1))
+            .aggregation(dateHistogramAggregationBuilder);
+        expectedQueryMap = Map.of(FIELD_NAME, 1L);
+        assertStarTreeContext(request, sourceBuilder, new StarTreeQueryContext(expectedStarTree, expectedQueryMap, -1), -1);
+
         setStarTreeIndexSetting(null);
     }
 

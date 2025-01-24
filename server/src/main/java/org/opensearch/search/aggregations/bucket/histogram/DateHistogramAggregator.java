@@ -73,6 +73,7 @@ import org.opensearch.search.startree.StarTreeFilter;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -258,7 +259,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, starTreeDateDimension)
+            StarTreeFilter.getStarTreeResult(starTreeValues, context.getStarTreeQueryContext().getQueryMap(), Set.of(starTreeDateDimension))
         ) {
             @Override
             public void setSubCollectors() throws IOException {

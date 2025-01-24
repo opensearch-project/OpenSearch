@@ -44,6 +44,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregatorTestCase;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -187,6 +188,31 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 .calendarInterval(DateHistogramInterval.YEAR)
                 .subAggregation(aggregationBuilder);
             testCase(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
+
+            // Numeric-terms query with date histogram
+            for (int cases = 0; cases < 100; cases++) {
+                String queryField;
+                long queryValue;
+                if (randomBoolean()) {
+                    queryField = STATUS;
+                    queryValue = random.nextInt(10);
+                } else {
+                    queryField = SIZE;
+                    queryValue = random.nextInt(20) - 15;
+                }
+                dateHistogramAggregationBuilder = dateHistogram("by_month").field(TIMESTAMP_FIELD)
+                    .calendarInterval(DateHistogramInterval.MONTH)
+                    .subAggregation(aggregationBuilder);
+                query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
+                queryBuilder = new TermQueryBuilder(queryField, queryValue);
+                testCase(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
+
+                // year not present in star-tree, but should be able to compute using @timestamp_day dimension
+                dateHistogramAggregationBuilder = dateHistogram("by_year").field(TIMESTAMP_FIELD)
+                    .calendarInterval(DateHistogramInterval.YEAR)
+                    .subAggregation(aggregationBuilder);
+                testCase(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
+            }
         }
         ir.close();
         directory.close();

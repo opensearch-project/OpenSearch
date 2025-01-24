@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -234,12 +233,4 @@ public class StarTreeFilter {
             this.maxMatchedDoc = maxMatchedDoc;
         }
     }
-
-    public static FixedBitSet getPredicateValueToFixedBitSetMap(StarTreeValues starTreeValues, String predicateField) throws IOException {
-        Set<String> groupByField = new java.util.HashSet<>();
-        groupByField.add(predicateField);
-        FixedBitSet bitSet = getStarTreeResult(starTreeValues, new HashMap<>(), groupByField);
-        return bitSet;
-    }
-
 }
