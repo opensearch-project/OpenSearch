@@ -38,7 +38,7 @@ import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryR
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;

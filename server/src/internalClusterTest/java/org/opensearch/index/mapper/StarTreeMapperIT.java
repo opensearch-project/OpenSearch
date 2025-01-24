@@ -11,7 +11,7 @@ package org.opensearch.index.mapper;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
