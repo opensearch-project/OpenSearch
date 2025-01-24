@@ -260,7 +260,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             starTreeValues,
             StarTreeFilter.getPredicateValueToFixedBitSetMap(starTreeValues, starTreeDateDimension)
         ) {
-
             @Override
             public void setSubCollectors() throws IOException {
                 for (Aggregator aggregator : subAggregators) {
@@ -281,7 +280,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
             @Override
             public void collectStarTreeEntry(int starTreeEntry, long owningBucketOrd) throws IOException {
-
                 if (!valuesIterator.advanceExact(starTreeEntry)) {
                     return;
                 }

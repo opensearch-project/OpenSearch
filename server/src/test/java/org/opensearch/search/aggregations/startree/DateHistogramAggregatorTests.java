@@ -60,10 +60,14 @@ import java.util.Random;
 
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
+import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.opensearch.search.aggregations.AggregationBuilders.max;
+import static org.opensearch.search.aggregations.AggregationBuilders.min;
+import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
-public class DateHistogramTests extends DateHistogramAggregatorTestCase {
+public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
     private static final String TIMESTAMP_FIELD = "@timestamp";
     private static final MappedFieldType TIMESTAMP_FIELD_TYPE = new DateFieldMapper.DateFieldType(TIMESTAMP_FIELD);
 
@@ -125,7 +129,9 @@ public class DateHistogramTests extends DateHistogramAggregatorTestCase {
             docs.add(doc);
         }
 
-        iw.forceMerge(1);
+        if (randomBoolean()) {
+            iw.forceMerge(1);
+        }
         iw.close();
 
         DirectoryReader ir = DirectoryReader.open(directory);
@@ -139,7 +145,12 @@ public class DateHistogramTests extends DateHistogramAggregatorTestCase {
         List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
         CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
 
-        ValuesSourceAggregationBuilder sumAggregationBuilder = avg("sum_status").field(STATUS);
+        ValuesSourceAggregationBuilder[] agggBuilders = {
+            sum("_name").field(FIELD_NAME),
+            max("_name").field(FIELD_NAME),
+            min("_name").field(FIELD_NAME),
+            count("_name").field(FIELD_NAME),
+            avg("_name").field(FIELD_NAME) };
 
         List<Dimension> supportedDimensions = new LinkedList<>();
         supportedDimensions.add(new NumericDimension(STATUS));
@@ -149,19 +160,44 @@ public class DateHistogramTests extends DateHistogramAggregatorTestCase {
                 "@timestamp",
                 List.of(
                     new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR),
-                    new DateTimeUnitAdapter(Rounding.DateTimeUnit.MINUTES_OF_HOUR)
+                    new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)
                 ),
                 DateFieldMapper.Resolution.MILLISECONDS
             )
         );
 
-        DateHistogramAggregationBuilder dateHistogramAggregationBuilder = dateHistogram("by_hour").field("@timestamp")
-            .calendarInterval(DateHistogramInterval.MONTH)
-            .subAggregation(sumAggregationBuilder);
+        for (ValuesSourceAggregationBuilder aggregationBuilder : agggBuilders) {
+            Query query = new MatchAllDocsQuery();
+            QueryBuilder queryBuilder = null;
 
-        Query query = new MatchAllDocsQuery();
-        QueryBuilder queryBuilder = null;
+            DateHistogramAggregationBuilder dateHistogramAggregationBuilder = dateHistogram("by_day").field("@timestamp")
+                .calendarInterval(DateHistogramInterval.DAY)
+                .subAggregation(aggregationBuilder);
+            testCase(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
 
+            dateHistogramAggregationBuilder = dateHistogram("by_month").field("@timestamp")
+                .calendarInterval(DateHistogramInterval.MONTH)
+                .subAggregation(aggregationBuilder);
+            testCase(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
+
+            // year not present in star-tree, but should be able to compute using @timestamp_day dimension
+            dateHistogramAggregationBuilder = dateHistogram("by_year").field("@timestamp")
+                .calendarInterval(DateHistogramInterval.YEAR)
+                .subAggregation(aggregationBuilder);
+            testCase(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
+        }
+        ir.close();
+        directory.close();
+    }
+
+    private void testCase(
+        IndexSearcher indexSearcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        DateHistogramAggregationBuilder dateHistogramAggregationBuilder,
+        CompositeIndexFieldInfo starTree,
+        List<Dimension> supportedDimensions
+    ) throws IOException {
         InternalDateHistogram starTreeAggregation = searchAndReduceStarTree(
             createIndexSettings(),
             indexSearcher,
@@ -198,9 +234,6 @@ public class DateHistogramTests extends DateHistogramAggregatorTestCase {
 
         assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
         assertEquals(defaultAggregation.getBuckets(), starTreeAggregation.getBuckets());
-
-        ir.close();
-        directory.close();
     }
 
     public static XContentBuilder getExpandedMapping(int maxLeafDocs, boolean skipStarNodeCreationForStatusDimension) throws IOException {
