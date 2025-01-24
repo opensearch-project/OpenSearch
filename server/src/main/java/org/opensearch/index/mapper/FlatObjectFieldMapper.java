@@ -478,8 +478,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             String searchKey;
             String searchField;
             if (isSubField()) {
-                searchKey = this.rootFieldName;
-                searchField = name();
+                return rangeQuery(null, null, true, true, context);
             } else {
                 if (hasDocValues()) {
                     return new FieldExistsQuery(name());

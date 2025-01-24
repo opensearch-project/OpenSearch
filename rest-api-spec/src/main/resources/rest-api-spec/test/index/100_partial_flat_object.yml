@@ -513,7 +513,7 @@ teardown:
           _source: true,
           query: {
             "exists": {
-              "field": issue.labels.type
+              "field": issue.labels.category.type
             }
           }
         }

@@ -516,7 +516,7 @@ teardown:
               path: "issue",
               query: {
                 "exists": {
-                  "field": issue.labels.type
+                  "field": issue.labels.category.type
                 } } }
           }
         }
