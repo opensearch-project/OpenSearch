@@ -201,7 +201,7 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
 
             @Override
             public Long getDimensionValue(int docId, int dimensionId) throws IOException {
-                return 0l;
+                return 0L;
             }
 
             @Override
