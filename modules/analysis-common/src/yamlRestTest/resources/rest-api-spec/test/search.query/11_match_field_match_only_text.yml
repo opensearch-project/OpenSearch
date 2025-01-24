@@ -72,7 +72,7 @@
 ---
 "wildcard highlighting on match_only_text":
   - skip:
-      version: " - 2.18.99"
+      version: " - 2.99.99"
       reason: "wildcard highlighting on match_only_text type was added in 2.19"
   - do:
       indices.create:
