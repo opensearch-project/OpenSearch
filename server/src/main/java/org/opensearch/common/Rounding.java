@@ -493,7 +493,7 @@ public abstract class Rounding implements Writeable {
      *
      * @opensearch.internal
      */
-    public static class TimeUnitRounding extends Rounding {
+    static class TimeUnitRounding extends Rounding {
         static final byte ID = 1;
 
         private final DateTimeUnit unit;
