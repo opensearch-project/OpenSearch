@@ -317,8 +317,8 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
             .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true))
             .get();
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
-        logger.info("total: {}", expected.getHits().getTotalHits().value);
+        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value(), all.getHits().getTotalHits().value());
+        logger.info("total: {}", expected.getHits().getTotalHits().value());
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {

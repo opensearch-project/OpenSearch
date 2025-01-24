@@ -347,7 +347,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                     logger.info("--> add random documents to {}", index);
                     addRandomDocuments(index, randomIntBetween(10, 1000));
                 } else {
-                    int docCount = (int) client().prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
+                    int docCount = (int) client().prepareSearch(index).setSize(0).get().getHits().getTotalHits().value();
                     int deleteCount = randomIntBetween(1, docCount);
                     logger.info("--> delete {} random documents from {}", deleteCount, index);
                     for (int i = 0; i < deleteCount; i++) {
@@ -415,7 +415,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                 addRandomDocuments(indexName, docCount);
             }
             // Check number of documents in this iteration
-            docCounts[i] = (int) client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value;
+            docCounts[i] = (int) client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value();
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
             assertSuccessfulSnapshot(
                 client().admin()

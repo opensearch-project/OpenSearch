@@ -37,6 +37,7 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -127,7 +128,15 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createFieldType();
         UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
-            () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, randomMockShardContext())
+            () -> ft.fuzzyQuery(
+                "foo",
+                Fuzziness.fromEdits(2),
+                1,
+                50,
+                true,
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                randomMockShardContext()
+            )
         );
         assertEquals("[fuzzy] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
     }

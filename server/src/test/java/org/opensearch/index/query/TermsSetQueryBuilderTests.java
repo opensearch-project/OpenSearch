@@ -253,7 +253,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                     .doToQuery(context);
                 IndexSearcher searcher = new IndexSearcher(ir);
                 TopDocs topDocs = searcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-                assertThat(topDocs.totalHits.value, equalTo(3L));
+                assertThat(topDocs.totalHits.value(), equalTo(3L));
                 assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
                 assertThat(topDocs.scoreDocs[1].doc, equalTo(3));
                 assertThat(topDocs.scoreDocs[2].doc, equalTo(4));
@@ -299,7 +299,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                     .doToQuery(context);
                 IndexSearcher searcher = new IndexSearcher(ir);
                 TopDocs topDocs = searcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-                assertThat(topDocs.totalHits.value, equalTo(3L));
+                assertThat(topDocs.totalHits.value(), equalTo(3L));
                 assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
                 assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
                 assertThat(topDocs.scoreDocs[2].doc, equalTo(4));

@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -28,10 +29,12 @@ public class TransferManagerRemoteDirectoryReaderTests extends TransferManagerTe
     @Override
     protected void initializeTransferManager() throws IOException {
         remoteDirectory = mock(RemoteDirectory.class);
-        doAnswer(i -> new ByteArrayIndexInput("blob", createData())).when(remoteDirectory).openInput(eq("blob"), any());
+        final byte[] data = createData();
+        doAnswer(i -> new ByteArrayIndexInput("blob", data)).when(remoteDirectory)
+            .openBlockInput(eq("blob"), anyLong(), anyLong(), anyLong(), any());
         transferManager = new TransferManager(
             (name, position, length) -> new InputStreamIndexInput(
-                remoteDirectory.openInput(name, new BlockIOContext(IOContext.DEFAULT, position, length)),
+                remoteDirectory.openBlockInput(name, position, length, data.length, IOContext.DEFAULT),
                 length
             ),
             fileCache
@@ -39,13 +42,14 @@ public class TransferManagerRemoteDirectoryReaderTests extends TransferManagerTe
     }
 
     protected void mockExceptionWhileReading() throws IOException {
-        doThrow(new IOException("Expected test exception")).when(remoteDirectory).openInput(eq("failure-blob"), any());
+        doThrow(new IOException("Expected test exception")).when(remoteDirectory)
+            .openBlockInput(eq("failure-blob"), anyLong(), anyLong(), anyLong(), any());
     }
 
     protected void mockWaitForLatchReader(CountDownLatch latch) throws IOException {
         doAnswer(i -> {
             latch.await();
             return new ByteArrayIndexInput("blocking-blob", createData());
-        }).when(remoteDirectory).openInput(eq("blocking-blob"), any());
+        }).when(remoteDirectory).openBlockInput(eq("blocking-blob"), anyLong(), anyLong(), anyLong(), any());
     }
 }

@@ -444,7 +444,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         );
         for (int i = 0; i < 10; i++) {
             assertThat(
-                client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value,
+                client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value(),
                 equalTo((long) numDocs)
             );
             assertThat(
@@ -493,7 +493,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
 
         for (int i = 0; i < 10; i++) {
             assertThat(
-                client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value,
+                client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value(),
                 equalTo((long) numDocs)
             );
             assertThat(
@@ -524,7 +524,8 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 .setRequestCache(false)
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo((long) numDocs)
         );
         assertThat(
@@ -539,7 +540,8 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 .setRequestCache(true)
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo((long) numDocs)
         );
         assertThat(
@@ -558,7 +560,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         );
 
         assertThat(
-            client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value,
+            client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value(),
             equalTo((long) numDocs)
         );
         assertThat(
@@ -573,7 +575,8 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 .setRequestCache(true)
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo((long) numDocs)
         );
         assertThat(

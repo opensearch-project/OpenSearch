@@ -213,6 +213,6 @@ public class HdfsTests extends OpenSearchSingleNodeTestCase {
     }
 
     private long count(Client client, String index) {
-        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
+        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits().value();
     }
 }

@@ -310,7 +310,7 @@ public class HighlighterWithAnalyzersTests extends ParameterizedStaticSettingsOp
         ).highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         for (int i = 0; i < 2; i++) {
             assertHighlight(
                 searchResponse,

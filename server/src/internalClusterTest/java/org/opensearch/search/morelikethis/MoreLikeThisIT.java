@@ -853,7 +853,7 @@ public class MoreLikeThisIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         moreLikeThisQueryBuilder.minTermFreq(1);
         moreLikeThisQueryBuilder.minDocFreq(1);
         SearchResponse searchResponse = client().prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
-        assertEquals(2, searchResponse.getHits().getTotalHits().value);
+        assertEquals(2, searchResponse.getHits().getTotalHits().value());
     }
 
     // Issue #29678

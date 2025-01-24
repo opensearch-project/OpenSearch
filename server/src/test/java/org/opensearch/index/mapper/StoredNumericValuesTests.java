@@ -158,7 +158,7 @@ public class StoredNumericValuesTests extends OpenSearchSingleNodeTestCase {
             "field11"
         );
         CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
-        searcher.doc(0, fieldsVisitor);
+        searcher.storedFields().document(0, fieldsVisitor);
 
         fieldsVisitor.postProcess(mapperService::fieldType);
         assertThat(fieldsVisitor.fields().size(), equalTo(11));

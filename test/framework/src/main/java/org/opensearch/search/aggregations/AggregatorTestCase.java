@@ -49,6 +49,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSearcher.LeafReaderContextPartition;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
@@ -681,8 +682,10 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             final int size = compCTX.leaves().size();
             final ShardSearcher[] subSearchers = new ShardSearcher[size];
             for (int searcherIDX = 0; searcherIDX < subSearchers.length; searcherIDX++) {
-                final LeafReaderContext leave = compCTX.leaves().get(searcherIDX);
-                subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
+                final LeafReaderContextPartition partition = LeafReaderContextPartition.createForEntireSegment(
+                    compCTX.leaves().get(searcherIDX)
+                );
+                subSearchers[searcherIDX] = new ShardSearcher(partition, compCTX);
             }
             for (ShardSearcher subSearcher : subSearchers) {
                 MultiBucketConsumer shardBucketConsumer = new MultiBucketConsumer(
@@ -845,20 +848,20 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     private static class ShardSearcher extends IndexSearcher {
-        private final List<LeafReaderContext> ctx;
+        private final LeafReaderContextPartition[] partitions;
 
-        ShardSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
+        ShardSearcher(LeafReaderContextPartition partition, IndexReaderContext parent) {
             super(parent);
-            this.ctx = Collections.singletonList(ctx);
+            this.partitions = new LeafReaderContextPartition[] { partition };
         }
 
         public void search(Weight weight, Collector collector) throws IOException {
-            search(ctx, weight, collector);
+            search(partitions, weight, collector);
         }
 
         @Override
         public String toString() {
-            return "ShardSearcher(" + ctx.get(0) + ")";
+            return "ShardSearcher(" + partitions[0].ctx + ")";
         }
     }
 

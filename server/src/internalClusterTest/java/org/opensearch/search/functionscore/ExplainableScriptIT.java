@@ -190,7 +190,7 @@ public class ExplainableScriptIT extends ParameterizedStaticSettingsOpenSearchIn
 
         OpenSearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(20L));
+        assertThat(hits.getTotalHits().value(), equalTo(20L));
         int idCounter = 19;
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
@@ -237,7 +237,7 @@ public class ExplainableScriptIT extends ParameterizedStaticSettingsOpenSearchIn
 
         OpenSearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(1L));
+        assertThat(hits.getTotalHits().value(), equalTo(1L));
         assertThat(hits.getHits()[0].getId(), equalTo("1"));
         assertThat(hits.getHits()[0].getExplanation().getDetails(), arrayWithSize(2));
         assertThat(hits.getHits()[0].getExplanation().getDetails()[0].getDescription(), containsString("_name: func1"));
