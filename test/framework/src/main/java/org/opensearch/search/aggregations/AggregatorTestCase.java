@@ -69,6 +69,7 @@ import org.opensearch.common.TriConsumer;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.network.NetworkAddress;
@@ -432,14 +433,15 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
         for (Dimension dimension : supportedDimensions) {
             if (dimension instanceof OrdinalDimension) {
-                MappedFieldType mappedFieldType = mock(KeywordFieldMapper.KeywordFieldType.class);
-                when(mappedFieldType.name()).thenReturn(dimension.getField());
+                MappedFieldType mappedFieldType = new KeywordFieldMapper.KeywordFieldType(dimension.getField(), Lucene.WHITESPACE_ANALYZER);
                 when(mapperService.fieldType(dimension.getField())).thenReturn(mappedFieldType);
+                when(searchContext.getQueryShardContext().fieldMapper(dimension.getField())).thenReturn(mappedFieldType);
             } else if (dimension instanceof NumericDimension) {
-                NumberFieldMapper.NumberFieldType mappedFieldType = mock(NumberFieldMapper.NumberFieldType.class);
-                when(mappedFieldType.name()).thenReturn(dimension.getField());
                 // TODO : Number type should be supplied as parameter to create function
-                when(mappedFieldType.numberType()).thenReturn(NumberFieldMapper.NumberType.LONG);
+                NumberFieldMapper.NumberFieldType mappedFieldType = new NumberFieldMapper.NumberFieldType(
+                    dimension.getField(),
+                    NumberFieldMapper.NumberType.LONG
+                );
                 when(mapperService.fieldType(dimension.getField())).thenReturn(mappedFieldType);
                 when(searchContext.getQueryShardContext().fieldMapper(dimension.getField())).thenReturn(mappedFieldType);
             }

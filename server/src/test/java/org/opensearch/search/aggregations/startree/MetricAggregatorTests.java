@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -42,12 +43,15 @@ import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
+import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -125,6 +129,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         int totalDocs = 100;
         final String SNDV = "sndv";
         final String DV = "dv";
+        final String KEYWORD = "keyword_field";
         int val;
 
         List<Document> docs = new ArrayList<>();
@@ -142,6 +147,10 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             if (random.nextBoolean()) {
                 val = random.nextInt(50); // Random long between 0 and 49
                 doc.add(new SortedNumericDocValuesField(FIELD_NAME, val));
+            }
+            if (random.nextBoolean()) {
+                val = random.nextInt(50);
+                doc.add(new KeywordField(KEYWORD, String.valueOf(val), Field.Store.YES));
             }
             iw.addDocument(doc);
             docs.add(doc);
@@ -164,6 +173,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         when(mapperService.fieldType(SNDV)).thenReturn(new NumberFieldMapper.NumberFieldType(SNDV, NumberFieldMapper.NumberType.LONG));
         when(mapperService.fieldType(DV)).thenReturn(new NumberFieldMapper.NumberFieldType(DV, NumberFieldMapper.NumberType.LONG));
+        when(mapperService.fieldType(KEYWORD)).thenReturn(new KeywordFieldMapper.KeywordFieldType(KEYWORD));
         QueryShardContext queryShardContext = queryShardContextMock(
             indexSearcher,
             mapperService,
@@ -171,6 +181,11 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             circuitBreakerService,
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
         );
+        when(queryShardContext.fieldMapper(SNDV)).thenReturn(
+            new NumberFieldMapper.NumberFieldType(SNDV, NumberFieldMapper.NumberType.LONG)
+        );
+        when(queryShardContext.fieldMapper(DV)).thenReturn(new NumberFieldMapper.NumberFieldType(DV, NumberFieldMapper.NumberType.LONG));
+        when(queryShardContext.fieldMapper(KEYWORD)).thenReturn(new KeywordFieldMapper.KeywordFieldType(KEYWORD));
 
         List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
         CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
@@ -184,15 +199,18 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         List<Dimension> supportedDimensions = new LinkedList<>();
         supportedDimensions.add(new NumericDimension(SNDV));
         supportedDimensions.add(new NumericDimension(DV));
+        supportedDimensions.add(new OrdinalDimension(KEYWORD));
 
         Query query = new MatchAllDocsQuery();
         // match-all query
-        QueryBuilder queryBuilder = null; // no predicates
-        QueryBuilder rangeQueryBuilder = null;
+        QueryBuilder numericTermQueryBuilder = null; // no predicates
+        QueryBuilder numericRangeQueryBuilder = null;
+        QueryBuilder keywordTermQueryBuilder = null;
+        QueryBuilder keywordRangeQueryBuilder = null;
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            numericTermQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -201,7 +219,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            numericTermQueryBuilder,
             maxAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -210,7 +228,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            numericTermQueryBuilder,
             minAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -219,7 +237,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            numericTermQueryBuilder,
             valueCountAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -228,7 +246,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            numericTermQueryBuilder,
             avgAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -248,11 +266,18 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             }
             queryHigh = random.nextInt(10);
 
-            query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryLow);
-            queryBuilder = new TermQueryBuilder(queryField, queryLow);
-            rangeQueryBuilder = QueryBuilders.rangeQuery(queryField).gte(queryLow).lte(queryHigh);
+            numericTermQueryBuilder = new TermQueryBuilder(queryField, queryLow);
+            numericRangeQueryBuilder = getRandomRangeQuery(queryField, queryLow, queryHigh);
+            long keywordLow = randomIntBetween(1, 50);
+            long keywordHigh = randomIntBetween(1, 50);
+            keywordTermQueryBuilder = new TermQueryBuilder(KEYWORD, String.valueOf(keywordLow));
+            keywordRangeQueryBuilder = getRandomRangeQuery(KEYWORD, String.valueOf(keywordLow), String.valueOf(keywordHigh));
 
-            for (QueryBuilder qb : new QueryBuilder[] { queryBuilder, rangeQueryBuilder }) {
+            for (QueryBuilder qb : new QueryBuilder[] {
+                numericTermQueryBuilder,
+                numericRangeQueryBuilder,
+                keywordTermQueryBuilder,
+                keywordRangeQueryBuilder }) {
                 query = qb.toQuery(queryShardContext);
                 testCase(
                     indexSearcher,
@@ -307,11 +332,12 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         when(aggregatorFactory.getField()).thenReturn(FIELD_NAME);
         when(aggregatorFactory.getMetricStat()).thenReturn(MetricStat.SUM);
 
+        query = numericRangeQueryBuilder.toQuery(queryShardContext);
         // Case when field and metric type in aggregation are fully supported by star tree.
         testCase(
             indexSearcher,
             query,
-            rangeQueryBuilder,
+            numericRangeQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -326,7 +352,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            rangeQueryBuilder,
+            numericRangeQueryBuilder,
             invalidFieldSumAggBuilder,
             starTree,
             supportedDimensions,
@@ -340,7 +366,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            rangeQueryBuilder,
+            numericRangeQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -354,7 +380,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            rangeQueryBuilder,
+            numericRangeQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -372,7 +398,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            rangeQueryBuilder,
+            numericRangeQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -386,7 +412,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            rangeQueryBuilder,
+            numericRangeQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -398,10 +424,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
 
         ir.close();
         directory.close();
-    }
-
-    public void testStarTreeDocValues2() throws IOException {
-
     }
 
     <T, R extends Number> BiConsumer<T, T> verifyAggregation(Function<T, R> valueExtractor) {
@@ -466,6 +488,20 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             assertCollectorEarlyTermination,
             DEFAULT_MAPPED_FIELD
         );
+        if (!expectedAggregation.equals(starTreeAggregation)) {
+            System.out.println("Assertion Failed for Query " + query + " Builder " + queryBuilder);
+            System.out.println("StarTreeResult: " + starTreeAggregation + " Should have been: " + expectedAggregation);
+        }
         verify.accept(expectedAggregation, starTreeAggregation);
+    }
+
+    private RangeQueryBuilder getRandomRangeQuery(String fieldName, Object from, Object to) {
+        if (randomBoolean()) {
+            from = null;
+        }
+        if (randomBoolean()) {
+            to = null;
+        }
+        return QueryBuilders.rangeQuery(fieldName).from(from).to(to).includeLower(randomBoolean()).includeUpper(randomBoolean());
     }
 }

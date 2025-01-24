@@ -112,7 +112,7 @@ public interface StarTreeNode {
 
     StarTreeNode getChildForDimensionValue(Long dimensionValue, StarTreeNode lastMatchedChild) throws IOException;
 
-    void collectChildrenInRange(Long low, Long high, StarTreeNodeCollector collector) throws IOException;
+    void collectChildrenInRange(long low, long high, StarTreeNodeCollector collector) throws IOException;
 
     /**
      * Returns the child star node for a node in the star-tree.

@@ -362,7 +362,13 @@ public class StarTreeQueryTests extends AggregatorTestCase {
             b.field("name", "sndv");
             b.endObject();
             b.startObject();
+            b.field("name", "keyword_field");
+            b.endObject();
+            b.startObject();
             b.field("name", "sdv");
+            b.endObject();
+            b.startObject();
+            b.field("name", "double_field");
             b.endObject();
             b.startObject();
             b.field("name", "dv");
@@ -405,6 +411,12 @@ public class StarTreeQueryTests extends AggregatorTestCase {
             b.endObject();
             b.startObject("field");
             b.field("type", "integer");
+            b.endObject();
+            b.startObject("keyword_field");
+            b.field("type", "keyword");
+            b.endObject();
+            b.startObject("double_field");
+            b.field("type", "double");
             b.endObject();
             b.endObject();
         });

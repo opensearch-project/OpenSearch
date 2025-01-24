@@ -43,6 +43,7 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.hasDecimalPart;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.signum;
+import static org.opensearch.search.startree.filter.DimensionFilter.MatchType.GTE;
 
 public interface DimensionFilterMapper {
     DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues);
@@ -345,20 +346,36 @@ class KeywordFieldMapper implements DimensionFilterMapper {
                 } else {
                     TermsEnum termsEnum = sortedSetIterator.termsEnum();
                     TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil((BytesRef) value);
-                    if (matchType == DimensionFilter.MatchType.GT || matchType == DimensionFilter.MatchType.GTE) {
-                        // We reached the end and couldn't match anything, else we found a term which matches.
-                        return (seekStatus == TermsEnum.SeekStatus.END) ? Optional.empty() : Optional.of(termsEnum.ord());
-                    } else { // LT || LTE
-                        // If we found a term just greater, then return ordinal of the term just before it.
-                        if (seekStatus == TermsEnum.SeekStatus.NOT_FOUND) {
-                            long ordGreaterThanValue = termsEnum.ord();
-                            // Checking if we are in bounds for satisfying LT
-                            return ((ordGreaterThanValue - 1) < sortedSetIterator.getValueCount())
-                                ? Optional.of(ordGreaterThanValue - 1)
-                                : Optional.empty();
-                        } else {
-                            return Optional.of(termsEnum.ord());
-                        }
+                    // We reached the end and couldn't match anything, else we found a term which matches.
+                    // LT || LTE
+                    // If we found a term just greater, then return ordinal of the term just before it.
+                    // Checking if we are in bounds for satisfying LT
+                    // Checking if we are in bounds for satisfying LT
+                    switch (matchType) {
+                        case GTE:
+                            return seekStatus == TermsEnum.SeekStatus.END ? Optional.empty() : Optional.of(termsEnum.ord());
+                        case GT:
+                            return switch (seekStatus) {
+                                case END -> Optional.empty();
+                                case FOUND -> ((termsEnum.ord() + 1) < sortedSetIterator.getValueCount())
+                                    ? Optional.of(termsEnum.ord() + 1)
+                                    : Optional.empty();
+                                case NOT_FOUND -> Optional.of(termsEnum.ord());
+                            };
+                        case LTE:
+                            if (seekStatus == TermsEnum.SeekStatus.NOT_FOUND) {
+                                return ((termsEnum.ord() - 1) >= 0) ? Optional.of(termsEnum.ord() - 1) : Optional.empty();
+                            } else {
+                                return Optional.of(termsEnum.ord());
+                            }
+                        case LT:
+                            if (seekStatus == TermsEnum.SeekStatus.END) {
+                                return Optional.of(termsEnum.ord());
+                            } else {
+                                return ((termsEnum.ord() - 1) >= 0) ? Optional.of(termsEnum.ord() - 1) : Optional.empty();
+                            }
+                        default:
+                            throw new IllegalStateException("unexpected matchType " + matchType);
                     }
                 }
             } catch (IOException e) {
@@ -371,14 +388,16 @@ class KeywordFieldMapper implements DimensionFilterMapper {
 
     // TODO : Think around making TermBasedFT#indexedValueForSearch() accessor public for reuse here.
     private Object parseRawKeyword(String field, Object rawValue, KeywordFieldType keywordFieldType) {
-        Object parsedValue;
-        if (keywordFieldType.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
-            parsedValue = BytesRefs.toBytesRef(rawValue);
-        } else {
-            if (rawValue instanceof BytesRef) {
-                rawValue = ((BytesRef) rawValue).utf8ToString();
+        Object parsedValue = null;
+        if (rawValue != null) {
+            if (keywordFieldType.getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
+                parsedValue = BytesRefs.toBytesRef(rawValue);
+            } else {
+                if (rawValue instanceof BytesRef) {
+                    rawValue = ((BytesRef) rawValue).utf8ToString();
+                }
+                parsedValue = keywordFieldType.getTextSearchInfo().getSearchAnalyzer().normalize(field, rawValue.toString());
             }
-            parsedValue = keywordFieldType.getTextSearchInfo().getSearchAnalyzer().normalize(field, rawValue.toString());
         }
         return parsedValue;
     }

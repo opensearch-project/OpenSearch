@@ -52,10 +52,12 @@ public class RangeMatchDimFilter implements DimensionFilter {
             Optional<Long> lowOrdinalFound = dimensionFilterMapper.getMatchingOrdinal(dimensionName, low, starTreeValues, lowMatchType);
             if (lowOrdinalFound.isPresent()) {
                 lowOrdinal = lowOrdinalFound.get();
-            } else { // This is only valid for Non-numeric fields.
+            } else {
+                // This is only valid for Non-numeric fields.
+                // High can't be found since nothing >= low exists.
                 lowOrdinal = highOrdinal = Long.MAX_VALUE;
                 skipRangeCollection = true;
-                return; // High can't be found since nothing >= low exists.
+                return;
             }
         }
         highOrdinal = Long.MAX_VALUE;
@@ -76,7 +78,6 @@ public class RangeMatchDimFilter implements DimensionFilter {
 
     @Override
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
-        // FIXME : Needs to be based on Match Type.
         return lowOrdinal <= ordinal && ordinal <= highOrdinal;
     }
 
