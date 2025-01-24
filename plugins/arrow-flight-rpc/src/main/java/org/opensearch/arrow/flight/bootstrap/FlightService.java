@@ -85,6 +85,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
     /**
      * Starts the FlightService by initializing the stream manager.
      */
+    @SuppressWarnings("removal")
     @Override
     protected void doStart() {
         try {

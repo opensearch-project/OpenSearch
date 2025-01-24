@@ -115,6 +115,7 @@ public class ServerConfig {
      * @param settings The OpenSearch settings to initialize the server with
      */
     @SuppressForbidden(reason = "required for arrow allocator")
+    @SuppressWarnings("removal")
     public static void init(Settings settings) {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             System.setProperty("arrow.allocation.manager.type", ARROW_ALLOCATION_MANAGER_TYPE.get(settings));

@@ -50,6 +50,7 @@ import static org.opensearch.common.settings.Setting.listSetting;
 import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORT;
 import static org.opensearch.transport.Transport.resolveTransportPublishPort;
 
+@SuppressWarnings("removal")
 final class ServerComponents implements AutoCloseable {
 
     public static final Setting<List<String>> SETTING_FLIGHT_HOST = listSetting(
