@@ -488,10 +488,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             assertCollectorEarlyTermination,
             DEFAULT_MAPPED_FIELD
         );
-        if (!expectedAggregation.equals(starTreeAggregation)) {
-            System.out.println("Assertion Failed for Query " + query + " Builder " + queryBuilder);
-            System.out.println("StarTreeResult: " + starTreeAggregation + " Should have been: " + expectedAggregation);
-        }
         verify.accept(expectedAggregation, starTreeAggregation);
     }
 

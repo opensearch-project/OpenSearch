@@ -43,7 +43,6 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.hasDecimalPart;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.signum;
-import static org.opensearch.search.startree.filter.DimensionFilter.MatchType.GTE;
 
 public interface DimensionFilterMapper {
     DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues);
