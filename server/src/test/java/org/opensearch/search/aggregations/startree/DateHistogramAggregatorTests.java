@@ -72,8 +72,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     private static final MappedFieldType TIMESTAMP_FIELD_TYPE = new DateFieldMapper.DateFieldType(TIMESTAMP_FIELD);
 
     private static final String FIELD_NAME = "status";
-    private static final NumberFieldMapper.NumberType DEFAULT_FIELD_TYPE = NumberFieldMapper.NumberType.LONG;
-    private static final MappedFieldType DEFAULT_MAPPED_FIELD = new NumberFieldMapper.NumberFieldType(FIELD_NAME, DEFAULT_FIELD_TYPE);
+    private static final MappedFieldType NUMBER_FIELD_TYPE = new NumberFieldMapper.NumberFieldType(
+        FIELD_NAME,
+        NumberFieldMapper.NumberType.LONG
+    );
 
     @Before
     public void setup() {
@@ -157,7 +159,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         supportedDimensions.add(new NumericDimension(SIZE));
         supportedDimensions.add(
             new DateDimension(
-                "@timestamp",
+                TIMESTAMP_FIELD,
                 List.of(
                     new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR),
                     new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)
@@ -170,18 +172,18 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             Query query = new MatchAllDocsQuery();
             QueryBuilder queryBuilder = null;
 
-            DateHistogramAggregationBuilder dateHistogramAggregationBuilder = dateHistogram("by_day").field("@timestamp")
+            DateHistogramAggregationBuilder dateHistogramAggregationBuilder = dateHistogram("by_day").field(TIMESTAMP_FIELD)
                 .calendarInterval(DateHistogramInterval.DAY)
                 .subAggregation(aggregationBuilder);
             testCase(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
 
-            dateHistogramAggregationBuilder = dateHistogram("by_month").field("@timestamp")
+            dateHistogramAggregationBuilder = dateHistogram("by_month").field(TIMESTAMP_FIELD)
                 .calendarInterval(DateHistogramInterval.MONTH)
                 .subAggregation(aggregationBuilder);
             testCase(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
 
             // year not present in star-tree, but should be able to compute using @timestamp_day dimension
-            dateHistogramAggregationBuilder = dateHistogram("by_year").field("@timestamp")
+            dateHistogramAggregationBuilder = dateHistogram("by_year").field(TIMESTAMP_FIELD)
                 .calendarInterval(DateHistogramInterval.YEAR)
                 .subAggregation(aggregationBuilder);
             testCase(indexSearcher, query, queryBuilder, dateHistogramAggregationBuilder, starTree, supportedDimensions);
@@ -212,7 +214,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             null,
             true,
             TIMESTAMP_FIELD_TYPE,
-            DEFAULT_MAPPED_FIELD
+            NUMBER_FIELD_TYPE
         );
 
         InternalDateHistogram defaultAggregation = searchAndReduceStarTree(
@@ -229,7 +231,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             null,
             false,
             TIMESTAMP_FIELD_TYPE,
-            DEFAULT_MAPPED_FIELD
+            NUMBER_FIELD_TYPE
         );
 
         assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
@@ -256,7 +258,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             b.field("name", "size");
             b.endObject();
             b.startObject();
-            b.field("name", "@timestamp");
+            b.field("name", TIMESTAMP_FIELD);
             b.startArray("calendar_intervals");
             b.value("month");
             b.value("day");
