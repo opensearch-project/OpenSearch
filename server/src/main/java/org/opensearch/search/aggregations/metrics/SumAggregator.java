@@ -56,6 +56,8 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 
@@ -163,32 +165,18 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
      * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
      */
     public StarTreeBucketCollector getStarTreeBucketCollector(
-        LeafReaderContext ctx,
-        CompositeIndexFieldInfo starTree,
-        StarTreeBucketCollector parentCollector
+            LeafReaderContext ctx,
+            CompositeIndexFieldInfo starTree,
+            StarTreeBucketCollector parentCollector
     ) throws IOException {
-        assert parentCollector != null;
-        return new StarTreeBucketCollector(parentCollector) {
-            String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-                starTree.getField(),
-                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
-                MetricStat.SUM.getTypeName()
-            );
-            SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
-                .getMetricValuesIterator(metricName);
-
-            @Override
-            public void collectStarTreeEntry(int starTreeEntryBit, long bucket) throws IOException {
-                sums = context.bigArrays().grow(sums, bucket + 1);
-                // Advance the valuesIterator to the current bit
-                if (!metricValuesIterator.advanceExact(starTreeEntryBit)) {
-                    return; // Skip if no entries for this document
-                }
-                double metricValue = NumericUtils.sortableLongToDouble(metricValuesIterator.nextValue());
-                double sum = sums.get(bucket);
-                sums.set(bucket, metricValue + sum);
-            }
-        };
+        return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
+                starTree,
+                MetricStat.SUM.getTypeName(),
+                valuesSource,
+                parentCollector,
+                (bucket) -> sums = context.bigArrays().grow(sums, bucket + 1),
+                (bucket, metricValue) -> sums.set(bucket, NumericUtils.sortableLongToDouble(metricValue) + sums.get(bucket))
+        );
     }
 
     @Override

@@ -52,6 +52,8 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -68,7 +70,7 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
  *
  * @opensearch.internal
  */
-class MinAggregator extends NumericMetricsAggregator.SingleValue {
+class MinAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
     private static final int MAX_BKD_LOOKUPS = 1024;
 
     final ValuesSource.Numeric valuesSource;
@@ -242,5 +244,24 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             });
         } catch (CollectionTerminatedException e) {}
         return result[0];
+    }
+
+    /**
+     * The parent aggregator invokes this method to get a StarTreeBucketCollector,
+     * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
+     */
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+            LeafReaderContext ctx,
+            CompositeIndexFieldInfo starTree,
+            StarTreeBucketCollector parentCollector
+    ) throws IOException {
+        return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
+                starTree,
+                MetricStat.MIN.getTypeName(),
+                valuesSource,
+                parentCollector,
+                (bucket) -> mins = context.bigArrays().grow(mins, bucket + 1),
+                (bucket, metricValue) -> mins.set(bucket, Math.max(mins.get(bucket), NumericUtils.sortableLongToDouble(metricValue)))
+        );
     }
 }

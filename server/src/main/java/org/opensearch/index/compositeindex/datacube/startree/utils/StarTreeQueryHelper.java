@@ -14,6 +14,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -31,6 +32,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -44,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -278,6 +281,37 @@ public class StarTreeQueryHelper {
 
         // Terminate after pre-computing aggregation
         throw new CollectionTerminatedException();
+    }
+
+    public static StarTreeBucketCollector getStarTreeBucketMetricCollector(
+            CompositeIndexFieldInfo starTree,
+            String metric,
+            ValuesSource.Numeric valuesSource,
+            StarTreeBucketCollector parentCollector,
+            Consumer<Long> growArrays,
+            BiConsumer<Long, Long> updateBucket
+    ) throws IOException {
+        assert parentCollector != null;
+        return new StarTreeBucketCollector(parentCollector) {
+            String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                    starTree.getField(),
+                    ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                    metric
+            );
+            SortedNumericStarTreeValuesIterator metricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                    .getMetricValuesIterator(metricName);
+
+            @Override
+            public void collectStarTreeEntry(int starTreeEntryBit, long bucket) throws IOException {
+                growArrays.accept(bucket);
+                // Advance the valuesIterator to the current bit
+                if (!metricValuesIterator.advanceExact(starTreeEntryBit)) {
+                    return; // Skip if no entries for this document
+                }
+                long metricValue = metricValuesIterator.nextValue();
+                updateBucket.accept(bucket, metricValue);
+            }
+        };
     }
 
     /**
