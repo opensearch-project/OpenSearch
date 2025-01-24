@@ -38,7 +38,6 @@ public interface StarTreeFilterProvider {
 
     class SingletonFactory {
 
-        // TODO : Implement MatchAll and MatchNone Queries
         private static final Map<Class<? extends QueryBuilder>, StarTreeFilterProvider> QUERY_BUILDERS_TO_STF_PROVIDER = Map.of(
             MatchAllQueryBuilder.class,
             MATCH_ALL_PROVIDER,

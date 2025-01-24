@@ -45,5 +45,4 @@ public interface Dimension extends ToXContent {
     List<String> getSubDimensionNames();
 
     DocValuesType getDocValuesType();
-
 }

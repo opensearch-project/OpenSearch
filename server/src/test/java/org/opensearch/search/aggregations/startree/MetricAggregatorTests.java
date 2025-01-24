@@ -15,6 +15,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -44,6 +46,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -130,11 +133,11 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             Document doc = new Document();
             if (random.nextBoolean()) {
                 val = random.nextInt(10) - 5; // Random long between -5 and 4
-                doc.add(new SortedNumericDocValuesField(SNDV, val));
+                doc.add(new LongField(SNDV, val, Field.Store.YES));
             }
             if (random.nextBoolean()) {
                 val = random.nextInt(20) - 10; // Random long between -10 and 9
-                doc.add(new SortedNumericDocValuesField(DV, val));
+                doc.add(new LongField(DV, val, Field.Store.YES));
             }
             if (random.nextBoolean()) {
                 val = random.nextInt(50); // Random long between 0 and 49
@@ -157,6 +160,18 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(reader, false, false);
         CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
 
+        MapperService mapperService = mapperServiceMock();
+        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        when(mapperService.fieldType(SNDV)).thenReturn(new NumberFieldMapper.NumberFieldType(SNDV, NumberFieldMapper.NumberType.LONG));
+        when(mapperService.fieldType(DV)).thenReturn(new NumberFieldMapper.NumberFieldType(DV, NumberFieldMapper.NumberType.LONG));
+        QueryShardContext queryShardContext = queryShardContextMock(
+            indexSearcher,
+            mapperService,
+            createIndexSettings(),
+            circuitBreakerService,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
+        );
+
         List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
         CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
 
@@ -173,6 +188,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
         // match-all query
         QueryBuilder queryBuilder = null; // no predicates
+        QueryBuilder rangeQueryBuilder = null;
         testCase(
             indexSearcher,
             query,
@@ -222,74 +238,69 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         // Numeric-terms query
         for (int cases = 0; cases < 100; cases++) {
             String queryField;
-            long queryValue;
+            long queryLow, queryHigh;
             if (randomBoolean()) {
                 queryField = SNDV;
-                queryValue = random.nextInt(10);
+                queryLow = random.nextInt(10);
             } else {
                 queryField = DV;
-                queryValue = random.nextInt(20) - 15;
+                queryLow = random.nextInt(20) - 15;
             }
+            queryHigh = random.nextInt(10);
 
-            query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
-            queryBuilder = new TermQueryBuilder(queryField, queryValue);
+            query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryLow);
+            queryBuilder = new TermQueryBuilder(queryField, queryLow);
+            rangeQueryBuilder = QueryBuilders.rangeQuery(queryField).gte(queryLow).lte(queryHigh);
 
-            testCase(
-                indexSearcher,
-                query,
-                queryBuilder,
-                sumAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                verifyAggregation(InternalSum::getValue)
-            );
-            testCase(
-                indexSearcher,
-                query,
-                queryBuilder,
-                maxAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                verifyAggregation(InternalMax::getValue)
-            );
-            testCase(
-                indexSearcher,
-                query,
-                queryBuilder,
-                minAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                verifyAggregation(InternalMin::getValue)
-            );
-            testCase(
-                indexSearcher,
-                query,
-                queryBuilder,
-                valueCountAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                verifyAggregation(InternalValueCount::getValue)
-            );
-            testCase(
-                indexSearcher,
-                query,
-                queryBuilder,
-                avgAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                verifyAggregation(InternalAvg::getValue)
-            );
+            for (QueryBuilder qb : new QueryBuilder[] { queryBuilder, rangeQueryBuilder }) {
+                query = qb.toQuery(queryShardContext);
+                testCase(
+                    indexSearcher,
+                    query,
+                    qb,
+                    sumAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalSum::getValue)
+                );
+                testCase(
+                    indexSearcher,
+                    query,
+                    qb,
+                    maxAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalMax::getValue)
+                );
+                testCase(
+                    indexSearcher,
+                    query,
+                    qb,
+                    minAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalMin::getValue)
+                );
+                testCase(
+                    indexSearcher,
+                    query,
+                    qb,
+                    valueCountAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalValueCount::getValue)
+                );
+                testCase(
+                    indexSearcher,
+                    query,
+                    qb,
+                    avgAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalAvg::getValue)
+                );
+            }
         }
-
-        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-
-        QueryShardContext queryShardContext = queryShardContextMock(
-            indexSearcher,
-            mapperServiceMock(),
-            createIndexSettings(),
-            circuitBreakerService,
-            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
-        );
 
         MetricAggregatorFactory aggregatorFactory = mock(MetricAggregatorFactory.class);
         when(aggregatorFactory.getSubFactories()).thenReturn(AggregatorFactories.EMPTY);
@@ -300,7 +311,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            rangeQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -315,7 +326,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            rangeQueryBuilder,
             invalidFieldSumAggBuilder,
             starTree,
             supportedDimensions,
@@ -329,7 +340,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            rangeQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -343,7 +354,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            rangeQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -361,7 +372,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            rangeQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -375,7 +386,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         testCase(
             indexSearcher,
             query,
-            queryBuilder,
+            rangeQueryBuilder,
             sumAggregationBuilder,
             starTree,
             supportedDimensions,
@@ -387,6 +398,10 @@ public class MetricAggregatorTests extends AggregatorTestCase {
 
         ir.close();
         directory.close();
+    }
+
+    public void testStarTreeDocValues2() throws IOException {
+
     }
 
     <T, R extends Number> BiConsumer<T, T> verifyAggregation(Function<T, R> valueExtractor) {

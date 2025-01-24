@@ -328,8 +328,10 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
         if (lastMatchedNode instanceof FixedLengthStarTreeNode) {
             int lastMatchedNodeId = ((FixedLengthStarTreeNode) lastMatchedNode).nodeId();
             // Start the binary search from node after the last matched as low.
-            if ((lastMatchedNodeId + 1) <= high) {
-                low = lastMatchedNodeId + 1;
+            if ((lastMatchedNodeId + 1) <= tempHigh) {
+                tempLow = lastMatchedNodeId + 1;
+            } else {
+                return null;
             }
         }
 

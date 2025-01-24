@@ -62,8 +62,6 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
@@ -153,6 +151,8 @@ import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -173,6 +173,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
@@ -180,7 +181,6 @@ import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 /**
  * Base class for testing {@link Aggregator} implementations.
@@ -439,7 +439,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                 NumberFieldMapper.NumberFieldType mappedFieldType = mock(NumberFieldMapper.NumberFieldType.class);
                 when(mappedFieldType.name()).thenReturn(dimension.getField());
                 // TODO : Number type should be supplied as parameter to create function
-                when(mappedFieldType.numberType()).thenReturn(NumberFieldMapper.NumberType.INTEGER);
+                when(mappedFieldType.numberType()).thenReturn(NumberFieldMapper.NumberType.LONG);
                 when(mapperService.fieldType(dimension.getField())).thenReturn(mappedFieldType);
                 when(searchContext.getQueryShardContext().fieldMapper(dimension.getField())).thenReturn(mappedFieldType);
             }

@@ -340,7 +340,8 @@ class KeywordFieldMapper implements DimensionFilterMapper {
             SortedSetStarTreeValuesIterator sortedSetIterator = (SortedSetStarTreeValuesIterator) genericIterator;
             try {
                 if (matchType == DimensionFilter.MatchType.EXACT) {
-                    return Optional.of(sortedSetIterator.lookupTerm((BytesRef) value));
+                    long ordinal = sortedSetIterator.lookupTerm((BytesRef) value);
+                    return ordinal >= 0 ? Optional.of(ordinal) : Optional.empty();
                 } else {
                     TermsEnum termsEnum = sortedSetIterator.termsEnum();
                     TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil((BytesRef) value);
