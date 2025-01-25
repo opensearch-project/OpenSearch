@@ -565,10 +565,8 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-        if (subAggregators().length == 0) {
-            return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
-        }
-        return false;
+        finishLeaf(); // May need to wrap up previous leaf if it could not be precomputed
+        return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
     }
 
     @Override
