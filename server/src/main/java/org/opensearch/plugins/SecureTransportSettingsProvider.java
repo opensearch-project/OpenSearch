@@ -55,13 +55,13 @@ public interface SecureTransportSettingsProvider {
     interface SecureTransportParameters {
         boolean dualModeEnabled();
 
-        KeyManagerFactory keyManagerFactory();
+        Optional<KeyManagerFactory> keyManagerFactory();
 
         String sslProvider();
 
         String clientAuth();
 
-        Iterable<String> protocols();
+        String[] protocols();
 
         Iterable<String> cipherSuites();
 

@@ -20,6 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
+import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -38,14 +39,14 @@ public class SslContextProviderTests extends OpenSearchTestCase {
         mockSecureTransportSettingsProvider = mock(SecureTransportSettingsProvider.class);
         mockParameters = mock(SecureTransportSettingsProvider.SecureTransportParameters.class);
 
-        Iterable<String> protocols = Arrays.asList("TLSv1.2", "TLSv1.3");
+        String[] protocols = { "TLSv1.2", "TLSv1.3" };
         Iterable<String> cipherSuites = Arrays.asList("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384");
         setupDummyFactories();
         when(mockParameters.sslProvider()).thenReturn("JDK");
         when(mockParameters.clientAuth()).thenReturn("REQUIRE");
         when(mockParameters.protocols()).thenReturn(protocols);
         when(mockParameters.cipherSuites()).thenReturn(cipherSuites);
-        when(mockParameters.keyManagerFactory()).thenReturn(keyManagerFactory);
+        when(mockParameters.keyManagerFactory()).thenReturn(Optional.of(keyManagerFactory));
         when(mockParameters.trustManagerFactory()).thenReturn(trustManagerFactory);
 
         when(mockSecureTransportSettingsProvider.parameters(null)).thenReturn(java.util.Optional.of(mockParameters));

@@ -52,10 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import io.grpc.netty.shaded.io.netty.util.NettyRuntime;
 
 import static org.opensearch.arrow.flight.bootstrap.FlightClientManager.LOCATION_TIMEOUT_MS;
@@ -102,21 +99,18 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         mockFlightInfoResponse(state.nodes(), 0);
 
         SslContextProvider sslContextProvider = mock(SslContextProvider.class);
-        SslContext clientSslContext = GrpcSslContexts.configure(SslContextBuilder.forClient()).build();
-        when(sslContextProvider.isSslEnabled()).thenReturn(true);
-        when(sslContextProvider.getClientSslContext()).thenReturn(clientSslContext);
+        when(sslContextProvider.isSslEnabled()).thenReturn(false);
 
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME)).thenReturn(executorService);
         clientManager = new FlightClientManager(allocator, clusterService, sslContextProvider, elg, threadPool, client);
         ClusterChangedEvent event = new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
-        clientManager.updateFlightClients();
-        assertBusy(
-            () -> { assertFalse("Flight client isn't built in time limit", clientManager.getClients().isEmpty()); },
-            2,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            assertEquals("Flight client isn't built in time limit", 2, clientManager.getClients().size());
+            assertNotNull("local_node should exist", clientManager.getFlightClient("local_node"));
+            assertNotNull("remote_node should exist", clientManager.getFlightClient("remote_node"));
+        }, 2, TimeUnit.SECONDS);
     }
 
     private void mockFlightInfoResponse(DiscoveryNodes nodes, int sleepDuration) {
@@ -218,7 +212,6 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         mockFlightInfoResponse(newNodes, 0);
         when(clusterService.state()).thenReturn(newState);
         clientManager.clusterChanged(new ClusterChangedEvent("test", newState, state));
-        clientManager.updateFlightClients();
 
         for (DiscoveryNode node : newState.nodes()) {
             assertBusy(
@@ -400,6 +393,6 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
     }
 
     protected static int getBaseStreamPort() {
-        return generateBasePort(9401);
+        return getBasePort(9401);
     }
 }
