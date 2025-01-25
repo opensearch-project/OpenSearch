@@ -233,7 +233,14 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         sourceBuilder = new SearchSourceBuilder().size(0).aggregation(dateHistogramAggregationBuilder);
         assertStarTreeContext(request, sourceBuilder, null, -1);
 
-        // Case 9: Date histogram nested with multiple non-nested metric aggregations - should use star-tree
+        // Case 9: Date histogram with no valid time interval to resolve aggregation - should not use star-tree
+        dateHistogramAggregationBuilder = dateHistogram("by_sec").field(TIMESTAMP_FIELD)
+            .calendarInterval(DateHistogramInterval.SECOND)
+            .subAggregation(maxAggNoSub);
+        sourceBuilder = new SearchSourceBuilder().size(0).aggregation(dateHistogramAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 10: Date histogram nested with multiple non-nested metric aggregations - should use star-tree
         dateHistogramAggregationBuilder = dateHistogram("by_day").field(TIMESTAMP_FIELD)
             .calendarInterval(DateHistogramInterval.DAY)
             .subAggregation(maxAggNoSub)
