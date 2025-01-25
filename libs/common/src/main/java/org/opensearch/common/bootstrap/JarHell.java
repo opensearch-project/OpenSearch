@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.bootstrap;
+package org.opensearch.common.bootstrap;
 
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
