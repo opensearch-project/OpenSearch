@@ -18,6 +18,7 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
@@ -56,6 +57,8 @@ public class StarTreeTraversalUtil {
         }
 
         StarTreeResult starTreeResult = traverseStarTree(starTreeValues, starTreeFilter);
+
+        //iterateOverAllDimensionValues(starTreeValues);
 
         // Initialize FixedBitSet with size maxMatchedDoc + 1
         FixedBitSet bitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
@@ -96,8 +99,8 @@ public class StarTreeTraversalUtil {
                         long value = valuesIterator.value();
                         for (DimensionFilter dimensionFilter : dimensionFilters) {
                             if (dimensionFilter.matchDimValue(value, starTreeValues)) {
-                                tempBitSet.set(entryId);  // Set bit for the matching entryId
-                                break;  // No need to check other values for this entryId
+                                tempBitSet.set(entryId);// Set bit for the matching entryId
+                                break;
                             }
                         }
                     }
@@ -109,6 +112,31 @@ public class StarTreeTraversalUtil {
         }
 
         return bitSet;  // Return the final FixedBitSet with all matches
+    }
+
+    private static void iterateOverAllDimensionValues(StarTreeValues starTreeValues) throws IOException {
+        for (String dimensionName : starTreeValues.getStarTreeField().getDimensionNames()) {
+            StarTreeValuesIterator starTreeValuesIterator = starTreeValues.getDimensionValuesIterator(dimensionName);
+            int docId = 0;
+            List<Integer> docIds = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            while (starTreeValuesIterator.advance(docId) != NO_MORE_DOCS) {
+                docIds.add(starTreeValuesIterator.entryId());
+                        if (starTreeValuesIterator instanceof SortedNumericStarTreeValuesIterator) {
+                            values.add(((SortedNumericStarTreeValuesIterator) starTreeValuesIterator).nextValue());
+                        } else if (starTreeValuesIterator instanceof SortedSetStarTreeValuesIterator) {
+                            values.add(((SortedSetStarTreeValuesIterator) starTreeValuesIterator).nextOrd());
+                        }
+                docId++;
+            }
+            System.out.printf(
+                "\n\nDimension Values for dimension %s has size %s and are %s and docIds are %s",
+                dimensionName,
+                values.size(),
+                values,
+                docIds
+            );
+        }
     }
 
     private static StarTreeResult traverseStarTree(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter) throws IOException {

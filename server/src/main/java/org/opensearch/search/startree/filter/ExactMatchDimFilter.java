@@ -69,7 +69,7 @@ public class ExactMatchDimFilter implements DimensionFilter {
             for (long ordinal : convertedOrdinals) {
                 lastMatchedNode = parentNode.getChildForDimensionValue(ordinal, lastMatchedNode);
                 if (lastMatchedNode != null) {
-                    collector.collectStarNode(lastMatchedNode);
+                    collector.collectStarTreeNode(lastMatchedNode);
                 }
             }
         }

@@ -111,7 +111,10 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);
         MapperService mapperService;
         try {
-            mapperService = StarTreeDocValuesFormatTests.createMapperService(StarTreeQueryTests.getExpandedMapping(1, false));
+            mapperService = StarTreeDocValuesFormatTests.createMapperService(
+                StarTreeQueryTests.getExpandedMapping(randomIntBetween(1, 10_000), false)
+            );
+            // mapperService = StarTreeDocValuesFormatTests.createMapperService(StarTreeQueryTests.getExpandedMapping(1, false));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -488,6 +491,18 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             assertCollectorEarlyTermination,
             DEFAULT_MAPPED_FIELD
         );
+        if (!expectedAggregation.equals(starTreeAggregation)) {
+            System.out.println(
+                "Query for which result is failing is "
+                    + queryBuilder
+                    + " LuceneQuery: "
+                    + query
+                    + " Should have been: "
+                    + expectedAggregation
+                    + " but was: "
+                    + starTreeAggregation
+            );
+        }
         verify.accept(expectedAggregation, starTreeAggregation);
     }
 

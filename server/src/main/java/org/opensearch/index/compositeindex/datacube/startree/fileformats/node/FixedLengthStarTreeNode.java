@@ -298,10 +298,10 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
                 FixedLengthStarTreeNode highStarTreeNode = binarySearchChild(high, false, lowStarTreeNode);
                 if (highStarTreeNode != null) {
                     for (int lowNodeId = lowStarTreeNode.nodeId(); lowNodeId <= highStarTreeNode.nodeId(); ++lowNodeId) {
-                        collector.collectStarNode(new FixedLengthStarTreeNode(in, lowNodeId));
+                        collector.collectStarTreeNode(new FixedLengthStarTreeNode(in, lowNodeId));
                     }
                 } else { // Low StarTreeNode is the last default node for that dimension.
-                    collector.collectStarNode(lowStarTreeNode);
+                    collector.collectStarTreeNode(lowStarTreeNode);
                 }
             }
         }

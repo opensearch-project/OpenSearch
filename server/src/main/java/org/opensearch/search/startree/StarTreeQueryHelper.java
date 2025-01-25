@@ -127,7 +127,6 @@ public class StarTreeQueryHelper {
      */
     public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues)
         throws IOException {
-        // TODO : Uncomment and implement caching in new STQC
         FixedBitSet result = context.getQueryShardContext().getStarTreeQueryContext().getStarTreeValue(ctx);
         if (result == null) {
             result = StarTreeTraversalUtil.getStarTreeResult(

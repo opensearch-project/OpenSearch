@@ -14,6 +14,6 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 @ExperimentalApi
 public interface StarTreeNodeCollector {
 
-    void collectStarNode(StarTreeNode node);
+    void collectStarTreeNode(StarTreeNode node);
 
 }

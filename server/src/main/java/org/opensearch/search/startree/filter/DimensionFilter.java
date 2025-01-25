@@ -33,7 +33,7 @@ public interface DimensionFilter {
         @Override
         public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
             throws IOException {
-            parentNode.getChildrenIterator().forEachRemaining(collector::collectStarNode);
+            parentNode.getChildrenIterator().forEachRemaining(collector::collectStarTreeNode);
         }
 
         @Override
