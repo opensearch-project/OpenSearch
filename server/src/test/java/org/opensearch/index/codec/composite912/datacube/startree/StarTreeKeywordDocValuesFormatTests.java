@@ -10,6 +10,7 @@ package org.opensearch.index.codec.composite912.datacube.startree;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -25,6 +26,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.network.InetAddresses;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -36,6 +38,8 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.Sort
 import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -65,12 +69,15 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         doc.add(new SortedNumericDocValuesField("sndv", 1));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text1")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text2")));
+        doc.add(new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10.10")))));
         iw.addDocument(doc);
         doc = new Document();
         doc.add(new StringField("_id", "2", Field.Store.NO));
         doc.add(new SortedNumericDocValuesField("sndv", 1));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text11")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text22")));
+        doc.add(new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10.11")))));
+
         iw.addDocument(doc);
         iw.flush();
         iw.deleteDocuments(new Term("_id", "2"));
@@ -80,12 +87,14 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text1")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text2")));
+        doc.add(new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10.10")))));
         iw.addDocument(doc);
         doc = new Document();
         doc.add(new StringField("_id", "4", Field.Store.NO));
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text11")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text22")));
+        doc.add(new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10.11")))));
         iw.addDocument(doc);
         iw.flush();
         iw.deleteDocuments(new Term("_id", "4"));
@@ -166,6 +175,9 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
 
                 doc.add(new SortedSetDocValuesField("keyword2", new BytesRef(keyword2Value)));
                 map.put(keyword1Value + "-" + keyword2Value, sndvValue + map.getOrDefault(keyword1Value + "-" + keyword2Value, 0));
+                doc.add(
+                    new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10." + i))))
+                );
                 iw.addDocument(doc);
                 documents.put(id, doc);
             }
@@ -221,9 +233,7 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
                 SortedSetStarTreeValuesIterator k1 = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
                     "keyword1"
                 );
-                SortedSetStarTreeValuesIterator k2 = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
-                    "keyword2"
-                );
+                SortedSetStarTreeValuesIterator k2 = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator("ip1");
                 for (StarTreeDocument starDoc : actualStarTreeDocuments) {
                     String keyword1 = null;
                     if (starDoc.dimensions[0] != null) {
@@ -232,7 +242,11 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
 
                     String keyword2 = null;
                     if (starDoc.dimensions[1] != null) {
-                        keyword2 = k2.lookupOrd(starDoc.dimensions[1]).utf8ToString();
+                        BytesRef encoded = k2.lookupOrd(starDoc.dimensions[1]);
+                        InetAddress address = InetAddressPoint.decode(
+                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)
+                        );
+                        keyword2 = InetAddresses.toAddrString(address);
                     }
                     double metric = (double) starDoc.metrics[0];
                     if (map.containsKey(keyword1 + "-" + keyword2)) {
@@ -254,21 +268,28 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         Document doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 1));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text2")));
+        doc.add(new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10.10")))));
+
         iw.addDocument(doc);
         doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 1));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text22")));
+        doc.add(new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10.11")))));
         iw.addDocument(doc);
         iw.forceMerge(1);
         doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text1")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text2")));
+        doc.add(new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10.10")))));
+
         iw.addDocument(doc);
         doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text11")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text22")));
+        doc.add(new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10.11")))));
+
         iw.addDocument(doc);
         iw.forceMerge(1);
         iw.close();
@@ -340,11 +361,14 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text1")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text2")));
+        doc.add(new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10.10")))));
         iw.addDocument(doc);
         doc = new Document();
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedSetDocValuesField("keyword1", new BytesRef("text11")));
         doc.add(new SortedSetDocValuesField("keyword2", new BytesRef("text22")));
+        doc.add(new SortedSetDocValuesField("ip1", new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.10.10.11")))));
+
         iw.addDocument(doc);
         iw.forceMerge(1);
         iw.close();
@@ -538,7 +562,7 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
             b.field("name", "keyword1");
             b.endObject();
             b.startObject();
-            b.field("name", "keyword2");
+            b.field("name", "ip1");
             b.endObject();
             b.endArray();
             b.startArray("metrics");
@@ -565,6 +589,9 @@ public class StarTreeKeywordDocValuesFormatTests extends AbstractStarTreeDVForma
             b.endObject();
             b.startObject("keyword2");
             b.field("type", "keyword");
+            b.endObject();
+            b.startObject("ip1");
+            b.field("type", "ip");
             b.endObject();
             b.endObject();
         });
