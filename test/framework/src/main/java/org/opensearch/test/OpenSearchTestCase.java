@@ -1768,7 +1768,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return getBasePort() + "-" + (getBasePort() + 99); // upper bound is inclusive
     }
 
-    protected static int generateBasePort(int start) {
+    protected static int getBasePort(int start) {
         // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
@@ -1796,7 +1796,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     protected static int getBasePort() {
-        return generateBasePort(10300);
+        return getBasePort(10300);
     }
 
     protected static InetAddress randomIp(boolean v4) {

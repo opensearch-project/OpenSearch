@@ -54,7 +54,7 @@ public class DefaultSslContextProvider implements SslContextProvider {
     public SslContext getServerSslContext() {
         try {
             SecureTransportSettingsProvider.SecureTransportParameters parameters = secureTransportSettingsProvider.parameters(null).get();
-            return io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder.forServer(parameters.keyManagerFactory())
+            return io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder.forServer(parameters.keyManagerFactory().get())
                 .sslProvider(SslProvider.valueOf(parameters.sslProvider().toUpperCase(Locale.ROOT)))
                 .clientAuth(ClientAuth.valueOf(parameters.clientAuth().toUpperCase(Locale.ROOT)))
                 .protocols(parameters.protocols())
@@ -102,7 +102,7 @@ public class DefaultSslContextProvider implements SslContextProvider {
                 )
                 .sessionCacheSize(0)
                 .sessionTimeout(0)
-                .keyManager(parameters.keyManagerFactory())
+                .keyManager(parameters.keyManagerFactory().get())
                 .trustManager(parameters.trustManagerFactory())
                 .build();
         } catch (SSLException e) {
