@@ -7,4 +7,4 @@
  */
 
 /** Contains JarHell Classes */
-package org.opensearch.bootstrap;
+package org.opensearch.common.bootstrap;
