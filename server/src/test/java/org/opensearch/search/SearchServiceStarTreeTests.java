@@ -20,8 +20,6 @@ import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
-import org.opensearch.index.mapper.DateFieldMapper;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
@@ -52,15 +50,18 @@ import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 
+/**
+ * Tests for validating query shapes which can be resolved using star-tree index
+ * For valid resolvable (with star-tree) cases, StarTreeQueryContext is created and populated with the SearchContext
+ * For non-resolvable (with star-tree) cases, StarTreeQueryContext is null
+ */
 public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
 
     private static final String TIMESTAMP_FIELD = "@timestamp";
-    private static final MappedFieldType TIMESTAMP_FIELD_TYPE = new DateFieldMapper.DateFieldType(TIMESTAMP_FIELD);
-
     private static final String FIELD_NAME = "status";
 
     /**
-     * Test query parsing for non-nested metric aggregations
+     * Test query parsing for non-nested metric aggregations, with/without numeric term query
      */
     public void testQueryParsingForMetricAggregations() throws IOException {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
@@ -138,7 +139,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     }
 
     /**
-     * Test query parsing for date histogram aggregations
+     * Test query parsing for date histogram aggregations, with/without numeric term query
      */
     public void testQueryParsingForDateHistogramAggregations() throws IOException {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
@@ -172,7 +173,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         );
 
         MaxAggregationBuilder maxAggNoSub = max("max").field(FIELD_NAME);
-        SumAggregationBuilder sumAggSub = sum("max").field(FIELD_NAME).subAggregation(maxAggNoSub);
+        MaxAggregationBuilder sumAggNoSub = max("sum").field(FIELD_NAME);
+        SumAggregationBuilder sumAggSub = sum("sum").field(FIELD_NAME).subAggregation(maxAggNoSub);
         MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(FIELD_NAME);
 
         // Case 1: No query or aggregations, should not use star tree
@@ -218,6 +220,77 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .aggregation(dateHistogramAggregationBuilder);
         expectedQueryMap = Map.of(FIELD_NAME, 1L);
         assertStarTreeContext(request, sourceBuilder, new StarTreeQueryContext(expectedStarTree, expectedQueryMap, -1), -1);
+
+        // Case 7: Date histogram with non calendar interval: rounding is null for DateHistogramFactory - cannot use star-tree
+        dateHistogramAggregationBuilder = dateHistogram("non_cal").field(TIMESTAMP_FIELD)
+            .fixedInterval(DateHistogramInterval.DAY)
+            .subAggregation(maxAggNoSub);
+        sourceBuilder = new SearchSourceBuilder().size(0).aggregation(dateHistogramAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 8: Date histogram with no metric aggregation - does not use star-tree
+        dateHistogramAggregationBuilder = dateHistogram("by_day").field(TIMESTAMP_FIELD).calendarInterval(DateHistogramInterval.DAY);
+        sourceBuilder = new SearchSourceBuilder().size(0).aggregation(dateHistogramAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 9: Date histogram nested with multiple non-nested metric aggregations - should use star-tree
+        dateHistogramAggregationBuilder = dateHistogram("by_day").field(TIMESTAMP_FIELD)
+            .calendarInterval(DateHistogramInterval.DAY)
+            .subAggregation(maxAggNoSub)
+            .subAggregation(sumAggNoSub);
+        expectedQueryMap = null;
+        sourceBuilder = new SearchSourceBuilder().size(0).aggregation(dateHistogramAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, new StarTreeQueryContext(expectedStarTree, expectedQueryMap, -1), -1);
+
+        setStarTreeIndexSetting(null);
+    }
+
+    /**
+     * Test query parsing for date histogram aggregations on star-tree index when @timestamp field does not exist
+     */
+    public void testInvalidQueryParsingForDateHistogramAggregations() throws IOException {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
+        setStarTreeIndexSetting("true");
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .build();
+        CreateIndexRequestBuilder builder = client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(settings)
+            .setMapping(StarTreeFilterTests.getExpandedMapping(1, false));
+        createIndex("test", builder);
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+        IndexShard indexShard = indexService.getShard(0);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+
+        MaxAggregationBuilder maxAggNoSub = max("max").field(FIELD_NAME);
+        DateHistogramAggregationBuilder dateHistogramAggregationBuilder = dateHistogram("by_day").field(TIMESTAMP_FIELD)
+            .calendarInterval(DateHistogramInterval.DAY)
+            .subAggregation(maxAggNoSub);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0)
+            .query(new MatchAllQueryBuilder())
+            .aggregation(dateHistogramAggregationBuilder);
+        CompositeIndexFieldInfo expectedStarTree = new CompositeIndexFieldInfo(
+            "startree1",
+            CompositeMappedFieldType.CompositeFieldType.STAR_TREE
+        );
+        assertStarTreeContext(request, sourceBuilder, null, -1);
 
         setStarTreeIndexSetting(null);
     }

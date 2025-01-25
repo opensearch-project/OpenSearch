@@ -175,7 +175,7 @@ public class StarTreeQueryHelper {
         AggregatorFactory aggregatorFactory
     ) {
         if (!(aggregatorFactory instanceof DateHistogramAggregatorFactory dateHistogramAggregatorFactory)
-            || aggregatorFactory.getSubFactories().getFactories().length != 1) {
+            || aggregatorFactory.getSubFactories().getFactories().length < 1) {
             return false;
         }
 
