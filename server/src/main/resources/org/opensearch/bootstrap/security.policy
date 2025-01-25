@@ -93,7 +93,15 @@ grant codeBase "${codebase.reactor-core}" {
 };
 
 grant codeBase "${codebase.opensearch-arrow-memory-shaded}" {
-  permission java.security.AllPermission "modifyThreadGroup";
+    permission java.lang.RuntimePermission "modifyThreadGroup";
+    permission java.lang.RuntimePermission "modifyThread";
+
+    // Reflection access needed by Arrow
+    permission java.lang.RuntimePermission "accessDeclaredMembers";
+    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+    // Memory access
+    permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
 };
 
 //// Everything else:
@@ -199,8 +207,4 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
-
-  // needed by arrow-memory
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
