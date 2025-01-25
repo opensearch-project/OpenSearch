@@ -51,7 +51,7 @@ public class FlightServiceTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         FeatureFlagSetter.set(FeatureFlags.ARROW_STREAMS_SETTING.getKey());
-        int availablePort = generateBasePort(9500) + port.addAndGet(1);
+        int availablePort = getBasePort(9500) + port.addAndGet(1);
         settings = Settings.EMPTY;
         localNode = createNode(availablePort);
 

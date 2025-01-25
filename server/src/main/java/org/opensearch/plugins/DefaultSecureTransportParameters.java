@@ -14,6 +14,8 @@ import org.opensearch.common.settings.Settings;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
+import java.util.Optional;
+
 /**
  * Default implementation of {@link SecureTransportSettingsProvider.SecureTransportParameters}.
  */
@@ -30,8 +32,8 @@ class DefaultSecureTransportParameters implements SecureTransportSettingsProvide
     }
 
     @Override
-    public KeyManagerFactory keyManagerFactory() {
-        return null;
+    public Optional<KeyManagerFactory> keyManagerFactory() {
+        return Optional.empty();
     }
 
     @Override
@@ -45,7 +47,7 @@ class DefaultSecureTransportParameters implements SecureTransportSettingsProvide
     }
 
     @Override
-    public Iterable<String> protocols() {
+    public String[] protocols() {
         return null;
     }
 
