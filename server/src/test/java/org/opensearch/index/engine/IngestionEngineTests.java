@@ -36,6 +36,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.awaitility.Awaitility.await;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 public class IngestionEngineTests extends EngineTestCase {
 
@@ -120,6 +122,36 @@ public class IngestionEngineTests extends EngineTestCase {
         ingestionEngine.close();
         ingestionEngine = buildIngestionEngine(new AtomicLong(2), ingestionEngineStore, indexSettings);
         waitForResults(ingestionEngine, 4);
+    }
+
+    public void testCreationFailure() throws IOException {
+        // Simulate an error scenario
+        Store mockStore = mock(Store.class);
+        doThrow(new IOException("Simulated IOException")).when(mockStore).readLastCommittedSegmentsInfo();
+
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
+        EngineConfig engineConfig = config(
+            indexSettings,
+            store,
+            createTempDir(),
+            NoMergePolicy.INSTANCE,
+            null,
+            null,
+            globalCheckpoint::get
+        );
+        // overwrite the config with ingestion engine settings
+        String mapping = "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}";
+        MapperService mapperService = createMapperService(mapping);
+        engineConfig = config(engineConfig, () -> new DocumentMapperForType(mapperService.documentMapper(), null));
+        try {
+            new IngestionEngine(engineConfig, consumerFactory);
+            fail("Expected EngineException to be thrown");
+        } catch (EngineException e) {
+            assertEquals("failed to create engine", e.getMessage());
+            assertTrue(e.getCause() instanceof IOException);
+        }
     }
 
     private IngestionEngine buildIngestionEngine(AtomicLong globalCheckpoint, Store store, IndexSettings settings) throws IOException {
