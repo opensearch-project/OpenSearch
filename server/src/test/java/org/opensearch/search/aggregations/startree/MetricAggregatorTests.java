@@ -498,18 +498,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             assertCollectorEarlyTermination,
             DEFAULT_MAPPED_FIELD
         );
-        if (!expectedAggregation.equals(starTreeAggregation)) {
-            System.out.println(
-                "Query for which result is failing is "
-                    + queryBuilder
-                    + " LuceneQuery: "
-                    + query
-                    + " Should have been: "
-                    + expectedAggregation
-                    + " but was: "
-                    + starTreeAggregation
-            );
-        }
         verify.accept(expectedAggregation, starTreeAggregation);
     }
 
