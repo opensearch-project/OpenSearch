@@ -148,6 +148,7 @@ class StreamAsyncAction extends SearchQueryThenFetchAsyncAction {
                 false,
                 1,
                 Collections.emptyList(),
+                Collections.emptyList(),
                 tickets
             );
             context.sendSearchResponse(internalSearchResponse, results.getAtomicArray());

@@ -120,8 +120,9 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         boolean timedOut,
         Boolean terminatedEarly,
         int numReducePhases,
-        List<SearchExtBuilder> searchExtBuilderList
-
+        List<SearchExtBuilder> searchExtBuilderList,
+        List<ProcessorExecutionDetail> processorResult,
+        List<OSTicket> osTickets
     ) {
         super(
             hits,
@@ -132,8 +133,8 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
             profileResults,
             numReducePhases,
             searchExtBuilderList,
-            Collections.emptyList(),
-	    null
+            processorResult,
+            osTickets
         );
     }
 
@@ -145,11 +146,20 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         boolean timedOut,
         Boolean terminatedEarly,
         int numReducePhases,
-        List<SearchExtBuilder> searchExtBuilderList,
-        List<OSTicket> tickets
+        List<SearchExtBuilder> searchExtBuilderList
     ) {
-        super(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases, searchExtBuilderList, tickets);
->>>>>>> 81c1e6f05e7 (Flight Producer changes and integration)
+        super(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            searchExtBuilderList,
+            Collections.emptyList(),
+            null
+        );
     }
 
     public InternalSearchResponse(StreamInput in) throws IOException {

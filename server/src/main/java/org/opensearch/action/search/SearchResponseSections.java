@@ -90,17 +90,7 @@ public class SearchResponseSections implements ToXContentFragment {
         SearchProfileShardResults profileResults,
         int numReducePhases
     ) {
-        this(
-            hits,
-            aggregations,
-            suggest,
-            timedOut,
-            terminatedEarly,
-            profileResults,
-            numReducePhases,
-            Collections.emptyList(),
-            Collections.emptyList()
-        );
+        this(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases, Collections.emptyList());
     }
 
     public SearchResponseSections(
@@ -113,7 +103,7 @@ public class SearchResponseSections implements ToXContentFragment {
         int numReducePhases,
         List<SearchExtBuilder> searchExtBuilders,
         List<ProcessorExecutionDetail> processorResult,
-	List<OSTicket> tickets
+        List<OSTicket> tickets
     ) {
         this.hits = hits;
         this.aggregations = aggregations;
@@ -124,7 +114,32 @@ public class SearchResponseSections implements ToXContentFragment {
         this.numReducePhases = numReducePhases;
         this.processorResult.addAll(processorResult);
         this.searchExtBuilders.addAll(Objects.requireNonNull(searchExtBuilders, "searchExtBuilders must not be null"));
-	this.tickets = tickets;
+        this.tickets = tickets;
+    }
+
+    public SearchResponseSections(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileShardResults profileResults,
+        int numReducePhases,
+        List<SearchExtBuilder> searchExtBuilders,
+        List<ProcessorExecutionDetail> processorResult
+    ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            searchExtBuilders,
+            Collections.emptyList(),
+            null
+        );
     }
 
     public SearchResponseSections(
@@ -226,7 +241,7 @@ public class SearchResponseSections implements ToXContentFragment {
 
         if (!processorResult.isEmpty()) {
             builder.field(PROCESSOR_RESULT_FIELD.getPreferredName(), processorResult);
-	}
+        }
 
         if (tickets != null && !tickets.isEmpty()) {
             builder.startArray(TICKET_FIELD);
