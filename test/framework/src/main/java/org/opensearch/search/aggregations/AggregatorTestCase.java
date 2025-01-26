@@ -431,6 +431,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(mapperService.getCompositeFieldTypes()).thenReturn(compositeFieldTypes);
         when(searchContext.mapperService()).thenReturn(mapperService);
 
+        // FIXME : Directly supply the dimension as method param, we are resetting this again ?
         for (Dimension dimension : supportedDimensions) {
             if (dimension instanceof OrdinalDimension) {
                 MappedFieldType mappedFieldType = new KeywordFieldMapper.KeywordFieldType(dimension.getField(), Lucene.WHITESPACE_ANALYZER);

@@ -34,6 +34,11 @@ public class SortedSetStarTreeValuesIterator extends StarTreeValuesIterator {
         return nextOrd();
     }
 
+    @Override
+    public boolean advanceExact(int target) throws IOException {
+        return ((SortedSetDocValues) docIdSetIterator).advanceExact(target);
+    }
+
     public long nextOrd() throws IOException {
         return ((SortedSetDocValues) docIdSetIterator).nextOrd();
     }

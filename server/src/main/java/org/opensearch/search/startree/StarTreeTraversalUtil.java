@@ -18,7 +18,6 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
@@ -58,8 +57,6 @@ public class StarTreeTraversalUtil {
 
         StarTreeResult starTreeResult = traverseStarTree(starTreeValues, starTreeFilter);
 
-        //iterateOverAllDimensionValues(starTreeValues);
-
         // Initialize FixedBitSet with size maxMatchedDoc + 1
         FixedBitSet bitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
         SortedNumericStarTreeValuesIterator starTreeValuesIterator = new SortedNumericStarTreeValuesIterator(
@@ -95,7 +92,7 @@ public class StarTreeTraversalUtil {
                 for (int entryId = bitSet.nextSetBit(0); entryId != DocIdSetIterator.NO_MORE_DOCS; entryId = (entryId + 1 < bitSet.length())
                     ? bitSet.nextSetBit(entryId + 1)
                     : DocIdSetIterator.NO_MORE_DOCS) {
-                    if (valuesIterator.advance(entryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
+                    if (valuesIterator.advanceExact(entryId)) {
                         long value = valuesIterator.value();
                         for (DimensionFilter dimensionFilter : dimensionFilters) {
                             if (dimensionFilter.matchDimValue(value, starTreeValues)) {
@@ -112,31 +109,6 @@ public class StarTreeTraversalUtil {
         }
 
         return bitSet;  // Return the final FixedBitSet with all matches
-    }
-
-    private static void iterateOverAllDimensionValues(StarTreeValues starTreeValues) throws IOException {
-        for (String dimensionName : starTreeValues.getStarTreeField().getDimensionNames()) {
-            StarTreeValuesIterator starTreeValuesIterator = starTreeValues.getDimensionValuesIterator(dimensionName);
-            int docId = 0;
-            List<Integer> docIds = new ArrayList<>();
-            List<Object> values = new ArrayList<>();
-            while (starTreeValuesIterator.advance(docId) != NO_MORE_DOCS) {
-                docIds.add(starTreeValuesIterator.entryId());
-                        if (starTreeValuesIterator instanceof SortedNumericStarTreeValuesIterator) {
-                            values.add(((SortedNumericStarTreeValuesIterator) starTreeValuesIterator).nextValue());
-                        } else if (starTreeValuesIterator instanceof SortedSetStarTreeValuesIterator) {
-                            values.add(((SortedSetStarTreeValuesIterator) starTreeValuesIterator).nextOrd());
-                        }
-                docId++;
-            }
-            System.out.printf(
-                "\n\nDimension Values for dimension %s has size %s and are %s and docIds are %s",
-                dimensionName,
-                values.size(),
-                values,
-                docIds
-            );
-        }
     }
 
     private static StarTreeResult traverseStarTree(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter) throws IOException {

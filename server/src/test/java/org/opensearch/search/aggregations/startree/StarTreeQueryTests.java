@@ -357,6 +357,8 @@ public class StarTreeQueryTests extends AggregatorTestCase {
                 b.value("sdv");
                 b.endArray();
             }
+            // FIXME : Change to take dimension order and other inputs as method params.
+            // FIXME : Create default constants for the existing so other can call easily.
             b.startArray("ordered_dimensions");
             b.startObject();
             b.field("name", "sndv");

@@ -111,6 +111,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);
         MapperService mapperService;
         try {
+            // FIXME: Test for different max_leaf_docs with at least 1, 2-100, 101-10_000 for all query types
             mapperService = StarTreeDocValuesFormatTests.createMapperService(
                 StarTreeQueryTests.getExpandedMapping(randomIntBetween(1, 10_000), false)
             );
@@ -124,6 +125,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
     public void testStarTreeDocValues() throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
+        // FIXME: Test for different max_leaf_docs with at least 1, 2-100, 101-10_000 for all query types
         conf.setCodec(getCodec());
         conf.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
@@ -139,6 +141,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         // Index 100 random documents
         for (int i = 0; i < totalDocs; i++) {
             Document doc = new Document();
+            // FIXME: Reduce the frequency of nulls to be with at least some non-null docs like after every 1-2 ?
             if (random.nextBoolean()) {
                 val = random.nextInt(10) - 5; // Random long between -5 and 4
                 doc.add(new LongField(SNDV, val, Field.Store.YES));
@@ -174,6 +177,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
 
         MapperService mapperService = mapperServiceMock();
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        // FIXME : Register for other dimensions. Move to a common place where per dimension actions are done ?
         when(mapperService.fieldType(SNDV)).thenReturn(new NumberFieldMapper.NumberFieldType(SNDV, NumberFieldMapper.NumberType.LONG));
         when(mapperService.fieldType(DV)).thenReturn(new NumberFieldMapper.NumberFieldType(DV, NumberFieldMapper.NumberType.LONG));
         when(mapperService.fieldType(KEYWORD)).thenReturn(new KeywordFieldMapper.KeywordFieldType(KEYWORD));
@@ -184,6 +188,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             circuitBreakerService,
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
         );
+        // FIXME : Register for other dimensions. Move to a common place where per dimension actions are done ?
         when(queryShardContext.fieldMapper(SNDV)).thenReturn(
             new NumberFieldMapper.NumberFieldType(SNDV, NumberFieldMapper.NumberType.LONG)
         );
@@ -199,6 +204,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         ValueCountAggregationBuilder valueCountAggregationBuilder = count("_name").field(FIELD_NAME);
         AvgAggregationBuilder avgAggregationBuilder = avg("_name").field(FIELD_NAME);
 
+        // FIXME : Add Float, Half Float and Double. Integer/Long whichever is missing
         List<Dimension> supportedDimensions = new LinkedList<>();
         supportedDimensions.add(new NumericDimension(SNDV));
         supportedDimensions.add(new NumericDimension(DV));
@@ -206,10 +212,11 @@ public class MetricAggregatorTests extends AggregatorTestCase {
 
         Query query = new MatchAllDocsQuery();
         // match-all query
+        // FIXME : Add support for numeric and keyword terms query
         QueryBuilder numericTermQueryBuilder = null; // no predicates
         QueryBuilder numericRangeQueryBuilder = null;
-        QueryBuilder keywordTermQueryBuilder = null;
-        QueryBuilder keywordRangeQueryBuilder = null;
+        QueryBuilder keywordTermQueryBuilder;
+        QueryBuilder keywordRangeQueryBuilder;
         testCase(
             indexSearcher,
             query,
@@ -455,10 +462,10 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         QueryBuilder queryBuilder,
         T aggBuilder,
         CompositeIndexFieldInfo starTree,
-        List<Dimension> supportedDimensions,
-        List<Metric> supportedMetrics,
+        List<Dimension> supportedDimensions, // FIXME : Merge with the same input that goes to generating the codec.
+        List<Metric> supportedMetrics, // FIXME : Merge with the same input that goes to generating the codec.
         BiConsumer<V, V> verify,
-        AggregatorFactory aggregatorFactory,
+        AggregatorFactory aggregatorFactory, // TODO : Recheck if this can be done elsewhere.
         boolean assertCollectorEarlyTermination
     ) throws IOException {
         V starTreeAggregation = searchAndReduceStarTree(
