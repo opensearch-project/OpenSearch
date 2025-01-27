@@ -94,7 +94,7 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
             refresh("test");
             SearchResponse response = client().prepareSearch("test").setQuery(query).get();
-            assertThat(response.getHits().getTotalHits().value, is(1L));
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
         });
 
         stopKafka();
