@@ -49,6 +49,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -62,6 +63,15 @@ public class StarTreeQueryTests extends AggregatorTestCase {
     private static final String SNDV = "sndv";
     private static final String SDV = "sdv";
     private static final String DV = "dv";
+
+    public static final LinkedHashMap<String, String> DIMENSION_TYPE_MAP = new LinkedHashMap<>();
+    public static final Map<String, String> METRIC_TYPE_MAP = Map.of(FIELD_NAME, "integer");
+
+    static {
+        DIMENSION_TYPE_MAP.put(SNDV, "integer");
+        DIMENSION_TYPE_MAP.put(SDV, "integer");
+        DIMENSION_TYPE_MAP.put(DV, "integer");
+    }
 
     @Before
     public void setup() {
@@ -78,7 +88,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         MapperService mapperService;
         try {
             mapperService = StarTreeDocValuesFormatTests.createMapperService(
-                getExpandedMapping(maxLeafDoc, skipStarNodeCreationForSDVDimension)
+                getExpandedMapping(maxLeafDoc, skipStarNodeCreationForSDVDimension, DIMENSION_TYPE_MAP, StarTreeQueryTests.METRIC_TYPE_MAP)
             );
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -345,7 +355,12 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         return docCount;
     }
 
-    public static XContentBuilder getExpandedMapping(int maxLeafDocs, boolean skipStarNodeCreationForSDVDimension) throws IOException {
+    public static XContentBuilder getExpandedMapping(
+        int maxLeafDocs,
+        boolean skipStarNodeCreationForSDVDimension,
+        LinkedHashMap<String, String> dimensionNameAndType,
+        Map<String, String> metricFieldNameAndType
+    ) throws IOException {
         return topMapping(b -> {
             b.startObject("composite");
             b.startObject("startree");
@@ -360,30 +375,11 @@ public class StarTreeQueryTests extends AggregatorTestCase {
             // FIXME : Change to take dimension order and other inputs as method params.
             // FIXME : Create default constants for the existing so other can call easily.
             b.startArray("ordered_dimensions");
-            b.startObject();
-            b.field("name", "sndv");
-            b.endObject();
-            b.startObject();
-            b.field("name", "keyword_field");
-            b.endObject();
-            b.startObject();
-            b.field("name", "sdv");
-            b.endObject();
-            b.startObject();
-            b.field("name", "half_float_field");
-            b.endObject();
-            b.startObject();
-            b.field("name", "float_field");
-            b.endObject();
-            b.startObject();
-            b.field("name", "double_field");
-            b.endObject();
-            b.startObject();
-            b.field("name", "long_field");
-            b.endObject();
-            b.startObject();
-            b.field("name", "dv");
-            b.endObject();
+            for (String dimension : dimensionNameAndType.keySet()) {
+                b.startObject();
+                b.field("name", dimension);
+                b.endObject();
+            }
             b.endArray();
             b.startArray("metrics");
             b.startObject();
@@ -411,33 +407,16 @@ public class StarTreeQueryTests extends AggregatorTestCase {
             b.endObject();
             b.endObject();
             b.startObject("properties");
-            b.startObject("sndv");
-            b.field("type", "integer");
-            b.endObject();
-            b.startObject("sdv");
-            b.field("type", "integer");
-            b.endObject();
-            b.startObject("dv");
-            b.field("type", "integer");
-            b.endObject();
-            b.startObject("field");
-            b.field("type", "integer");
-            b.endObject();
-            b.startObject("keyword_field");
-            b.field("type", "keyword");
-            b.endObject();
-            b.startObject("long_field");
-            b.field("type", "long");
-            b.endObject();
-            b.startObject("half_float_field");
-            b.field("type", "half_float");
-            b.endObject();
-            b.startObject("float_field");
-            b.field("type", "float");
-            b.endObject();
-            b.startObject("double_field");
-            b.field("type", "double");
-            b.endObject();
+            for (String dimension : dimensionNameAndType.keySet()) {
+                b.startObject(dimension);
+                b.field("type", dimensionNameAndType.get(dimension));
+                b.endObject();
+            }
+            for (String metricField : metricFieldNameAndType.keySet()) {
+                b.startObject(metricField);
+                b.field("type", metricFieldNameAndType.get(metricField));
+                b.endObject();
+            }
             b.endObject();
         });
     }

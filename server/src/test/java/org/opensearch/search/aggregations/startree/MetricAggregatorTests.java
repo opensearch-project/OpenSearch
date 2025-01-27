@@ -82,6 +82,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -114,12 +116,16 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
-    protected Codec getCodec(Supplier<Integer> maxLeafDocsSupplier) {
+    protected Codec getCodec(
+        Supplier<Integer> maxLeafDocsSupplier,
+        LinkedHashMap<String, String> dimensionAndType,
+        Map<String, String> metricFieldAndType
+    ) {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);
         MapperService mapperService;
         try {
             mapperService = StarTreeDocValuesFormatTests.createMapperService(
-                StarTreeQueryTests.getExpandedMapping(maxLeafDocsSupplier.get(), false)
+                StarTreeQueryTests.getExpandedMapping(maxLeafDocsSupplier.get(), false, dimensionAndType, metricFieldAndType)
             );
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -133,17 +139,32 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             () -> randomIntBetween(2, 100),
             () -> randomIntBetween(101, 10_000)
         );
-        final List<DimensionFieldData> dimensionFieldData = List.of(
-            new DimensionFieldData("sndv", () -> random().nextInt(10) - 5, DimensionTypes.INTEGER.getFieldDataSupplier()),
-            new DimensionFieldData("dv", () -> random().nextInt(20) - 10, DimensionTypes.INTEGER.getFieldDataSupplier()),
-            new DimensionFieldData("keyword_field", () -> random().nextInt(50), DimensionTypes.KEYWORD.getFieldDataSupplier()),
-            new DimensionFieldData("long_field", () -> random().nextInt(50), DimensionTypes.LONG.getFieldDataSupplier()),
-            new DimensionFieldData("half_float_field", () -> random().nextFloat(50), DimensionTypes.HALF_FLOAT.getFieldDataSupplier()),
-            new DimensionFieldData("float_field", () -> random().nextFloat(50), DimensionTypes.FLOAT.getFieldDataSupplier()),
-            new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE.getFieldDataSupplier())
+        final List<DimensionFieldData> dimensionFieldDatum = List.of(
+            new DimensionFieldData("sndv", () -> random().nextInt(10) - 5, DimensionTypes.INTEGER),
+            new DimensionFieldData("dv", () -> random().nextInt(20) - 10, DimensionTypes.INTEGER),
+            new DimensionFieldData("keyword_field", () -> random().nextInt(50), DimensionTypes.KEYWORD),
+            new DimensionFieldData("long_field", () -> random().nextInt(50), DimensionTypes.LONG),
+            new DimensionFieldData("half_float_field", () -> random().nextFloat(50), DimensionTypes.HALF_FLOAT),
+            new DimensionFieldData("float_field", () -> random().nextFloat(50), DimensionTypes.FLOAT),
+            new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE)
         );
         for (Supplier<Integer> maxLeafDocsSupplier : MAX_LEAF_DOC_VARIATIONS) {
-            testStarTreeDocValuesInternal(getCodec(maxLeafDocsSupplier), dimensionFieldData);
+            testStarTreeDocValuesInternal(
+                getCodec(
+                    maxLeafDocsSupplier,
+                    dimensionFieldDatum.stream()
+                        .collect(
+                            Collectors.toMap(
+                                df -> df.getDimension().getField(),
+                                DimensionFieldData::getFieldType,
+                                (v1, v2) -> v1,
+                                LinkedHashMap::new
+                            )
+                        ),
+                    StarTreeQueryTests.METRIC_TYPE_MAP
+                ),
+                dimensionFieldDatum
+            );
         }
     }
 
@@ -469,11 +490,13 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         private final String fieldName;
         private final Supplier<Object> valueSupplier;
         private final DimensionFieldDataSupplier dimensionFieldDataSupplier;
+        private final String fieldType;
 
-        DimensionFieldData(String fieldName, Supplier<Object> valueSupplier, DimensionFieldDataSupplier dimensionFieldDataSupplier) {
+        DimensionFieldData(String fieldName, Supplier<Object> valueSupplier, DimensionTypes dimensionType) {
             this.fieldName = fieldName;
             this.valueSupplier = valueSupplier;
-            this.dimensionFieldDataSupplier = dimensionFieldDataSupplier;
+            this.dimensionFieldDataSupplier = dimensionType.getFieldDataSupplier();
+            this.fieldType = dimensionType.name().toLowerCase(Locale.ROOT);
         }
 
         public Dimension getDimension() {
@@ -506,6 +529,10 @@ public class MetricAggregatorTests extends AggregatorTestCase {
                 .to(valueSupplier.get())
                 .includeLower(randomBoolean())
                 .includeUpper(randomBoolean());
+        }
+
+        public String getFieldType() {
+            return fieldType;
         }
     }
 

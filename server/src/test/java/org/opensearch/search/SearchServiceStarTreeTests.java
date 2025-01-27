@@ -69,7 +69,9 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .indices()
             .prepareCreate("test")
             .setSettings(settings)
-            .setMapping(StarTreeQueryTests.getExpandedMapping(1, false));
+            .setMapping(
+                StarTreeQueryTests.getExpandedMapping(1, false, StarTreeQueryTests.DIMENSION_TYPE_MAP, StarTreeQueryTests.METRIC_TYPE_MAP)
+            );
         createIndex("test", builder);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
