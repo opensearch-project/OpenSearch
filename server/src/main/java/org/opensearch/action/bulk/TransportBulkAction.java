@@ -325,15 +325,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
             } else {
                 final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
+                Span span = tracer.startSpan(SpanBuilder.from("autoCreateIndex", autoCreateIndices.size()));
+                SpanScope spanScope = tracer.withSpanInScope(span);
                 for (String index : autoCreateIndices) {
                     createIndex(index, bulkRequest.timeout(), minNodeVersion, new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
+                                span.endSpan();
                                 threadPool.executor(executorName).execute(new ActionRunnable<BulkResponse>(listener) {
 
                                     @Override
                                     protected void doRun() {
+                                        spanScope.close();
                                         executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
                                     }
                                 });
@@ -352,6 +356,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 }
                             }
                             if (counter.decrementAndGet() == 0) {
+                                span.endSpan();
                                 final ActionListener<BulkResponse> wrappedListener = ActionListener.wrap(listener::onResponse, inner -> {
                                     inner.addSuppressed(e);
                                     listener.onFailure(inner);
@@ -359,6 +364,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 threadPool.executor(executorName).execute(new ActionRunnable<BulkResponse>(wrappedListener) {
                                     @Override
                                     protected void doRun() {
+                                        spanScope.close();
                                         executeBulk(task, bulkRequest, startTime, wrappedListener, responses, indicesThatCannotBeCreated);
                                     }
 
