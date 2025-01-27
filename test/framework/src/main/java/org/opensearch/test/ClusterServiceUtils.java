@@ -49,7 +49,6 @@ import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
@@ -88,18 +87,6 @@ public class ClusterServiceUtils {
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         return createClusterManagerService(threadPool, initialClusterState);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #createClusterManagerService(ThreadPool, ClusterState)} */
-    @Deprecated
-    public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
-        return createClusterManagerService(threadPool, initialClusterState);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #createClusterManagerService(ThreadPool, DiscoveryNode)} */
-    @Deprecated
-    public static MasterService createMasterService(ThreadPool threadPool, DiscoveryNode localNode) {
-        return createClusterManagerService(threadPool, localNode);
     }
 
     public static void setState(ClusterApplierService executor, ClusterState clusterState) {
