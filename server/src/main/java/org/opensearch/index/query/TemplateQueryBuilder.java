@@ -110,21 +110,21 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     /**
      * Rewrites the template query by substituting variables from the context.
      *
-     * @param queryCoordinatorContext The context for query rewriting.
+     * @param queryRewriteContext The context for query rewriting.
      * @return A rewritten QueryBuilder.
      * @throws IOException If there's an error during rewriting.
      */
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryCoordinatorContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         // the queryRewrite is expected at QueryCoordinator level
-        if (!(queryCoordinatorContext instanceof QueryCoordinatorContext)) {
+        QueryCoordinatorContext queryCoordinatorContext = queryRewriteContext.convertToCoordinatorContext();
+        if (queryCoordinatorContext == null) {
             throw new IllegalStateException(
                 "Template Query must be rewritten at the coordinator node. Rewriting at shard level is not supported."
             );
         }
 
-        QueryCoordinatorContext convertedQueryCoordinateContext = (QueryCoordinatorContext) queryCoordinatorContext;
-        Map<String, Object> contextVariables = convertedQueryCoordinateContext.getContextVariables();
+        Map<String, Object> contextVariables = queryCoordinatorContext.getContextVariables();
         String queryString;
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {

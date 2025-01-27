@@ -124,7 +124,6 @@ import org.opensearch.index.get.GetStats;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.merge.MergeStats;
-import org.opensearch.index.query.BaseQueryRewriteContext;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
@@ -2005,7 +2004,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     private QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, boolean validate) {
-        return new BaseQueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
+        return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
     }
 
     /**
