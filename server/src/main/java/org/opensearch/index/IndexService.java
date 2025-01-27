@@ -105,7 +105,6 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -198,7 +197,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
-    private final BiFunction<ShardId, ReplicationCheckpoint, ReplicationStats> segmentReplicationStatsProvider;
+    private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -238,7 +237,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
-        BiFunction<ShardId, ReplicationCheckpoint, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -400,7 +399,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             null,
             s -> {},
-            null
+            (shardId) -> ReplicationStats.empty()
         );
     }
 

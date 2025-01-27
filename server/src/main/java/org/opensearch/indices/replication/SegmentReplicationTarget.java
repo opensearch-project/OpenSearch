@@ -24,7 +24,6 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -163,7 +162,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
      *
      * @param listener {@link ActionListener} listener.
      */
-    public void startReplication(ActionListener<Void> listener, BiConsumer<ReplicationCheckpoint, ShardId> checkpointUpdater) {
+    public void startReplication(ActionListener<Void> listener, BiConsumer<ReplicationCheckpoint, IndexShard> checkpointUpdater) {
         cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
             throw new CancellableThreads.ExecutionCancelledException("replication was canceled reason [" + reason + "]");
         });
@@ -179,7 +178,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
-            checkpointUpdater.accept(checkpointInfo.getCheckpoint(), this.indexShard.shardId());
+            checkpointUpdater.accept(checkpointInfo.getCheckpoint(), this.indexShard);
 
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);

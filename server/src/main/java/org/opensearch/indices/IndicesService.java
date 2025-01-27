@@ -363,7 +363,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
-    private final BiFunction<ShardId, ReplicationCheckpoint, ReplicationStats> segmentReplicationStatsProvider;
+    private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
     private volatile int maxSizeInRequestCache;
 
     @Override
@@ -403,7 +403,7 @@ public class IndicesService extends AbstractLifecycleComponent
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
-        BiFunction<ShardId, ReplicationCheckpoint, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
     ) {
         this.settings = settings;
         this.threadPool = threadPool;

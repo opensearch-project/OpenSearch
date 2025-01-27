@@ -361,7 +361,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private final ShardMigrationState shardMigrationState;
     private DiscoveryNodes discoveryNodes;
-    private final BiFunction<ShardId, ReplicationCheckpoint, ReplicationStats> segmentReplicationStatsProvider;
+    private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -393,7 +393,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RemoteStoreSettings remoteStoreSettings,
         boolean seedRemote,
         final DiscoveryNodes discoveryNodes,
-        final BiFunction<ShardId, ReplicationCheckpoint, ReplicationStats> segmentReplicationStatsProvider
+        final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -3233,9 +3233,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public ReplicationStats getReplicationStats() {
         if (indexSettings.isSegRepEnabledOrRemoteNode() && !routingEntry().primary()) {
-            return segmentReplicationStatsProvider.apply(shardId, this.getLatestReplicationCheckpoint());
+            return segmentReplicationStatsProvider.apply(shardId);
         }
-        return new ReplicationStats(0, 0, 0);
+        return ReplicationStats.empty();
     }
 
     /**

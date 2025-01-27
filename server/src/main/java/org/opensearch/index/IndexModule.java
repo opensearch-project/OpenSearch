@@ -88,7 +88,6 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -656,7 +655,7 @@ public final class IndexModule {
             recoverySettings,
             remoteStoreSettings,
             (s) -> {},
-            null
+            shardId -> ReplicationStats.empty()
         );
     }
 
@@ -683,7 +682,7 @@ public final class IndexModule {
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         Consumer<IndexShard> replicator,
-        BiFunction<ShardId, ReplicationCheckpoint, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper

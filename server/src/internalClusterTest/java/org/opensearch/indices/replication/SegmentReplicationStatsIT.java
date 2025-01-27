@@ -410,7 +410,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
                     assertTrue(replicationStats.getTotalBytesBehind() == 0);
                     assertTrue(replicationStats.getMaxReplicationLag() == 0);
                 }
-                // replica nodes - should hold empty replication statistics
+                // replica nodes - should hold replication statistics
                 if (nodeStats.getNode().getName().equals(replicaNode1) || nodeStats.getNode().getName().equals(replicaNode2)) {
                     assertTrue(replicationStats.getMaxBytesBehind() > 0);
                     assertTrue(replicationStats.getTotalBytesBehind() > 0);

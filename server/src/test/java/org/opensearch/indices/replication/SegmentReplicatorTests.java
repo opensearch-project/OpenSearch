@@ -11,6 +11,7 @@ package org.opensearch.indices.replication;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.mockito.Mockito;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -43,10 +44,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-
-import org.mockito.Mockito;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -208,55 +208,30 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
     public void testGetSegmentReplicationStats_WhenNoReplication() {
         SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
         ShardId shardId = new ShardId("index", "uuid", 0);
-        ReplicationCheckpoint replicationCheckpoint = ReplicationCheckpoint.empty(shardId);
-        ReplicationStats replicationStats = segmentReplicator.getSegmentReplicationStats(shardId, replicationCheckpoint);
+        ReplicationStats replicationStats = segmentReplicator.getSegmentReplicationStats(shardId);
         assertEquals(0, replicationStats.maxReplicationLag);
         assertEquals(0, replicationStats.totalBytesBehind);
         assertEquals(0, replicationStats.maxBytesBehind);
     }
 
-    public void testGetSegmentReplicationStats_WhenOnGoingReplication() {
-        SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
+    public void testGetSegmentReplicationStats_When() {
         ShardId shardId = new ShardId("index", "uuid", 0);
-        ReplicationCheckpoint firstReplicationCheckpoint = ReplicationCheckpoint.empty(shardId);
-
-        BytesRef bytesRef = new BytesRef(500);
-        StoreFileMetadata storeFileMetadata1 = new StoreFileMetadata("test-1", 500, "1", Version.LATEST, bytesRef);
-        StoreFileMetadata storeFileMetadata2 = new StoreFileMetadata("test-2", 500, "1", Version.LATEST, bytesRef);
-        Map<String, StoreFileMetadata> stringStoreFileMetadataMap = new HashMap<>();
-        stringStoreFileMetadataMap.put("test-1", storeFileMetadata1);
-        stringStoreFileMetadataMap.put("test-2", storeFileMetadata2);
-        ReplicationCheckpoint secondReplicationCheckpoint = new ReplicationCheckpoint(
-            shardId,
-            2,
-            2,
-            2,
-            1000,
-            "",
-            stringStoreFileMetadataMap,
-            System.nanoTime()
-        );
-
-        segmentReplicator.updateReplicationCheckpoints(secondReplicationCheckpoint, shardId);
-
-        ReplicationStats replicationStats = segmentReplicator.getSegmentReplicationStats(shardId, firstReplicationCheckpoint);
-        assertEquals(1000, replicationStats.totalBytesBehind);
-        assertEquals(1000, replicationStats.maxBytesBehind);
-        // Since we use System.currentTimeMillis() directly inside the getSegmentReplicationStats method, actual value will vary
-        // Although there is a way to mock the Clock skipping it here for the simplicity
+        SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
+        ReplicationStats replicationStats = segmentReplicator.getSegmentReplicationStats(shardId);
+        assertEquals(0, replicationStats.maxReplicationLag);
+        assertEquals(0, replicationStats.maxBytesBehind);
+        assertEquals(0, replicationStats.totalBytesBehind);
     }
 
-    public void testGetSegmentReplicationStats_WhileOnGoingReplicationPrimaryRefreshedToNewCheckPoint() {
-        SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
+    public void testGetSegmentReplicationStats_WhileOnGoingReplicationAndPrimaryRefreshedToNewCheckPoint() {
         ShardId shardId = new ShardId("index", "uuid", 0);
         ReplicationCheckpoint firstReplicationCheckpoint = ReplicationCheckpoint.empty(shardId);
 
-        BytesRef bytesRef = new BytesRef(500);
-        StoreFileMetadata storeFileMetadata1 = new StoreFileMetadata("test-1", 500, "1", Version.LATEST, bytesRef);
-        StoreFileMetadata storeFileMetadata2 = new StoreFileMetadata("test-2", 500, "1", Version.LATEST, bytesRef);
-        Map<String, StoreFileMetadata> stringStoreFileMetadataMap = new HashMap<>();
-        stringStoreFileMetadataMap.put("test-1", storeFileMetadata1);
-        stringStoreFileMetadataMap.put("test-2", storeFileMetadata2);
+        StoreFileMetadata storeFileMetadata1 = new StoreFileMetadata("test-1", 500, "1", Version.LATEST, new BytesRef(500));
+        StoreFileMetadata storeFileMetadata2 = new StoreFileMetadata("test-2", 500, "1", Version.LATEST, new BytesRef(500));
+        Map<String, StoreFileMetadata> stringStoreFileMetadataMapOne = new HashMap<>();
+        stringStoreFileMetadataMapOne.put("test-1", storeFileMetadata1);
+        stringStoreFileMetadataMapOne.put("test-2", storeFileMetadata2);
         ReplicationCheckpoint secondReplicationCheckpoint = new ReplicationCheckpoint(
             shardId,
             2,
@@ -264,32 +239,51 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             2,
             1000,
             "",
-            stringStoreFileMetadataMap,
-            System.nanoTime()
+            stringStoreFileMetadataMapOne,
+            System.nanoTime() - TimeUnit.MINUTES.toNanos(1)
         );
 
-        StoreFileMetadata storeFileMetadata3 = new StoreFileMetadata("test-3", 200, "1", Version.LATEST, bytesRef);
-        stringStoreFileMetadataMap.put("test-3", storeFileMetadata3);
+        IndexShard replicaShard = mock(IndexShard.class);
+        when(replicaShard.shardId()).thenReturn(shardId);
+        when(replicaShard.getLatestReplicationCheckpoint())
+            .thenReturn(firstReplicationCheckpoint)
+            .thenReturn(firstReplicationCheckpoint)
+            .thenReturn(firstReplicationCheckpoint)
+            .thenReturn(secondReplicationCheckpoint);
 
+        SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
+        segmentReplicator.updateReplicationCheckpointStats(firstReplicationCheckpoint, replicaShard);
+        segmentReplicator.updateReplicationCheckpointStats(secondReplicationCheckpoint, replicaShard);
+
+        Map<String, StoreFileMetadata> stringStoreFileMetadataMapTwo = new HashMap<>();
+        StoreFileMetadata storeFileMetadata3 = new StoreFileMetadata("test-3", 200, "1", Version.LATEST,  new BytesRef(200));
+        stringStoreFileMetadataMapTwo.put("test-1", storeFileMetadata1);
+        stringStoreFileMetadataMapTwo.put("test-2", storeFileMetadata2);
+        stringStoreFileMetadataMapTwo.put("test-3", storeFileMetadata3);
         ReplicationCheckpoint thirdReplicationCheckpoint = new ReplicationCheckpoint(
             shardId,
             3,
             3,
             3,
-            1200,
+            200,
             "",
-            stringStoreFileMetadataMap,
-            System.nanoTime()
+            stringStoreFileMetadataMapTwo,
+            System.nanoTime() - TimeUnit.MINUTES.toNanos(1)
         );
 
-        segmentReplicator.updateReplicationCheckpoints(secondReplicationCheckpoint, shardId);
-        segmentReplicator.updatePrimaryLastRefreshedCheckpoint(thirdReplicationCheckpoint, shardId);
+        segmentReplicator.updateReplicationCheckpointStats(thirdReplicationCheckpoint, replicaShard);
 
-        ReplicationStats replicationStats = segmentReplicator.getSegmentReplicationStats(shardId, firstReplicationCheckpoint);
-        assertEquals(1200, replicationStats.totalBytesBehind);
-        assertEquals(1200, replicationStats.maxBytesBehind);
-        // Since we use System.currentTimeMillis() directly inside the getSegmentReplicationStats method, actual value will vary
-        // Although there is a way to mock the Clock skipping it here for the simplicity
+        ReplicationStats replicationStatsFirst = segmentReplicator.getSegmentReplicationStats(shardId);
+        assertEquals(1200, replicationStatsFirst.totalBytesBehind);
+        assertEquals(1200, replicationStatsFirst.maxBytesBehind);
+        assertTrue(replicationStatsFirst.maxReplicationLag > 0);
+
+        segmentReplicator.pruneCheckpointsUpToLastSync(replicaShard);
+
+        ReplicationStats replicationStatsSecond = segmentReplicator.getSegmentReplicationStats(shardId);
+        assertEquals(200, replicationStatsSecond.totalBytesBehind);
+        assertEquals(200, replicationStatsSecond.maxBytesBehind);
+        assertTrue(replicationStatsSecond.maxReplicationLag > 0);
     }
 
     protected void resolveCheckpointListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
