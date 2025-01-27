@@ -828,6 +828,7 @@ public class TemplateQueryBuilderTests extends OpenSearchTestCase {
             new SearchModule(Settings.EMPTY, List.of()).getNamedXContents()
         );
         when(queryRewriteContext.getXContentRegistry()).thenReturn(TEST_XCONTENT_REGISTRY_FOR_QUERY);
+        when(queryRewriteContext.convertToCoordinatorContext()).thenReturn(queryRewriteContext);
 
         return queryRewriteContext;
     }
