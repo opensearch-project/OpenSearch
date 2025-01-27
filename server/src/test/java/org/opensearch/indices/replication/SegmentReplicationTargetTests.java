@@ -24,8 +24,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Version;
-import org.junit.Assert;
-import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -46,6 +44,7 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
+import org.junit.Assert;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -56,6 +55,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.function.BiConsumer;
+
+import org.mockito.Mockito;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;

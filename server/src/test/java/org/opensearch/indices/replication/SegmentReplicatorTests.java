@@ -11,7 +11,6 @@ package org.opensearch.indices.replication;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.mockito.Mockito;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -47,6 +46,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+
+import org.mockito.Mockito;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -245,8 +246,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
 
         IndexShard replicaShard = mock(IndexShard.class);
         when(replicaShard.shardId()).thenReturn(shardId);
-        when(replicaShard.getLatestReplicationCheckpoint())
-            .thenReturn(firstReplicationCheckpoint)
+        when(replicaShard.getLatestReplicationCheckpoint()).thenReturn(firstReplicationCheckpoint)
             .thenReturn(firstReplicationCheckpoint)
             .thenReturn(firstReplicationCheckpoint)
             .thenReturn(secondReplicationCheckpoint);
@@ -256,7 +256,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         segmentReplicator.updateReplicationCheckpointStats(secondReplicationCheckpoint, replicaShard);
 
         Map<String, StoreFileMetadata> stringStoreFileMetadataMapTwo = new HashMap<>();
-        StoreFileMetadata storeFileMetadata3 = new StoreFileMetadata("test-3", 200, "1", Version.LATEST,  new BytesRef(200));
+        StoreFileMetadata storeFileMetadata3 = new StoreFileMetadata("test-3", 200, "1", Version.LATEST, new BytesRef(200));
         stringStoreFileMetadataMapTwo.put("test-1", storeFileMetadata1);
         stringStoreFileMetadataMapTwo.put("test-2", storeFileMetadata2);
         stringStoreFileMetadataMapTwo.put("test-3", storeFileMetadata3);

@@ -114,7 +114,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -719,7 +719,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             DefaultRemoteStoreSettings.INSTANCE,
             false,
             IndexShardTestUtils.getFakeDiscoveryNodes(initializingShardRouting),
-            mock(BiFunction.class)
+            mock(Function.class)
         );
     }
 
