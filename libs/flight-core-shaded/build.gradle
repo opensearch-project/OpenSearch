@@ -54,3 +54,7 @@ tasks.named('javadoc') { javadocTask ->
   enabled = false
   finalizedBy(tasks.named('javadocDummyFiles'))
 }
+
+tasks.withType(JacocoReport).configureEach {
+  enabled = false
+}
