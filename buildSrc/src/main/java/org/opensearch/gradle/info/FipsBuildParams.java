@@ -10,7 +10,9 @@ package org.opensearch.gradle.info;
 
 public class FipsBuildParams {
 
-    private static final String FIPS_MODE = System.getenv("OPENSEARCH_CRYPTO_STANDARD");
+    private static final String FIPS_BUILD_PARAM = "OPENSEARCH_CRYPTO_STANDARD";
+
+    private static final String FIPS_MODE = System.getenv(FIPS_BUILD_PARAM);
 
     private FipsBuildParams() {}
 
@@ -20,6 +22,10 @@ public class FipsBuildParams {
 
     public static String getFipsMode() {
         return FIPS_MODE;
+    }
+
+    public static String getFipsBuildParam() {
+        return FIPS_BUILD_PARAM;
     }
 
 }

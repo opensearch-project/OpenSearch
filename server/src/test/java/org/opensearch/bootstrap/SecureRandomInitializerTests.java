@@ -20,9 +20,6 @@ public class SecureRandomInitializerTests extends OpenSearchTestCase {
 
     @BeforeClass
     public static void setup() {
-        // Reset the global state if your CryptoServicesRegistrar allows it.
-        // If there's a method to unset or reset the SecureRandom, call it here.
-        // If not, the following lines are hypothetical and depend on your actual implementation.
         CryptoServicesRegistrar.setSecureRandom(null);
     }
 

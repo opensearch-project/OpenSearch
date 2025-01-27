@@ -46,6 +46,7 @@ import org.opensearch.gradle.ReaperService;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.VersionProperties;
 import org.opensearch.gradle.info.BuildParams;
+import org.opensearch.gradle.info.FipsBuildParams;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -546,6 +547,10 @@ public class OpenSearchNode implements TestClusterConfiguration {
             logToProcessStdout("installed plugins");
         }
 
+        if (FipsBuildParams.isInFipsMode() && keystorePassword.isEmpty()) {
+            throw new TestClustersException("Can not start " + this + " in FIPS JVM, missing keystore password");
+        }
+
         logToProcessStdout("Creating opensearch keystore with password set to [" + keystorePassword + "]");
         if (keystorePassword.length() > 0) {
             runOpenSearchBinScriptWithInput(keystorePassword + "\n" + keystorePassword + "\n", "opensearch-keystore", "create", "-p");
@@ -791,6 +796,9 @@ public class OpenSearchNode implements TestClusterConfiguration {
         // Override the system hostname variables for testing
         defaultEnv.put("HOSTNAME", HOSTNAME_OVERRIDE);
         defaultEnv.put("COMPUTERNAME", COMPUTERNAME_OVERRIDE);
+        if (FipsBuildParams.isInFipsMode()) {
+            defaultEnv.put(FipsBuildParams.getFipsBuildParam(), FipsBuildParams.getFipsMode());
+        }
 
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());

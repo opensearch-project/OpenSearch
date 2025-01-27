@@ -34,7 +34,6 @@ package org.opensearch.gradle.http;
 
 import de.thetaphi.forbiddenapis.SuppressForbidden;
 
-import org.opensearch.gradle.SecureRandomProvider;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
@@ -54,6 +53,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.util.Arrays;
@@ -251,7 +251,7 @@ public class WaitForHttpResource {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(trustStore);
         SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-        sslContext.init(new KeyManager[0], tmf.getTrustManagers(), SecureRandomProvider.getSecureRandom());
+        sslContext.init(new KeyManager[0], tmf.getTrustManagers(), new SecureRandom());
         return sslContext;
     }
 
