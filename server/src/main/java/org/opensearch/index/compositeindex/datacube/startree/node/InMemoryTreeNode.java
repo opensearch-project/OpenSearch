@@ -121,7 +121,11 @@ public class InMemoryTreeNode {
         if (childNode.getNodeType() == StarTreeNodeType.STAR.getValue()) {
             this.childStarNode.set(childNode);
         } else {
-            this.children.put(dimensionValue, childNode);
+            if (childNode.getNodeType() == StarTreeNodeType.NULL.getValue()) {
+                this.children.put(Long.MAX_VALUE, childNode);
+            } else {
+                this.children.put(dimensionValue, childNode);
+            }
             assert assertStarTreeChildOrder(childNode);
         }
     }
