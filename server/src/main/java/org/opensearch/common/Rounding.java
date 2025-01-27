@@ -270,6 +270,10 @@ public abstract class Rounding implements Writeable {
 
     public abstract byte id();
 
+    public DateTimeUnit unit() {
+        return null;
+    }
+
     /**
      * A strategy for rounding milliseconds since epoch.
      *
@@ -515,6 +519,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public byte id() {
             return ID;
+        }
+
+        @Override
+        public DateTimeUnit unit() {
+            return unit;
         }
 
         private LocalDateTime truncateLocalDateTime(LocalDateTime localDateTime) {
