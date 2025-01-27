@@ -211,7 +211,7 @@ public class TokenCountFieldMapperIntegrationIT extends OpenSearchIntegTestCase 
     }
 
     private void assertSearchReturns(SearchResponse result, String... ids) {
-        assertThat(result.getHits().getTotalHits().value, equalTo((long) ids.length));
+        assertThat(result.getHits().getTotalHits().value(), equalTo((long) ids.length));
         assertThat(result.getHits().getHits().length, equalTo(ids.length));
         List<String> foundIds = new ArrayList<>();
         for (SearchHit hit : result.getHits()) {

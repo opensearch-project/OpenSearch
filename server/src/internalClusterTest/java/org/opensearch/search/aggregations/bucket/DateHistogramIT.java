@@ -1031,7 +1031,7 @@ public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegT
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -1070,7 +1070,7 @@ public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegT
             )
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(5L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -1241,7 +1241,7 @@ public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegT
 
         assertThat(
             "Expected 24 buckets for one day aggregation with hourly interval",
-            response.getHits().getTotalHits().value,
+            response.getHits().getTotalHits().value(),
             equalTo(2L)
         );
 

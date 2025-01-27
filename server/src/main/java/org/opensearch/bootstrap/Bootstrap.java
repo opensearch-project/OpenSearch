@@ -47,6 +47,7 @@ import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.PidFile;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.inject.CreationException;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.logging.Loggers;

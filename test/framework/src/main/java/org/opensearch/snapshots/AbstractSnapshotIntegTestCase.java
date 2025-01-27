@@ -38,7 +38,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -566,7 +566,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     protected long getCountForIndex(String indexName) {
         return client().search(
             new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
-        ).actionGet().getHits().getTotalHits().value;
+        ).actionGet().getHits().getTotalHits().value();
     }
 
     protected void assertDocCount(String index, long count) {

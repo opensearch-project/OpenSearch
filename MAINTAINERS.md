@@ -16,7 +16,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Craig Perkins            | [cwperks](https://github.com/cwperks)                   | Amazon      |
 | Dan Widdis               | [dbwiddis](https://github.com/dbwiddis)                 | Amazon      |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)                     | Amazon      |
-| Gao Binlong              | [gaobinlong](https://github.com/gaobinlong)             | Amazon      |
+| Binlong Gao              | [gaobinlong](https://github.com/gaobinlong)             | Amazon      |
 | Gaurav Bafna             | [gbbafna](https://github.com/gbbafna)                   | Amazon      |
 | Jay Deng                 | [jed326](https://github.com/jed326)                     | Amazon      |
 | Kunal Kotwani            | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |

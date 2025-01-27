@@ -346,7 +346,7 @@ public class EquivalenceIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             )
             .get();
         assertAllSuccessful(resp);
-        assertEquals(numDocs, resp.getHits().getTotalHits().value);
+        assertEquals(numDocs, resp.getHits().getTotalHits().value());
 
         final Terms longTerms = resp.getAggregations().get("long");
         final Terms doubleTerms = resp.getAggregations().get("double");
@@ -464,7 +464,7 @@ public class EquivalenceIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             )
             .get();
         assertAllSuccessful(response);
-        assertEquals(numDocs, response.getHits().getTotalHits().value);
+        assertEquals(numDocs, response.getHits().getTotalHits().value());
     }
 
     // https://github.com/elastic/elasticsearch/issues/6435

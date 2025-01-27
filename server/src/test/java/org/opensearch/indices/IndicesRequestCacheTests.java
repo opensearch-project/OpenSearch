@@ -1206,7 +1206,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 TopDocs topDocs = searcher.search(new TermQuery(new Term("id", Integer.toString(id))), 1);
-                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(1, topDocs.totalHits.value());
                 Document document = reader.storedFields().document(topDocs.scoreDocs[0].doc);
                 out.writeString(document.get("value"));
                 loadedFromCache = false;

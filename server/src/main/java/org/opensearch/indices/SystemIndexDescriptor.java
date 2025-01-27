@@ -32,7 +32,9 @@
 
 package org.opensearch.indices;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.regex.Regex;
 
@@ -74,7 +76,8 @@ public class SystemIndexDescriptor {
             );
         }
         this.indexPattern = indexPattern;
-        this.indexPatternAutomaton = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(indexPattern));
+        Automaton a = Operations.determinize(Regex.simpleMatchToAutomaton(indexPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        this.indexPatternAutomaton = new CharacterRunAutomaton(a);
         this.description = description;
     }
 
