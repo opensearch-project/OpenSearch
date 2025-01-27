@@ -72,6 +72,7 @@ import org.opensearch.search.startree.StarTreeFilter;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -242,7 +243,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             .stream()
             .filter(dim -> dim.getField().equals(STARTREE_TIMESTAMP_FIELD))
             .findFirst() // Get the first matching time dimension
-            .orElseThrow(() -> new AssertionError(String.format("Date dimension '%s' not found", STARTREE_TIMESTAMP_FIELD)));
+            .orElseThrow(() -> new AssertionError(String.format(Locale.ROOT, "Date dimension '%s' not found", STARTREE_TIMESTAMP_FIELD)));
 
         DateTimeUnitAdapter dateTimeUnitRounding = new DateTimeUnitAdapter(this.rounding.unit());
         DateTimeUnitRounding rounding = starTreeDateDimension.findClosestValidInterval(dateTimeUnitRounding);
