@@ -29,7 +29,6 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
  * Helper class for building star-tree query
@@ -148,9 +147,7 @@ public class StarTreeQueryHelper {
     }
 
     public static Dimension getMatchingDimensionOrNull(String dimensionName, List<Dimension> orderedDimensions) {
-        List<Dimension> matchingDimensions = orderedDimensions.stream()
-            .filter(x -> x.getField().equals(dimensionName))
-            .collect(Collectors.toList());
+        List<Dimension> matchingDimensions = orderedDimensions.stream().filter(x -> x.getField().equals(dimensionName)).toList();
         if (matchingDimensions.size() != 1) {
             return null;
         }

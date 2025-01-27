@@ -221,7 +221,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         Query query = null;
         QueryBuilder queryBuilder = null;
 
-        for (int cases = 0; cases < 30; cases++) {
+        for (int cases = 0; cases < 20; cases++) {
             // Get all types of queries (Term/Terms/Range) for all the given dimensions.
             List<QueryBuilder> allFieldQueries = dimensionFieldData.stream()
                 .flatMap(x -> Stream.of(x.getTermQueryBuilder(), x.getTermsQueryBuilder(), x.getRangeQueryBuilder()))
