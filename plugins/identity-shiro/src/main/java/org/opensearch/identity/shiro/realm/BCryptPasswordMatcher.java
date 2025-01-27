@@ -40,6 +40,7 @@ public class BCryptPasswordMatcher implements CredentialsMatcher {
         return check(userToken.getPassword(), (String) info.getCredentials());
     }
 
+    @SuppressWarnings("removal")
     private boolean check(char[] password, String hash) {
         if (password == null || password.length == 0) {
             throw new IllegalStateException("Password cannot be empty or null");
