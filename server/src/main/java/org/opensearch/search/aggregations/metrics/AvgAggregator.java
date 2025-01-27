@@ -171,7 +171,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
             MetricStat.VALUE_COUNT.getTypeName()
         );
 
-        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
+        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
         SortedNumericStarTreeValuesIterator sumValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getMetricValuesIterator(sumMetricName);
         SortedNumericStarTreeValuesIterator countValueIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
@@ -199,6 +199,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
         }
 
         sums.set(0, kahanSummation.value());
+        compensations.set(0, kahanSummation.delta());
         return new LeafBucketCollectorBase(sub, valuesSource.doubleValues(ctx)) {
             @Override
             public void collect(int doc, long bucket) {
@@ -255,17 +256,24 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
             SortedNumericStarTreeValuesIterator valueCountMetricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
                 .getMetricValuesIterator(valueCountMetricName);
 
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
             @Override
             public void collectStarTreeEntry(int starTreeEntryBit, long bucket) throws IOException {
                 counts = context.bigArrays().grow(counts, bucket + 1);
                 sums = context.bigArrays().grow(sums, bucket + 1);
+                compensations = context.bigArrays().grow(compensations, bucket + 1);
                 // Advance the valuesIterator to the current bit
                 if (!sumMetricValuesIterator.advanceExact(starTreeEntryBit)
                     || !valueCountMetricValuesIterator.advanceExact(starTreeEntryBit)) {
                     return; // Skip if no entries for this document
                 }
+                kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
+                kahanSummation.add(NumericUtils.sortableLongToDouble(sumMetricValuesIterator.nextValue()));
+
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
                 counts.increment(bucket, valueCountMetricValuesIterator.nextValue());
-                sums.set(bucket, NumericUtils.sortableLongToDouble(sumMetricValuesIterator.nextValue()) + sums.get(bucket));
             }
         };
     }

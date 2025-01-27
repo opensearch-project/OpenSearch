@@ -106,6 +106,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private boolean starTreeDateRoundingRequired = true;
 
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
+    public final String STARTREE_TIMESTAMP_FIELD = "@timestamp";
 
     DateHistogramAggregator(
         String name,
@@ -229,20 +230,23 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     }
 
     private String fetchStarTreeCalendarUnit() {
+        if (this.rounding.unit() == null) {
+            return null;
+        }
+
         CompositeDataCubeFieldType compositeMappedFieldType = (CompositeDataCubeFieldType) context.mapperService()
             .getCompositeFieldTypes()
             .iterator()
             .next();
         DateDimension starTreeDateDimension = (DateDimension) compositeMappedFieldType.getDimensions()
             .stream()
-            .filter(dim -> dim.getField().equals("@timestamp")) // Filter for "@timestamp"
-            .findFirst() // Get the first matching dimension (if any)
-            .orElseThrow(() -> new AssertionError("Date dimension '@timestamp' not found")); // Throw an exception if not found
+            .filter(dim -> dim.getField().equals(STARTREE_TIMESTAMP_FIELD))
+            .findFirst() // Get the first matching time dimension
+            .orElseThrow(() -> new AssertionError(String.format("Date dimension '%s' not found", STARTREE_TIMESTAMP_FIELD)));
 
         DateTimeUnitAdapter dateTimeUnitRounding = new DateTimeUnitAdapter(this.rounding.unit());
-        // check for null post this
         DateTimeUnitRounding rounding = starTreeDateDimension.findClosestValidInterval(dateTimeUnitRounding);
-        String dimensionName = "@timestamp_" + rounding.shortName();
+        String dimensionName = STARTREE_TIMESTAMP_FIELD + "_" + rounding.shortName();
         if (rounding.shortName().equals(this.rounding.unit().shortName())) {
             this.starTreeDateRoundingRequired = false;
         }

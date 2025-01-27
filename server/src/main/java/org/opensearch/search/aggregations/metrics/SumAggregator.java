@@ -142,7 +142,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
 
     public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
         throws IOException {
-        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
+        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
 
         return StarTreeQueryHelper.getStarTreeLeafCollector(
             context,
@@ -152,7 +152,10 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
             starTree,
             MetricStat.SUM.getTypeName(),
             value -> kahanSummation.add(NumericUtils.sortableLongToDouble(value)),
-            () -> sums.set(0, kahanSummation.value())
+            () -> {
+                sums.set(0, kahanSummation.value());
+                compensations.set(0, kahanSummation.delta());
+            }
         );
     }
 
@@ -165,13 +168,22 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parentCollector
     ) throws IOException {
+        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
             starTree,
             MetricStat.SUM.getTypeName(),
             valuesSource,
             parentCollector,
-            (bucket) -> sums = context.bigArrays().grow(sums, bucket + 1),
-            (bucket, metricValue) -> sums.set(bucket, NumericUtils.sortableLongToDouble(metricValue) + sums.get(bucket))
+            (bucket) -> {
+                sums = context.bigArrays().grow(sums, bucket + 1);
+                compensations = context.bigArrays().grow(compensations, bucket + 1);
+            },
+            (bucket, metricValue) -> {
+                kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
+                kahanSummation.add(NumericUtils.sortableLongToDouble(metricValue));
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
+            }
         );
     }
 
