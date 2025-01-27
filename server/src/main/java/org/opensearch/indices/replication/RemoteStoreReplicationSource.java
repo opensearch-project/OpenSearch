@@ -110,7 +110,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 return;
             }
             logger.debug("Downloading segment files from remote store {}", filesToFetch);
-            slowByStringOperations(16);
             if (remoteMetadataExists()) {
                 final Directory storeDirectory = indexShard.store().directory();
                 final Collection<String> directoryFiles = List.of(storeDirectory.listAll());
@@ -134,15 +133,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         } catch (IOException | RuntimeException e) {
             listener.onFailure(e);
         }
-    }
-
-    public static void slowByStringOperations(int intensity) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < intensity * 10000; i++) {
-            sb.append(String.valueOf(i));
-            sb.reverse();
-        }
-        System.out.println("Slow Operation finished");
     }
 
     @Override
