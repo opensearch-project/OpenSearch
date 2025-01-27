@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.IntField;
@@ -25,6 +26,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -52,7 +54,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -136,7 +137,10 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         final List<DimensionFieldData> dimensionFieldData = List.of(
             new DimensionFieldData("sndv", () -> random().nextInt(10) - 5, DimensionTypes.LONG.getFieldDataSupplier()),
             new DimensionFieldData("dv", () -> random().nextInt(20) - 10, DimensionTypes.INTEGER.getFieldDataSupplier()),
-            new DimensionFieldData("keyword_field", () -> random().nextInt(50), DimensionTypes.KEYWORD.getFieldDataSupplier())
+            new DimensionFieldData("keyword_field", () -> random().nextInt(50), DimensionTypes.KEYWORD.getFieldDataSupplier()),
+            new DimensionFieldData("half_float_field", () -> random().nextFloat(50), DimensionTypes.HALF_FLOAT.getFieldDataSupplier()),
+            new DimensionFieldData("float_field", () -> random().nextFloat(50), DimensionTypes.FLOAT.getFieldDataSupplier()),
+            new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE.getFieldDataSupplier())
         );
         for (Supplier<Integer> maxLeafDocsSupplier : MAX_LEAF_DOC_VARIATIONS) {
             testStarTreeDocValuesInternal(getCodec(maxLeafDocsSupplier), dimensionFieldData);
@@ -432,16 +436,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         verify.accept(expectedAggregation, starTreeAggregation);
     }
 
-    private RangeQueryBuilder getRandomRangeQuery(String fieldName, Object from, Object to) {
-        if (randomBoolean()) {
-            from = null;
-        }
-        if (randomBoolean()) {
-            to = null;
-        }
-        return QueryBuilders.rangeQuery(fieldName).from(from).to(to).includeLower(randomBoolean()).includeUpper(randomBoolean());
-    }
-
 
     private interface DimensionFieldDataSupplier {
         IndexableField getField(String fieldName, Supplier<Object> valueSupplier);
@@ -524,7 +518,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         HALF_FLOAT(new NumericDimensionFieldDataSupplier() {
             @Override
             public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
-                return new FloatField(fieldName, (Float) valueSupplier.get(), Field.Store.YES);
+                return new SortedNumericDocValuesField(fieldName, HalfFloatPoint.halfFloatToSortableShort((Float) valueSupplier.get()));
             }
 
             @Override
@@ -545,7 +539,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         DOUBLE(new NumericDimensionFieldDataSupplier() {
             @Override
             public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
-                return new FloatField(fieldName, (Float) valueSupplier.get(), Field.Store.YES);
+                return new DoubleField(fieldName, (Double) valueSupplier.get(), Field.Store.YES);
             }
 
             @Override
