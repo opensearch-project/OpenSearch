@@ -41,7 +41,7 @@ public interface StarTreeFilterProvider {
      * @param rawFilter:
      * @param compositeFieldType:
      * @return : {@link StarTreeFilter} if the query shape is supported, else null.
-     * @throws IOException:
+     * @throws IOException :
      */
     StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
         throws IOException;

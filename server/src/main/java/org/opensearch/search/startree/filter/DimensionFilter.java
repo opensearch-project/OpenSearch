@@ -26,7 +26,7 @@ public interface DimensionFilter {
      * Converts parsed user values to ordinals based on segment and other init actions can be performed.
      * @param starTreeValues : Segment specific star tree root node and other metadata
      * @param searchContext : Search context
-     * @throws IOException:
+     * @throws IOException :
      */
     void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException;
 
@@ -35,7 +35,7 @@ public interface DimensionFilter {
      * @param parentNode : StarTreeNode below which the dimension to be filtered is present.
      * @param starTreeValues : Segment specific star tree root node and other metadata
      * @param collector : Collector which collates the matched StarTreeNode's
-     * @throws IOException:
+     * @throws IOException :
      */
     void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector) throws IOException;
 
