@@ -412,7 +412,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         // Mock SearchContextAggregations
         SearchContextAggregations searchContextAggregations = mock(SearchContextAggregations.class);
         AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
-        when(searchContext.aggregations()).thenReturn(searchContextAggregations);
+        when(searchContext.aggregations()).thenReturn(new SearchContextAggregations(AggregatorFactories.EMPTY, bucketConsumer));
+
         when(searchContextAggregations.factories()).thenReturn(aggregatorFactories);
 
         if (aggregatorFactory != null) {
