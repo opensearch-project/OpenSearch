@@ -19,6 +19,9 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -27,7 +30,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -40,20 +42,24 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  *  @opensearch.experimental
  *  @opensearch.internal
  */
-public class StarTreeFilter {
-    private static final Logger logger = LogManager.getLogger(StarTreeFilter.class);
+public class StarTreeTraversalUtil {
+    private static final Logger logger = LogManager.getLogger(StarTreeTraversalUtil.class);
 
     /**
-     *   First go over the star tree and try to match as many dimensions as possible
-     *   For the remaining columns, use star-tree doc values to match them
+         *   First go over the star tree and try to match as many dimensions as possible
+         *   For the remaining columns, use star-tree doc values to match them
      */
-    public static FixedBitSet getStarTreeResult(
-        StarTreeValues starTreeValues,
-        Map<String, Long> predicateEvaluators,
-        Set<String> groupByField
-    ) throws IOException {
-        Map<String, Long> queryMap = predicateEvaluators != null ? predicateEvaluators : Collections.emptyMap();
-        StarTreeResult starTreeResult = traverseStarTree(starTreeValues, queryMap, groupByField);
+    public static FixedBitSet getStarTreeResult(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter, SearchContext searchContext)
+        throws IOException {
+
+        // Initialising all dimension filters for this segment
+        for (String dimension : starTreeFilter.getDimensions()) {
+            for (DimensionFilter dimensionFilter : starTreeFilter.getFiltersForDimension(dimension)) {
+                dimensionFilter.initialiseForSegment(starTreeValues, searchContext);
+            }
+        }
+
+        StarTreeResult starTreeResult = traverseStarTree(starTreeValues, starTreeFilter);
 
         // Initialize FixedBitSet with size maxMatchedDoc + 1
         FixedBitSet bitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
@@ -78,11 +84,9 @@ public class StarTreeFilter {
         for (String remainingPredicateColumn : starTreeResult.remainingPredicateColumns) {
             logger.debug("remainingPredicateColumn : {}, maxMatchedDoc : {} ", remainingPredicateColumn, starTreeResult.maxMatchedDoc);
 
-            SortedNumericStarTreeValuesIterator ndv = (SortedNumericStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
-                remainingPredicateColumn
-            );
-
-            long queryValue = queryMap.get(remainingPredicateColumn); // Get the query value directly
+            StarTreeValuesIterator valuesIterator = starTreeValues.getDimensionValuesIterator(remainingPredicateColumn);
+            // Get the query value directly
+            List<DimensionFilter> dimensionFilters = starTreeFilter.getFiltersForDimension(remainingPredicateColumn);
 
             // Clear the temporary bit set before reuse
             tempBitSet.clear(0, starTreeResult.maxMatchedDoc + 1);
@@ -92,14 +96,12 @@ public class StarTreeFilter {
                 for (int entryId = bitSet.nextSetBit(0); entryId != DocIdSetIterator.NO_MORE_DOCS; entryId = (entryId + 1 < bitSet.length())
                     ? bitSet.nextSetBit(entryId + 1)
                     : DocIdSetIterator.NO_MORE_DOCS) {
-                    if (ndv.advance(entryId) != StarTreeValuesIterator.NO_MORE_ENTRIES) {
-                        final int valuesCount = ndv.entryValueCount();
-                        for (int i = 0; i < valuesCount; i++) {
-                            long value = ndv.nextValue();
-                            // Compare the value with the query value
-                            if (value == queryValue) {
-                                tempBitSet.set(entryId);  // Set bit for the matching entryId
-                                break;  // No need to check other values for this entryId
+                    if (valuesIterator.advanceExact(entryId)) {
+                        long value = valuesIterator.value();
+                        for (DimensionFilter dimensionFilter : dimensionFilters) {
+                            if (dimensionFilter.matchDimValue(value, starTreeValues)) {
+                                tempBitSet.set(entryId);// Set bit for the matching entryId
+                                break;
                             }
                         }
                     }
@@ -117,8 +119,7 @@ public class StarTreeFilter {
      * Helper method to traverse the star tree, get matching documents and keep track of all the
      * predicate dimensions that are not matched.
      */
-    private static StarTreeResult traverseStarTree(StarTreeValues starTreeValues, Map<String, Long> queryMap, Set<String> groupbyField)
-        throws IOException {
+    private static StarTreeResult traverseStarTree(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter) throws IOException {
         DocIdSetBuilder docsWithField = new DocIdSetBuilder(starTreeValues.getStarTreeDocumentCount());
         DocIdSetBuilder.BulkAdder adder;
         Set<String> globalRemainingPredicateColumns = null;
@@ -130,8 +131,7 @@ public class StarTreeFilter {
         Queue<StarTreeNode> queue = new ArrayDeque<>();
         queue.add(starTree);
         int currentDimensionId = -1;
-        Set<String> remainingPredicateColumns = new HashSet<>(queryMap.keySet());
-        Set<String> remainingGroupByColumns = new HashSet<>(groupbyField);
+        Set<String> remainingPredicateColumns = new HashSet<>(starTreeFilter.getDimensions());
         int matchedDocsCountInStarTree = 0;
         int maxDocNum = -1;
         StarTreeNode starTreeNode;
@@ -142,14 +142,13 @@ public class StarTreeFilter {
             if (dimensionId > currentDimensionId) {
                 String dimension = dimensionNames.get(dimensionId);
                 remainingPredicateColumns.remove(dimension);
-                remainingGroupByColumns.remove(dimension);
                 if (foundLeafNode && globalRemainingPredicateColumns == null) {
                     globalRemainingPredicateColumns = new HashSet<>(remainingPredicateColumns);
                 }
                 currentDimensionId = dimensionId;
             }
 
-            if (remainingPredicateColumns.isEmpty() && remainingGroupByColumns.isEmpty()) {
+            if (remainingPredicateColumns.isEmpty()) {
                 int docId = starTreeNode.getAggregatedDocId();
                 docIds.add(docId);
                 matchedDocsCountInStarTree++;
@@ -168,18 +167,20 @@ public class StarTreeFilter {
 
             String childDimension = dimensionNames.get(dimensionId + 1);
             StarTreeNode starNode = null;
-            if (((globalRemainingPredicateColumns == null || !globalRemainingPredicateColumns.contains(childDimension))
-                && !remainingGroupByColumns.contains(childDimension))) {
+            if (globalRemainingPredicateColumns == null || !globalRemainingPredicateColumns.contains(childDimension)) {
                 starNode = starTreeNode.getChildStarNode();
             }
 
             if (remainingPredicateColumns.contains(childDimension)) {
-                long queryValue = queryMap.get(childDimension); // Get the query value directly from the map
-                StarTreeNode matchingChild = starTreeNode.getChildForDimensionValue(queryValue);
-                if (matchingChild != null) {
-                    queue.add(matchingChild);
-                    foundLeafNode |= matchingChild.isLeaf();
+                List<DimensionFilter> dimensionFilters = starTreeFilter.getFiltersForDimension(childDimension);
+                final boolean[] tempFoundLeafNodes = new boolean[1];
+                for (DimensionFilter dimensionFilter : dimensionFilters) {
+                    dimensionFilter.matchStarTreeNodes(starTreeNode, starTreeValues, node -> {
+                        queue.add(node);
+                        tempFoundLeafNodes[0] |= node.isLeaf();
+                    });
                 }
+                foundLeafNode |= tempFoundLeafNodes[0];
             } else {
                 if (starNode != null) {
                     queue.add(starNode);

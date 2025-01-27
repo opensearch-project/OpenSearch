@@ -9,6 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.node;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.search.startree.StarTreeNodeCollector;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -108,6 +109,17 @@ public interface StarTreeNode {
      * @throws IOException if an I/O error occurs while retrieving the child node
      */
     StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException;
+
+    StarTreeNode getChildForDimensionValue(Long dimensionValue, StarTreeNode lastMatchedChild) throws IOException;
+
+    /**
+     * Collects all matching child nodes whose dimension values lie within the range of low and high, both inclusive.
+     * @param low : Starting of the range ( inclusive )
+     * @param high : End of the range ( inclusive )
+     * @param collector : Collector to collect the matched child StarTreeNode's
+     * @throws IOException :
+     */
+    void collectChildrenInRange(long low, long high, StarTreeNodeCollector collector) throws IOException;
 
     /**
      * Returns the child star node for a node in the star-tree.

@@ -29,6 +29,16 @@ public class SortedSetStarTreeValuesIterator extends StarTreeValuesIterator {
         super(docIdSetIterator);
     }
 
+    @Override
+    public long value() throws IOException {
+        return nextOrd();
+    }
+
+    @Override
+    public boolean advanceExact(int target) throws IOException {
+        return ((SortedSetDocValues) docIdSetIterator).advanceExact(target);
+    }
+
     public long nextOrd() throws IOException {
         return ((SortedSetDocValues) docIdSetIterator).nextOrd();
     }
@@ -56,4 +66,5 @@ public class SortedSetStarTreeValuesIterator extends StarTreeValuesIterator {
     public TermsEnum intersect(CompiledAutomaton automaton) throws IOException {
         return ((SortedSetDocValues) docIdSetIterator).intersect(automaton);
     }
+
 }

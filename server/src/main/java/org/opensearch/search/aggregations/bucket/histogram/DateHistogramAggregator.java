@@ -45,7 +45,6 @@ import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
@@ -68,18 +67,22 @@ import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.startree.StarTreeFilter;
+import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.StarTreeTraversalUtil;
+import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
 import static org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * An aggregator for date values. Every date is rounded down using a configured
@@ -172,7 +175,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             }
         };
         filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
-        this.starTreeDateDimension = (context.getStarTreeQueryContext() != null) ? fetchStarTreeCalendarUnit() : null;
+        this.starTreeDateDimension = (context.getQueryShardContext().getStarTreeQueryContext() != null)
+            ? fetchStarTreeCalendarUnit()
+            : null;
     }
 
     @Override
@@ -193,7 +198,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
-        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             if (preComputeWithStarTree(ctx, supportedStarTree) == true) {
                 throw new CollectionTerminatedException();
@@ -264,7 +269,16 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeFilter.getStarTreeResult(starTreeValues, context.getStarTreeQueryContext().getQueryMap(), Set.of(starTreeDateDimension))
+            // FIXME : Add to base query filter any full dimension filter
+            StarTreeTraversalUtil.getStarTreeResult(
+                starTreeValues,
+                mergeStarTreeFilter(
+                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
+                    starTreeDateDimension,
+                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
+                ),
+                context
+            )
         ) {
             @Override
             public void setSubCollectors() throws IOException {
@@ -310,6 +324,24 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 }
             }
         };
+    }
+
+    private StarTreeFilter mergeStarTreeFilter(
+        StarTreeFilter baseStarTreeFilter,
+        String groupByField,
+        List<DimensionFilter> filtersToMerge
+    ) {
+        Map<String, List<DimensionFilter>> dimensionFilterMap = new HashMap<>(baseStarTreeFilter.getDimensions().size());
+        for (String baseDimension : baseStarTreeFilter.getDimensions()) {
+            if (!baseDimension.equals(groupByField)) {
+                dimensionFilterMap.put(baseDimension, baseStarTreeFilter.getFiltersForDimension(baseDimension));
+            }
+        }
+        // Don't add groupBy when already present in base filter.
+        if (!dimensionFilterMap.containsKey(groupByField)) {
+            dimensionFilterMap.put(groupByField, filtersToMerge);
+        }
+        return new StarTreeFilter(dimensionFilterMap);
     }
 
     @Override

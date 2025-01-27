@@ -39,7 +39,6 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -51,11 +50,12 @@ import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * A field data based aggregator that counts the number of values a specific field has within the aggregation context.
@@ -96,7 +96,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
 
         if (valuesSource instanceof ValuesSource.Numeric) {
 
-            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
             if (supportedStarTree != null) {
                 if (parent != null && subAggregators.length == 0) {
                     // If this a child aggregator, then the parent will trigger star-tree pre-computation.

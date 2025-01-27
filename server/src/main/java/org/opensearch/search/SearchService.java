@@ -77,7 +77,6 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
@@ -141,6 +140,7 @@ import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.startree.StarTreeQueryContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -1548,15 +1548,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (this.indicesService.getCompositeIndexSettings() != null
             && this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
             && StarTreeQueryHelper.isStarTreeSupported(context)) {
-            try {
-                StarTreeQueryContext starTreeQueryContext = StarTreeQueryHelper.getStarTreeQueryContext(context, source);
-                if (starTreeQueryContext != null) {
-                    context.starTreeQueryContext(starTreeQueryContext);
-                    logger.debug("can use star tree");
-                } else {
-                    logger.debug("cannot use star tree");
-                }
-            } catch (IOException ignored) {}
+            StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(context, source.query());
+            boolean consolidated = starTreeQueryContext.consolidateAllFilters(context);
+            if (consolidated) {
+                queryShardContext.setStarTreeQueryContext(starTreeQueryContext);
+            }
         }
     }
 
