@@ -220,11 +220,81 @@ public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
 
         assertEquals(starTreeNode.getNumChildren(), 0);
         assertNull(starTreeNode.getChildForDimensionValue(randomLong()));
-        assertThrows(IllegalArgumentException.class, () -> starTreeNode.getChildrenIterator().next());
+        assertThrows(IllegalStateException.class, () -> starTreeNode.getChildrenIterator().next());
         assertThrows(UnsupportedOperationException.class, () -> starTreeNode.getChildrenIterator().remove());
 
         dataIn.close();
         directory.close();
+    }
+
+    public void testRangeWithinBounds() throws IOException {
+        // Assume the starTreeNode is set up with valid nodes
+        long startDimensionValue = 0;  // The first child node's value
+        long endDimensionValue = node.getChildren().get((long) (node.getChildren().size() - 3)).getDimensionValue();  // The last child
+                                                                                                                      // node's value
+
+        Iterator<FixedLengthStarTreeNode> rangeIterator = starTreeNode.range(startDimensionValue, endDimensionValue);
+
+        int count = 0;
+        while (rangeIterator.hasNext()) {
+            FixedLengthStarTreeNode currentNode = rangeIterator.next();
+            assertNotNull(currentNode);
+            assertTrue(currentNode.getDimensionValue() >= startDimensionValue);
+            assertTrue(currentNode.getDimensionValue() <= endDimensionValue);
+            count++;
+        }
+
+        assertEquals(node.getChildren().size() - 2, count);  // All children should be included in the range
+    }
+
+    public void testRangeOutsideBounds() throws IOException {
+        long startDimensionValue = node.getDimensionValue() + 1000;  // Use a value larger than any child node's dimension value
+        long endDimensionValue = startDimensionValue + 100;  // A range that doesn't exist
+
+        Iterator<FixedLengthStarTreeNode> rangeIterator = starTreeNode.range(startDimensionValue, endDimensionValue);
+
+        // Expect no elements in this case
+        assertFalse(rangeIterator.hasNext());
+    }
+
+    public void testEmptyRange() throws IOException {
+        long startDimensionValue = -2;
+        long endDimensionValue = -2;
+
+        Iterator<FixedLengthStarTreeNode> rangeIterator = starTreeNode.range(startDimensionValue, endDimensionValue);
+
+        // No elements expected as start equals end and there are no nodes with value 0
+        assertFalse(rangeIterator.hasNext());
+    }
+
+    public void testRangeWithOnlySomeNodes() throws IOException {
+        // Assuming there are multiple nodes, test with a subset of the range
+        long startDimensionValue = 0;  // Start at second child
+        long endDimensionValue = node.getChildren().get((long) node.getChildren().size() - 3).getDimensionValue();  // End before last child
+
+        Iterator<FixedLengthStarTreeNode> rangeIterator = starTreeNode.range(startDimensionValue, endDimensionValue);
+
+        int count = 0;
+        while (rangeIterator.hasNext()) {
+            FixedLengthStarTreeNode currentNode = rangeIterator.next();
+            assertNotNull(currentNode);
+            assertTrue(currentNode.getDimensionValue() >= startDimensionValue);
+            assertTrue(currentNode.getDimensionValue() <= endDimensionValue);
+            count++;
+        }
+
+        // Check that the correct number of nodes in the range were returned
+        assertEquals(node.getChildren().size() - 2, count);
+    }
+
+    public void testInvalidRange() throws IOException {
+        long startDimensionValue = 10;
+        long endDimensionValue = 5;  // Invalid because start > end
+
+        Iterator<FixedLengthStarTreeNode> rangeIterator = starTreeNode.range(startDimensionValue, endDimensionValue);
+
+        // No elements expected in this case
+        assertFalse(rangeIterator.hasNext());
     }
 
     public void tearDown() throws Exception {
