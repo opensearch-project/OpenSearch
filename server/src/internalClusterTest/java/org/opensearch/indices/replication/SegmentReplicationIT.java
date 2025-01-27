@@ -1893,6 +1893,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
         refresh(INDEX_NAME);
 
+        waitForSearchableDocs(1, primaryNode, replicaNode, replicaNode2);
+
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         IndexShard replica_1 = getIndexShard(replicaNode, INDEX_NAME);
