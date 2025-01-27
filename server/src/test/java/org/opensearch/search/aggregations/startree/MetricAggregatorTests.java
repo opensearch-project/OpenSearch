@@ -395,7 +395,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
 
         // Keyword Range query with missing Low Ordinal
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("keyword_field");
-        rangeQueryBuilder.from("non_existing_value_here").includeLower(random().nextBoolean());
+        rangeQueryBuilder.from(Long.MAX_VALUE).includeLower(random().nextBoolean());
         testCase(
             indexSearcher,
             rangeQueryBuilder.toQuery(queryShardContext),

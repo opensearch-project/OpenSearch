@@ -16,7 +16,6 @@ import org.opensearch.search.startree.StarTreeNodeCollector;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -87,19 +86,4 @@ public class RangeMatchDimFilter implements DimensionFilter {
         return lowOrdinal <= ordinal && ordinal <= highOrdinal;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (!(o instanceof RangeMatchDimFilter)) return false;
-        RangeMatchDimFilter that = (RangeMatchDimFilter) o;
-        return includeLow == that.includeLow
-            && includeHigh == that.includeHigh
-            && Objects.equals(dimensionName, that.dimensionName)
-            && Objects.equals(low, that.low)
-            && Objects.equals(high, that.high);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(dimensionName, low, high, includeLow, includeHigh);
-    }
 }

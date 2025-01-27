@@ -18,11 +18,8 @@ import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -33,14 +30,14 @@ public class ExactMatchDimFilter implements DimensionFilter {
 
     private final String dimensionName;
 
-    private final Set<Object> rawValues;
+    private final List<Object> rawValues;
 
     // Order is essential for successive binary search
     private TreeSet<Long> convertedOrdinals;
 
     public ExactMatchDimFilter(String dimensionName, List<Object> valuesToMatch) {
         this.dimensionName = dimensionName;
-        this.rawValues = new HashSet<>(valuesToMatch);
+        this.rawValues = valuesToMatch;
     }
 
     @Override
@@ -78,18 +75,6 @@ public class ExactMatchDimFilter implements DimensionFilter {
                 }
             }
         }
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (!(o instanceof ExactMatchDimFilter)) return false;
-        ExactMatchDimFilter that = (ExactMatchDimFilter) o;
-        return Objects.equals(dimensionName, that.dimensionName) && Objects.equals(rawValues, that.rawValues);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(dimensionName, rawValues);
     }
 
     @Override

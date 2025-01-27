@@ -82,7 +82,7 @@ public class StarTreeTraversalUtil {
 
             StarTreeValuesIterator valuesIterator = starTreeValues.getDimensionValuesIterator(remainingPredicateColumn);
             // Get the query value directly
-            Set<DimensionFilter> dimensionFilters = starTreeFilter.getFiltersForDimension(remainingPredicateColumn);
+            List<DimensionFilter> dimensionFilters = starTreeFilter.getFiltersForDimension(remainingPredicateColumn);
 
             // Clear the temporary bit set before reuse
             tempBitSet.clear(0, starTreeResult.maxMatchedDoc + 1);
@@ -167,7 +167,7 @@ public class StarTreeTraversalUtil {
             }
 
             if (remainingPredicateColumns.contains(childDimension)) {
-                Set<DimensionFilter> dimensionFilters = starTreeFilter.getFiltersForDimension(childDimension);
+                List<DimensionFilter> dimensionFilters = starTreeFilter.getFiltersForDimension(childDimension);
                 final boolean[] tempFoundLeafNodes = new boolean[1];
                 for (DimensionFilter dimensionFilter : dimensionFilters) {
                     dimensionFilter.matchStarTreeNodes(starTreeNode, starTreeValues, node -> {
