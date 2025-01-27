@@ -41,7 +41,6 @@ import org.opensearch.search.startree.StarTreeFilter;
 import org.opensearch.search.startree.StarTreeQueryContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -111,44 +110,21 @@ public class StarTreeQueryHelper {
         Map<String, Long> queryMap;
         if (queryBuilder == null || queryBuilder instanceof MatchAllQueryBuilder) {
             queryMap = null;
-        } else if (queryBuilder instanceof TermQueryBuilder) {
+        } else if (queryBuilder instanceof TermQueryBuilder termQueryBuilder) {
             // TODO: Add support for keyword fields
-            if (compositeFieldType.getDimensions().stream().anyMatch(d -> d.getDocValuesType() != DocValuesType.SORTED_NUMERIC)) {
-                // return null for non-numeric fields
-                return null;
-            }
-
-            List<String> supportedDimensions = compositeFieldType.getDimensions()
+            Dimension matchedDimension = compositeFieldType.getDimensions()
                 .stream()
-                .map(Dimension::getField)
-                .collect(Collectors.toList());
-            queryMap = getStarTreePredicates(queryBuilder, supportedDimensions);
-            if (queryMap == null) {
+                .filter(d -> (d.getField().equals(termQueryBuilder.fieldName()) && d.getDocValuesType() == DocValuesType.SORTED_NUMERIC))
+                .findFirst()
+                .orElse(null);
+            if (matchedDimension == null) {
                 return null;
             }
+            queryMap = Map.of(termQueryBuilder.fieldName(), Long.parseLong(termQueryBuilder.value().toString()));
         } else {
             return null;
         }
         return new StarTreeQueryContext(compositeIndexFieldInfo, queryMap, cacheStarTreeValuesSize);
-    }
-
-    /**
-     * Parse query body to star-tree predicates
-     * @param queryBuilder to match star-tree supported query shape
-     * @return predicates to match
-     */
-    private static Map<String, Long> getStarTreePredicates(QueryBuilder queryBuilder, List<String> supportedDimensions) {
-        TermQueryBuilder tq = (TermQueryBuilder) queryBuilder;
-        String field = tq.fieldName();
-        if (!supportedDimensions.contains(field)) {
-            return null;
-        }
-        long inputQueryVal = Long.parseLong(tq.value().toString());
-
-        // Create a map with the field and the value
-        Map<String, Long> predicateMap = new HashMap<>();
-        predicateMap.put(field, inputQueryVal);
-        return predicateMap;
     }
 
     private static boolean validateStarTreeMetricSupport(
