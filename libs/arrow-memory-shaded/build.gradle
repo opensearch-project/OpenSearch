@@ -80,3 +80,7 @@ tasks.named('javadoc') { javadocTask ->
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
+
+tasks.withType(JacocoReport).configureEach {
+  enabled = false
+}
