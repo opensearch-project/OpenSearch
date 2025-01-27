@@ -18,7 +18,6 @@ import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
-import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -113,15 +112,12 @@ abstract class NumericNonDecimalMapper extends NumericMapper {
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
-        if (mappedFieldType instanceof NumberFieldType) {
-            NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
-            List<Object> convertedValues = new ArrayList<>(rawValues.size());
-            for (Object rawValue : rawValues) {
-                convertedValues.add(numberFieldType.numberType().parse(rawValue, true).longValue());
-            }
-            return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
+        NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
+        List<Object> convertedValues = new ArrayList<>(rawValues.size());
+        for (Object rawValue : rawValues) {
+            convertedValues.add(numberFieldType.numberType().parse(rawValue, true).longValue());
         }
-        return null;
+        return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
     }
 
     @Override
@@ -132,29 +128,26 @@ abstract class NumericNonDecimalMapper extends NumericMapper {
         boolean includeLow,
         boolean includeHigh
     ) {
-        if (mappedFieldType instanceof NumberFieldType) {
-            NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
+        NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
 
-            Long parsedLow = rawLow == null ? defaultMinimum() : numberFieldType.numberType().parse(rawLow, true).longValue();
-            Long parsedHigh = rawHigh == null ? defaultMaximum() : numberFieldType.numberType().parse(rawHigh, true).longValue();
+        Long parsedLow = rawLow == null ? defaultMinimum() : numberFieldType.numberType().parse(rawLow, true).longValue();
+        Long parsedHigh = rawHigh == null ? defaultMaximum() : numberFieldType.numberType().parse(rawHigh, true).longValue();
 
-            boolean lowerTermHasDecimalPart = hasDecimalPart(parsedLow);
-            if ((lowerTermHasDecimalPart == false && includeLow == false) || (lowerTermHasDecimalPart && signum(parsedLow) > 0)) {
-                if (parsedLow.equals(defaultMaximum())) {
-                    return new MatchNoneFilter();
-                }
-                ++parsedLow;
+        boolean lowerTermHasDecimalPart = hasDecimalPart(parsedLow);
+        if ((lowerTermHasDecimalPart == false && includeLow == false) || (lowerTermHasDecimalPart && signum(parsedLow) > 0)) {
+            if (parsedLow.equals(defaultMaximum())) {
+                return new MatchNoneFilter();
             }
-            boolean upperTermHasDecimalPart = hasDecimalPart(parsedHigh);
-            if ((upperTermHasDecimalPart == false && includeHigh == false) || (upperTermHasDecimalPart && signum(parsedHigh) < 0)) {
-                if (parsedHigh.equals(defaultMinimum())) {
-                    return new MatchNoneFilter();
-                }
-                --parsedHigh;
-            }
-            return new RangeMatchDimFilter(mappedFieldType.name(), parsedLow, parsedHigh, true, true);
+            ++parsedLow;
         }
-        return null;
+        boolean upperTermHasDecimalPart = hasDecimalPart(parsedHigh);
+        if ((upperTermHasDecimalPart == false && includeHigh == false) || (upperTermHasDecimalPart && signum(parsedHigh) < 0)) {
+            if (parsedHigh.equals(defaultMinimum())) {
+                return new MatchNoneFilter();
+            }
+            --parsedHigh;
+        }
+        return new RangeMatchDimFilter(mappedFieldType.name(), parsedLow, parsedHigh, true, true);
     }
 
     abstract Long defaultMinimum();
@@ -191,15 +184,12 @@ abstract class NumericDecimalFieldMapper extends NumericMapper {
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
-        if (mappedFieldType instanceof NumberFieldType) {
-            NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
-            List<Object> convertedValues = new ArrayList<>(rawValues.size());
-            for (Object rawValue : rawValues) {
-                convertedValues.add(convertToDocValues(numberFieldType.numberType().parse(rawValue, true)));
-            }
-            return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
+        NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
+        List<Object> convertedValues = new ArrayList<>(rawValues.size());
+        for (Object rawValue : rawValues) {
+            convertedValues.add(convertToDocValues(numberFieldType.numberType().parse(rawValue, true)));
         }
-        return null;
+        return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
     }
 
     @Override
@@ -210,27 +200,24 @@ abstract class NumericDecimalFieldMapper extends NumericMapper {
         boolean includeLow,
         boolean includeHigh
     ) {
-        if (mappedFieldType instanceof NumberFieldType) {
-            NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
-            Number l = Long.MIN_VALUE;
-            Number u = Long.MAX_VALUE;
-            if (rawLow != null) {
-                l = numberFieldType.numberType().parse(rawLow, false);
-                if (includeLow == false) {
-                    l = getNextHigh(l);
-                }
-                l = convertToDocValues(l);
+        NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
+        Number l = Long.MIN_VALUE;
+        Number u = Long.MAX_VALUE;
+        if (rawLow != null) {
+            l = numberFieldType.numberType().parse(rawLow, false);
+            if (includeLow == false) {
+                l = getNextHigh(l);
             }
-            if (rawHigh != null) {
-                u = numberFieldType.numberType().parse(rawHigh, false);
-                if (includeHigh == false) {
-                    u = getNextLow(u);
-                }
-                u = convertToDocValues(u);
-            }
-            return new RangeMatchDimFilter(numberFieldType.name(), l, u, true, true);
+            l = convertToDocValues(l);
         }
-        return null;
+        if (rawHigh != null) {
+            u = numberFieldType.numberType().parse(rawHigh, false);
+            if (includeHigh == false) {
+                u = getNextLow(u);
+            }
+            u = convertToDocValues(u);
+        }
+        return new RangeMatchDimFilter(numberFieldType.name(), l, u, true, true);
     }
 
     abstract long convertToDocValues(Number parsedValue);
@@ -296,15 +283,12 @@ class KeywordFieldMapper implements DimensionFilterMapper {
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
-        if (mappedFieldType instanceof KeywordFieldType) {
-            KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
-            List<Object> convertedValues = new ArrayList<>(rawValues.size());
-            for (Object rawValue : rawValues) {
-                convertedValues.add(parseRawKeyword(mappedFieldType.name(), rawValue, keywordFieldType));
-            }
-            return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
+        KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
+        List<Object> convertedValues = new ArrayList<>(rawValues.size());
+        for (Object rawValue : rawValues) {
+            convertedValues.add(parseRawKeyword(mappedFieldType.name(), rawValue, keywordFieldType));
         }
-        return null;
+        return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
     }
 
     @Override
@@ -315,17 +299,14 @@ class KeywordFieldMapper implements DimensionFilterMapper {
         boolean includeLow,
         boolean includeHigh
     ) {
-        if (mappedFieldType instanceof KeywordFieldType) {
-            KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
-            return new RangeMatchDimFilter(
-                mappedFieldType.name(),
-                parseRawKeyword(mappedFieldType.name(), rawLow, keywordFieldType),
-                parseRawKeyword(mappedFieldType.name(), rawHigh, keywordFieldType),
-                includeLow,
-                includeHigh
-            );
-        }
-        return null;
+        KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
+        return new RangeMatchDimFilter(
+            mappedFieldType.name(),
+            parseRawKeyword(mappedFieldType.name(), rawLow, keywordFieldType),
+            parseRawKeyword(mappedFieldType.name(), rawHigh, keywordFieldType),
+            includeLow,
+            includeHigh
+        );
     }
 
     @Override
@@ -335,53 +316,50 @@ class KeywordFieldMapper implements DimensionFilterMapper {
         StarTreeValues starTreeValues,
         DimensionFilter.MatchType matchType
     ) {
-        StarTreeValuesIterator genericIterator = starTreeValues.getDimensionValuesIterator(dimensionName);
-        if (genericIterator instanceof SortedSetStarTreeValuesIterator) {
-            SortedSetStarTreeValuesIterator sortedSetIterator = (SortedSetStarTreeValuesIterator) genericIterator;
-            try {
-                if (matchType == DimensionFilter.MatchType.EXACT) {
-                    long ordinal = sortedSetIterator.lookupTerm((BytesRef) value);
-                    return ordinal >= 0 ? Optional.of(ordinal) : Optional.empty();
-                } else {
-                    TermsEnum termsEnum = sortedSetIterator.termsEnum();
-                    TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil((BytesRef) value);
-                    // We reached the end and couldn't match anything, else we found a term which matches.
-                    // LT || LTE
-                    // If we found a term just greater, then return ordinal of the term just before it.
-                    // Checking if we are in bounds for satisfying LT
-                    // Checking if we are in bounds for satisfying LT
-                    switch (matchType) {
-                        case GTE:
-                            return seekStatus == TermsEnum.SeekStatus.END ? Optional.empty() : Optional.of(termsEnum.ord());
-                        case GT:
-                            return switch (seekStatus) {
-                                case END -> Optional.empty();
-                                case FOUND -> ((termsEnum.ord() + 1) < sortedSetIterator.getValueCount())
-                                    ? Optional.of(termsEnum.ord() + 1)
-                                    : Optional.empty();
-                                case NOT_FOUND -> Optional.of(termsEnum.ord());
-                            };
-                        case LTE:
-                            if (seekStatus == TermsEnum.SeekStatus.NOT_FOUND) {
-                                return ((termsEnum.ord() - 1) >= 0) ? Optional.of(termsEnum.ord() - 1) : Optional.empty();
-                            } else {
-                                return Optional.of(termsEnum.ord());
-                            }
-                        case LT:
-                            if (seekStatus == TermsEnum.SeekStatus.END) {
-                                return Optional.of(termsEnum.ord());
-                            } else {
-                                return ((termsEnum.ord() - 1) >= 0) ? Optional.of(termsEnum.ord() - 1) : Optional.empty();
-                            }
-                        default:
-                            throw new IllegalStateException("unexpected matchType " + matchType);
-                    }
+        SortedSetStarTreeValuesIterator sortedSetIterator = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
+            dimensionName
+        );
+        try {
+            if (matchType == DimensionFilter.MatchType.EXACT) {
+                long ordinal = sortedSetIterator.lookupTerm((BytesRef) value);
+                return ordinal >= 0 ? Optional.of(ordinal) : Optional.empty();
+            } else {
+                TermsEnum termsEnum = sortedSetIterator.termsEnum();
+                TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil((BytesRef) value);
+                // We reached the end and couldn't match anything, else we found a term which matches.
+                // LT || LTE
+                // If we found a term just greater, then return ordinal of the term just before it.
+                // Checking if we are in bounds for satisfying LT
+                // Checking if we are in bounds for satisfying LT
+                switch (matchType) {
+                    case GTE:
+                        return seekStatus == TermsEnum.SeekStatus.END ? Optional.empty() : Optional.of(termsEnum.ord());
+                    case GT:
+                        return switch (seekStatus) {
+                            case END -> Optional.empty();
+                            case FOUND -> ((termsEnum.ord() + 1) < sortedSetIterator.getValueCount())
+                                ? Optional.of(termsEnum.ord() + 1)
+                                : Optional.empty();
+                            case NOT_FOUND -> Optional.of(termsEnum.ord());
+                        };
+                    case LTE:
+                        if (seekStatus == TermsEnum.SeekStatus.NOT_FOUND) {
+                            return ((termsEnum.ord() - 1) >= 0) ? Optional.of(termsEnum.ord() - 1) : Optional.empty();
+                        } else {
+                            return Optional.of(termsEnum.ord());
+                        }
+                    case LT:
+                        if (seekStatus == TermsEnum.SeekStatus.END) {
+                            return Optional.of(termsEnum.ord());
+                        } else {
+                            return ((termsEnum.ord() - 1) >= 0) ? Optional.of(termsEnum.ord() - 1) : Optional.empty();
+                        }
+                    default:
+                        throw new IllegalStateException("unexpected matchType " + matchType);
                 }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
-        } else {
-            throw new IllegalStateException("Unsupported star tree values iterator " + genericIterator.getClass().getName());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 

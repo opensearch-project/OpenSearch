@@ -68,6 +68,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
     public static final Map<String, String> METRIC_TYPE_MAP = Map.of(FIELD_NAME, "integer");
 
     static {
+        // Ordered dimensions
         DIMENSION_TYPE_MAP.put(SNDV, "integer");
         DIMENSION_TYPE_MAP.put(SDV, "integer");
         DIMENSION_TYPE_MAP.put(DV, "integer");
