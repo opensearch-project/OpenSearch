@@ -33,6 +33,7 @@ import java.util.concurrent.TimeoutException;
 /**
  * Kafka consumer to read messages from a Kafka partition
  */
+@SuppressWarnings("removal")
 public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffset, KafkaMessage> {
     private static final Logger logger = LogManager.getLogger(KafkaPartitionConsumer.class);
 
