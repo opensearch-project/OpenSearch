@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Converts a {@link QueryBuilder} into a {@link StarTreeFilter} by generating the appropriate @{@link org.opensearch.search.startree.filter.DimensionFilter}
@@ -94,10 +95,7 @@ public interface StarTreeFilterProvider {
                     return new StarTreeFilter(Collections.emptyMap());
                 } else {
                     return new StarTreeFilter(
-                        Map.of(
-                            field,
-                            List.of(dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of(termQueryBuilder.value())))
-                        )
+                        Map.of(field, Set.of(dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of(termQueryBuilder.value()))))
                     );
                 }
             }
@@ -124,7 +122,7 @@ public interface StarTreeFilterProvider {
                     return new StarTreeFilter(Collections.emptyMap());
                 } else {
                     return new StarTreeFilter(
-                        Map.of(field, List.of(dimensionFilterMapper.getExactMatchFilter(mappedFieldType, termsQueryBuilder.values())))
+                        Map.of(field, Set.of(dimensionFilterMapper.getExactMatchFilter(mappedFieldType, termsQueryBuilder.values())))
                     );
                 }
             }
@@ -154,7 +152,7 @@ public interface StarTreeFilterProvider {
                     return new StarTreeFilter(
                         Map.of(
                             field,
-                            List.of(
+                            Set.of(
                                 dimensionFilterMapper.getRangeMatchFilter(
                                     mappedFieldType,
                                     rangeQueryBuilder.from(),

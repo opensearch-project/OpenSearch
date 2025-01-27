@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.mockito.Mockito;
 
@@ -171,7 +172,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         // single filter - matches docs
         starTreeDocCount = getDocCountFromStarTree(
             starTreeDocValuesReader,
-            new StarTreeFilter(Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))))),
+            new StarTreeFilter(Map.of(SNDV, Set.of(new ExactMatchDimFilter(SNDV, List.of(0L))))),
             context,
             searchContext
         );
@@ -182,7 +183,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         // single filter on 3rd field in ordered dimension - matches docs
         starTreeDocCount = getDocCountFromStarTree(
             starTreeDocValuesReader,
-            new StarTreeFilter(Map.of(DV, List.of(new ExactMatchDimFilter(DV, List.of(0L))))),
+            new StarTreeFilter(Map.of(DV, Set.of(new ExactMatchDimFilter(DV, List.of(0L))))),
             context,
             searchContext
         );
@@ -193,7 +194,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         // single filter - does not match docs
         starTreeDocCount = getDocCountFromStarTree(
             starTreeDocValuesReader,
-            new StarTreeFilter(Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(101L))))),
+            new StarTreeFilter(Map.of(SNDV, Set.of(new ExactMatchDimFilter(SNDV, List.of(101L))))),
             context,
             searchContext
         );
@@ -204,7 +205,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         // single filter on 3rd field in ordered dimension - does not match docs
         starTreeDocCount = getDocCountFromStarTree(
             starTreeDocValuesReader,
-            new StarTreeFilter(Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(-101L))))),
+            new StarTreeFilter(Map.of(SNDV, Set.of(new ExactMatchDimFilter(SNDV, List.of(-101L))))),
             context,
             searchContext
         );
@@ -216,7 +217,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         starTreeDocCount = getDocCountFromStarTree(
             starTreeDocValuesReader,
             new StarTreeFilter(
-                Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, List.of(new ExactMatchDimFilter(DV, List.of(0L))))
+                Map.of(SNDV, Set.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, Set.of(new ExactMatchDimFilter(DV, List.of(0L))))
             ),
             context,
             searchContext
@@ -229,7 +230,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         starTreeDocCount = getDocCountFromStarTree(
             starTreeDocValuesReader,
             new StarTreeFilter(
-                Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, List.of(new ExactMatchDimFilter(DV, List.of(-11L))))
+                Map.of(SNDV, Set.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, Set.of(new ExactMatchDimFilter(DV, List.of(-11L))))
             ),
             context,
             searchContext
@@ -242,7 +243,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
         starTreeDocCount = getDocCountFromStarTree(
             starTreeDocValuesReader,
             new StarTreeFilter(
-                Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, List.of(new ExactMatchDimFilter(DV, List.of(-100L))))
+                Map.of(SNDV, Set.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, Set.of(new ExactMatchDimFilter(DV, List.of(-100L))))
             ),
             context,
             searchContext
@@ -256,7 +257,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
             IllegalStateException.class,
             () -> getDocCountFromStarTree(
                 starTreeDocValuesReader,
-                new StarTreeFilter(Map.of(FIELD_NAME, List.of(new ExactMatchDimFilter(FIELD_NAME, List.of(0L))))),
+                new StarTreeFilter(Map.of(FIELD_NAME, Set.of(new ExactMatchDimFilter(FIELD_NAME, List.of(0L))))),
                 context,
                 searchContext
             )
@@ -266,7 +267,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
             // Documents are not indexed
             starTreeDocCount = getDocCountFromStarTree(
                 starTreeDocValuesReader,
-                new StarTreeFilter(Map.of(SDV, List.of(new ExactMatchDimFilter(SDV, List.of(4L))))),
+                new StarTreeFilter(Map.of(SDV, Set.of(new ExactMatchDimFilter(SDV, List.of(4L))))),
                 context,
                 searchContext
             );
@@ -277,7 +278,7 @@ public class StarTreeQueryTests extends AggregatorTestCase {
             // Documents are indexed
             starTreeDocCount = getDocCountFromStarTree(
                 starTreeDocValuesReader,
-                new StarTreeFilter(Map.of(SDV, List.of(new ExactMatchDimFilter(SDV, List.of(4L))))),
+                new StarTreeFilter(Map.of(SDV, Set.of(new ExactMatchDimFilter(SDV, List.of(4L))))),
                 context,
                 searchContext
             );

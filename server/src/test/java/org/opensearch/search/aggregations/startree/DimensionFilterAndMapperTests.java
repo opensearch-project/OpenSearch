@@ -14,11 +14,17 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.search.startree.filter.DimensionFilter.MatchType;
+import org.opensearch.search.startree.filter.ExactMatchDimFilter;
+import org.opensearch.search.startree.filter.RangeMatchDimFilter;
+import org.opensearch.search.startree.filter.StarTreeFilter;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -106,6 +112,53 @@ public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
             matchingOrdinal = dimensionFilterMapper.getMatchingOrdinal("field", bytesRef, starTreeValues, matchType);
             assertFalse(matchingOrdinal.isPresent());
         }
+
+    }
+
+    public void testFilterComparison() {
+
+        // Range Filter Same
+        RangeMatchDimFilter rangeFilter1 = new RangeMatchDimFilter("field", 12, 14, true, false);
+        RangeMatchDimFilter rangeFilter2 = new RangeMatchDimFilter("field", 12, 14, true, false);
+        assertEquals(rangeFilter1, rangeFilter2);
+
+        // Range Filter Different
+        rangeFilter2 = new RangeMatchDimFilter("field", 12, 14, true, true);
+        assertNotEquals(rangeFilter1, rangeFilter2);
+        rangeFilter2 = new RangeMatchDimFilter("field", 12, 15, true, false);
+        assertNotEquals(rangeFilter1, rangeFilter2);
+        rangeFilter2 = new RangeMatchDimFilter("fields", 12, 14, true, false);
+        assertNotEquals(rangeFilter1, rangeFilter2);
+        rangeFilter2 = new RangeMatchDimFilter("field", 12, 14, false, false);
+        assertNotEquals(rangeFilter1, rangeFilter2);
+        rangeFilter2 = new RangeMatchDimFilter("field", 11, 14, true, false);
+        assertNotEquals(rangeFilter1, rangeFilter2);
+
+        // ExactMatch Filter Same
+        ExactMatchDimFilter exactFilter1 = new ExactMatchDimFilter("field", List.of("hello", "world"));
+        ExactMatchDimFilter exactFilter2 = new ExactMatchDimFilter("field", List.of("world", "hello"));
+        assertEquals(exactFilter1, exactFilter2);
+
+        // ExactMatch Filter Different
+        exactFilter2 = new ExactMatchDimFilter("field2", List.of("hello", "world"));
+        assertNotEquals(exactFilter1, exactFilter2);
+        exactFilter2 = new ExactMatchDimFilter("field", List.of("hello", "worlds"));
+        assertNotEquals(exactFilter1, exactFilter2);
+
+        // Same StarTreeFilter
+        StarTreeFilter starTreeFilter1 = new StarTreeFilter(Map.of("field", Set.of(rangeFilter1)));
+        StarTreeFilter starTreeFilter2 = new StarTreeFilter(Map.of("field", Set.of(rangeFilter1)));
+        assertEquals(starTreeFilter1, starTreeFilter2);
+        rangeFilter2 = new RangeMatchDimFilter("field", 12, 14, true, false);
+        starTreeFilter2 = new StarTreeFilter(Map.of("field", Set.of(rangeFilter2)));
+        assertEquals(starTreeFilter1, starTreeFilter2);
+
+        // Different StarTreeFilter
+        starTreeFilter2 = new StarTreeFilter(Map.of("field1", Set.of(rangeFilter2)));
+        assertNotEquals(starTreeFilter1, starTreeFilter2);
+        rangeFilter2 = new RangeMatchDimFilter("field", 12, 15, true, false);
+        starTreeFilter2 = new StarTreeFilter(Map.of("field", Set.of(rangeFilter2)));
+        assertNotEquals(starTreeFilter1, starTreeFilter2);
 
     }
 

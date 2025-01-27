@@ -10,7 +10,6 @@ package org.opensearch.search.startree.filter;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -21,13 +20,13 @@ import java.util.Set;
 @ExperimentalApi
 public class StarTreeFilter {
 
-    private final Map<String, List<DimensionFilter>> dimensionFilterMap;
+    private final Map<String, Set<DimensionFilter>> dimensionFilterMap;
 
-    public StarTreeFilter(Map<String, List<DimensionFilter>> dimensionFilterMap) {
+    public StarTreeFilter(Map<String, Set<DimensionFilter>> dimensionFilterMap) {
         this.dimensionFilterMap = dimensionFilterMap;
     }
 
-    public List<DimensionFilter> getFiltersForDimension(String dimension) {
+    public Set<DimensionFilter> getFiltersForDimension(String dimension) {
         return dimensionFilterMap.get(dimension);
     }
 

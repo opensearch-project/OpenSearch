@@ -11,9 +11,15 @@ package org.opensearch.search.startree;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 
+/**
+ * Collects one or more @{@link StarTreeNode}'s
+ */
 @ExperimentalApi
 public interface StarTreeNodeCollector {
-
+    /**
+     * Called to collect a @{@link StarTreeNode}
+     * @param node : Node to collect
+     */
     void collectStarTreeNode(StarTreeNode node);
 
 }

@@ -393,6 +393,22 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             false
         );
 
+        // Keyword Range query with missing Low Ordinal
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("keyword_field");
+        rangeQueryBuilder.from("non_existing_value_here").includeLower(random().nextBoolean());
+        testCase(
+            indexSearcher,
+            rangeQueryBuilder.toQuery(queryShardContext),
+            rangeQueryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            null,
+            true
+        );
+
         ir.close();
         directory.close();
     }

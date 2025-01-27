@@ -112,6 +112,13 @@ public interface StarTreeNode {
 
     StarTreeNode getChildForDimensionValue(Long dimensionValue, StarTreeNode lastMatchedChild) throws IOException;
 
+    /**
+     * Collects all matching child nodes whose dimension values lie within the range of low and high, both inclusive.
+     * @param low : Starting of the range ( inclusive )
+     * @param high : End of the range ( inclusive )
+     * @param collector : Collector to collect the matched child StarTreeNode's
+     * @throws IOException :
+     */
     void collectChildrenInRange(long low, long high, StarTreeNodeCollector collector) throws IOException;
 
     /**

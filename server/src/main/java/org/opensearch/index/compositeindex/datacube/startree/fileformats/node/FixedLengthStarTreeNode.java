@@ -317,7 +317,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
      * @param matchNextHighest : If true then we try to return @dimensionValue or the next Highest. Else, we return @dimensionValue or the next Lowest.
      * @param lastMatchedNode : If not null, we begin the binary search from the node after this.
      * @return : Matched node or null.
-     * @throws IOException
+     * @throws IOException :
      */
     private FixedLengthStarTreeNode binarySearchChild(long dimensionValue, boolean matchNextHighest, StarTreeNode lastMatchedNode)
         throws IOException {
