@@ -28,6 +28,7 @@ shadowJar {
   dependencies {
     include(dependency('org.apache.arrow:'))
   }
+  exclude 'META-INF/maven/**'
   relocate 'io.grpc.netty', 'io.grpc.netty.shaded.io.grpc.netty'
   relocate 'io.netty', 'io.grpc.netty.shaded.io.netty'
   mergeServiceFiles()

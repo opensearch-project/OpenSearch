@@ -44,6 +44,10 @@ tasks.named("shadowJar").configure {
     include(dependency('com.fasterxml.jackson.core:'))
     include(dependency('commons-codec:'))
   }
+  exclude 'META-INF/maven/**'
+  manifest {
+    attributes('Multi-Release': 'true')
+  }
   relocate 'io.netty', 'org.opensearch.shaded.io.netty'
   relocate 'org.checkerframework', 'org.opensearch.shaded.org.checkerframework'
   relocate 'org.apache.commons.codec', 'org.opensearch.shaded.commons.codec'
