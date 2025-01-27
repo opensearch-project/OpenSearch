@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 
@@ -229,7 +230,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
         CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(context, starTree);
-        FixedBitSet filteredValues = StarTreeFilter.getStarTreeResult(starTreeValues, filters);
+        FixedBitSet filteredValues = StarTreeFilter.getStarTreeResult(starTreeValues, filters, Set.of());
 
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
             StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
