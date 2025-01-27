@@ -22,8 +22,11 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 import static org.mockito.Mockito.mock;
@@ -32,6 +35,8 @@ import static org.mockito.Mockito.when;
 public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
 
     public void testExactMatch() {
+        long[] randomSorted = random().longs(100, Long.MIN_VALUE, Long.MAX_VALUE).toArray();
+        Arrays.sort(randomSorted);
         for (boolean createStarNode : new boolean[] { true, false }) {
             for (boolean createNullNode : new boolean[] { true, false }) {
                 createStarTreeForDimension(new long[] { -1, 1, 2, 5 }, createStarNode, createNullNode, List.of(fixedLengthStarTreeNode -> {
@@ -86,11 +91,33 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                         throw new RuntimeException(e);
                     }
                 }));
+                createStarTreeForDimension(randomSorted, createStarNode, createNullNode, List.of(fixedLengthStarTreeNode -> {
+                    boolean result = true;
+                    for (int i = 1; i <= 100; i++) {
+                        try {
+                            ArrayBasedCollector collector = new ArrayBasedCollector();
+                            long key = randomLong();
+                            FixedLengthStarTreeNode node = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(key);
+                            long match = Arrays.binarySearch(randomSorted, key);
+                            if (match >= 0) {
+                                assertNotNull(node);
+                                assertEquals(key, node.getDimensionValue());
+                            } else {
+                                assertEquals(0, collector.collectedNodeCount());
+                            }
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    return result;
+                }));
             }
         }
     }
 
     public void testRangeMatch() {
+        long[] randomSorted = random().longs(100, Long.MIN_VALUE, Long.MAX_VALUE).toArray();
+        Arrays.sort(randomSorted);
         for (boolean createStarNode : new boolean[] { true, false }) {
             for (boolean createNullNode : new boolean[] { true, false }) {
                 createStarTreeForDimension(
@@ -147,6 +174,43 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                         }
                     })
                 );
+                createStarTreeForDimension(randomSorted, createStarNode, createNullNode, List.of(fixedLengthStarTreeNode -> {
+                    boolean result = true;
+                    TreeSet<Long> treeSet = Arrays.stream(randomSorted).boxed().collect(Collectors.toCollection(TreeSet::new));
+                    for (int i = 1; i <= 100; i++) {
+                        try {
+                            ArrayBasedCollector collector = new ArrayBasedCollector();
+                            long low = randomLong(), high = randomLong();
+                            fixedLengthStarTreeNode.collectChildrenInRange(low, high, collector);
+                            if (low < high) {
+                                Long lowValue = treeSet.ceiling(low);
+                                if (lowValue != null) {
+                                    Long highValue = treeSet.floor(high);
+                                    if (highValue != null && highValue >= lowValue) {
+                                        collector.matchValues(
+                                            Arrays.copyOfRange(
+                                                randomSorted,
+                                                Arrays.binarySearch(randomSorted, lowValue),
+                                                Arrays.binarySearch(randomSorted, highValue)
+                                            )
+                                        );
+                                    } else if (lowValue <= high) {
+                                        collector.matchValues(new long[] { lowValue });
+                                    }
+                                } else {
+                                    assertEquals(0, collector.collectedNodeCount());
+                                }
+                            } else if (low == high) {
+                                collector.matchValues(new long[] { low });
+                            } else {
+                                assertEquals(0, collector.collectedNodeCount());
+                            }
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    return result;
+                }));
             }
         }
     }
@@ -165,7 +229,6 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
             try (IndexOutput dataOut = directory.createOutput("star-tree-data", IOContext.DEFAULT)) {
                 StarTreeWriter starTreeWriter = new StarTreeWriter();
                 int starNodeLengthContribution = 0;
-                int nullNodeLengthContribution = 0;
 
                 InMemoryTreeNode rootNode = new InMemoryTreeNode(
                     0,
