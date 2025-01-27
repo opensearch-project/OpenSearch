@@ -9,8 +9,10 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
+import org.apache.lucene.util.LongValues;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 
 import java.io.IOException;
@@ -81,6 +83,33 @@ public class SequentialDocValuesIterator {
             }
             return ((SortedNumericStarTreeValuesIterator) starTreeValuesIterator).nextValue();
 
+        } else if (starTreeValuesIterator instanceof SortedSetStarTreeValuesIterator) {
+            if (currentEntryId < 0) {
+                throw new IllegalStateException("invalid entry id to fetch the next value");
+            }
+            if (currentEntryId == StarTreeValuesIterator.NO_MORE_ENTRIES) {
+                throw new IllegalStateException("StarTreeValuesIterator is already exhausted");
+            }
+            if (entryId == StarTreeValuesIterator.NO_MORE_ENTRIES || entryId != currentEntryId) {
+                return null;
+            }
+            return ((SortedSetStarTreeValuesIterator) starTreeValuesIterator).nextOrd();
+        } else {
+            throw new IllegalStateException("Unsupported Iterator requested for SequentialDocValuesIterator");
+        }
+    }
+
+    public Long value(int currentEntryId, LongValues globalOrdinalLongValues) throws IOException {
+        if (starTreeValuesIterator instanceof SortedNumericStarTreeValuesIterator) {
+            return value(currentEntryId);
+        } else if (starTreeValuesIterator instanceof SortedSetStarTreeValuesIterator) {
+            assert globalOrdinalLongValues != null;
+            Long val = value(currentEntryId);
+            // convert local ordinal to global ordinal
+            if (val != null) {
+                val = globalOrdinalLongValues.get(val);
+            }
+            return val;
         } else {
             throw new IllegalStateException("Unsupported Iterator requested for SequentialDocValuesIterator");
         }

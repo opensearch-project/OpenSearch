@@ -9,6 +9,7 @@
 package org.opensearch.index.compositeindex.datacube;
 
 import org.apache.lucene.index.DocValuesType;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 
@@ -18,25 +19,20 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * Represents a dimension for reconstructing StarTreeField from file formats during searches and merges.
+ * Composite index keyword dimension class
  *
  * @opensearch.experimental
  */
-public class ReadDimension implements Dimension {
-    public static final String READ = "read";
+@ExperimentalApi
+public class OrdinalDimension implements Dimension {
+    public static final String ORDINAL = "ordinal";
     private final String field;
-    private final DocValuesType docValuesType;
 
-    public ReadDimension(String field) {
+    public OrdinalDimension(String field) {
         this.field = field;
-        this.docValuesType = DocValuesType.SORTED_NUMERIC;
     }
 
-    public ReadDimension(String field, DocValuesType docValuesType) {
-        this.field = field;
-        this.docValuesType = docValuesType;
-    }
-
+    @Override
     public String getField() {
         return field;
     }
@@ -47,8 +43,9 @@ public class ReadDimension implements Dimension {
     }
 
     @Override
-    public void setDimensionValues(final Long val, final Consumer<Long> dimSetter) {
-        dimSetter.accept(val);
+    public void setDimensionValues(Long value, Consumer<Long> dimSetter) {
+        // This will set the keyword dimension value's ordinal
+        dimSetter.accept(value);
     }
 
     @Override
@@ -58,14 +55,14 @@ public class ReadDimension implements Dimension {
 
     @Override
     public DocValuesType getDocValuesType() {
-        return docValuesType;
+        return DocValuesType.SORTED_SET;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(CompositeDataCubeFieldType.NAME, field);
-        builder.field(CompositeDataCubeFieldType.TYPE, READ);
+        builder.field(CompositeDataCubeFieldType.TYPE, ORDINAL);
         builder.endObject();
         return builder;
     }
@@ -74,7 +71,7 @@ public class ReadDimension implements Dimension {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ReadDimension dimension = (ReadDimension) o;
+        OrdinalDimension dimension = (OrdinalDimension) o;
         return Objects.equals(field, dimension.getField());
     }
 

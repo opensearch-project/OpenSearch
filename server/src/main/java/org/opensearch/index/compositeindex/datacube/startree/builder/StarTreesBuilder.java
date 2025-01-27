@@ -106,10 +106,10 @@ public class StarTreesBuilder implements Closeable {
     /**
      * Merges star tree fields from multiple segments
      *
-     * @param metaOut                      an IndexInput for star-tree metadata
-     * @param dataOut                      an IndexInput for star-tree data
-     * @param starTreeValuesSubsPerField   starTreeValuesSubs per field
-     * @param starTreeDocValuesConsumer    a consumer to write star-tree doc values
+     * @param metaOut                    an IndexInput for star-tree metadata
+     * @param dataOut                    an IndexInput for star-tree data
+     * @param starTreeValuesSubsPerField starTreeValuesSubs per field
+     * @param starTreeDocValuesConsumer  a consumer to write star-tree doc values
      */
     public void buildDuringMerge(
         IndexOutput metaOut,
