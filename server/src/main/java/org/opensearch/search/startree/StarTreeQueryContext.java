@@ -28,6 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Stores the star tree related context of a search request.
+ */
 @ExperimentalApi
 public class StarTreeQueryContext {
 

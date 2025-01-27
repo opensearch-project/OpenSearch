@@ -23,6 +23,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeSet;
 
+/**
+ * Handles Term and Terms query like search in StarTree Dimension filtering.
+ */
 @ExperimentalApi
 public class ExactMatchDimFilter implements DimensionFilter {
 
@@ -64,7 +67,6 @@ public class ExactMatchDimFilter implements DimensionFilter {
     public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
         throws IOException {
         if (parentNode != null) {
-            // TODO : [Optimisation] Implement storing the last searched StarTreeNode nodeId for successive binary search.
             StarTreeNode lastMatchedNode = null;
             for (long ordinal : convertedOrdinals) {
                 lastMatchedNode = parentNode.getChildForDimensionValue(ordinal, lastMatchedNode);

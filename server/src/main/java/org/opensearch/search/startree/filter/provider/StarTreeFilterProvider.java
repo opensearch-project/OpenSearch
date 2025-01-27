@@ -28,14 +28,29 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Converts a {@link QueryBuilder} into a {@link StarTreeFilter} by generating the appropriate @{@link org.opensearch.search.startree.filter.DimensionFilter}
+ * for the fields provided in the user query.
+ */
 @ExperimentalApi
 public interface StarTreeFilterProvider {
 
+    /**
+     * Returns the {@link StarTreeFilter} generated from the {@link QueryBuilder}
+     * @param context:
+     * @param rawFilter:
+     * @param compositeFieldType:
+     * @return : {@link StarTreeFilter} if the query shape is supported, else null.
+     * @throws IOException:
+     */
     StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
         throws IOException;
 
     StarTreeFilterProvider MATCH_ALL_PROVIDER = (context, rawFilter, compositeFieldType) -> new StarTreeFilter(Collections.emptyMap());
 
+    /**
+     * Singleton instances for most {@link StarTreeFilterProvider}
+     */
     class SingletonFactory {
 
         private static final Map<Class<? extends QueryBuilder>, StarTreeFilterProvider> QUERY_BUILDERS_TO_STF_PROVIDER = Map.of(
@@ -58,6 +73,9 @@ public interface StarTreeFilterProvider {
 
     }
 
+    /**
+     * Converts @{@link TermQueryBuilder} into @{@link org.opensearch.search.startree.filter.ExactMatchDimFilter}
+     */
     class TermStarTreeFilterProvider implements StarTreeFilterProvider {
         @Override
         public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
@@ -86,6 +104,9 @@ public interface StarTreeFilterProvider {
         }
     }
 
+    /**
+     * Converts @{@link TermsQueryBuilder} into @{@link org.opensearch.search.startree.filter.ExactMatchDimFilter}
+     */
     class TermsStarTreeFilterProvider implements StarTreeFilterProvider {
         @Override
         public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
@@ -110,6 +131,9 @@ public interface StarTreeFilterProvider {
         }
     }
 
+    /**
+     * Converts @{@link RangeQueryBuilder} into @{@link org.opensearch.search.startree.filter.RangeMatchDimFilter}
+     */
     class RangeStarTreeFilterProvider implements StarTreeFilterProvider {
 
         @Override

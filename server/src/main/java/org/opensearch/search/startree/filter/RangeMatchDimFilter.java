@@ -8,6 +8,7 @@
 
 package org.opensearch.search.startree.filter;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.search.internal.SearchContext;
@@ -18,6 +19,11 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Performs range match based on the params of @{@link org.opensearch.index.query.RangeQueryBuilder}
+ * Also, contains logic to skip performing range search if it's sure that it won't be found in Star Tree.
+ */
+@ExperimentalApi
 public class RangeMatchDimFilter implements DimensionFilter {
 
     private final String dimensionName;

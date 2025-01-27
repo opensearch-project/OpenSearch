@@ -196,6 +196,8 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                                         );
                                     } else if (lowValue <= high) {
                                         collector.matchValues(new long[] { lowValue });
+                                    } else {
+                                        assertEquals(0, collector.collectedNodeCount());
                                     }
                                 } else {
                                     assertEquals(0, collector.collectedNodeCount());

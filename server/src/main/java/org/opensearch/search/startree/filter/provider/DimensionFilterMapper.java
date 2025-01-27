@@ -14,6 +14,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -43,9 +44,28 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.hasDecimalPart;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.signum;
 
+/**
+ * Generates the @{@link DimensionFilter} raw values and the @{@link MappedFieldType} of the dimension.
+ */
+@ExperimentalApi
 public interface DimensionFilterMapper {
+    /**
+     * Generates @{@link ExactMatchDimFilter} from Term/Terms query input.
+     * @param mappedFieldType:
+     * @param rawValues:
+     * @return :
+     */
     DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues);
 
+    /**
+     * Generates @{@link RangeMatchDimFilter} from Range query input.
+     * @param mappedFieldType:
+     * @param rawLow:
+     * @param rawHigh:
+     * @param includeLow:
+     * @param includeHigh:
+     * @return :
+     */
     DimensionFilter getRangeMatchFilter(
         MappedFieldType mappedFieldType,
         Object rawLow,
@@ -54,6 +74,14 @@ public interface DimensionFilterMapper {
         boolean includeHigh
     );
 
+    /**
+     * Called during conversion from parsedUserInput to segmentOrdinal for every segment.
+     * @param dimensionName:
+     * @param value:
+     * @param starTreeValues:
+     * @param matchType:
+     * @return :
+     */
     Optional<Long> getMatchingOrdinal(
         String dimensionName,
         Object value,
@@ -61,6 +89,9 @@ public interface DimensionFilterMapper {
         DimensionFilter.MatchType matchType
     );
 
+    /**
+     * Singleton Factory for @{@link DimensionFilterMapper}
+     */
     class Factory {
 
         private static final Map<NumberFieldMapper.NumberType, DimensionFilterMapper> NUMERIC_SINGLETON_MAPPINGS = Map.of(

@@ -14,6 +14,9 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeNodeCollector;
 
+/**
+ * Filter which matches no StarTreeNodes.
+ */
 @ExperimentalApi
 public class MatchNoneFilter implements DimensionFilter {
     @Override

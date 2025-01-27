@@ -15,6 +15,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Container for intermediate/consolidated dimension filters that will be applied for a query in star tree traversal.
+ */
 @ExperimentalApi
 public class StarTreeFilter {
 
