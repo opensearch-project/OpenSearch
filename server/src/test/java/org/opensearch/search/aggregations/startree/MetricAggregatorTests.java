@@ -9,6 +9,7 @@
 package org.opensearch.search.aggregations.startree;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
@@ -31,8 +32,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -75,6 +74,8 @@ import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -88,14 +89,14 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.min;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MetricAggregatorTests extends AggregatorTestCase {
 
@@ -117,11 +118,9 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);
         MapperService mapperService;
         try {
-            // FIXME: Test for different max_leaf_docs with at least 1, 2-100, 101-10_000 for all query types
             mapperService = StarTreeDocValuesFormatTests.createMapperService(
                 StarTreeQueryTests.getExpandedMapping(maxLeafDocsSupplier.get(), false)
             );
-            // mapperService = StarTreeDocValuesFormatTests.createMapperService(StarTreeQueryTests.getExpandedMapping(1, false));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -135,9 +134,10 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             () -> randomIntBetween(101, 10_000)
         );
         final List<DimensionFieldData> dimensionFieldData = List.of(
-            new DimensionFieldData("sndv", () -> random().nextInt(10) - 5, DimensionTypes.LONG.getFieldDataSupplier()),
+            new DimensionFieldData("sndv", () -> random().nextInt(10) - 5, DimensionTypes.INTEGER.getFieldDataSupplier()),
             new DimensionFieldData("dv", () -> random().nextInt(20) - 10, DimensionTypes.INTEGER.getFieldDataSupplier()),
             new DimensionFieldData("keyword_field", () -> random().nextInt(50), DimensionTypes.KEYWORD.getFieldDataSupplier()),
+            new DimensionFieldData("long_field", () -> random().nextInt(50), DimensionTypes.LONG.getFieldDataSupplier()),
             new DimensionFieldData("half_float_field", () -> random().nextFloat(50), DimensionTypes.HALF_FLOAT.getFieldDataSupplier()),
             new DimensionFieldData("float_field", () -> random().nextFloat(50), DimensionTypes.FLOAT.getFieldDataSupplier()),
             new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE.getFieldDataSupplier())
@@ -213,14 +213,19 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         ValueCountAggregationBuilder valueCountAggregationBuilder = count("_name").field(FIELD_NAME);
         AvgAggregationBuilder avgAggregationBuilder = avg("_name").field(FIELD_NAME);
 
-        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = dimensionFieldData.stream().collect(Collectors.toMap(DimensionFieldData::getDimension, DimensionFieldData::getMappedField, (v1, v2)->v1, LinkedHashMap::new));
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = dimensionFieldData.stream()
+            .collect(
+                Collectors.toMap(DimensionFieldData::getDimension, DimensionFieldData::getMappedField, (v1, v2) -> v1, LinkedHashMap::new)
+            );
 
         Query query = null;
         QueryBuilder queryBuilder = null;
 
         for (int cases = 0; cases < 30; cases++) {
             // Get all types of queries (Term/Terms/Range) for all the given dimensions.
-            List<QueryBuilder> allFieldQueries = dimensionFieldData.stream().flatMap(x -> Stream.of(x.getTermQueryBuilder(), x.getTermsQueryBuilder(), x.getRangeQueryBuilder())).toList();
+            List<QueryBuilder> allFieldQueries = dimensionFieldData.stream()
+                .flatMap(x -> Stream.of(x.getTermQueryBuilder(), x.getTermsQueryBuilder(), x.getRangeQueryBuilder()))
+                .toList();
 
             for (QueryBuilder qb : allFieldQueries) {
                 query = qb.toQuery(queryShardContext);
@@ -397,10 +402,11 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         QueryBuilder queryBuilder,
         T aggBuilder,
         CompositeIndexFieldInfo starTree,
-        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions, // FIXME : Merge with the same input that goes to generating the codec.
-        List<Metric> supportedMetrics, // FIXME : Merge with the same input that goes to generating the codec.
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions, // FIXME : Merge with the same input that goes to generating the
+                                                                       // codec.
+        List<Metric> supportedMetrics,
         BiConsumer<V, V> verify,
-        AggregatorFactory aggregatorFactory, // TODO : Recheck if this can be done elsewhere.
+        AggregatorFactory aggregatorFactory,
         boolean assertCollectorEarlyTermination
     ) throws IOException {
         V starTreeAggregation = searchAndReduceStarTree(
@@ -436,10 +442,11 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         verify.accept(expectedAggregation, starTreeAggregation);
     }
 
-
     private interface DimensionFieldDataSupplier {
         IndexableField getField(String fieldName, Supplier<Object> valueSupplier);
+
         MappedFieldType getMappedField(String fieldName);
+
         Dimension getDimension(String fieldName);
     }
 
@@ -454,6 +461,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         public MappedFieldType getMappedField(String fieldName) {
             return new NumberFieldMapper.NumberFieldType(fieldName, numberType());
         }
+
         abstract NumberFieldMapper.NumberType numberType();
     }
 
@@ -461,23 +469,29 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         private final String fieldName;
         private final Supplier<Object> valueSupplier;
         private final DimensionFieldDataSupplier dimensionFieldDataSupplier;
+
         DimensionFieldData(String fieldName, Supplier<Object> valueSupplier, DimensionFieldDataSupplier dimensionFieldDataSupplier) {
             this.fieldName = fieldName;
             this.valueSupplier = valueSupplier;
             this.dimensionFieldDataSupplier = dimensionFieldDataSupplier;
         }
+
         public Dimension getDimension() {
             return dimensionFieldDataSupplier.getDimension(fieldName);
         }
+
         public MappedFieldType getMappedField() {
             return dimensionFieldDataSupplier.getMappedField(fieldName);
         }
+
         public IndexableField getField() {
             return dimensionFieldDataSupplier.getField(fieldName, valueSupplier);
         }
+
         public QueryBuilder getTermQueryBuilder() {
             return new TermQueryBuilder(fieldName, valueSupplier.get());
         }
+
         public QueryBuilder getTermsQueryBuilder() {
             int limit = randomIntBetween(1, 20);
             List<Object> values = new ArrayList<>(limit);
@@ -486,8 +500,12 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             }
             return new TermsQueryBuilder(fieldName, values);
         }
+
         public QueryBuilder getRangeQueryBuilder() {
-            return new RangeQueryBuilder(fieldName).from(valueSupplier.get()).to(valueSupplier.get()).includeLower(randomBoolean()).includeUpper(randomBoolean());
+            return new RangeQueryBuilder(fieldName).from(valueSupplier.get())
+                .to(valueSupplier.get())
+                .includeLower(randomBoolean())
+                .includeUpper(randomBoolean());
         }
     }
 
@@ -531,6 +549,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
                 return new FloatField(fieldName, (Float) valueSupplier.get(), Field.Store.YES);
             }
+
             @Override
             NumberFieldMapper.NumberType numberType() {
                 return NumberFieldMapper.NumberType.FLOAT;

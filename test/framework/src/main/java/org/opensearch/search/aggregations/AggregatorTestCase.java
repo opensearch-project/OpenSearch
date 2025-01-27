@@ -69,7 +69,6 @@ import org.opensearch.common.TriConsumer;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.network.NetworkAddress;
@@ -96,8 +95,6 @@ import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
-import org.opensearch.index.compositeindex.datacube.NumericDimension;
-import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.mapper.BinaryFieldMapper;
@@ -432,7 +429,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(mapperService.getCompositeFieldTypes()).thenReturn(compositeFieldTypes);
         when(searchContext.mapperService()).thenReturn(mapperService);
 
-        // FIXME : Directly supply the dimension as method param, we are resetting this again ?
         for (Dimension dimension : supportedDimensions.keySet()) {
             when(mapperService.fieldType(dimension.getField())).thenReturn(supportedDimensions.get(dimension));
             when(searchContext.getQueryShardContext().fieldMapper(dimension.getField())).thenReturn(supportedDimensions.get(dimension));
