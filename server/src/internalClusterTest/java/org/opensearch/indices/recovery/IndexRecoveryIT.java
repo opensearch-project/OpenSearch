@@ -78,7 +78,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
@@ -248,24 +247,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     ) {
         assertRecoveryStateWithoutStage(state, shardId, type, primary, sourceNode, targetNode);
         assertThat(state.getStage(), not(equalTo(Stage.DONE)));
-    }
-
-    private void slowDownRecovery(ByteSizeValue shardSize) {
-        long chunkSize = Math.max(1, shardSize.getBytes() / 10);
-        assertTrue(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(
-                    Settings.builder()
-                        // one chunk per sec..
-                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
-                        // small chunks
-                        .put(INDICES_RECOVERY_CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
-                )
-                .get()
-                .isAcknowledged()
-        );
     }
 
     private void restoreRecoverySpeed() {

@@ -209,7 +209,7 @@ public class RemoteStoreMigrationTestCase extends MigrationBaseTestCase {
                 .setTrackTotalHits(true)// extra paranoia ;)
                 .setQuery(QueryBuilders.termQuery("auto", true))
                 .get(),
-            asyncIndexingService.getIndexedDocs()
+            asyncIndexingService.getSingleIndexedDocs()
         );
     }
 
