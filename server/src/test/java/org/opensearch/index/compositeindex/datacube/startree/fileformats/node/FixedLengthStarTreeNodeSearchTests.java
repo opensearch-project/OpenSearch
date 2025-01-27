@@ -16,9 +16,12 @@ import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTre
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeFactory;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
+import org.opensearch.search.startree.StarTreeNodeCollector;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -37,16 +40,21 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                         FixedLengthStarTreeNode lastMatchedNode;
                         lastMatchedNode = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(-1L);
                         result &= -1 == lastMatchedNode.getDimensionValue();
+                        // Leaf Node should return null
                         result &= null == lastMatchedNode.getChildForDimensionValue(5L);
                         result &= null == lastMatchedNode.getChildForDimensionValue(5L, lastMatchedNode);
+                        // Asserting Last Matched Node works as expected
                         lastMatchedNode = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(1L, lastMatchedNode);
                         result &= 1 == lastMatchedNode.getDimensionValue();
                         lastMatchedNode = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(5L, lastMatchedNode);
                         result &= 5 == lastMatchedNode.getDimensionValue();
+                        // Asserting null is returned when last matched node is after the value to search.
                         lastMatchedNode = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(2L, lastMatchedNode);
                         result &= null == lastMatchedNode;
+                        // When dimension value is null
                         result &= null == fixedLengthStarTreeNode.getChildForDimensionValue(null);
                         result &= null == fixedLengthStarTreeNode.getChildForDimensionValue(null, null);
+                        // non-existing dimensionValue
                         result &= null == fixedLengthStarTreeNode.getChildForDimensionValue(4L);
                         result &= null == fixedLengthStarTreeNode.getChildForDimensionValue(randomLongBetween(6, Long.MAX_VALUE));
                         result &= null == fixedLengthStarTreeNode.getChildForDimensionValue(randomLongBetween(Long.MIN_VALUE, -2));
@@ -78,6 +86,67 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                         throw new RuntimeException(e);
                     }
                 }));
+            }
+        }
+    }
+
+    public void testRangeMatch() {
+        for (boolean createStarNode : new boolean[] { true, false }) {
+            for (boolean createNullNode : new boolean[] { true, false }) {
+                createStarTreeForDimension(
+                    new long[] { -10, -1, 1, 2, 5, 9, 25 },
+                    createStarNode,
+                    createNullNode,
+                    List.of(fixedLengthStarTreeNode -> {
+                        try {
+                            boolean result = true;
+                            ArrayBasedCollector collector;
+                            // Whole range
+                            collector = new ArrayBasedCollector();
+                            fixedLengthStarTreeNode.collectChildrenInRange(-20, 26, collector);
+                            result &= collector.matchValues(new long[] { -10, -1, 1, 2, 5, 9, 25 });
+                            // Subset matched from left
+                            collector = new ArrayBasedCollector();
+                            fixedLengthStarTreeNode.collectChildrenInRange(-2, 1, collector);
+                            result &= collector.matchValues(new long[] { -1, 1 });
+                            // Subset matched from right
+                            collector = new ArrayBasedCollector();
+                            fixedLengthStarTreeNode.collectChildrenInRange(6, 100, collector);
+                            result &= collector.matchValues(new long[] { 9, 25 });
+                            // No match on left
+                            collector = new ArrayBasedCollector();
+                            fixedLengthStarTreeNode.collectChildrenInRange(-30, -20, collector);
+                            result &= collector.collectedNodeCount() == 0;
+                            // No match on right
+                            collector = new ArrayBasedCollector();
+                            fixedLengthStarTreeNode.collectChildrenInRange(30, 50, collector);
+                            result &= collector.collectedNodeCount() == 0;
+                            // Low > High
+                            collector = new ArrayBasedCollector();
+                            fixedLengthStarTreeNode.collectChildrenInRange(50, 10, collector);
+                            result &= collector.collectedNodeCount() == 0;
+                            // Match leftmost
+                            collector = new ArrayBasedCollector();
+                            fixedLengthStarTreeNode.collectChildrenInRange(-30, -10, collector);
+                            result &= collector.matchValues(new long[] { -10 });
+                            // Match rightmost
+                            collector = new ArrayBasedCollector();
+                            fixedLengthStarTreeNode.collectChildrenInRange(10, 25, collector);
+                            result &= collector.matchValues(new long[] { 25 });
+                            // Match contains interval which has nothing
+                            collector = new ArrayBasedCollector();
+                            fixedLengthStarTreeNode.collectChildrenInRange(10, 24, collector);
+                            result &= collector.collectedNodeCount() == 0;
+                            // Match contains interval which has nothing
+                            collector = new ArrayBasedCollector();
+                            fixedLengthStarTreeNode.collectChildrenInRange(6, 24, collector);
+                            result &= collector.matchValues(new long[] { 9 });
+                            return result;
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                );
             }
         }
     }
@@ -139,7 +208,7 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                     InMemoryTreeNode nullNode = new InMemoryTreeNode(rootNode.getDimensionId() + 1, randomInt(), randomInt(), (byte) 1, -1);
                     nullNode.setChildDimensionId(-1);
                     nullNode.setAggregatedDocId(randomInt());
-                    rootNode.addChildNode(nullNode, (long) ALL);
+                    rootNode.addChildNode(nullNode, null);
                 }
 
                 starTreeDataLength = starTreeWriter.writeStarTree(
@@ -168,6 +237,29 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
 
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+
+    }
+
+    private static class ArrayBasedCollector implements StarTreeNodeCollector {
+
+        private final List<StarTreeNode> nodes = new ArrayList<>();
+
+        @Override
+        public void collectStarTreeNode(StarTreeNode node) {
+            nodes.add(node);
+        }
+
+        public boolean matchValues(long[] values) throws IOException {
+            boolean matches = true;
+            for (int i = 0; i < values.length; i++) {
+                matches &= nodes.get(i).getDimensionValue() == values[i];
+            }
+            return matches;
+        }
+
+        public int collectedNodeCount() {
+            return nodes.size();
         }
 
     }

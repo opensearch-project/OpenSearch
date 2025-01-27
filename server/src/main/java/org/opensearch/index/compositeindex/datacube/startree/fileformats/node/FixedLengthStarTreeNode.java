@@ -304,7 +304,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
                     for (int lowNodeId = lowStarTreeNode.nodeId(); lowNodeId <= highStarTreeNode.nodeId(); ++lowNodeId) {
                         collector.collectStarTreeNode(new FixedLengthStarTreeNode(in, lowNodeId));
                     }
-                } else { // Low StarTreeNode is the last default node for that dimension.
+                } else if (lowStarTreeNode.getDimensionValue() <= high) { // Low StarTreeNode is the last default node for that dimension.
                     collector.collectStarTreeNode(lowStarTreeNode);
                 }
             }
