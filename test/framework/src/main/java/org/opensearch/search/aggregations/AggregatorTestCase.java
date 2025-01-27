@@ -161,6 +161,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -348,7 +349,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         IndexSearcher indexSearcher,
         IndexSettings indexSettings,
         CompositeIndexFieldInfo starTree,
-        List<Dimension> supportedDimensions,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
         List<Metric> supportedMetrics,
         MultiBucketConsumer bucketConsumer,
         AggregatorFactory aggregatorFactory,
@@ -393,7 +394,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         Query query,
         QueryBuilder queryBuilder,
         CompositeIndexFieldInfo starTree,
-        List<Dimension> supportedDimensions,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
         List<Metric> supportedMetrics,
         MultiBucketConsumer bucketConsumer,
         AggregatorFactory aggregatorFactory,
@@ -425,27 +426,16 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(compositeMappedFieldType.getCompositeIndexType()).thenReturn(starTree.getType());
         Set<CompositeMappedFieldType> compositeFieldTypes = Set.of(compositeMappedFieldType);
 
-        when((compositeMappedFieldType).getDimensions()).thenReturn(supportedDimensions);
+        when((compositeMappedFieldType).getDimensions()).thenReturn(new ArrayList<>(supportedDimensions.keySet()));
         when((compositeMappedFieldType).getMetrics()).thenReturn(supportedMetrics);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getCompositeFieldTypes()).thenReturn(compositeFieldTypes);
         when(searchContext.mapperService()).thenReturn(mapperService);
 
         // FIXME : Directly supply the dimension as method param, we are resetting this again ?
-        for (Dimension dimension : supportedDimensions) {
-            if (dimension instanceof OrdinalDimension) {
-                MappedFieldType mappedFieldType = new KeywordFieldMapper.KeywordFieldType(dimension.getField(), Lucene.WHITESPACE_ANALYZER);
-                when(mapperService.fieldType(dimension.getField())).thenReturn(mappedFieldType);
-                when(searchContext.getQueryShardContext().fieldMapper(dimension.getField())).thenReturn(mappedFieldType);
-            } else if (dimension instanceof NumericDimension) {
-                // TODO : Number type should be supplied as parameter to create function
-                NumberFieldMapper.NumberFieldType mappedFieldType = new NumberFieldMapper.NumberFieldType(
-                    dimension.getField(),
-                    NumberFieldMapper.NumberType.LONG
-                );
-                when(mapperService.fieldType(dimension.getField())).thenReturn(mappedFieldType);
-                when(searchContext.getQueryShardContext().fieldMapper(dimension.getField())).thenReturn(mappedFieldType);
-            }
+        for (Dimension dimension : supportedDimensions.keySet()) {
+            when(mapperService.fieldType(dimension.getField())).thenReturn(supportedDimensions.get(dimension));
+            when(searchContext.getQueryShardContext().fieldMapper(dimension.getField())).thenReturn(supportedDimensions.get(dimension));
         }
 
         StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(searchContext, queryBuilder);
@@ -766,7 +756,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         QueryBuilder queryBuilder,
         AggregationBuilder builder,
         CompositeIndexFieldInfo compositeIndexFieldInfo,
-        List<Dimension> supportedDimensions,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
         List<Metric> supportedMetrics,
         int maxBucket,
         boolean hasNested,
