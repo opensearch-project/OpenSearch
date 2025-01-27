@@ -53,6 +53,8 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -68,7 +70,7 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
  *
  * @opensearch.internal
  */
-class AvgAggregator extends NumericMetricsAggregator.SingleValue {
+class AvgAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
 
     final ValuesSource.Numeric valuesSource;
 
@@ -108,6 +110,11 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         }
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
         if (supportedStarTree != null) {
+            if (parent != null && subAggregators.length == 0) {
+                // If this a child aggregator, then the parent will trigger star-tree pre-computation.
+                // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+            }
             return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
         }
         return getDefaultLeafCollector(ctx, sub);
@@ -164,7 +171,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             MetricStat.VALUE_COUNT.getTypeName()
         );
 
-        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
+        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
         SortedNumericStarTreeValuesIterator sumValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getMetricValuesIterator(sumMetricName);
         SortedNumericStarTreeValuesIterator countValueIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
@@ -192,6 +199,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         sums.set(0, kahanSummation.value());
+        compensations.set(0, kahanSummation.delta());
         return new LeafBucketCollectorBase(sub, valuesSource.doubleValues(ctx)) {
             @Override
             public void collect(int doc, long bucket) {
@@ -226,4 +234,47 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(counts, sums, compensations);
     }
 
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
+    ) throws IOException {
+        assert parentCollector != null;
+        return new StarTreeBucketCollector(parentCollector) {
+            String sumMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                MetricStat.SUM.getTypeName()
+            );
+            String valueCountMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                MetricStat.VALUE_COUNT.getTypeName()
+            );
+            SortedNumericStarTreeValuesIterator sumMetricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator(sumMetricName);
+            SortedNumericStarTreeValuesIterator valueCountMetricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator(valueCountMetricName);
+
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
+            @Override
+            public void collectStarTreeEntry(int starTreeEntryBit, long bucket) throws IOException {
+                counts = context.bigArrays().grow(counts, bucket + 1);
+                sums = context.bigArrays().grow(sums, bucket + 1);
+                compensations = context.bigArrays().grow(compensations, bucket + 1);
+                // Advance the valuesIterator to the current bit
+                if (!sumMetricValuesIterator.advanceExact(starTreeEntryBit)
+                    || !valueCountMetricValuesIterator.advanceExact(starTreeEntryBit)) {
+                    return; // Skip if no entries for this document
+                }
+                kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
+                kahanSummation.add(NumericUtils.sortableLongToDouble(sumMetricValuesIterator.nextValue()));
+
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
+                counts.increment(bucket, valueCountMetricValuesIterator.nextValue());
+            }
+        };
+    }
 }
