@@ -34,14 +34,23 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongArray;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -52,6 +61,8 @@ import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude.LongFilter;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds.BucketOrdsEnum;
@@ -60,6 +71,9 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeu
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.StarTreeTraversalUtil;
+import org.opensearch.search.startree.filter.DimensionFilter;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -73,17 +87,19 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Aggregate all docs that contain numeric terms
  *
  * @opensearch.internal
  */
-public class NumericTermsAggregator extends TermsAggregator {
+public class NumericTermsAggregator extends TermsAggregator implements StarTreePreComputeCollector {
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;
     private final LongKeyedBucketOrds bucketOrds;
     private final LongFilter longFilter;
+    private final String fieldName;
 
     public NumericTermsAggregator(
         String name,
@@ -105,6 +121,9 @@ public class NumericTermsAggregator extends TermsAggregator {
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        this.fieldName = (this.valuesSource instanceof ValuesSource.Numeric.FieldData)
+            ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
+            : null;
     }
 
     @Override
@@ -117,6 +136,13 @@ public class NumericTermsAggregator extends TermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            if (preComputeWithStarTree(ctx, supportedStarTree) == true) {
+                throw new CollectionTerminatedException();
+            }
+        }
+
         SortedNumericDocValues values = resultStrategy.getValues(ctx);
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -144,6 +170,93 @@ public class NumericTermsAggregator extends TermsAggregator {
                 }
             }
         });
+    }
+
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parent
+    ) throws IOException {
+        assert parent == null;
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        return new StarTreeBucketCollector(
+            starTreeValues,
+            StarTreeTraversalUtil.getStarTreeResult(
+                starTreeValues,
+                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
+                    fieldName,
+                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
+                ),
+                context
+            )
+        ) {
+            @Override
+            public void setSubCollectors() throws IOException {
+                for (Aggregator aggregator : subAggregators) {
+                    this.subCollectors.add(((StarTreePreComputeCollector) aggregator).getStarTreeBucketCollector(ctx, starTree, this));
+                }
+            }
+
+            SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getDimensionValuesIterator(fieldName);
+
+            String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                "_doc_count",
+                MetricStat.DOC_COUNT.getTypeName()
+            );
+            SortedNumericStarTreeValuesIterator docCountsIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator(metricName);
+
+            @Override
+            public void collectStarTreeEntry(int starTreeEntry, long owningBucketOrd) throws IOException {
+                if (valuesIterator.advance(starTreeEntry) == NO_MORE_DOCS) {
+                    return;
+                }
+                long dimensionValue = valuesIterator.nextValue();
+                // Only numeric & floating points are supported as of now in star-tree
+                // TODO: Add support for isBigInteger() when it gets supported in star-tree
+                if (valuesSource.isFloatingPoint()) {
+                    double doubleValue = ((NumberFieldMapper.NumberFieldType) context.mapperService().fieldType(fieldName)).toDoubleValue(
+                        dimensionValue
+                    );
+                    dimensionValue = NumericUtils.doubleToSortableLong(doubleValue);
+                }
+
+                for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
+
+                    if (docCountsIterator.advanceExact(starTreeEntry)) {
+                        long metricValue = docCountsIterator.nextValue();
+                        long bucketOrd = bucketOrds.add(owningBucketOrd, dimensionValue);
+
+                        if (bucketOrd < 0) {
+                            bucketOrd = -1 - bucketOrd;
+                            collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
+                        } else {
+                            grow(bucketOrd + 1);
+                            collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
+                        }
+
+                    }
+                }
+            }
+        };
+    }
+
+    private boolean preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo supportedStarTree) throws IOException {
+        StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+        FixedBitSet matchingDocsBitSet = starTreeBucketCollector.getMatchingDocsBitSet();
+
+        int numBits = matchingDocsBitSet.length();
+        if (numBits > 0) {
+            for (int bit = matchingDocsBitSet.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
+                ? matchingDocsBitSet.nextSetBit(bit + 1)
+                : DocIdSetIterator.NO_MORE_DOCS) {
+                starTreeBucketCollector.collectStarTreeEntry(bit, 0);
+            }
+        }
+        return true;
     }
 
     @Override
