@@ -93,18 +93,6 @@ grant codeBase "${codebase.reactor-core}" {
   permission java.net.SocketPermission "*", "connect,resolve";
 };
 
-grant codeBase "${codebase.opensearch-arrow-memory-shaded}" {
-    permission java.lang.RuntimePermission "modifyThreadGroup";
-    permission java.lang.RuntimePermission "modifyThread";
-
-    // Reflection access needed by Arrow
-    permission java.lang.RuntimePermission "accessDeclaredMembers";
-    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
-    // Memory access
-    permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
-};
-
 //// Everything else:
 
 grant {

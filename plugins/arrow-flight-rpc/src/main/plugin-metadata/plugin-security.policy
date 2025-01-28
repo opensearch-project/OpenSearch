@@ -6,6 +6,18 @@
  * compatible open source license.
  */
 
+grant codeBase "${codebase.arrow-flight-rpc:arrow-memory-shaded}" {
+    permission java.lang.RuntimePermission "modifyThreadGroup";
+    permission java.lang.RuntimePermission "modifyThread";
+
+    // Reflection access needed by Arrow
+    permission java.lang.RuntimePermission "accessDeclaredMembers";
+    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+    // Memory access
+    permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+};
+
 grant codeBase "${codebase.grpc-netty-shaded}" {
    permission java.net.SocketPermission "*", "accept,connect,listen,resolve";
    permission java.lang.RuntimePermission "*", "setContextClassLoader";
@@ -16,7 +28,7 @@ grant codeBase "${codebase.grpc-core}" {
    permission java.lang.RuntimePermission "*", "setContextClassLoader";
 };
 
-grant codeBase "${codebase.arrow-flight-rpc}" {
+grant {
   // arrow flight service permissions
   permission java.util.PropertyPermission "arrow.allocation.manager.type", "write";
   permission java.util.PropertyPermission "arrow.enable_null_check_for_get", "write";

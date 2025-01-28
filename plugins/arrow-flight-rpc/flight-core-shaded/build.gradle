@@ -10,6 +10,7 @@
  */
 
 plugins {
+  id 'opensearch.build'
   id("com.gradleup.shadow")
 }
 

@@ -18,7 +18,9 @@ opensearchplugin {
 
 dependencies {
   implementation project(':libs:opensearch-arrow-spi')
-  implementation project(path:':libs:opensearch-flight-core-shaded', configuration: 'shadow')
+  implementation project(path:':plugins:arrow-flight-rpc:arrow-memory-shaded', configuration: 'shadow')
+  implementation project(path:':plugins:arrow-flight-rpc:flight-core-shaded', configuration: 'shadow')
+
   implementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
 
   implementation "io.grpc:grpc-api:${versions.grpc}"
