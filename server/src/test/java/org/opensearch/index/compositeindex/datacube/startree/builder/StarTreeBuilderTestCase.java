@@ -26,6 +26,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
@@ -38,9 +39,11 @@ import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
+import org.opensearch.index.compositeindex.datacube.UnsignedLongDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionConfig;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
@@ -249,7 +252,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         return BuilderTestsUtils.getWriteState(numDocs, id, fieldsInfo, directory);
     }
 
-    SegmentReadState getReadState(int numDocs, Map<String, DocValuesType> dimensionFields, List<Metric> metrics) {
+    SegmentReadState getReadState(int numDocs, Map<String, DimensionConfig> dimensionFields, List<Metric> metrics) {
         return BuilderTestsUtils.getReadState(numDocs, dimensionFields, metrics, compositeField, writeState, directory);
     }
 
@@ -257,11 +260,11 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         return Map.of(CompositeIndexConstants.SEGMENT_DOCS_COUNT, String.valueOf(numSegmentDocs));
     }
 
-    protected LinkedHashMap<String, DocValuesType> getStarTreeDimensionNames(List<Dimension> dimensionsOrder) {
-        LinkedHashMap<String, DocValuesType> dimensionNames = new LinkedHashMap<>();
+    protected LinkedHashMap<String, DimensionConfig> getStarTreeDimensionNames(List<Dimension> dimensionsOrder) {
+        LinkedHashMap<String, DimensionConfig> dimensionNames = new LinkedHashMap<>();
         for (Dimension dimension : dimensionsOrder) {
             for (String dimensionName : dimension.getSubDimensionNames()) {
-                dimensionNames.put(dimensionName, dimension.getDocValuesType());
+                dimensionNames.put(dimensionName, new DimensionConfig(dimension.getDocValuesType(), dimension.getDimensionDataType()));
             }
         }
         return dimensionNames;
@@ -270,6 +273,16 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
     protected StarTreeField getStarTreeField(MetricStat count) {
         Dimension d1 = new NumericDimension("field1");
         Dimension d2 = new NumericDimension("field3");
+        Metric m1 = new Metric("field2", List.of(count));
+        List<Dimension> dims = List.of(d1, d2);
+        List<Metric> metrics = List.of(m1);
+        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(1000, new HashSet<>(), getBuildMode());
+        return new StarTreeField("sf", dims, metrics, c);
+    }
+
+    protected StarTreeField getStarTreeFieldForUnsignedLong(MetricStat count) {
+        Dimension d1 = new UnsignedLongDimension("field1");
+        Dimension d2 = new UnsignedLongDimension("field3");
         Metric m1 = new Metric("field2", List.of(count));
         List<Dimension> dims = List.of(d1, d2);
         List<Metric> metrics = List.of(m1);
@@ -327,12 +340,66 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         );
     }
 
+    protected static List<StarTreeDocument> getExpectedStarTreeDocumentIteratorForUnsignedLong() {
+        return List.of(
+            new StarTreeDocument(new Long[] { 2L, 4L, 3L, 4L }, new Object[] { 21.0, 14.0, 2L, 8.0, Numbers.unsignedLongToDouble(-1), 2L }),
+            new StarTreeDocument(
+                new Long[] { 3L, 4L, 2L, 1L },
+                new Object[] {
+                    20.0 + Numbers.unsignedLongToDouble(-2L),
+                    28.0 + Numbers.unsignedLongToDouble(-9223372036854775808L),
+                    3L,
+                    6.0,
+                    24.0,
+                    3L }
+            ),
+            new StarTreeDocument(
+                new Long[] { null, 4L, 2L, 1L },
+                new Object[] {
+                    20.0 + Numbers.unsignedLongToDouble(-2L),
+                    28.0 + Numbers.unsignedLongToDouble(-9223372036854775808L),
+                    3L,
+                    6.0,
+                    24.0,
+                    3L }
+            ),
+            new StarTreeDocument(
+                new Long[] { null, 4L, 3L, 4L },
+                new Object[] { 21.0, 14.0, 2L, 8.0, Numbers.unsignedLongToDouble(-1), 2L }
+            ),
+            new StarTreeDocument(
+                new Long[] { null, 4L, null, 1L },
+                new Object[] {
+                    20.0 + Numbers.unsignedLongToDouble(-2L),
+                    28.0 + Numbers.unsignedLongToDouble(-9223372036854775808L),
+                    3L,
+                    6.0,
+                    24.0,
+                    3L }
+            ),
+            new StarTreeDocument(
+                new Long[] { null, 4L, null, 4L },
+                new Object[] { 21.0, 14.0, 2L, 8.0, Numbers.unsignedLongToDouble(-1), 2L }
+            ),
+            new StarTreeDocument(
+                new Long[] { null, 4L, null, null },
+                new Object[] {
+                    46.0 + Numbers.unsignedLongToDouble(-2L),
+                    42.0 + Numbers.unsignedLongToDouble(-9223372036854775808L),
+                    5L,
+                    6.0,
+                    Numbers.unsignedLongToDouble(-1),
+                    5L }
+            )
+        );
+    }
+
     protected long getLongFromDouble(double value) {
         return NumericUtils.doubleToSortableLong(value);
     }
 
     protected StarTreeMetadata getStarTreeMetadata(
-        LinkedHashMap<String, DocValuesType> fields,
+        LinkedHashMap<String, DimensionConfig> fields,
         int segmentAggregatedDocCount,
         int maxLeafDocs,
         int dataLength

@@ -76,6 +76,9 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject()
                 .field("name", "keyword_dv")
                 .endObject()
+                .startObject()
+                .field("name", "unsignedLongDimension") // UnsignedLongDimension
+                .endObject()
                 .endArray()
                 .startArray("metrics")
                 .startObject()
@@ -116,6 +119,10 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject("wildcard")
                 .field("type", "wildcard")
                 .field("doc_values", false)
+                .endObject()
+                .startObject("unsignedLongDimension")
+                .field("type", "unsigned_long")
+                .field("doc_values", true)
                 .endObject()
                 .endObject()
                 .endObject();
@@ -605,8 +612,11 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     for (int i = 0; i < dateDim.getSortedCalendarIntervals().size(); i++) {
                         assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getSortedCalendarIntervals().get(i).shortName());
                     }
+                    assertEquals(4, starTreeFieldType.getDimensions().size());
                     assertEquals("numeric_dv", starTreeFieldType.getDimensions().get(1).getField());
                     assertEquals("keyword_dv", starTreeFieldType.getDimensions().get(2).getField());
+                    assertEquals("unsignedLongDimension", starTreeFieldType.getDimensions().get(3).getField());
+
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
                     List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.VALUE_COUNT, MetricStat.SUM, MetricStat.AVG);
                     assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
