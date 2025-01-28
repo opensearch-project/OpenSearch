@@ -1,0 +1,161 @@
+[Unit]
+Description=OpenSearch
+Documentation=https://www.elastic.co
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=notify
+RuntimeDirectory=opensearch
+PrivateTmp=true
+Environment=OPENSEARCH_HOME=/usr/share/opensearch
+Environment=OPENSEARCH_PATH_CONF=${path.conf}
+Environment=PID_DIR=/var/run/opensearch
+Environment=OPENSEARCH_SD_NOTIFY=true
+EnvironmentFile=-${path.env}
+
+WorkingDirectory=/usr/share/opensearch
+
+User=opensearch
+Group=opensearch
+
+ExecStart=/usr/share/opensearch/bin/systemd-entrypoint -p ${PID_DIR}/opensearch.pid --quiet
+
+# StandardOutput is configured to redirect to journalctl since
+# some error messages may be logged in standard output before
+# opensearch logging system is initialized. OpenSearch
+# stores its logs in /var/log/opensearch and does not use
+# journalctl by default. If you also want to enable journalctl
+# logging, you can simply remove the "quiet" option from ExecStart.
+StandardOutput=journal
+StandardError=inherit
+SyslogIdentifier=opensearch
+
+# Specifies the maximum file descriptor number that can be opened by this process
+LimitNOFILE=65535
+
+# Specifies the maximum number of processes
+LimitNPROC=4096
+
+# Specifies the maximum size of virtual memory
+LimitAS=infinity
+
+# Specifies the maximum file size
+LimitFSIZE=infinity
+
+# Disable timeout logic and wait until process is stopped
+TimeoutStopSec=0
+
+# SIGTERM signal is used to stop the Java process
+KillSignal=SIGTERM
+
+# Send the signal only to the JVM rather than its control group
+KillMode=process
+
+# Java process is never killed
+SendSIGKILL=no
+
+# When a JVM receives a SIGTERM signal it exits with code 143
+SuccessExitStatus=143
+
+# Allow a slow startup before the systemd notifier module kicks in to extend the timeout
+TimeoutStartSec=75
+
+# Prevent modifications to the control group filesystem
+ProtectControlGroups=true
+
+# Prevent loading or reading kernel modules
+ProtectKernelModules=true
+
+# Prevent altering kernel tunables (sysctl parameters)
+ProtectKernelTunables=true
+
+# Set device access policy to 'closed', allowing access only to specific devices
+DevicePolicy=closed
+
+# Make /proc invisible to the service, enhancing isolation
+ProtectProc=invisible
+
+# Make /usr, /boot, and /etc read-only (less restrictive than 'strict')
+ProtectSystem=full
+
+# Prevent changes to control groups (redundant with earlier setting, can be removed)
+ProtectControlGroups=yes
+
+# Prevent changing the execution domain
+LockPersonality=yes
+
+
+# System call filtering
+# System call filterings which restricts which system calls a process can make
+# @ means allowed
+# ~ means not allowed
+SystemCallFilter=@system-service
+SystemCallFilter=~@reboot
+SystemCallFilter=~@swap
+
+SystemCallErrorNumber=EPERM
+
+# Capability restrictions
+# Remove the ability to block system suspends
+CapabilityBoundingSet=~CAP_BLOCK_SUSPEND
+
+# Remove the ability to establish leases on files
+CapabilityBoundingSet=~CAP_LEASE
+
+# Remove the ability to use system resource accounting
+CapabilityBoundingSet=~CAP_SYS_PACCT
+
+# Remove the ability to configure TTY devices
+CapabilityBoundingSet=~CAP_SYS_TTY_CONFIG
+
+# Remov below capabilities:
+# - CAP_SYS_ADMIN: Various system administration operations
+# - CAP_SYS_PTRACE: Ability to trace processes
+# - CAP_NET_ADMIN: Various network-related operations
+CapabilityBoundingSet=~CAP_SYS_ADMIN ~CAP_SYS_PTRACE ~CAP_NET_ADMIN
+
+
+# Address family restrictions
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Filesystem Access
+
+ReadWritePaths=/var/log/opensearch
+ReadWritePaths=/var/lib/opensearch
+ReadWritePaths=/mnt/snapshots
+
+## Allow read access to system files
+ReadOnlyPaths=/etc/os-release /usr/lib/os-release /etc/system-release
+
+## Allow read access to Linux IO stats
+ReadOnlyPaths=/proc/self/mountinfo /proc/diskstats
+
+## Allow read access to control group stats
+ReadOnlyPaths=/proc/self/cgroup /sys/fs/cgroup/cpu /sys/fs/cgroup/cpu/-
+ReadOnlyPaths=/sys/fs/cgroup/cpuacct /sys/fs/cgroup/cpuacct/- /sys/fs/cgroup/memory /sys/fs/cgroup/memory/-
+
+
+RestrictNamespaces=true
+
+NoNewPrivileges=true
+
+# Memory and execution protection
+MemoryDenyWriteExecute=true           # Prevent creating writable executable memory mappings
+SystemCallArchitectures=native        # Allow only native system calls
+KeyringMode=private                   # Service does not share key material with other services
+LockPersonality=true                  # Prevent changing ABI personality
+RestrictSUIDSGID=true                 # Prevent creating SUID/SGID files
+RestrictRealtime=true                 # Prevent acquiring realtime scheduling
+ProtectHostname=true                  # Prevent changes to system hostname
+ProtectKernelLogs=true                # Prevent reading/writing kernel logs
+ProtectClock=true                     # Prevent tampering with the system clock
+
+# Socket restrictions
+SocketBindAllow=tcp:%1-%2
+SocketBindDeny=any                    # Deny all other socket bindings
+
+[Install]
+WantedBy=multi-user.target
+
+# Built for ${project.name}-${project.version} (${project.name})
