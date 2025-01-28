@@ -21,7 +21,6 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
@@ -94,32 +93,30 @@ public interface DimensionFilterMapper {
      */
     class Factory {
 
-        private static final Map<NumberFieldMapper.NumberType, DimensionFilterMapper> NUMERIC_SINGLETON_MAPPINGS = Map.of(
-            BYTE,
+        private static final Map<String, DimensionFilterMapper> DIMENSION_FILTER_MAPPINGS = Map.of(
+            BYTE.typeName(),
             new IntegerFieldMapperNumeric(),
-            SHORT,
+            SHORT.typeName(),
             new IntegerFieldMapperNumeric(),
-            INTEGER,
+            INTEGER.typeName(),
             new IntegerFieldMapperNumeric(),
-            LONG,
+            LONG.typeName(),
             new SignedLongFieldMapperNumeric(),
-            HALF_FLOAT,
+            HALF_FLOAT.typeName(),
             new HalfFloatFieldMapperNumeric(),
-            FLOAT,
+            FLOAT.typeName(),
             new FloatFieldMapperNumeric(),
-            DOUBLE,
-            new DoubleFieldMapperNumeric()
+            DOUBLE.typeName(),
+            new DoubleFieldMapperNumeric(),
+            org.opensearch.index.mapper.KeywordFieldMapper.CONTENT_TYPE,
+            new KeywordFieldMapper()
         );
 
         public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType) {
-            if (mappedFieldType instanceof KeywordFieldType) {
-                return new KeywordFieldMapper();
-            } else if (mappedFieldType instanceof NumberFieldType) {
-                NumberFieldMapper.NumberType numberType = ((NumberFieldType) mappedFieldType).numberType();
-                return NUMERIC_SINGLETON_MAPPINGS.get(numberType);
-            } else {
-                return null;
+            if (mappedFieldType != null) {
+                return DIMENSION_FILTER_MAPPINGS.get(mappedFieldType.typeName());
             }
+            return null;
         }
     }
 
