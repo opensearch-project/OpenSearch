@@ -24,12 +24,10 @@ import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTre
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeFactory;
-import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
-import org.opensearch.search.startree.StarTreeNodeCollector;
+import org.opensearch.search.aggregations.startree.ArrayBasedCollector;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.TreeSet;
@@ -314,27 +312,27 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
 
     }
 
-    private static class ArrayBasedCollector implements StarTreeNodeCollector {
-
-        private final List<StarTreeNode> nodes = new ArrayList<>();
-
-        @Override
-        public void collectStarTreeNode(StarTreeNode node) {
-            nodes.add(node);
-        }
-
-        public boolean matchValues(long[] values) throws IOException {
-            boolean matches = true;
-            for (int i = 0; i < values.length; i++) {
-                matches &= nodes.get(i).getDimensionValue() == values[i];
-            }
-            return matches;
-        }
-
-        public int collectedNodeCount() {
-            return nodes.size();
-        }
-
-    }
+    // private static class ArrayBasedCollector implements StarTreeNodeCollector {
+    //
+    // private final List<StarTreeNode> nodes = new ArrayList<>();
+    //
+    // @Override
+    // public void collectStarTreeNode(StarTreeNode node) {
+    // nodes.add(node);
+    // }
+    //
+    // public boolean matchValues(long[] values) throws IOException {
+    // boolean matches = true;
+    // for (int i = 0; i < values.length; i++) {
+    // matches &= nodes.get(i).getDimensionValue() == values[i];
+    // }
+    // return matches;
+    // }
+    //
+    // public int collectedNodeCount() {
+    // return nodes.size();
+    // }
+    //
+    // }
 
 }

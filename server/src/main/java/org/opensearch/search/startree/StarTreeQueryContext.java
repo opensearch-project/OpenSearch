@@ -8,7 +8,6 @@
 
 package org.opensearch.search.startree;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
@@ -68,6 +67,7 @@ public class StarTreeQueryContext {
         }
     }
 
+    // TODO : Make changes to change visibility into package private. Handle the same in @org.opensearch.search.SearchServiceStarTreeTests
     public StarTreeQueryContext(CompositeDataCubeFieldType compositeMappedFieldType, QueryBuilder baseQueryBuilder, int cacheSize) {
         this.compositeMappedFieldType = compositeMappedFieldType;
         this.baseQueryBuilder = baseQueryBuilder;
@@ -82,17 +82,17 @@ public class StarTreeQueryContext {
         return new CompositeIndexFieldInfo(compositeMappedFieldType.name(), compositeMappedFieldType.getCompositeIndexType());
     }
 
-    public FixedBitSet getStarTreeValue(LeafReaderContext ctx) {
-        return starTreeValues != null ? starTreeValues[ctx.ord] : null;
+    public FixedBitSet maybeGetCachedNodeIdsForSegment(int ordinal) {
+        return starTreeValues != null ? starTreeValues[ordinal] : null;
     }
 
-    public FixedBitSet[] getStarTreeValues() {
+    public FixedBitSet[] getAllCachedValues() {
         return starTreeValues;
     }
 
-    public void setStarTreeValues(LeafReaderContext ctx, FixedBitSet values) {
+    public void maybeSetCachedNodeIdsForSegment(int key, FixedBitSet values) {
         if (starTreeValues != null) {
-            starTreeValues[ctx.ord] = values;
+            starTreeValues[key] = values;
         }
     }
 

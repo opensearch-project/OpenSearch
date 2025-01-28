@@ -193,20 +193,6 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
     }
 
     @Override
-    public StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException {
-        // there will be no children for leaf nodes
-        if (isLeaf()) {
-            return null;
-        }
-
-        StarTreeNode resultStarTreeNode = null;
-        if (null != dimensionValue) {
-            resultStarTreeNode = binarySearchChild(dimensionValue, null);
-        }
-        return resultStarTreeNode;
-    }
-
-    @Override
     public StarTreeNode getChildForDimensionValue(Long dimensionValue, StarTreeNode lastMatchedChild) throws IOException {
         // there will be no children for leaf nodes
         if (isLeaf()) {

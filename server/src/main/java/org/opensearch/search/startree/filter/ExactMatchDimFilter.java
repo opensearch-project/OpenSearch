@@ -43,7 +43,7 @@ public class ExactMatchDimFilter implements DimensionFilter {
     @Override
     public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
         convertedOrdinals = new TreeSet<>();
-        Dimension matchedDim = StarTreeQueryHelper.getMatchingDimensionOrError(
+        Dimension matchedDim = StarTreeQueryHelper.getMatchingDimensionOrThrow(
             dimensionName,
             starTreeValues.getStarTreeField().getDimensionsOrder()
         );

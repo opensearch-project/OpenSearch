@@ -8,6 +8,7 @@
 
 package org.opensearch.search;
 
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
@@ -29,9 +30,11 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -61,6 +64,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
@@ -137,7 +141,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         // Case 2: MatchAllQuery present but no aggregations, should not use star tree
         sourceBuilder = new SearchSourceBuilder().query(new MatchAllQueryBuilder());
         assertStarTreeContext(request, sourceBuilder, null, -1);
-        
+
         // Case 3: MatchAllQuery and aggregations present, should use star tree
         baseQuery = new MatchAllQueryBuilder();
         sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(AggregationBuilders.max("test").field("field"));
@@ -270,14 +274,14 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         SumAggregationBuilder sumAggSub = sum("sum").field(FIELD_NAME).subAggregation(maxAggNoSub);
         MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(FIELD_NAME);
 
-        QueryBuilder baseQuery;
-        SearchContext searchContext = createSearchContext(indexService);
         StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
             1,
             Collections.emptySet(),
             StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
         );
 
+        QueryBuilder baseQuery;
+        SearchContext searchContext = createSearchContext(indexService);
         // Case 1: No query or aggregations, should not use star tree
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         assertStarTreeContext(request, sourceBuilder, null, -1);
@@ -423,6 +427,65 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         setStarTreeIndexSetting(null);
     }
 
+    public void testCacheCreationInStarTreeQueryContext() throws IOException {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
+        setStarTreeIndexSetting("true");
+        StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
+            1,
+            Collections.emptySet(),
+            StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
+        );
+        CompositeDataCubeFieldType compositeDataCubeFieldType = new StarTreeMapper.StarTreeFieldType(
+            "star_tree",
+            new StarTreeField(
+                "star_tree",
+                List.of(new OrdinalDimension("field")),
+                List.of(new Metric("metricField", List.of(MetricStat.SUM, MetricStat.MAX))),
+                starTreeFieldConfiguration
+            )
+        );
+
+        QueryBuilder baseQuery = new MatchAllQueryBuilder();
+        SearchContext searchContext = mock(SearchContext.class);
+        MapperService mapperService = mock(MapperService.class);
+        IndexShard indexShard = mock(IndexShard.class);
+        Segment segment = mock(Segment.class);
+        SearchContextAggregations searchContextAggregations = mock(SearchContextAggregations.class);
+        AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
+
+        when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(compositeDataCubeFieldType));
+        when(searchContext.mapperService()).thenReturn(mapperService);
+        when(searchContext.indexShard()).thenReturn(indexShard);
+        when(indexShard.segments(false)).thenReturn(List.of(segment, segment));
+        when(searchContext.aggregations()).thenReturn(searchContextAggregations);
+        when(searchContextAggregations.factories()).thenReturn(aggregatorFactories);
+        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] { null, null });
+        StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(searchContext, baseQuery);
+
+        assertEquals(2, starTreeQueryContext.getAllCachedValues().length);
+
+        // Asserting null values are ignored
+        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] {});
+        starTreeQueryContext = new StarTreeQueryContext(searchContext, baseQuery);
+        starTreeQueryContext.maybeSetCachedNodeIdsForSegment(-1, null);
+        assertNull(starTreeQueryContext.getAllCachedValues());
+        assertNull(starTreeQueryContext.maybeGetCachedNodeIdsForSegment(0));
+
+        // Assert correct cached value is returned
+        when(aggregatorFactories.getFactories()).thenReturn(new AggregatorFactory[] { null, null });
+        starTreeQueryContext = new StarTreeQueryContext(searchContext, baseQuery);
+        FixedBitSet cachedValues = new FixedBitSet(22);
+        starTreeQueryContext.maybeSetCachedNodeIdsForSegment(0, cachedValues);
+        assertEquals(2, starTreeQueryContext.getAllCachedValues().length);
+        assertEquals(22, starTreeQueryContext.maybeGetCachedNodeIdsForSegment(0).length());
+
+        starTreeQueryContext = new StarTreeQueryContext(compositeDataCubeFieldType, new MatchAllQueryBuilder(), 2);
+        assertEquals(2, starTreeQueryContext.getAllCachedValues().length);
+
+        setStarTreeIndexSetting(null);
+        mapperService.close();
+    }
+
     /**
      * Test query parsing for date histogram aggregations on star-tree index when @timestamp field does not exist
      */
@@ -507,9 +570,9 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                     actualContext.getBaseQueryStarTreeFilter().getDimensions()
                 );
                 if (expectedCacheUsage > -1) {
-                    assertEquals(expectedCacheUsage, actualContext.getStarTreeValues().length);
+                    assertEquals(expectedCacheUsage, actualContext.getAllCachedValues().length);
                 } else {
-                    assertNull(actualContext.getStarTreeValues());
+                    assertNull(actualContext.getAllCachedValues());
                 }
             }
             searchService.doStop();
@@ -547,6 +610,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         boolean consolidated = starTreeQueryContext.consolidateAllFilters(searchContext);
         if (assertConsolidation) {
             assertTrue(consolidated);
+            searchContext.getQueryShardContext().setStarTreeQueryContext(starTreeQueryContext);
         }
         return starTreeQueryContext;
     }

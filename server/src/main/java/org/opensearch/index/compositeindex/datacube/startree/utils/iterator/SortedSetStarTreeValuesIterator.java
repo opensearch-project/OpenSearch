@@ -39,6 +39,7 @@ public class SortedSetStarTreeValuesIterator extends StarTreeValuesIterator {
         return ((SortedSetDocValues) docIdSetIterator).advanceExact(target);
     }
 
+    // TODO : Remove this and merge @org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator to use value()
     public long nextOrd() throws IOException {
         return ((SortedSetDocValues) docIdSetIterator).nextOrd();
     }

@@ -81,13 +81,11 @@ public class StarTreeQueryHelper {
         String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
         String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(starTree.getField(), fieldName, metric);
 
-        assert starTreeValues != null;
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
             metricName
         );
         // Obtain a FixedBitSet of matched star tree document IDs
         FixedBitSet filteredValues = getStarTreeFilteredValues(context, ctx, starTreeValues);
-        assert filteredValues != null;
 
         int numBits = filteredValues.length();  // Get the number of the filtered values (matching docs)
         if (numBits > 0) {
@@ -122,7 +120,7 @@ public class StarTreeQueryHelper {
      */
     public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues)
         throws IOException {
-        FixedBitSet result = context.getQueryShardContext().getStarTreeQueryContext().getStarTreeValue(ctx);
+        FixedBitSet result = context.getQueryShardContext().getStarTreeQueryContext().maybeGetCachedNodeIdsForSegment(ctx.ord);
         if (result == null) {
             result = StarTreeTraversalUtil.getStarTreeResult(
                 starTreeValues,
@@ -130,11 +128,11 @@ public class StarTreeQueryHelper {
                 context
             );
         }
-        context.getQueryShardContext().getStarTreeQueryContext().setStarTreeValues(ctx, result);
+        context.getQueryShardContext().getStarTreeQueryContext().maybeSetCachedNodeIdsForSegment(ctx.ord, result);
         return result;
     }
 
-    public static Dimension getMatchingDimensionOrError(String dimensionName, List<Dimension> orderedDimensions) {
+    public static Dimension getMatchingDimensionOrThrow(String dimensionName, List<Dimension> orderedDimensions) {
         Dimension matchingDimension = getMatchingDimensionOrNull(dimensionName, orderedDimensions);
         if (matchingDimension == null) {
             throw new IllegalStateException("No matching dimension found for [" + dimensionName + "]");
