@@ -29,11 +29,10 @@ public class ArrayBasedCollector implements StarTreeNodeCollector {
     }
 
     public boolean matchAllCollectedValues(long... values) throws IOException {
-        boolean matches = true;
         for (long value : values) {
-            matches &= nodeDimensionValues.contains(value);
+            if (!nodeDimensionValues.contains(value)) return false;
         }
-        return matches;
+        return true;
     }
 
     public int collectedNodeCount() {
