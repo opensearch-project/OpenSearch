@@ -17,16 +17,16 @@ import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 /**
- * Transport action to create Rule
+ * Transport action to get Rule
  *
  * @opensearch.experimental
  */
-public class TransportGetRuleAction extends HandledTransportAction<CreateRuleRequest, CreateRuleResponse> {
+public class TransportGetRuleAction extends HandledTransportAction<GetRuleRequest, GetRuleResponse> {
 
     private final RulePersistenceService rulePersistenceService;
 
     /**
-     * Constructor for TransportCreateRuleAction
+     * Constructor for TransportGetRuleAction
      *
      * @param transportService - a {@link TransportService} object
      * @param actionFilters - a {@link ActionFilters} object
@@ -38,12 +38,12 @@ public class TransportGetRuleAction extends HandledTransportAction<CreateRuleReq
         ActionFilters actionFilters,
         RulePersistenceService rulePersistenceService
     ) {
-        super(CreateRuleAction.NAME, transportService, actionFilters, CreateRuleRequest::new);
+        super(GetRuleAction.NAME, transportService, actionFilters, GetRuleRequest::new);
         this.rulePersistenceService = rulePersistenceService;
     }
 
     @Override
-    protected void doExecute(Task task, CreateRuleRequest request, ActionListener<CreateRuleResponse> listener) {
-        rulePersistenceService.createRule(request.getRule(), listener);
+    protected void doExecute(Task task, GetRuleRequest request, ActionListener<GetRuleResponse> listener) {
+        rulePersistenceService.getRule(request.get_id(), listener);
     }
 }

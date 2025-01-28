@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action;
+package org.opensearch.plugin.wlm.querygroup.action;
 
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.support.ActionFilters;

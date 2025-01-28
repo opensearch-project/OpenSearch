@@ -17,23 +17,21 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @ExperimentalApi
 public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
     private final String _id;
-    private final Map<String, List<String>> attributeMap;
+    private final Map<RuleAttribute, List<String>> attributeMap;
     private final String label;
     private final String updatedAt;
     private final Feature feature;
 
-    public Rule(String _id, Map<String, List<String>> attributeMap, String label, String updatedAt, Feature feature) {
+    public Rule(String _id, Map<RuleAttribute, List<String>> attributeMap, String label, String updatedAt, Feature feature) {
         this._id = _id;
         this.attributeMap = attributeMap;
         this.label = label;
@@ -42,12 +40,16 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
     }
 
     public Rule(StreamInput in) throws IOException {
-        this(in.readString(), in.readMap(StreamInput::readString, StreamInput::readStringList), in.readString(), in.readString(), Feature.fromName(in.readString()));
+        this(in.readString(),
+            in.readMap((i) -> RuleAttribute.fromName(i.readString()), StreamInput::readStringList),
+            in.readString(), in.readString(),
+            Feature.fromName(in.readString()));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(attributeMap, StreamOutput::writeString, StreamOutput::writeStringCollection);
+        out.writeString(_id);
+        out.writeMap(attributeMap, RuleAttribute::writeTo, StreamOutput::writeStringCollection);
         out.writeString(label);
         out.writeString(updatedAt);
         out.writeString(feature.getName());
@@ -73,6 +75,10 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
         return feature;
     }
 
+    public Map<RuleAttribute, List<String>> getAttributeMap() {
+        return attributeMap;
+    }
+
     @ExperimentalApi
     public enum Feature {
         WLM("WLM");
@@ -96,10 +102,40 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
         }
     }
 
+    @ExperimentalApi
+    public enum RuleAttribute {
+        INDEX_PATTERN("index_pattern");
+
+        private final String name;
+
+        RuleAttribute(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public static void writeTo(StreamOutput out, RuleAttribute ruleAttribute) throws IOException {
+            out.writeString(ruleAttribute.getName());
+        }
+
+        public static RuleAttribute fromName(String s) {
+            for (RuleAttribute attribute : values()) {
+                if (attribute.getName().equalsIgnoreCase(s)) return attribute;
+
+            }
+            throw new IllegalArgumentException("Invalid value for RuleAttribute: " + s);
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
         builder.field("_id", _id);
+        for (Map.Entry<RuleAttribute, List<String>> entry : attributeMap.entrySet()) {
+            builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
+        }
         builder.field("label", label);
         builder.field("feature", feature);
         builder.field("updated_at", updatedAt);
@@ -109,6 +145,9 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
 
     public XContentBuilder toXContentWithoutId(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
+        for (Map.Entry<RuleAttribute, List<String>> entry : attributeMap.entrySet()) {
+            builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
+        }
         builder.field("label", label);
         builder.field("feature", feature);
         builder.field("updated_at", updatedAt);
@@ -134,7 +173,7 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
     @ExperimentalApi
     public static class Builder {
         private String _id;
-        private Map<String, List<String>> attributeMap;
+        private Map<RuleAttribute, List<String>> attributeMap;
         private String label;
         private String updatedAt;
         private Feature feature;
@@ -154,24 +193,13 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
                 throw new IllegalArgumentException("Expected START_OBJECT token but found [" + parser.currentName() + "]");
             }
 
-            Map<String, List<String>> attributeMap1 = new HashMap<>();
+            Map<RuleAttribute, List<String>> attributeMap1 = new HashMap<>();
             String fieldName = "";
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     fieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (fieldName.equals("index_pattern")) {
-                        if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                            List<String> indexPatternList = parser.list().stream()
-                                .map(value -> (String) value)
-                                .collect(Collectors.toList());
-                            attributeMap1.put("index_pattern", indexPatternList);
-                        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                            attributeMap1.put("index_pattern", Collections.singletonList(parser.text()));
-                        } else {
-                            throw new XContentParseException("Unexpected token for index_pattern: " + parser.currentToken());
-                        }
-                    } else if (fieldName.equals("_id")) {
+                    if (fieldName.equals("_id")) {
                         builder._id(parser.text());
                     } else if (fieldName.equals("label")) {
                         builder.label(parser.text());
@@ -182,6 +210,17 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
                     } else {
                         throw new IllegalArgumentException(fieldName + " is not a valid field in Rule");
                     }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    RuleAttribute ruleAttribute = RuleAttribute.fromName(fieldName);
+                    List<String> indexPatternList = new ArrayList<>();
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                            indexPatternList.add(parser.text());
+                        } else {
+                            throw new XContentParseException("Unexpected token in array: " + parser.currentToken());
+                        }
+                    }
+                    attributeMap1.put(ruleAttribute, indexPatternList);
                 }
             }
             return builder.attributeMap(attributeMap1);
@@ -197,7 +236,7 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
             return this;
         }
 
-        public Builder attributeMap(Map<String, List<String>> attributeMap) {
+        public Builder attributeMap(Map<RuleAttribute, List<String>> attributeMap) {
             this.attributeMap = attributeMap;
             return this;
         }

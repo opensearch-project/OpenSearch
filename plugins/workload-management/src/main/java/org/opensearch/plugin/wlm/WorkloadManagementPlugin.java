@@ -33,8 +33,11 @@ import org.opensearch.plugin.wlm.querygroup.rest.RestGetQueryGroupAction;
 import org.opensearch.plugin.wlm.querygroup.rest.RestUpdateQueryGroupAction;
 import org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService;
 import org.opensearch.plugin.wlm.rule.action.CreateRuleAction;
+import org.opensearch.plugin.wlm.rule.action.GetRuleAction;
 import org.opensearch.plugin.wlm.rule.action.TransportCreateRuleAction;
+import org.opensearch.plugin.wlm.rule.action.TransportGetRuleAction;
 import org.opensearch.plugin.wlm.rule.rest.RestCreateRuleAction;
+import org.opensearch.plugin.wlm.rule.rest.RestGetRuleAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
@@ -64,7 +67,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new ActionPlugin.ActionHandler<>(GetQueryGroupAction.INSTANCE, TransportGetQueryGroupAction.class),
             new ActionPlugin.ActionHandler<>(DeleteQueryGroupAction.INSTANCE, TransportDeleteQueryGroupAction.class),
             new ActionPlugin.ActionHandler<>(UpdateQueryGroupAction.INSTANCE, TransportUpdateQueryGroupAction.class),
-            new ActionPlugin.ActionHandler<>(CreateRuleAction.INSTANCE, TransportCreateRuleAction.class)
+            new ActionPlugin.ActionHandler<>(CreateRuleAction.INSTANCE, TransportCreateRuleAction.class),
+            new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class)
         );
     }
 
@@ -91,7 +95,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new RestGetQueryGroupAction(),
             new RestDeleteQueryGroupAction(),
             new RestUpdateQueryGroupAction(),
-            new RestCreateRuleAction()
+            new RestCreateRuleAction(),
+            new RestGetRuleAction()
         );
     }
 

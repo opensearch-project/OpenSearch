@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action;
+package org.opensearch.plugin.wlm.querygroup.action;
 
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -20,17 +20,17 @@ import java.util.List;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.assertEqualQueryGroups;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
 
-public class CreateRuleRequestTests extends OpenSearchTestCase {
+public class CreateQueryGroupRequestTests extends OpenSearchTestCase {
 
     /**
      * Test case to verify the serialization and deserialization of CreateQueryGroupRequest.
      */
     public void testSerialization() throws IOException {
-        org.opensearch.plugin.wlm.action.CreateRuleRequest request = new org.opensearch.plugin.wlm.action.CreateRuleRequest(queryGroupOne);
+        CreateQueryGroupRequest request = new CreateQueryGroupRequest(queryGroupOne);
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        org.opensearch.plugin.wlm.action.CreateRuleRequest otherRequest = new org.opensearch.plugin.wlm.action.CreateRuleRequest(streamInput);
+        CreateQueryGroupRequest otherRequest = new CreateQueryGroupRequest(streamInput);
         List<QueryGroup> list1 = new ArrayList<>();
         List<QueryGroup> list2 = new ArrayList<>();
         list1.add(queryGroupOne);

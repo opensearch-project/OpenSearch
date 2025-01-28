@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.service;
+package org.opensearch.plugin.wlm.querygroup.service;
 
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -22,10 +22,10 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.QueryGroupTestUtils;
-import org.opensearch.plugin.wlm.action.CreateRuleResponse;
-import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
-import org.opensearch.plugin.wlm.action.UpdateQueryGroupRequest;
-import org.opensearch.plugin.wlm.action.UpdateQueryGroupResponse;
+import org.opensearch.plugin.wlm.querygroup.action.CreateQueryGroupResponse;
+import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupRequest;
+import org.opensearch.plugin.wlm.querygroup.action.UpdateQueryGroupRequest;
+import org.opensearch.plugin.wlm.querygroup.action.UpdateQueryGroupResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.MutableQueryGroupFragment;
@@ -58,9 +58,9 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupList;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupPersistenceService;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupTwo;
-import static org.opensearch.plugin.wlm.action.QueryGroupActionTestUtils.updateQueryGroupRequest;
-import static org.opensearch.plugin.wlm.service.QueryGroupPersistenceService.QUERY_GROUP_COUNT_SETTING_NAME;
-import static org.opensearch.plugin.wlm.service.QueryGroupPersistenceService.SOURCE;
+import static org.opensearch.plugin.wlm.querygroup.action.QueryGroupActionTestUtils.updateQueryGroupRequest;
+import static org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService.QUERY_GROUP_COUNT_SETTING_NAME;
+import static org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService.SOURCE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyString;
@@ -197,7 +197,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     public void testPersistInClusterStateMetadata() {
         ClusterService clusterService = mock(ClusterService.class);
         @SuppressWarnings("unchecked")
-        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        ActionListener<CreateQueryGroupResponse> listener = mock(ActionListener.class);
         QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
             clusterService,
             QueryGroupTestUtils.settings(),
@@ -213,7 +213,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     public void testPersistInClusterStateMetadataInner() {
         ClusterService clusterService = mock(ClusterService.class);
         @SuppressWarnings("unchecked")
-        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        ActionListener<CreateQueryGroupResponse> listener = mock(ActionListener.class);
         QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
             clusterService,
             QueryGroupTestUtils.settings(),
@@ -231,7 +231,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
         queryGroupPersistenceService.persistInClusterStateMetadata(queryGroupOne, listener);
-        verify(listener).onResponse(any(CreateRuleResponse.class));
+        verify(listener).onResponse(any(CreateQueryGroupResponse.class));
     }
 
     /**
@@ -240,7 +240,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     public void testPersistInClusterStateMetadataFailure() {
         ClusterService clusterService = mock(ClusterService.class);
         @SuppressWarnings("unchecked")
-        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        ActionListener<CreateQueryGroupResponse> listener = mock(ActionListener.class);
         QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
             clusterService,
             QueryGroupTestUtils.settings(),

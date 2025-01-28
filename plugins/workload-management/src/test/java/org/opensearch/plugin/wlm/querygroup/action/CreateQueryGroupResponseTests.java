@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action;
+package org.opensearch.plugin.wlm.querygroup.action;
 
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -24,17 +24,17 @@ import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
-public class CreateRuleResponseTests extends OpenSearchTestCase {
+public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
 
     /**
      * Test case to verify serialization and deserialization of CreateQueryGroupResponse.
      */
     public void testSerialization() throws IOException {
-        org.opensearch.plugin.wlm.action.CreateRuleResponse response = new org.opensearch.plugin.wlm.action.CreateRuleResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
+        CreateQueryGroupResponse response = new CreateQueryGroupResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        org.opensearch.plugin.wlm.action.CreateRuleResponse otherResponse = new org.opensearch.plugin.wlm.action.CreateRuleResponse(streamInput);
+        CreateQueryGroupResponse otherResponse = new CreateQueryGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         QueryGroup responseGroup = response.getQueryGroup();
         QueryGroup otherResponseGroup = otherResponse.getQueryGroup();
@@ -50,7 +50,7 @@ public class CreateRuleResponseTests extends OpenSearchTestCase {
      */
     public void testToXContentCreateQueryGroup() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        org.opensearch.plugin.wlm.action.CreateRuleResponse response = new org.opensearch.plugin.wlm.action.CreateRuleResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
+        CreateQueryGroupResponse response = new CreateQueryGroupResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"

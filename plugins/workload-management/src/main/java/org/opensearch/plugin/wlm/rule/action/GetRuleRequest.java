@@ -25,32 +25,23 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 public class GetRuleRequest extends ClusterManagerNodeRequest<GetRuleRequest> {
-    private final Rule rule;
+    private final String _id;
 
     /**
      * Constructor for GetRuleRequest
-     * @param rule - A {@link Rule} object
+     * @param _id - Rule _id that we want to get
      */
-    GetRuleRequest(Rule rule) {
-        this.rule = rule;
+    public GetRuleRequest(String _id) {
+        this._id = _id;
     }
 
     /**
      * Constructor for GetRuleRequest
      * @param in - A {@link StreamInput} object
      */
-    GetRuleRequest(StreamInput in) throws IOException {
+    public GetRuleRequest(StreamInput in) throws IOException {
         super(in);
-        rule = new Rule(in);
-    }
-
-    /**
-     * Generate a GetRuleRequest from XContent
-     * @param parser - A {@link XContentParser} object
-     */
-    public static GetRuleRequest fromXContent(XContentParser parser) throws IOException {
-        Builder builder = Builder.fromXContent(parser);
-        return new GetRuleRequest(builder._id(UUIDs.randomBase64UUID()).updatedAt(String.valueOf(Instant.now().getMillis())).build());
+        _id = in.readOptionalString();
     }
 
     @Override
@@ -61,13 +52,13 @@ public class GetRuleRequest extends ClusterManagerNodeRequest<GetRuleRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        rule.writeTo(out);
+        out.writeOptionalString(_id);
     }
 
     /**
-     * Rule getter
+     * _id getter
      */
-    public Rule getRule() {
-        return rule;
+    public String get_id() {
+        return _id;
     }
 }

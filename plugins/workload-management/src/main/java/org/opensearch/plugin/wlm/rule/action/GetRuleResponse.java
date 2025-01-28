@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.wlm.rule.action;
 
+import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.metadata.Rule;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -18,51 +19,59 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
- * Response for the create API for Rule
+ * Response for the get API for Rule
  *
  * @opensearch.experimental
  */
 public class GetRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
-    private final Rule rule;
+    private final List<Rule> rules;
     private final RestStatus restStatus;
 
     /**
-     * Constructor for CreateRuleResponse
-     * @param rule - The Rule to be included in the response
+     * Constructor for GetRuleResponse
+     * @param rules - The List of Rules to be included in the response
      * @param restStatus - The restStatus for the response
      */
-    public GetRuleResponse(final Rule rule, RestStatus restStatus) {
-        this.rule = rule;
+    public GetRuleResponse(final List<Rule> rules, RestStatus restStatus) {
+        this.rules = rules;
         this.restStatus = restStatus;
     }
 
     /**
-     * Constructor for CreateRuleResponse
+     * Constructor for GetRuleResponse
      * @param in - A {@link StreamInput} object
      */
     public GetRuleResponse(StreamInput in) throws IOException {
-        rule = new Rule(in);
+        this.rules = in.readList(Rule::new);
         restStatus = RestStatus.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        rule.writeTo(out);
+        out.writeCollection(rules);
         RestStatus.writeTo(out, restStatus);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return rule.toXContent(builder, params);
+        builder.startObject();
+        builder.startArray("rules");
+        for (Rule rule : rules) {
+            rule.toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
     }
 
     /**
-     * rule getter
+     * rules getter
      */
-    public Rule getRule() {
-        return rule;
+    public List<Rule> getRules() {
+        return rules;
     }
 
     /**

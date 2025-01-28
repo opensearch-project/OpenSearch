@@ -19,7 +19,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
+import org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.MutableQueryGroupFragment;
 import org.opensearch.wlm.ResourceType;

@@ -6,14 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.rest;
+package org.opensearch.plugin.wlm.querygroup.rest;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.plugin.wlm.action.DeleteQueryGroupAction;
-import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
+import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupRequest;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
