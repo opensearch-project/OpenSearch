@@ -291,6 +291,10 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
-        return collectMode == SubAggCollectionMode.BREADTH_FIRST && !aggsUsedForSorting.contains(aggregator);
+        // don't defer when StarTreeContext is set, don't defer when collectMode == SubAggCollectionMode.BREADTH_FIRST
+        // this boolean condition can be further simplified but affects readability.
+        return (context.getQueryShardContext().getStarTreeQueryContext() == null || collectMode != SubAggCollectionMode.BREADTH_FIRST)
+            && collectMode == SubAggCollectionMode.BREADTH_FIRST
+            && !aggsUsedForSorting.contains(aggregator);
     }
 }
