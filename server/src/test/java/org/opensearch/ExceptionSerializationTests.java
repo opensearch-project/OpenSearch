@@ -46,7 +46,6 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.client.AbstractClientHeadersTestCase;
-import org.opensearch.cluster.NotMasterException;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.IndexCreateBlockException;
@@ -88,7 +87,6 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.crypto.CryptoRegistryException;
-import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.query.QueryShardException;
@@ -259,9 +257,6 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));
-        // Remove the deprecated exception classes from the unregistered list.
-        assertTrue(notRegistered.remove(NotMasterException.class));
-        assertTrue(notRegistered.remove(MasterNotDiscoveredException.class));
         assertTrue(
             "Classes subclassing OpenSearchException must be registered in OpenSearchException.OpenSearchExceptionHandle \n"
                 + notRegistered,

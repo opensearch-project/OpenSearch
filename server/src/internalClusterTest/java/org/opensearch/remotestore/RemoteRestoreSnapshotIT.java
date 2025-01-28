@@ -1143,7 +1143,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
                     .cluster()
                     .prepareCreateSnapshot(snapshotRepoName, snapshotName)
                     .setWaitForCompletion(true)
-                    .setMasterNodeTimeout(TimeValue.timeValueSeconds(60))
+                    .setClusterManagerNodeTimeout(TimeValue.timeValueSeconds(60))
                     .get();
 
             } catch (Exception ignored) {}
