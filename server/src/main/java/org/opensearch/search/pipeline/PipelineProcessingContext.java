@@ -57,4 +57,8 @@ public class PipelineProcessingContext {
     public List<ProcessorExecutionDetail> getProcessorExecutionDetails() {
         return Collections.unmodifiableList(processorExecutionDetails);
     }
+
+    public Map<String, Object> getAttributes() {
+        return attributes;
+    }
 }
