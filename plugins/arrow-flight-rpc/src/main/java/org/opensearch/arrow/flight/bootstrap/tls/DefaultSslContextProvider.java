@@ -55,8 +55,8 @@ public class DefaultSslContextProvider implements SslContextProvider {
         try {
             SecureTransportSettingsProvider.SecureTransportParameters parameters = secureTransportSettingsProvider.parameters(null).get();
             return io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder.forServer(parameters.keyManagerFactory().get())
-                .sslProvider(SslProvider.valueOf(parameters.sslProvider().toUpperCase(Locale.ROOT)))
-                .clientAuth(ClientAuth.valueOf(parameters.clientAuth().toUpperCase(Locale.ROOT)))
+                .sslProvider(SslProvider.valueOf(parameters.sslProvider().get().toUpperCase(Locale.ROOT)))
+                .clientAuth(ClientAuth.valueOf(parameters.clientAuth().get().toUpperCase(Locale.ROOT)))
                 .protocols(parameters.protocols())
                 .ciphers(parameters.cipherSuites(), SupportedCipherSuiteFilter.INSTANCE)
                 .sessionCacheSize(0)
@@ -72,7 +72,7 @@ public class DefaultSslContextProvider implements SslContextProvider {
                         ApplicationProtocolNames.HTTP_1_1
                     )
                 )
-                .trustManager(parameters.trustManagerFactory())
+                .trustManager(parameters.trustManagerFactory().get())
                 .build();
         } catch (SSLException e) {
             throw new RuntimeException(e);
@@ -88,7 +88,7 @@ public class DefaultSslContextProvider implements SslContextProvider {
         try {
             SecureTransportSettingsProvider.SecureTransportParameters parameters = secureTransportSettingsProvider.parameters(null).get();
             return io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder.forClient()
-                .sslProvider(SslProvider.valueOf(parameters.sslProvider().toUpperCase(Locale.ROOT)))
+                .sslProvider(SslProvider.valueOf(parameters.sslProvider().get().toUpperCase(Locale.ROOT)))
                 .protocols(parameters.protocols())
                 .ciphers(parameters.cipherSuites(), SupportedCipherSuiteFilter.INSTANCE)
                 .applicationProtocolConfig(
@@ -103,7 +103,7 @@ public class DefaultSslContextProvider implements SslContextProvider {
                 .sessionCacheSize(0)
                 .sessionTimeout(0)
                 .keyManager(parameters.keyManagerFactory().get())
-                .trustManager(parameters.trustManagerFactory())
+                .trustManager(parameters.trustManagerFactory().get())
                 .build();
         } catch (SSLException e) {
             throw new RuntimeException(e);

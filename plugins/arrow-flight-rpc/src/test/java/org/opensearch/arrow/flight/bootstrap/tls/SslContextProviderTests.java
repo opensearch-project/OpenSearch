@@ -19,7 +19,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
-import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
@@ -39,15 +39,15 @@ public class SslContextProviderTests extends OpenSearchTestCase {
         mockSecureTransportSettingsProvider = mock(SecureTransportSettingsProvider.class);
         mockParameters = mock(SecureTransportSettingsProvider.SecureTransportParameters.class);
 
-        String[] protocols = { "TLSv1.2", "TLSv1.3" };
-        Iterable<String> cipherSuites = Arrays.asList("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384");
+        List<String> protocols = List.of("TLSv1.2", "TLSv1.3");
+        List<String> cipherSuites = List.of("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384");
         setupDummyFactories();
-        when(mockParameters.sslProvider()).thenReturn("JDK");
-        when(mockParameters.clientAuth()).thenReturn("REQUIRE");
+        when(mockParameters.sslProvider()).thenReturn(Optional.of("JDK"));
+        when(mockParameters.clientAuth()).thenReturn(Optional.of("REQUIRE"));
         when(mockParameters.protocols()).thenReturn(protocols);
         when(mockParameters.cipherSuites()).thenReturn(cipherSuites);
         when(mockParameters.keyManagerFactory()).thenReturn(Optional.of(keyManagerFactory));
-        when(mockParameters.trustManagerFactory()).thenReturn(trustManagerFactory);
+        when(mockParameters.trustManagerFactory()).thenReturn(Optional.of(trustManagerFactory));
 
         when(mockSecureTransportSettingsProvider.parameters(null)).thenReturn(java.util.Optional.of(mockParameters));
     }
@@ -88,7 +88,7 @@ public class SslContextProviderTests extends OpenSearchTestCase {
     }
 
     public void testDefaultSslContextProviderWithInvalidSslProvider() {
-        when(mockParameters.sslProvider()).thenReturn("INVALID");
+        when(mockParameters.sslProvider()).thenReturn(Optional.of("INVALID"));
         DefaultSslContextProvider provider = new DefaultSslContextProvider(mockSecureTransportSettingsProvider);
         expectThrows(IllegalArgumentException.class, provider::getServerSslContext);
         expectThrows(IllegalArgumentException.class, provider::getClientSslContext);
