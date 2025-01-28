@@ -13,6 +13,7 @@ import org.apache.lucene.search.Collector;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Provide contextual profile breakdowns which are associated with freestyle context. Used when concurrent
@@ -21,8 +22,8 @@ import java.util.Map;
  * @opensearch.internal
  */
 public abstract class ContextualProfileBreakdown<T extends Enum<T>> extends AbstractProfileBreakdown<T> {
-    public ContextualProfileBreakdown(Class<T> clazz) {
-        super(clazz);
+    public ContextualProfileBreakdown(Class<T> clazz, Set<String> additionalProfilerTimings) {
+        super(clazz, additionalProfilerTimings);
     }
 
     /**

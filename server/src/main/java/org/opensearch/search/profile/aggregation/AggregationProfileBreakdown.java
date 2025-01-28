@@ -38,6 +38,7 @@ import org.opensearch.search.profile.AbstractProfileBreakdown;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -50,7 +51,7 @@ public class AggregationProfileBreakdown extends AbstractProfileBreakdown<Aggreg
     private final Map<String, Object> extra = new HashMap<>();
 
     public AggregationProfileBreakdown() {
-        super(AggregationTimingType.class);
+        super(AggregationTimingType.class, emptySet());
     }
 
     /**

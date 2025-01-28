@@ -48,7 +48,7 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
     public ContextualProfileBreakdown<QueryTimingType> getQueryBreakdown(Query query) {
         ConcurrentQueryProfileTree profileTree = threadToProfileTree.computeIfAbsent(
             getCurrentThreadId(),
-            k -> new ConcurrentQueryProfileTree()
+            k -> new ConcurrentQueryProfileTree(super.profileTree.getAdditionalProfilerTimings())
         );
         return profileTree.getProfileBreakdown(query);
     }

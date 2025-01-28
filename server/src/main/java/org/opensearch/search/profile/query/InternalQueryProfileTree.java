@@ -35,6 +35,8 @@ package org.opensearch.search.profile.query;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 
+import java.util.Set;
+
 /**
  * This class returns a list of {@link ProfileResult} that can be serialized back to the client in the non-concurrent execution.
  *
@@ -42,8 +44,12 @@ import org.opensearch.search.profile.ProfileResult;
  */
 public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
+    public InternalQueryProfileTree(Set<String> additionalProfilerTimings) {
+        super(additionalProfilerTimings);
+    }
+
     @Override
     protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new QueryProfileBreakdown();
+        return new QueryProfileBreakdown(getAdditionalProfilerTimings());
     }
 }

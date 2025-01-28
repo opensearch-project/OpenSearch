@@ -15,6 +15,7 @@ import org.opensearch.search.profile.ProfileResult;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This class returns a list of {@link ProfileResult} that can be serialized back to the client in the concurrent execution.
@@ -23,9 +24,14 @@ import java.util.Map;
  */
 public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
 
+
+    public ConcurrentQueryProfileTree(Set<String> additionalProfilerTimings) {
+        super(additionalProfilerTimings);
+    }
+
     @Override
     protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new ConcurrentQueryProfileBreakdown();
+        return new ConcurrentQueryProfileBreakdown(getAdditionalProfilerTimings());
     }
 
     @Override

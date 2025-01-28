@@ -82,6 +82,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
@@ -89,6 +90,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  * Plugin for extending search time behavior.
@@ -225,6 +227,13 @@ public interface SearchPlugin {
      */
     default Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
         return Optional.empty();
+    }
+
+    /**
+     * Register any additional profiler timing types that is needed across all your queries
+     */
+    default Set<String> registerProfilerTimingTypes() {
+        return emptySet();
     }
 
     /**

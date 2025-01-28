@@ -301,9 +301,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -336,6 +338,7 @@ public class SearchModule {
     private final SearchPlugin.ExecutorServiceProvider indexSearcherExecutorProvider;
 
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
+    private final Set<String> queryProfilerTimingTypes = new HashSet<>();
 
     /**
      * Constructs a new SearchModule object
@@ -362,10 +365,17 @@ public class SearchModule {
         registerSearchExts(plugins);
         registerShapes();
         registerIntervalsSourceProviders();
+        registerProfilerTimingTypes(plugins);
         queryPhaseSearcher = registerQueryPhaseSearcher(plugins);
         indexSearcherExecutorProvider = registerIndexSearcherExecutorProvider(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
         concurrentSearchDeciderFactories = registerConcurrentSearchDeciderFactories(plugins);
+    }
+
+    private void registerProfilerTimingTypes(List<SearchPlugin> plugins) {
+        for (SearchPlugin plugin : plugins) {
+            queryProfilerTimingTypes.addAll(plugin.registerProfilerTimingTypes());
+        }
     }
 
     private Collection<ConcurrentSearchRequestDecider.Factory> registerConcurrentSearchDeciderFactories(List<SearchPlugin> plugins) {
@@ -382,6 +392,10 @@ public class SearchModule {
      */
     public Collection<ConcurrentSearchRequestDecider.Factory> getConcurrentSearchRequestDeciderFactories() {
         return concurrentSearchDeciderFactories;
+    }
+
+    public Set<String> getQueryProfilerTimingTypes() {
+        return queryProfilerTimingTypes;
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

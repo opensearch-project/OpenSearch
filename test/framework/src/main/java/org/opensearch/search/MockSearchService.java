@@ -113,7 +113,8 @@ public class MockSearchService extends SearchService {
             circuitBreakerService,
             indexSearcherExecutor,
             taskResourceTrackingService,
-            Collections.emptyList()
+            Collections.emptyList(),
+            Collections.emptySet()
         );
     }
 

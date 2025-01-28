@@ -44,6 +44,7 @@ import org.opensearch.search.profile.query.QueryProfiler;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Wrapper around all the profilers that makes management easier.
@@ -59,19 +60,19 @@ public final class Profilers {
     private final boolean isConcurrentSegmentSearchEnabled;
 
     /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
-    public Profilers(ContextIndexSearcher searcher, boolean isConcurrentSegmentSearchEnabled) {
+    public Profilers(ContextIndexSearcher searcher, Set<String> additionalProfilerTimings, boolean isConcurrentSegmentSearchEnabled) {
         this.searcher = searcher;
         this.isConcurrentSegmentSearchEnabled = isConcurrentSegmentSearchEnabled;
         this.queryProfilers = new ArrayList<>();
         this.aggProfiler = isConcurrentSegmentSearchEnabled ? new ConcurrentAggregationProfiler() : new AggregationProfiler();
-        addQueryProfiler();
+        addQueryProfiler(additionalProfilerTimings);
     }
 
     /** Switch to a new profile. */
-    public QueryProfiler addQueryProfiler() {
+    public QueryProfiler addQueryProfiler(Set<String> additionalProfilerTimings) {
         QueryProfiler profiler = isConcurrentSegmentSearchEnabled
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(additionalProfilerTimings))
+            : new QueryProfiler(new InternalQueryProfileTree(additionalProfilerTimings));
         searcher.setProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;

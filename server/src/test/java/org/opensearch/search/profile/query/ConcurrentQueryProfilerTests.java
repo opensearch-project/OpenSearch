@@ -11,6 +11,7 @@ package org.opensearch.search.profile.query;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -19,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ConcurrentQueryProfilerTests extends OpenSearchTestCase {
 
     public void testMergeRewriteTimeIntervals() {
-        ConcurrentQueryProfiler profiler = new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree());
+        ConcurrentQueryProfiler profiler = new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(Collections.emptySet()));
         List<Timer> timers = new LinkedList<>();
         timers.add(new Timer(217134L, 1L, 1L, 0L, 553074511206907L));
         timers.add(new Timer(228954L, 1L, 1L, 0L, 553074509287335L));
