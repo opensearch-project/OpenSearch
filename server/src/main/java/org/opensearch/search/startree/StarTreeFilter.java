@@ -123,11 +123,8 @@ public class StarTreeFilter {
         DocIdSetBuilder.BulkAdder adder;
         Set<String> globalRemainingPredicateColumns = null;
         StarTreeNode starTree = starTreeValues.getRoot();
-        List<String> dimensionNames = starTreeValues.getStarTreeField()
-            .getDimensionsOrder()
-            .stream()
-            .map(Dimension::getField)
-            .collect(Collectors.toList());
+        List<Dimension> dimensionsOrder = starTreeValues.getStarTreeField().getDimensionsOrder();
+        List<String> dimensionNames = dimensionsOrder.stream().map(Dimension::getField).collect(Collectors.toList());
         boolean foundLeafNode = starTree.isLeaf();
         assert foundLeafNode == false; // root node is never leaf
         Queue<StarTreeNode> queue = new ArrayDeque<>();
