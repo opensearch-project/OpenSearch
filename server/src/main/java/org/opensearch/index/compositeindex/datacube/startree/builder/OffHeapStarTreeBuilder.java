@@ -235,7 +235,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
-                });
+                }, dimensionComparators);
             } catch (UncheckedIOException ex) {
                 // Unwrap UncheckedIOException and throw as IOException
                 if (ex.getCause() != null) {
@@ -308,6 +308,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     @Override
     public Long getDimensionValue(int docId, int dimensionId) throws IOException {
         return starTreeDocumentFileManager.getDimensionValue(docId, dimensionId);
+
     }
 
     /**
@@ -334,7 +335,8 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, dimensionComparators);
+
         // Create an iterator for aggregated documents
         return new Iterator<StarTreeDocument>() {
             boolean hasNext = true;
