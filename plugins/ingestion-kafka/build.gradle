@@ -38,6 +38,7 @@ dependencies {
   testImplementation "org.rnorth.duct-tape:duct-tape:${versions.ducttape}"
   testImplementation "org.apache.commons:commons-compress:${versions.commonscompress}"
   testImplementation "commons-io:commons-io:${versions.commonsio}"
+  testImplementation 'org.awaitility:awaitility:4.2.0'
 }
 
 internalClusterTest{

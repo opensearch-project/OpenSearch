@@ -17,7 +17,6 @@ import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.Assert;
 
 import java.util.List;
 import java.util.Map;
@@ -27,7 +26,7 @@ import java.util.function.Function;
 
 import org.testcontainers.shaded.com.google.common.collect.ImmutableMap;
 
-import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
+import static org.awaitility.Awaitility.await;
 
 public class KafkaUtils {
     private static final Logger LOGGER = LogManager.getLogger(KafkaUtils.class);
@@ -56,7 +55,7 @@ public class KafkaUtils {
         }
 
         // validates topic is created
-        await().atMost(3, TimeUnit.SECONDS).untilAsserted(() -> { Assert.assertTrue(checkTopicExistence(topicName, bootstrapServers)); });
+        await().atMost(3, TimeUnit.SECONDS).until(() -> checkTopicExistence(topicName, bootstrapServers));
     }
 
     public static boolean checkTopicExistence(String topicName, String bootstrapServers) {
