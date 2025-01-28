@@ -13,7 +13,9 @@ testingConventions.enabled = false
 
 dependencies {
   api project(':libs:opensearch-core')
-  api project(path:':libs:opensearch-arrow-memory-shaded', configuration: 'shadow')
+  api "org.apache.arrow:arrow-vector:${versions.arrow}"
+  api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  api 'org.checkerframework:checker-qual:3.44.0'
 }
 
 tasks.named('forbiddenApisMain').configure {

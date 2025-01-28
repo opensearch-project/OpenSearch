@@ -7,6 +7,7 @@
  */
 
 plugins {
+  id 'opensearch.build'
   id("com.gradleup.shadow")
 }
 
@@ -18,14 +19,14 @@ generatePomFileForShadowPublication.enabled = false
 
 dependencies {
   runtimeOnly "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
-  runtimeOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  //runtimeOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
   runtimeOnly "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
   runtimeOnly "io.netty:netty-buffer:${versions.netty}"
   runtimeOnly "io.netty:netty-common:${versions.netty}"
-  runtimeOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+  // runtimeOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
   runtimeOnly "org.apache.arrow:arrow-format:${versions.arrow}"
 
-  runtimeOnly 'org.checkerframework:checker-qual:3.44.0'
+  // runtimeOnly 'org.checkerframework:checker-qual:3.44.0'
   runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
