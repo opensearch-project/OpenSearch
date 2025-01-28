@@ -25,9 +25,13 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -177,6 +181,22 @@ public class StarTreeQueryHelper {
                 updateBucket.accept(bucket, metricValue);
             }
         };
+    }
+
+    public static StarTreeFilter mergeDimensionFilterIfNotExists(
+        StarTreeFilter baseStarTreeFilter,
+        String dimensionToMerge,
+        List<DimensionFilter> dimensionFiltersToMerge
+    ) {
+        Map<String, List<DimensionFilter>> dimensionFilterMap = new HashMap<>(baseStarTreeFilter.getDimensions().size());
+        for (String baseDimension : baseStarTreeFilter.getDimensions()) {
+            dimensionFilterMap.put(baseDimension, baseStarTreeFilter.getFiltersForDimension(baseDimension));
+        }
+        // Don't add groupBy when already present in base filter.
+        if (!dimensionFilterMap.containsKey(dimensionToMerge)) {
+            dimensionFilterMap.put(dimensionToMerge, dimensionFiltersToMerge);
+        }
+        return new StarTreeFilter(dimensionFilterMap);
     }
 
 }

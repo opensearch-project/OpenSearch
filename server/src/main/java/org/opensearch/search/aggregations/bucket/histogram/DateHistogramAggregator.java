@@ -70,11 +70,9 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.StarTreeTraversalUtil;
 import org.opensearch.search.startree.filter.DimensionFilter;
-import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -269,10 +267,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         return new StarTreeBucketCollector(
             starTreeValues,
-            // FIXME : Add to base query filter any full dimension filter
             StarTreeTraversalUtil.getStarTreeResult(
                 starTreeValues,
-                mergeStarTreeFilter(
+                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
                     context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
                     starTreeDateDimension,
                     List.of(DimensionFilter.MATCH_ALL_DEFAULT)
@@ -324,24 +321,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 }
             }
         };
-    }
-
-    private StarTreeFilter mergeStarTreeFilter(
-        StarTreeFilter baseStarTreeFilter,
-        String groupByField,
-        List<DimensionFilter> filtersToMerge
-    ) {
-        Map<String, List<DimensionFilter>> dimensionFilterMap = new HashMap<>(baseStarTreeFilter.getDimensions().size());
-        for (String baseDimension : baseStarTreeFilter.getDimensions()) {
-            if (!baseDimension.equals(groupByField)) {
-                dimensionFilterMap.put(baseDimension, baseStarTreeFilter.getFiltersForDimension(baseDimension));
-            }
-        }
-        // Don't add groupBy when already present in base filter.
-        if (!dimensionFilterMap.containsKey(groupByField)) {
-            dimensionFilterMap.put(groupByField, filtersToMerge);
-        }
-        return new StarTreeFilter(dimensionFilterMap);
     }
 
     @Override

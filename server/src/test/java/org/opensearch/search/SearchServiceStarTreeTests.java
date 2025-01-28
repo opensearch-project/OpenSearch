@@ -428,8 +428,6 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testCacheCreationInStarTreeQueryContext() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
-        setStarTreeIndexSetting("true");
         StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
             1,
             Collections.emptySet(),
@@ -482,7 +480,6 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         starTreeQueryContext = new StarTreeQueryContext(compositeDataCubeFieldType, new MatchAllQueryBuilder(), 2);
         assertEquals(2, starTreeQueryContext.getAllCachedValues().length);
 
-        setStarTreeIndexSetting(null);
         mapperService.close();
     }
 

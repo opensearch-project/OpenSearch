@@ -41,7 +41,9 @@ import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.StarTreeTraversalUtil;
+import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
+import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 import org.junit.After;
 import org.junit.Before;
@@ -103,6 +105,64 @@ public class StarTreeFilterTests extends AggregatorTestCase {
 
     public void testStarTreeFilterWithDocsInSVDFieldButNoStarNode() throws IOException {
         testStarTreeFilter(10, false);
+    }
+
+    public void testStarTreeFilterMerging() {
+
+        StarTreeFilter mergedStarTreeFilter;
+        String dimensionToMerge = "dim";
+
+        DimensionFilter exactMatchDimFilter = new ExactMatchDimFilter(dimensionToMerge, Collections.emptyList());
+        DimensionFilter rangeMatchDimFilter = new RangeMatchDimFilter(dimensionToMerge, null, null, true, true);
+
+        // When Star Tree doesn't have the same dimension as @dimensionToMerge
+        StarTreeFilter starTreeFilter = new StarTreeFilter(Collections.emptyMap());
+        mergedStarTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+            starTreeFilter,
+            dimensionToMerge,
+            List.of(exactMatchDimFilter)
+        );
+        assertEquals(1, mergedStarTreeFilter.getDimensions().size());
+        DimensionFilter mergedDimensionFilter1 = mergedStarTreeFilter.getFiltersForDimension(dimensionToMerge).get(0);
+        assertEquals(ExactMatchDimFilter.class, mergedDimensionFilter1.getClass());
+
+        // When Star Tree has the same dimension as @dimensionToMerge
+        starTreeFilter = new StarTreeFilter(Map.of(dimensionToMerge, List.of(rangeMatchDimFilter)));
+        mergedStarTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+            starTreeFilter,
+            dimensionToMerge,
+            List.of(exactMatchDimFilter)
+        );
+        assertEquals(1, mergedStarTreeFilter.getDimensions().size());
+        DimensionFilter mergedDimensionFilter2 = mergedStarTreeFilter.getFiltersForDimension(dimensionToMerge).get(0);
+        assertEquals(RangeMatchDimFilter.class, mergedDimensionFilter2.getClass());
+
+        // When Star Tree has the same dimension as @dimensionToMerge with other dimensions
+        starTreeFilter = new StarTreeFilter(Map.of(dimensionToMerge, List.of(rangeMatchDimFilter), "status", List.of(rangeMatchDimFilter)));
+        mergedStarTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+            starTreeFilter,
+            dimensionToMerge,
+            List.of(exactMatchDimFilter)
+        );
+        assertEquals(2, mergedStarTreeFilter.getDimensions().size());
+        DimensionFilter mergedDimensionFilter3 = mergedStarTreeFilter.getFiltersForDimension(dimensionToMerge).get(0);
+        assertEquals(RangeMatchDimFilter.class, mergedDimensionFilter3.getClass());
+        DimensionFilter mergedDimensionFilter4 = mergedStarTreeFilter.getFiltersForDimension("status").get(0);
+        assertEquals(RangeMatchDimFilter.class, mergedDimensionFilter4.getClass());
+
+        // When Star Tree doesn't have the same dimension as @dimensionToMerge but has other dimensions
+        starTreeFilter = new StarTreeFilter(Map.of("status", List.of(rangeMatchDimFilter)));
+        mergedStarTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+            starTreeFilter,
+            dimensionToMerge,
+            List.of(exactMatchDimFilter)
+        );
+        assertEquals(2, mergedStarTreeFilter.getDimensions().size());
+        DimensionFilter mergedDimensionFilter5 = mergedStarTreeFilter.getFiltersForDimension(dimensionToMerge).get(0);
+        assertEquals(ExactMatchDimFilter.class, mergedDimensionFilter5.getClass());
+        DimensionFilter mergedDimensionFilter6 = mergedStarTreeFilter.getFiltersForDimension("status").get(0);
+        assertEquals(RangeMatchDimFilter.class, mergedDimensionFilter6.getClass());
+
     }
 
     private Directory createStarTreeIndex(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension, List<Document> docs)
