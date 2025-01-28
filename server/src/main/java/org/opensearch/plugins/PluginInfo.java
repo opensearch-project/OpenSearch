@@ -289,19 +289,19 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         final String opensearchVersionString = propsMap.remove("opensearch.version");
         final String dependenciesValue = propsMap.remove("dependencies");
-        if (opensearchVersionString == null && dependenciesValue == null) {
+        if (isBlank(opensearchVersionString) && isBlank(dependenciesValue)) {
             throw new IllegalArgumentException(
                 "Either [opensearch.version] or [dependencies] property must be specified for the plugin [" + name + "]"
             );
         }
-        if (opensearchVersionString != null && dependenciesValue != null) {
+        if (!isBlank(opensearchVersionString) && !isBlank(dependenciesValue)) {
             throw new IllegalArgumentException(
                 "Only one of [opensearch.version] or [dependencies] property can be specified for the plugin [" + name + "]"
             );
         }
 
         final List<SemverRange> opensearchVersionRanges = new ArrayList<>();
-        if (opensearchVersionString != null) {
+        if (!isBlank(opensearchVersionString)) {
             opensearchVersionRanges.add(SemverRange.fromString(opensearchVersionString));
         } else {
             Map<String, String> dependenciesMap;
@@ -591,5 +591,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append("Folder name: ")
             .append(customFolderName);
         return information.toString();
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 }
