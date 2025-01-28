@@ -57,15 +57,15 @@ public interface SecureTransportSettingsProvider {
 
         Optional<KeyManagerFactory> keyManagerFactory();
 
-        String sslProvider();
+        Optional<String> sslProvider();
 
-        String clientAuth();
+        Optional<String> clientAuth();
 
-        String[] protocols();
+        Collection<String> protocols();
 
-        Iterable<String> cipherSuites();
+        Collection<String> cipherSuites();
 
-        TrustManagerFactory trustManagerFactory();
+        Optional<TrustManagerFactory> trustManagerFactory();
     }
 
     /**

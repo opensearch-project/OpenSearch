@@ -14,6 +14,8 @@ import org.opensearch.common.settings.Settings;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -37,27 +39,27 @@ class DefaultSecureTransportParameters implements SecureTransportSettingsProvide
     }
 
     @Override
-    public String sslProvider() {
-        return "";
+    public Optional<String> sslProvider() {
+        return Optional.empty();
     }
 
     @Override
-    public String clientAuth() {
-        return "";
+    public Optional<String> clientAuth() {
+        return Optional.empty();
     }
 
     @Override
-    public String[] protocols() {
+    public Collection<String> protocols() {
+        return List.of();
+    }
+
+    @Override
+    public Collection<String> cipherSuites() {
         return null;
     }
 
     @Override
-    public Iterable<String> cipherSuites() {
-        return null;
-    }
-
-    @Override
-    public TrustManagerFactory trustManagerFactory() {
-        return null;
+    public Optional<TrustManagerFactory> trustManagerFactory() {
+        return Optional.empty();
     }
 }
