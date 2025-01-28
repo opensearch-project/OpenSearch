@@ -314,6 +314,10 @@ public interface DocValueFormat extends NamedWriteable {
             return parser;
         }
 
+        public ZoneId getZoneId() {
+            return timeZone;
+        }
+
         @Override
         public String format(long value) {
             return formatter.format(resolution.toInstant(value).atZone(timeZone));
