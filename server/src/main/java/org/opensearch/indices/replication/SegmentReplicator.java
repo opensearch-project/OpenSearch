@@ -137,7 +137,7 @@ public class SegmentReplicator {
         long segmentInfosVersion = latestCheckPoint.getSegmentInfosVersion();
         if (!existingCheckpointStats.containsKey(segmentInfosVersion)) {
             ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
-            if(replicationCheckpoint != null) {
+            if (replicationCheckpoint != null) {
                 long bytesBehind = calculateBytesBehind(latestCheckPoint, replicationCheckpoint);
                 if (bytesBehind > 0) {
                     existingCheckpointStats.put(
