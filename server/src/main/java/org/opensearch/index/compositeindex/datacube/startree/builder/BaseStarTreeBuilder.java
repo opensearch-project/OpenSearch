@@ -55,6 +55,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -112,6 +113,8 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     // This should be true for merge flows
     protected boolean isMerge = false;
 
+    protected final List<Comparator<Long>> dimensionComparators = new ArrayList<>();
+
     /**
      * Reads all the configuration related to dimensions and metrics, builds a star-tree based on the different construction parameters.
      *
@@ -136,6 +139,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         int numDims = 0;
         for (Dimension dim : starTreeField.getDimensionsOrder()) {
             numDims += dim.getNumSubDimensions();
+            for (int i = 0; i < dim.getNumSubDimensions(); i++) {
+                dimensionComparators.add(dim.comparator());
+            }
             dimensionsSplitOrder.add(dim);
         }
         this.numDimensions = numDims;
