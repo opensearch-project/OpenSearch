@@ -12,28 +12,32 @@ import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.search.startree.StarTreeNodeCollector;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ArrayBasedCollector implements StarTreeNodeCollector {
 
-    private final List<StarTreeNode> nodes = new ArrayList<>();
+    private final Set<Long> nodeDimensionValues = new HashSet<>();
 
     @Override
     public void collectStarTreeNode(StarTreeNode node) {
-        nodes.add(node);
+        try {
+            nodeDimensionValues.add(node.getDimensionValue());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    public boolean matchValues(long[] values) throws IOException {
+    public boolean matchValues(long... values) throws IOException {
         boolean matches = true;
-        for (int i = 0; i < values.length; i++) {
-            matches &= nodes.get(i).getDimensionValue() == values[i];
+        for (long value : values) {
+            matches &= nodeDimensionValues.contains(value);
         }
         return matches;
     }
 
     public int collectedNodeCount() {
-        return nodes.size();
+        return nodeDimensionValues.size();
     }
 
 }

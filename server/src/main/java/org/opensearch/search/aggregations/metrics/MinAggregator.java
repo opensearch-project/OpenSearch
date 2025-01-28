@@ -136,7 +136,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
-            return getStarTreeCollector(ctx, sub, supportedStarTree);
+            getStarTreeCollector(ctx, sub, supportedStarTree);
         }
         return getDefaultLeafCollector(ctx, sub);
     }
@@ -164,21 +164,11 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         };
     }
 
-    public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
-        throws IOException {
+    public void getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree) throws IOException {
         AtomicReference<Double> min = new AtomicReference<>(mins.get(0));
-        return StarTreeQueryHelper.getStarTreeLeafCollector(
-            context,
-            valuesSource,
-            ctx,
-            sub,
-            starTree,
-            MetricStat.MIN.getTypeName(),
-            value -> {
-                min.set(Math.min(min.get(), (NumericUtils.sortableLongToDouble(value))));
-            },
-            () -> mins.set(0, min.get())
-        );
+        StarTreeQueryHelper.getStarTreeLeafCollector(context, valuesSource, ctx, sub, starTree, MetricStat.MIN.getTypeName(), value -> {
+            min.set(Math.min(min.get(), (NumericUtils.sortableLongToDouble(value))));
+        }, () -> mins.set(0, min.get()));
     }
 
     @Override

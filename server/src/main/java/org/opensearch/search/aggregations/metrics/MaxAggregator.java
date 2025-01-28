@@ -137,7 +137,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
-            return getStarTreeCollector(ctx, sub, supportedStarTree);
+            getStarTreeCollector(ctx, sub, supportedStarTree);
         }
         return getDefaultLeafCollector(ctx, sub);
     }
@@ -167,21 +167,11 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
         };
     }
 
-    public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
-        throws IOException {
+    public void getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree) throws IOException {
         AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));
-        return StarTreeQueryHelper.getStarTreeLeafCollector(
-            context,
-            valuesSource,
-            ctx,
-            sub,
-            starTree,
-            MetricStat.MAX.getTypeName(),
-            value -> {
-                max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
-            },
-            () -> maxes.set(0, max.get())
-        );
+        StarTreeQueryHelper.getStarTreeLeafCollector(context, valuesSource, ctx, sub, starTree, MetricStat.MAX.getTypeName(), value -> {
+            max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
+        }, () -> maxes.set(0, max.get()));
     }
 
     @Override

@@ -46,7 +46,7 @@ public class StarTreeQueryContext {
      * to avoid reading the filtered values from the leaf reader context multiple times
      */
     // TODO : Change caching to be based on aggregation specific filters.
-    private final FixedBitSet[] starTreeValues;
+    private final FixedBitSet[] perSegmentNodeIdsCache;
 
     private final QueryBuilder baseQueryBuilder;
     private StarTreeFilter baseStarTreeFilter;
@@ -61,9 +61,9 @@ public class StarTreeQueryContext {
         boolean cacheStarTreeValues = context.aggregations().factories().getFactories().length > 1;
         int cacheSize = cacheStarTreeValues ? context.indexShard().segments(false).size() : -1;
         if (cacheSize > -1) {
-            starTreeValues = new FixedBitSet[cacheSize];
+            perSegmentNodeIdsCache = new FixedBitSet[cacheSize];
         } else {
-            starTreeValues = null;
+            perSegmentNodeIdsCache = null;
         }
     }
 
@@ -72,9 +72,9 @@ public class StarTreeQueryContext {
         this.compositeMappedFieldType = compositeMappedFieldType;
         this.baseQueryBuilder = baseQueryBuilder;
         if (cacheSize > -1) {
-            starTreeValues = new FixedBitSet[cacheSize];
+            perSegmentNodeIdsCache = new FixedBitSet[cacheSize];
         } else {
-            starTreeValues = null;
+            perSegmentNodeIdsCache = null;
         }
     }
 
@@ -83,16 +83,16 @@ public class StarTreeQueryContext {
     }
 
     public FixedBitSet maybeGetCachedNodeIdsForSegment(int ordinal) {
-        return starTreeValues != null ? starTreeValues[ordinal] : null;
+        return perSegmentNodeIdsCache != null ? perSegmentNodeIdsCache[ordinal] : null;
     }
 
     public FixedBitSet[] getAllCachedValues() {
-        return starTreeValues;
+        return perSegmentNodeIdsCache;
     }
 
     public void maybeSetCachedNodeIdsForSegment(int key, FixedBitSet values) {
-        if (starTreeValues != null) {
-            starTreeValues[key] = values;
+        if (perSegmentNodeIdsCache != null) {
+            perSegmentNodeIdsCache[key] = values;
         }
     }
 

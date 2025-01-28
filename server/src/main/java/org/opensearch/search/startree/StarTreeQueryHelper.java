@@ -70,7 +70,7 @@ public class StarTreeQueryHelper {
      * Get the star-tree leaf collector
      * This collector computes the aggregation prematurely and invokes an early termination collector
      */
-    public static LeafBucketCollector getStarTreeLeafCollector(
+    public static void getStarTreeLeafCollector(
         SearchContext context,
         ValuesSource.Numeric valuesSource,
         LeafReaderContext ctx,
@@ -113,6 +113,7 @@ public class StarTreeQueryHelper {
         // Call the final consumer after processing all entries
         finalConsumer.run();
 
+        // FIXME : Remove after @msfroh PR for precompute
         // Terminate after pre-computing aggregation
         throw new CollectionTerminatedException();
     }
