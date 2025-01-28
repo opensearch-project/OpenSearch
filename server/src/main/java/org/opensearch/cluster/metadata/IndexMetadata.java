@@ -351,6 +351,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
+    public static final String SETTING_INDEX_APPEND_ONLY_ENABLED = "index.append_only.enabled";
 
     public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
 
@@ -391,6 +392,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope,
         Property.PrivateIndex,
         Property.Dynamic
+    );
+
+    /**
+     * Used to specify if the index data should be persisted in the remote store.
+     */
+    public static final Setting<Boolean> INDEX_APPEND_ONLY_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_INDEX_APPEND_ONLY_ENABLED,
+        false,
+        Property.IndexScope,
+        Property.Final
     );
 
     /**
@@ -722,6 +733,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isRemoteSnapshot;
 
     private final int indexTotalShardsPerNodeLimit;
+    private final boolean isAppendOnlyIndex;
 
     private final Context context;
 
@@ -753,6 +765,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final Map<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
         final int indexTotalShardsPerNodeLimit,
+        boolean isAppendOnlyIndex,
         final Context context
     ) {
 
@@ -790,6 +803,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSystem = isSystem;
         this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
         this.indexTotalShardsPerNodeLimit = indexTotalShardsPerNodeLimit;
+        this.isAppendOnlyIndex = isAppendOnlyIndex;
         this.context = context;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
@@ -950,6 +964,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public int getIndexTotalShardsPerNodeLimit() {
         return this.indexTotalShardsPerNodeLimit;
+    }
+
+    public boolean isAppendOnlyIndex() {
+        return this.isAppendOnlyIndex;
     }
 
     @Nullable
@@ -1745,6 +1763,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final int indexTotalShardsPerNodeLimit = ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
+            final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings);
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
@@ -1776,6 +1795,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 rolloverInfos,
                 isSystem,
                 indexTotalShardsPerNodeLimit,
+                isAppendOnlyIndex,
                 context
             );
         }
