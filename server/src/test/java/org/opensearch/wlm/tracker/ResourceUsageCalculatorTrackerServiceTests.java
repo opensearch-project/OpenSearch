@@ -146,7 +146,7 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
         when(task.getTotalResourceUtilization(ResourceStats.MEMORY)).thenReturn(heapUsage);
         when(task.getStartTimeNanos()).thenReturn((long) 0);
         when(task.getElapsedTime()).thenReturn(clock.getTime());
-        when(task.isEligibleForTracking()).thenReturn(true);
+        when(task.isQueryGroupSet()).thenReturn(true);
 
         AtomicBoolean isCancelled = new AtomicBoolean(false);
         doAnswer(invocation -> {
