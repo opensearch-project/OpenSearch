@@ -293,7 +293,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             logger.trace(() -> "Ignoring checkpoint, Shard is closed");
             return;
         }
-        // updateLatestReceivedCheckpoint(receivedCheckpoint, replicaShard);
+        updateLatestReceivedCheckpoint(receivedCheckpoint, replicaShard);
         replicator.updateReplicationCheckpointStats(receivedCheckpoint, replicaShard);
         // Checks if replica shard is in the correct STARTED state to process checkpoints (avoids parallel replication events taking place)
         // This check ensures we do not try to process a received checkpoint while the shard is still recovering, yet we stored the latest
