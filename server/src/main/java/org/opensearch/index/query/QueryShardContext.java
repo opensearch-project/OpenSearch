@@ -100,7 +100,7 @@ import static java.util.Collections.unmodifiableMap;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class QueryShardContext extends QueryRewriteContext {
+public class QueryShardContext extends BaseQueryRewriteContext {
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;

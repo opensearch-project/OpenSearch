@@ -121,7 +121,7 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         }
 
         TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-        assertThat(topDocs.totalHits.value, equalTo(1L));
+        assertThat(topDocs.totalHits.value(), equalTo(1L));
         String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
         CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
             searcher,

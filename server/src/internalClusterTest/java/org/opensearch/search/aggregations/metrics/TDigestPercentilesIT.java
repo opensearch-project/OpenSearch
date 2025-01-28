@@ -146,7 +146,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -166,7 +166,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
             .addAggregation(randomCompression(percentiles("percentiles")).field("value").percentiles(0, 10, 15, 100))
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
 
         Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
         assertThat(percentiles, notNullValue());

@@ -32,7 +32,7 @@
 
 package org.opensearch.search;
 
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.GeoShapeType;
@@ -86,6 +86,7 @@ import org.opensearch.index.query.SpanNotQueryBuilder;
 import org.opensearch.index.query.SpanOrQueryBuilder;
 import org.opensearch.index.query.SpanTermQueryBuilder;
 import org.opensearch.index.query.SpanWithinQueryBuilder;
+import org.opensearch.index.query.TemplateQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.query.TermsSetQueryBuilder;
@@ -324,7 +325,7 @@ public class SearchModule {
      * Constructs a new SearchModule object
      * <p>
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
-     *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
+     *       When constructed, a static flag is set in Lucene {@link IndexSearcher#setMaxClauseCount} according to the settings.
      * @param settings Current settings
      * @param plugins List of included {@link SearchPlugin} objects.
      */
@@ -1172,7 +1173,7 @@ public class SearchModule {
         registerQuery(
             new QuerySpec<>(MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new, MatchBoolPrefixQueryBuilder::fromXContent)
         );
-
+        registerQuery(new QuerySpec<>(TemplateQueryBuilder.NAME, TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent));
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
         }

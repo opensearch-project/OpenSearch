@@ -11,7 +11,7 @@ package org.opensearch.search.aggregations.startree;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene912.Lucene912Codec;
+import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -29,7 +29,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.composite912.Composite912Codec;
+import org.opensearch.index.codec.composite.composite101.Composite101Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 
@@ -76,7 +77,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new Composite912Codec(Lucene912Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
     public void testStarTreeFilterWithNoDocsInSVDField() throws IOException {
@@ -229,7 +230,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
         CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(context, starTree);
-        FixedBitSet filteredValues = StarTreeFilter.getStarTreeResult(starTreeValues, filters);
+        FixedBitSet filteredValues = StarTreeFilter.getStarTreeResult(starTreeValues, filters, Set.of());
 
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(
             StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(

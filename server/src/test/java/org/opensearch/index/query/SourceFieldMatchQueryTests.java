@@ -91,20 +91,20 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
                 iw.close();
                 IndexSearcher searcher = new IndexSearcher(reader);
                 TopDocs topDocs = searcher.search(matchBoth, 10);
-                assertEquals(topDocs.totalHits.value, 1);
+                assertEquals(topDocs.totalHits.value(), 1);
                 assertEquals(topDocs.scoreDocs[0].doc, 0);
 
                 topDocs = searcher.search(matchDelegate, 10);
-                assertEquals(topDocs.totalHits.value, 0);
+                assertEquals(topDocs.totalHits.value(), 0);
 
                 topDocs = searcher.search(matchFilter, 10);
-                assertEquals(topDocs.totalHits.value, 0);
+                assertEquals(topDocs.totalHits.value(), 0);
 
                 topDocs = searcher.search(matchNone, 10);
-                assertEquals(topDocs.totalHits.value, 0);
+                assertEquals(topDocs.totalHits.value(), 0);
 
                 topDocs = searcher.search(matchMultipleDocs, 10);
-                assertEquals(topDocs.totalHits.value, 2);
+                assertEquals(topDocs.totalHits.value(), 2);
                 // assert constant score
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     assertEquals(scoreDoc.score, 1.0, 0.00000000001);
@@ -166,7 +166,7 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
                 iw.close();
                 IndexSearcher searcher = new IndexSearcher(reader);
                 TopDocs topDocs = searcher.search(matchDelegate, 10);
-                assertEquals(topDocs.totalHits.value, 0);
+                assertEquals(topDocs.totalHits.value(), 0);
             }
         }
     }

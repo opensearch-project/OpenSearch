@@ -31,6 +31,7 @@
 
 package org.opensearch.search.lookup;
 
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
@@ -77,6 +78,7 @@ public class LeafFieldsLookupTests extends OpenSearchTestCase {
             true,
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,

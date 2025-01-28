@@ -34,6 +34,7 @@ package org.opensearch.bootstrap;
 
 import org.opensearch.cli.Command;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;

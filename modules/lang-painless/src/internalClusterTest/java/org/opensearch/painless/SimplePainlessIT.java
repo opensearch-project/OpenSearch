@@ -196,7 +196,7 @@ public class SimplePainlessIT extends ParameterizedStaticSettingsOpenSearchInteg
         );
         SearchResponse response = client().search(searchRequest).actionGet();
         assertSearchResponse(response);
-        assertEquals(2, Objects.requireNonNull(response.getHits().getTotalHits()).value);
+        assertEquals(2, Objects.requireNonNull(response.getHits().getTotalHits()).value());
     }
 
     public void testSimpleDerivedFieldsAgg() {

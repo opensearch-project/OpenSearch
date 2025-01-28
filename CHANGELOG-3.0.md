@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Views, simplify data access and manipulation by providing a virtual layer over one or more indices ([#11957](https://github.com/opensearch-project/OpenSearch/pull/11957))
 
 ### Dependencies
+- Update Apache Lucene to 10.1.0 ([#16366](https://github.com/opensearch-project/OpenSearch/pull/16366))
 - Bump Apache HttpCore5/HttpClient5 dependencies from 5.2.5/5.3.1 to 5.3.1/5.4.1 to support ExtendedSocketOption in HttpAsyncClient ([#16757](https://github.com/opensearch-project/OpenSearch/pull/16757))
 
 ### Changed
@@ -26,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add task completion count in search backpressure stats API ([#10028](https://github.com/opensearch-project/OpenSearch/pull/10028/))
 - Deprecate CamelCase `PathHierarchy` tokenizer name in favor to lowercase `path_hierarchy` ([#10894](https://github.com/opensearch-project/OpenSearch/pull/10894))
 - Breaking change: Do not request "search_pipelines" metrics by default in NodesInfoRequest ([#12497](https://github.com/opensearch-project/OpenSearch/pull/12497))
+- Refactor `:libs` module `bootstrap` package to eliminate top level split packages [#17117](https://github.com/opensearch-project/OpenSearch/pull/17117))
 
 ### Deprecated
 
@@ -45,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove Version.V_1_ Constants ([#5021](https://github.com/opensearch-project/OpenSearch/pull/5021))
 - Remove custom Map, List and Set collection classes ([#6871](https://github.com/opensearch-project/OpenSearch/pull/6871))
 - Remove `index.store.hybrid.mmap.extensions` setting in favor of `index.store.hybrid.nio.extensions` setting ([#9392](https://github.com/opensearch-project/OpenSearch/pull/9392))
+- Remove package org.opensearch.action.support.master ([#4856](https://github.com/opensearch-project/OpenSearch/issues/4856))
 
 ### Fixed
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))

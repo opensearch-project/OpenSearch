@@ -38,7 +38,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.bootstrap.JarHell;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;

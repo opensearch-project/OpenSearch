@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.ParseField;

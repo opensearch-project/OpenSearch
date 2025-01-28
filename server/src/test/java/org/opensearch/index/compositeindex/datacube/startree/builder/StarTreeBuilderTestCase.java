@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
@@ -145,6 +146,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
                 true,
                 IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
                 DocValuesType.SORTED_NUMERIC,
+                DocValuesSkipIndexType.RANGE,
                 -1,
                 Collections.emptyMap(),
                 0,

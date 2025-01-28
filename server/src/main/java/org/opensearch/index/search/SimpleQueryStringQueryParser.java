@@ -159,6 +159,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                     settings.fuzzyPrefixLength,
                     settings.fuzzyMaxExpansions,
                     settings.fuzzyTranspositions,
+                    null,
                     context
                 );
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));

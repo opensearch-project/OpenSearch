@@ -157,7 +157,7 @@ import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.GetSearchPipelineRequest;
 import org.opensearch.action.search.GetSearchPipelineResponse;
 import org.opensearch.action.search.PutSearchPipelineRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;

@@ -237,7 +237,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             RequestOptions.DEFAULT
         );
         assertEquals(mockSearchResponse.getScrollId(), searchResponse.getScrollId());
-        assertEquals(0, searchResponse.getHits().getTotalHits().value);
+        assertEquals(0, searchResponse.getHits().getTotalHits().value());
         assertEquals(5, searchResponse.getTotalShards());
         assertEquals(5, searchResponse.getSuccessfulShards());
         assertEquals(100, searchResponse.getTook().getMillis());
