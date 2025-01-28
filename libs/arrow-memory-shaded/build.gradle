@@ -45,6 +45,12 @@ tasks.named("shadowJar").configure {
     include(dependency('commons-codec:'))
   }
   exclude 'META-INF/maven/**'
+  exclude 'META-INF/versions/11'
+  exclude 'META-INF/versions/17'
+  exclude 'META-INF/versions/21'
+  exclude 'META-INF/versions/22'
+  exclude 'META-INF/versions/9'
+
   manifest {
     attributes('Multi-Release': 'true')
   }
@@ -79,8 +85,4 @@ tasks.named('javadoc') { javadocTask ->
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
-}
-
-tasks.withType(JacocoReport).configureEach {
-  enabled = false
 }
