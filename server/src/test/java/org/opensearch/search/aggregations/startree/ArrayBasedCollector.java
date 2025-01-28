@@ -28,7 +28,7 @@ public class ArrayBasedCollector implements StarTreeNodeCollector {
         }
     }
 
-    public boolean matchValues(long... values) throws IOException {
+    public boolean matchAllCollectedValues(long... values) throws IOException {
         boolean matches = true;
         for (long value : values) {
             matches &= nodeDimensionValues.contains(value);

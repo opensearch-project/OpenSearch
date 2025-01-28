@@ -137,15 +137,15 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                             // Whole range
                             collector = new ArrayBasedCollector();
                             fixedLengthStarTreeNode.collectChildrenInRange(-20, 26, collector);
-                            result &= collector.matchValues(new long[] { -10, -1, 1, 2, 5, 9, 25 });
+                            result &= collector.matchAllCollectedValues(new long[] { -10, -1, 1, 2, 5, 9, 25 });
                             // Subset matched from left
                             collector = new ArrayBasedCollector();
                             fixedLengthStarTreeNode.collectChildrenInRange(-2, 1, collector);
-                            result &= collector.matchValues(new long[] { -1, 1 });
+                            result &= collector.matchAllCollectedValues(new long[] { -1, 1 });
                             // Subset matched from right
                             collector = new ArrayBasedCollector();
                             fixedLengthStarTreeNode.collectChildrenInRange(6, 100, collector);
-                            result &= collector.matchValues(new long[] { 9, 25 });
+                            result &= collector.matchAllCollectedValues(new long[] { 9, 25 });
                             // No match on left
                             collector = new ArrayBasedCollector();
                             fixedLengthStarTreeNode.collectChildrenInRange(-30, -20, collector);
@@ -161,11 +161,11 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                             // Match leftmost
                             collector = new ArrayBasedCollector();
                             fixedLengthStarTreeNode.collectChildrenInRange(-30, -10, collector);
-                            result &= collector.matchValues(new long[] { -10 });
+                            result &= collector.matchAllCollectedValues(new long[] { -10 });
                             // Match rightmost
                             collector = new ArrayBasedCollector();
                             fixedLengthStarTreeNode.collectChildrenInRange(10, 25, collector);
-                            result &= collector.matchValues(new long[] { 25 });
+                            result &= collector.matchAllCollectedValues(new long[] { 25 });
                             // Match contains interval which has nothing
                             collector = new ArrayBasedCollector();
                             fixedLengthStarTreeNode.collectChildrenInRange(10, 24, collector);
@@ -173,7 +173,7 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                             // Match contains interval which has nothing
                             collector = new ArrayBasedCollector();
                             fixedLengthStarTreeNode.collectChildrenInRange(6, 24, collector);
-                            result &= collector.matchValues(new long[] { 9 });
+                            result &= collector.matchAllCollectedValues(new long[] { 9 });
                             return result;
                         } catch (IOException e) {
                             throw new RuntimeException(e);
@@ -193,7 +193,7 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                                 if (lowValue != null) {
                                     Long highValue = treeSet.floor(high);
                                     if (highValue != null && highValue >= lowValue) {
-                                        collector.matchValues(
+                                        collector.matchAllCollectedValues(
                                             Arrays.copyOfRange(
                                                 randomSorted,
                                                 Arrays.binarySearch(randomSorted, lowValue),
@@ -201,7 +201,7 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                                             )
                                         );
                                     } else if (lowValue <= high) {
-                                        collector.matchValues(new long[] { lowValue });
+                                        collector.matchAllCollectedValues(new long[] { lowValue });
                                     } else {
                                         assertEquals(0, collector.collectedNodeCount());
                                     }
@@ -209,7 +209,7 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                                     assertEquals(0, collector.collectedNodeCount());
                                 }
                             } else if (low == high) {
-                                collector.matchValues(new long[] { low });
+                                collector.matchAllCollectedValues(new long[] { low });
                             } else {
                                 assertEquals(0, collector.collectedNodeCount());
                             }
@@ -321,7 +321,7 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
     // nodes.add(node);
     // }
     //
-    // public boolean matchValues(long[] values) throws IOException {
+    // public boolean matchAllCollectedValues(long[] values) throws IOException {
     // boolean matches = true;
     // for (int i = 0; i < values.length; i++) {
     // matches &= nodes.get(i).getDimensionValue() == values[i];
