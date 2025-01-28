@@ -10,6 +10,8 @@ package org.opensearch.index.compositeindex.datacube.startree.utils;
 
 import org.apache.lucene.util.IntroSorter;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.IntFunction;
 
@@ -24,7 +26,8 @@ public class StarTreeDocumentsSorter {
         final int[] sortedDocIds,
         final int dimensionId,
         final int numDocs,
-        final IntFunction<Long[]> dimensionsReader
+        final IntFunction<Long[]> dimensionsReader,
+        final List<Comparator<Long>> dimensionComparators
     ) {
         new IntroSorter() {
             private Long[] dimensions;
@@ -45,18 +48,8 @@ public class StarTreeDocumentsSorter {
             protected int comparePivot(int j) {
                 Long[] currentDimensions = dimensionsReader.apply(j);
                 for (int i = dimensionId + 1; i < dimensions.length; i++) {
-                    Long dimension = currentDimensions[i];
-                    if (!Objects.equals(dimensions[i], dimension)) {
-                        if (dimensions[i] == null && dimension == null) {
-                            return 0;
-                        }
-                        if (dimension == null) {
-                            return -1;
-                        }
-                        if (dimensions[i] == null) {
-                            return 1;
-                        }
-                        return Long.compare(dimensions[i], dimension);
+                    if (!Objects.equals(dimensions[i], currentDimensions[i])) {
+                        return dimensionComparators.get(i).compare(dimensions[i], currentDimensions[i]);
                     }
                 }
                 return 0;

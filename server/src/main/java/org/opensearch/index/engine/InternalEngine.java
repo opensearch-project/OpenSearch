@@ -88,6 +88,7 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
@@ -932,19 +933,21 @@ public class InternalEngine extends Engine {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translogManager.add(new Translog.Index(index, indexResult));
-                    } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
-                        final NoOp noOp = new NoOp(
-                            indexResult.getSeqNo(),
-                            index.primaryTerm(),
-                            index.origin(),
-                            index.startTime(),
-                            indexResult.getFailure().toString()
-                        );
-                        location = innerNoOp(noOp).getTranslogLocation();
-                    } else {
-                        location = null;
-                    }
+                    } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                        && indexResult.getFailure() != null
+                        && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
+                            // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
+                            final NoOp noOp = new NoOp(
+                                indexResult.getSeqNo(),
+                                index.primaryTerm(),
+                                index.origin(),
+                                index.startTime(),
+                                indexResult.getFailure().toString()
+                            );
+                            location = innerNoOp(noOp).getTranslogLocation();
+                        } else {
+                            location = null;
+                        }
                     indexResult.setTranslogLocation(location);
                 }
                 if (plan.indexIntoLucene && indexResult.getResultType() == Result.Type.SUCCESS) {
@@ -955,7 +958,9 @@ public class InternalEngine extends Engine {
                     );
                 }
                 localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
-                if (indexResult.getTranslogLocation() == null) {
+                if (indexResult.getTranslogLocation() == null
+                    && !(indexResult.getFailure() != null
+                        && (indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException))) {
                     // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
                     assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
@@ -1049,7 +1054,7 @@ public class InternalEngine extends Engine {
         } else {
             versionMap.enforceSafeAccess();
             // resolves incoming version
-            final VersionValue versionValue = resolveDocVersion(index, index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
+            final VersionValue versionValue = resolveDocVersion(index, true);
             final long currentVersion;
             final boolean currentNotFoundOrDeleted;
             if (versionValue == null) {
@@ -1092,6 +1097,15 @@ public class InternalEngine extends Engine {
                     final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
                     if (reserveError != null) {
                         plan = IndexingStrategy.failAsTooManyDocs(reserveError);
+                    } else if (currentVersion >= 1 && engineConfig.getIndexSettings().getIndexMetadata().isAppendOnlyIndex()) {
+                        // Retry happens for indexing requests for append only indices, since we are rejecting update requests
+                        // at Transport layer itself. So for any retry, we are reconstructing response from already indexed
+                        // document version for append only index.
+                        AppendOnlyIndexOperationRetryException retryException = new AppendOnlyIndexOperationRetryException(
+                            "Indexing operation retried for append only indices"
+                        );
+                        final IndexResult result = new IndexResult(retryException, currentVersion, versionValue.term, versionValue.seqNo);
+                        plan = IndexingStrategy.failAsIndexAppendOnly(result, currentVersion, 0);
                     } else {
                         plan = IndexingStrategy.processNormally(
                             currentNotFoundOrDeleted,
@@ -1282,6 +1296,10 @@ public class InternalEngine extends Engine {
         static IndexingStrategy failAsTooManyDocs(Exception e) {
             final IndexResult result = new IndexResult(e, Versions.NOT_FOUND);
             return new IndexingStrategy(false, false, false, false, Versions.NOT_FOUND, 0, result);
+        }
+
+        static IndexingStrategy failAsIndexAppendOnly(IndexResult result, long versionForIndexing, int reservedDocs) {
+            return new IndexingStrategy(false, false, false, true, versionForIndexing, reservedDocs, result);
         }
     }
 

@@ -24,6 +24,7 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.ReadDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionConfig;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeFactory;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
@@ -131,13 +132,15 @@ public class StarTreeValues implements CompositeIndexValues {
 
         // build dimensions
         List<Dimension> readDimensions = new ArrayList<>();
-        for (String dimension : starTreeMetadata.getDimensionFields().keySet()) {
+        for (Map.Entry<String, DimensionConfig> dimensionEntry : starTreeMetadata.getDimensionFields().entrySet()) {
+            String dimension = dimensionEntry.getKey();
             readDimensions.add(
                 new ReadDimension(
                     dimension,
                     readState.fieldInfos.fieldInfo(
                         fullyQualifiedFieldNameForStarTreeDimensionsDocValues(starTreeMetadata.getCompositeFieldName(), dimension)
-                    ).getDocValuesType()
+                    ).getDocValuesType(),
+                    dimensionEntry.getValue().getDimensionDataType()
                 )
             );
         }

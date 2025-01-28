@@ -108,14 +108,14 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class MasterServiceTests extends OpenSearchTestCase {
+public class ClusterManagerServiceTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
     private static long timeDiffInMillis;
 
     @BeforeClass
     public static void createThreadPool() {
-        threadPool = new TestThreadPool(MasterServiceTests.class.getName()) {
+        threadPool = new TestThreadPool(ClusterManagerServiceTests.class.getName()) {
             @Override
             public long preciseRelativeTimeInNanos() {
                 return timeDiffInMillis * TimeValue.NSEC_PER_MSEC;
@@ -149,7 +149,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         if (metricsRegistryOptional != null && metricsRegistryOptional.isPresent()) {
             clusterManagerService = new ClusterManagerService(
                 Settings.builder()
-                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterManagerServiceTests.class.getSimpleName())
                     .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                     .build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -159,7 +159,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         } else {
             clusterManagerService = new ClusterManagerService(
                 Settings.builder()
-                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterManagerServiceTests.class.getSimpleName())
                     .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                     .build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -167,7 +167,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             );
         }
 
-        final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
+        final ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterManagerServiceTests.class.getSimpleName()))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(localNode)
@@ -377,11 +377,11 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
     @TestLogging(value = "org.opensearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")
     public void testClusterStateUpdateLoggingWithTraceEnabled() throws Exception {
-        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(MasterService.class))) {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ClusterManagerService.class))) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test1 start",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.TRACE,
                     "executing cluster state update for [test1]"
                 )
@@ -389,7 +389,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test1 computation",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [1s] to compute cluster state update for [test1]"
                 )
@@ -397,7 +397,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test1 notification",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [0s] to notify listeners on unchanged cluster state for [test1]"
                 )
@@ -406,7 +406,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 start",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.TRACE,
                     "executing cluster state update for [test2]"
                 )
@@ -414,7 +414,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 failure",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.TRACE,
                     "failed to execute cluster state update (on version: [*], uuid: [*]) for [test2]*"
                 )
@@ -422,7 +422,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 computation",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [2s] to compute cluster state update for [test2]"
                 )
@@ -430,7 +430,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 notification",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [0s] to notify listeners on unchanged cluster state for [test2]"
                 )
@@ -439,7 +439,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3 start",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.TRACE,
                     "executing cluster state update for [test3]"
                 )
@@ -447,7 +447,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3 computation",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [3s] to compute cluster state update for [test3]"
                 )
@@ -455,7 +455,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3 notification",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
                     "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [test3]"
                 )
@@ -464,7 +464,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test4",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.TRACE,
                     "executing cluster state update for [test4]"
                 )
@@ -542,96 +542,96 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
     @TestLogging(value = "org.opensearch.cluster.service:DEBUG", reason = "to ensure that we log cluster state events on DEBUG level")
     public void testClusterStateUpdateLoggingWithDebugEnabled() throws Exception {
-        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(MasterService.class))) {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ClusterManagerService.class))) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test1 start",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test1]"
+                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test1]"
                 )
             );
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test1 computation",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [1s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test1]"
+                    "took [1s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test1]"
                 )
             );
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test1 notification",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test1]"
+                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test1]"
                 )
             );
 
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 start",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test2]"
+                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test2]"
                 )
             );
             mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "test2 failure",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "failed to execute cluster state update (on version: [*], uuid: [*]) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test2]*"
+                    "failed to execute cluster state update (on version: [*], uuid: [*]) for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test2]*"
                 )
             );
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 computation",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [2s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test2]"
+                    "took [2s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test2]"
                 )
             );
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2 notification",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test2]"
+                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test2]"
                 )
             );
 
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3 start",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test3]"
+                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test3]"
                 )
             );
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3 computation",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [3s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test3]"
+                    "took [3s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test3]"
                 )
             );
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3 notification",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test3]"
+                    "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test3]"
                 )
             );
 
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test4",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test4]"
+                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test4]"
                 )
             );
 
@@ -909,13 +909,13 @@ public class MasterServiceTests extends OpenSearchTestCase {
     }
 
     public void testThrottlingForTaskSubmission() throws InterruptedException {
-        MasterService masterService = createClusterManagerService(true);
+        ClusterManagerService clusterManagerService = createClusterManagerService(true);
         int throttlingLimit = randomIntBetween(1, 10);
         int taskId = 1;
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final CountDownLatch latch = new CountDownLatch(1);
         final String taskName = "test";
-        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = masterService.registerClusterManagerTask(taskName, true);
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = clusterManagerService.registerClusterManagerTask(taskName, true);
         class Task {
             private final int id;
 
@@ -945,7 +945,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             }
         }
 
-        masterService.clusterManagerTaskThrottler.updateLimit(taskName, throttlingLimit);
+        clusterManagerService.clusterManagerTaskThrottler.updateLimit(taskName, throttlingLimit);
 
         final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
             @Override
@@ -958,7 +958,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         TaskExecutor executor = new TaskExecutor();
         // submit one task which will be execution, post that will submit throttlingLimit tasks.
         try {
-            masterService.submitStateUpdateTask(
+            clusterManagerService.submitStateUpdateTask(
                 taskName,
                 new Task(taskId++),
                 ClusterStateTaskConfig.build(randomFrom(Priority.values())),
@@ -973,7 +973,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
         for (int i = 0; i < throttlingLimit; i++) {
             try {
-                masterService.submitStateUpdateTask(
+                clusterManagerService.submitStateUpdateTask(
                     taskName,
                     new Task(taskId++),
                     ClusterStateTaskConfig.build(randomFrom(Priority.values())),
@@ -988,7 +988,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         // we have one task in execution and tasks in queue so next task should throttled.
         final AtomicReference<ClusterManagerThrottlingException> assertionRef = new AtomicReference<>();
         try {
-            masterService.submitStateUpdateTask(
+            clusterManagerService.submitStateUpdateTask(
                 taskName,
                 new Task(taskId++),
                 ClusterStateTaskConfig.build(randomFrom(Priority.values())),
@@ -999,11 +999,11 @@ public class MasterServiceTests extends OpenSearchTestCase {
             assertionRef.set(e);
         }
         assertNotNull(assertionRef.get());
-        masterService.close();
+        clusterManagerService.close();
     }
 
     public void testThrottlingForMultipleTaskTypes() throws InterruptedException {
-        MasterService masterService = createClusterManagerService(true);
+        ClusterManagerService clusterManagerService = createClusterManagerService(true);
         int throttlingLimitForTask1 = randomIntBetween(1, 5);
         int throttlingLimitForTask2 = randomIntBetween(1, 5);
         int throttlingLimitForTask3 = randomIntBetween(1, 5);
@@ -1014,9 +1014,9 @@ public class MasterServiceTests extends OpenSearchTestCase {
         String task2 = "Task2";
         String task3 = "Task3";
 
-        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey1 = masterService.registerClusterManagerTask(task1, true);
-        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey2 = masterService.registerClusterManagerTask(task2, true);
-        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey3 = masterService.registerClusterManagerTask(task3, true);
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey1 = clusterManagerService.registerClusterManagerTask(task1, true);
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey2 = clusterManagerService.registerClusterManagerTask(task2, true);
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey3 = clusterManagerService.registerClusterManagerTask(task3, true);
         class Task {}
         class Task1 extends Task {}
         class Task2 extends Task {}
@@ -1071,8 +1071,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
         }
 
         // configuring limits for Task1 and Task3. All task submission of Task2 should pass.
-        masterService.clusterManagerTaskThrottler.updateLimit(task1, throttlingLimitForTask1);
-        masterService.clusterManagerTaskThrottler.updateLimit(task3, throttlingLimitForTask3);
+        clusterManagerService.clusterManagerTaskThrottler.updateLimit(task1, throttlingLimitForTask1);
+        clusterManagerService.clusterManagerTaskThrottler.updateLimit(task3, throttlingLimitForTask3);
         final CountDownLatch latch = new CountDownLatch(numberOfTask1 + numberOfTask2 + numberOfTask3);
         AtomicInteger throttledTask1 = new AtomicInteger();
         AtomicInteger throttledTask2 = new AtomicInteger();
@@ -1112,7 +1112,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 @Override
                 public void run() {
                     try {
-                        masterService.submitStateUpdateTask(
+                        clusterManagerService.submitStateUpdateTask(
                             task1,
                             new Task1(),
                             ClusterStateTaskConfig.build(randomFrom(Priority.values())),
@@ -1132,7 +1132,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 @Override
                 public void run() {
                     try {
-                        masterService.submitStateUpdateTask(
+                        clusterManagerService.submitStateUpdateTask(
                             task2,
                             new Task2(),
                             ClusterStateTaskConfig.build(randomFrom(Priority.values())),
@@ -1151,7 +1151,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 @Override
                 public void run() {
                     try {
-                        masterService.submitStateUpdateTask(
+                        clusterManagerService.submitStateUpdateTask(
                             task3,
                             new Task3(),
                             ClusterStateTaskConfig.build(randomFrom(Priority.values()), new TimeValue(0)),
@@ -1175,7 +1175,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         assertEquals(numberOfTask2, succeededTask2.get());
         assertEquals(0, throttledTask2.get());
         assertEquals(numberOfTask3, throttledTask3.get() + timedOutTask3.get() + succeededTask3.get());
-        masterService.close();
+        clusterManagerService.close();
     }
 
     public void testBlockingCallInClusterStateTaskListenerFails() throws InterruptedException {
@@ -1224,11 +1224,11 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
     @TestLogging(value = "org.opensearch.cluster.service:WARN", reason = "to ensure that we log cluster state events on WARN level")
     public void testLongClusterStateUpdateLogging() throws Exception {
-        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(MasterService.class))) {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ClusterManagerService.class))) {
             mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "test1 shouldn't log because it was fast enough",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.WARN,
                     "*took*test1*"
                 )
@@ -1236,31 +1236,31 @@ public class MasterServiceTests extends OpenSearchTestCase {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test2",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.WARN,
-                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test2]"
+                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test2]"
                 )
             );
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test3",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.WARN,
-                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test3]"
+                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test3]"
                 )
             );
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test4",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.WARN,
-                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test4]"
+                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test4]"
                 )
             );
             mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "test5 should not log despite publishing slowly",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.WARN,
                     "*took*test5*"
                 )
@@ -1269,7 +1269,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             try (
                 ClusterManagerService clusterManagerService = new ClusterManagerService(
                     Settings.builder()
-                        .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+                        .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterManagerServiceTests.class.getSimpleName())
                         .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                         .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -1285,7 +1285,9 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     emptySet(),
                     Version.CURRENT
                 );
-                final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
+                final ClusterState initialClusterState = ClusterState.builder(
+                    new ClusterName(ClusterManagerServiceTests.class.getSimpleName())
+                )
                     .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
                     .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                     .build();
@@ -1426,20 +1428,20 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
     @TestLogging(value = "org.opensearch.cluster.service:WARN", reason = "to ensure that we log failed cluster state events on WARN level")
     public void testLongClusterStateUpdateLoggingForFailedPublication() throws Exception {
-        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(MasterService.class))) {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ClusterManagerService.class))) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "test1 should log due to slow and failing publication",
-                    MasterService.class.getCanonicalName(),
+                    ClusterManagerService.class.getCanonicalName(),
                     Level.WARN,
-                    "took [*] and then failed to publish updated cluster state (version: *, uuid: *) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests, count:1 and sample tasks: test1]:*"
+                    "took [*] and then failed to publish updated cluster state (version: *, uuid: *) for [Tasks batched with key: org.opensearch.cluster.service.ClusterManagerServiceTests, count:1 and sample tasks: test1]:*"
                 )
             );
 
             try (
                 ClusterManagerService clusterManagerService = new ClusterManagerService(
                     Settings.builder()
-                        .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+                        .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterManagerServiceTests.class.getSimpleName())
                         .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                         .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -1455,7 +1457,9 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     emptySet(),
                     Version.CURRENT
                 );
-                final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
+                final ClusterState initialClusterState = ClusterState.builder(
+                    new ClusterName(ClusterManagerServiceTests.class.getSimpleName())
+                )
                     .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
                     .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                     .build();
@@ -1529,7 +1533,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         try (
             ClusterManagerService clusterManagerService = new ClusterManagerService(
                 Settings.builder()
-                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterManagerServiceTests.class.getSimpleName())
                     .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                     .build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -1538,7 +1542,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             )
         ) {
 
-            final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
+            final ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterManagerServiceTests.class.getSimpleName()))
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).localNodeId(node1.getId()).masterNodeId(node1.getId()))
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                 .build();
@@ -1658,16 +1662,13 @@ public class MasterServiceTests extends OpenSearchTestCase {
         verify(clusterStatePublishHistogram, times(1)).record(anyDouble());
     }
 
-    public void testDeprecatedMasterServiceUpdateTaskThreadName() {
-        Thread.currentThread().setName(MasterService.MASTER_UPDATE_THREAD_NAME);
-        assertThat(MasterService.assertClusterManagerUpdateThread(), is(Boolean.TRUE));
-        assertThrows(AssertionError.class, () -> MasterService.assertNotClusterManagerUpdateThread("test"));
-        Thread.currentThread().setName(MasterService.CLUSTER_MANAGER_UPDATE_THREAD_NAME);
-        assertThat(MasterService.assertClusterManagerUpdateThread(), is(Boolean.TRUE));
-        assertThrows(AssertionError.class, () -> MasterService.assertNotClusterManagerUpdateThread("test"));
+    public void testUpdateTaskThreadName() {
+        Thread.currentThread().setName(ClusterManagerService.CLUSTER_MANAGER_UPDATE_THREAD_NAME);
+        assertThat(ClusterManagerService.assertClusterManagerUpdateThread(), is(Boolean.TRUE));
+        assertThrows(AssertionError.class, () -> ClusterManagerService.assertNotClusterManagerUpdateThread("test"));
         Thread.currentThread().setName("test not cluster manager update thread");
-        assertThat(MasterService.assertNotClusterManagerUpdateThread("test"), is(Boolean.TRUE));
-        assertThrows(AssertionError.class, () -> MasterService.assertClusterManagerUpdateThread());
+        assertThat(ClusterManagerService.assertNotClusterManagerUpdateThread("test"), is(Boolean.TRUE));
+        assertThrows(AssertionError.class, () -> ClusterManagerService.assertClusterManagerUpdateThread());
     }
 
     @Timeout(millis = 5_000)

@@ -89,13 +89,13 @@ public interface StarTreeNode {
      *
      * <p>The node type can be one of the following:
      * <ul>
-     *     <li>Star Node: Represented by the value -2.
-     *     <li>Null Node: Represented by the value -1.
+     *     <li>Star Node: Represented by the value -1.
+     *     <li>Null Node: Represented by the value 1.
      *     <li>Default Node: Represented by the value 0.
      * </ul>
      * @see StarTreeNodeType
      *
-     * @return The type of the current node, represented by the corresponding integer value (-2, -1, or 0).
+     * @return The type of the current node, represented by the corresponding integer value (-1, 1, 0).
      * @throws IOException if an I/O error occurs while reading the node type
      */
     byte getStarTreeNodeType() throws IOException;
@@ -103,7 +103,7 @@ public interface StarTreeNode {
     /**
      * Returns the child node for the given dimension value in the star-tree.
      *
-     * @param dimensionValue the dimension value
+     * @param dimensionValue  the dimension value
      * @return the child node for the given dimension value or null if child is not present
      * @throws IOException if an I/O error occurs while retrieving the child node
      */
