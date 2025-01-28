@@ -401,6 +401,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final String sessionId = UUIDs.randomBase64UUID();
     private final Executor indexSearcherExecutor;
     private final TaskResourceTrackingService taskResourceTrackingService;
+    private final Set<String> additionalProfilerTimingTypes;
 
     public SearchService(
         ClusterService clusterService,
@@ -414,7 +415,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        Set<String> additionalProfilerTimingTypes
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -471,6 +473,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
 
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
+        this.additionalProfilerTimingTypes = additionalProfilerTimingTypes;
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1541,7 +1544,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.evaluateRequestShouldUseConcurrentSearch();
         if (source.profile()) {
-            context.setProfilers(new Profilers(context.searcher(), context.shouldUseConcurrentSearch()));
+            context.setProfilers(new Profilers(context.searcher(), this.additionalProfilerTimingTypes, context.shouldUseConcurrentSearch()));
         }
 
         if (this.indicesService.getCompositeIndexSettings() != null

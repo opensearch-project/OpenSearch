@@ -30,6 +30,7 @@ import org.opensearch.search.profile.Timer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,7 +47,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        testQueryProfileBreakdown = new ConcurrentQueryProfileBreakdown();
+        testQueryProfileBreakdown = new ConcurrentQueryProfileBreakdown(Collections.emptySet());
         createWeightTimer = testQueryProfileBreakdown.getTimer(QueryTimingType.CREATE_WEIGHT);
         try {
             createWeightTimer.start();
@@ -420,7 +421,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         private Map<String, Long> breakdownMap;
 
         public TestQueryProfileBreakdown(Class<QueryTimingType> clazz, Map<String, Long> breakdownMap) {
-            super(clazz);
+            super(clazz, Collections.emptySet());
             this.breakdownMap = breakdownMap;
         }
 

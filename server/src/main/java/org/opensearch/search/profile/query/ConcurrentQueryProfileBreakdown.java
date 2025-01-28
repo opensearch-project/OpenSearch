@@ -18,7 +18,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -44,10 +47,12 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
     // represents slice to leaves mapping as for each slice a unique collector instance is created
     private final Map<Collector, List<LeafReaderContext>> sliceCollectorsToLeaves = new ConcurrentHashMap<>();
+    private final Set<String> additionalProfilerTimings;
 
     /** Sole constructor. */
-    public ConcurrentQueryProfileBreakdown() {
-        super(QueryTimingType.class);
+    public ConcurrentQueryProfileBreakdown(Set<String> additionalProfilerTimings) {
+        super(QueryTimingType.class, additionalProfilerTimings);
+        this.additionalProfilerTimings = additionalProfilerTimings;
     }
 
     @Override
@@ -59,16 +64,16 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
             return profile;
         }
 
-        return contexts.computeIfAbsent(context, ctx -> new QueryProfileBreakdown());
+        return contexts.computeIfAbsent(context, ctx -> new QueryProfileBreakdown(additionalProfilerTimings));
     }
 
     @Override
     public Map<String, Long> toBreakdownMap() {
         final Map<String, Long> topLevelBreakdownMapWithWeightTime = super.toBreakdownMap();
         final long createWeightStartTime = topLevelBreakdownMapWithWeightTime.get(
-            QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_START_TIME_SUFFIX
+            QueryTimingType.CREATE_WEIGHT.name().toLowerCase(Locale.ROOT) + TIMING_TYPE_START_TIME_SUFFIX
         );
-        final long createWeightTime = topLevelBreakdownMapWithWeightTime.get(QueryTimingType.CREATE_WEIGHT.toString());
+        final long createWeightTime = topLevelBreakdownMapWithWeightTime.get(QueryTimingType.CREATE_WEIGHT.name().toLowerCase(Locale.ROOT));
 
         if (contexts.isEmpty()) {
             // If there are no leaf contexts, then return the default concurrent query level breakdown, which will include the
@@ -92,9 +97,9 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
             maxSliceNodeTime = 0L;
             minSliceNodeTime = 0L;
             avgSliceNodeTime = 0L;
-            Map<String, Long> queryBreakdownMap = new HashMap<>(breakdown.toBreakdownMap());
-            queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT.toString(), createWeightTime);
-            queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_COUNT_SUFFIX, 1L);
+            Map<String, Long> queryBreakdownMap = new TreeMap<>(breakdown.toBreakdownMap());
+            queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT.name().toLowerCase(Locale.ROOT), createWeightTime);
+            queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT.name().toLowerCase(Locale.ROOT) + TIMING_TYPE_COUNT_SUFFIX, 1L);
             return queryBreakdownMap;
         }
 
@@ -110,12 +115,11 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
      * default breakdown map.
      */
     private Map<String, Long> buildDefaultQueryBreakdownMap(long createWeightTime) {
-        final Map<String, Long> concurrentQueryBreakdownMap = new HashMap<>();
-        for (QueryTimingType timingType : QueryTimingType.values()) {
-            final String timingTypeKey = timingType.toString();
+        final Map<String, Long> concurrentQueryBreakdownMap = new TreeMap<>();
+        for (String timingTypeKey : timings.keySet()) {
             final String timingTypeCountKey = timingTypeKey + TIMING_TYPE_COUNT_SUFFIX;
 
-            if (timingType.equals(QueryTimingType.CREATE_WEIGHT)) {
+            if (timingTypeKey.equalsIgnoreCase(QueryTimingType.CREATE_WEIGHT.name())) {
                 concurrentQueryBreakdownMap.put(timingTypeKey, createWeightTime);
                 concurrentQueryBreakdownMap.put(timingTypeCountKey, 1L);
                 continue;
@@ -156,8 +160,8 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
             // max slice end time across all timing types
             long sliceMaxEndTime = Long.MIN_VALUE;
             long sliceMinStartTime = Long.MAX_VALUE;
-            for (QueryTimingType timingType : QueryTimingType.values()) {
-                if (timingType.equals(QueryTimingType.CREATE_WEIGHT)) {
+            for (String timingType : timings.keySet()) {
+                if (timingType.equalsIgnoreCase(QueryTimingType.CREATE_WEIGHT.name())) {
                     // do nothing for create weight as that is query level time and not slice level
                     continue;
                 }
@@ -211,7 +215,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
                     // compute the sliceEndTime for timingType using max of endTime across slice leaves
                     final long sliceLeafTimingTypeEndTime = sliceLeafTimingTypeStartTime + currentSliceLeafBreakdownMap.get(
-                        timingType.toString()
+                        timingType
                     );
                     currentSliceBreakdown.compute(
                         timingTypeSliceEndTimeKey,
@@ -235,7 +239,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                 sliceMinStartTime = Math.min(sliceMinStartTime, currentSliceStartTime);
                 // compute total time for each timing type at slice level using sliceEndTime and sliceStartTime
                 currentSliceBreakdown.put(
-                    timingType.toString(),
+                    timingType,
                     currentSliceBreakdown.getOrDefault(timingTypeSliceEndTimeKey, 0L) - currentSliceBreakdown.getOrDefault(
                         timingTypeSliceStartTimeKey,
                         0L
@@ -284,10 +288,9 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
         long createWeightTime,
         long createWeightStartTime
     ) {
-        final Map<String, Long> queryBreakdownMap = new HashMap<>();
+        final Map<String, Long> queryBreakdownMap = new TreeMap<>();
         long queryEndTime = Long.MIN_VALUE;
-        for (QueryTimingType queryTimingType : QueryTimingType.values()) {
-            final String timingTypeKey = queryTimingType.toString();
+        for (String timingTypeKey : timings.keySet()) {
             final String timingTypeCountKey = timingTypeKey + TIMING_TYPE_COUNT_SUFFIX;
             final String sliceEndTimeForTimingType = timingTypeKey + SLICE_END_TIME_SUFFIX;
             final String sliceStartTimeForTimingType = timingTypeKey + SLICE_START_TIME_SUFFIX;
@@ -304,7 +307,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
             long queryTimingTypeCount = 0L;
 
             // the create weight time is computed at the query level and is called only once per query
-            if (queryTimingType == QueryTimingType.CREATE_WEIGHT) {
+            if (timingTypeKey.equalsIgnoreCase(QueryTimingType.CREATE_WEIGHT.name())) {
                 queryBreakdownMap.put(timingTypeCountKey, 1L);
                 queryBreakdownMap.put(timingTypeKey, createWeightTime);
                 continue;

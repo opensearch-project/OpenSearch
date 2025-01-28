@@ -32,9 +32,20 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.search.profile.query.QueryTimingType;
+
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 
@@ -50,37 +61,42 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     /**
      * The accumulated timings for this query node
      */
-    protected final Timer[] timings;
-    protected final T[] timingTypes;
+    protected final Map<String, Timer> timings;
     public static final String TIMING_TYPE_COUNT_SUFFIX = "_count";
     public static final String TIMING_TYPE_START_TIME_SUFFIX = "_start_time";
 
     /** Sole constructor. */
-    public AbstractProfileBreakdown(Class<T> clazz) {
-        this.timingTypes = clazz.getEnumConstants();
-        timings = new Timer[timingTypes.length];
-        for (int i = 0; i < timings.length; ++i) {
-            timings[i] = new Timer();
-        }
+    public AbstractProfileBreakdown(final Class<T> timingType, final Set<String> additionalProfilerTimings) {
+        Set<String> additionalTimings = additionalProfilerTimings == null ? Collections.emptySet() : additionalProfilerTimings;
+        timings = Stream.of(Arrays.stream(timingType.getEnumConstants()).map(Enum::name),
+                additionalTimings.stream())
+            .flatMap(Function.identity())
+            .filter(Objects::nonNull)
+            .map(val -> val.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toUnmodifiableMap(value -> value, value -> new Timer(), (a, b) -> a));
     }
 
     public Timer getTimer(T timing) {
-        return timings[timing.ordinal()];
+        return timings.get(timing.name().toLowerCase(Locale.ROOT));
+    }
+
+    public Timer getTimer(String timingName) {
+        return timings.get(timingName.toLowerCase(Locale.ROOT));
     }
 
     public void setTimer(T timing, Timer timer) {
-        timings[timing.ordinal()] = timer;
+        timings.put(timing.name().toLowerCase(Locale.ROOT), timer);
     }
 
     /**
      * Build a timing count breakdown for current instance
      */
     public Map<String, Long> toBreakdownMap() {
-        Map<String, Long> map = new HashMap<>(this.timings.length * 3);
-        for (T timingType : this.timingTypes) {
-            map.put(timingType.toString(), this.timings[timingType.ordinal()].getApproximateTiming());
-            map.put(timingType + TIMING_TYPE_COUNT_SUFFIX, this.timings[timingType.ordinal()].getCount());
-            map.put(timingType + TIMING_TYPE_START_TIME_SUFFIX, this.timings[timingType.ordinal()].getEarliestTimerStartTime());
+        Map<String, Long> map = new TreeMap<>();
+        for (String timingType : this.timings.keySet()) {
+            map.put(timingType, this.timings.get(timingType).getApproximateTiming());
+            map.put(timingType + TIMING_TYPE_COUNT_SUFFIX, this.timings.get(timingType).getCount());
+            map.put(timingType + TIMING_TYPE_START_TIME_SUFFIX, this.timings.get(timingType).getEarliestTimerStartTime());
         }
         return Collections.unmodifiableMap(map);
     }
@@ -94,8 +110,8 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
 
     public long toNodeTime() {
         long total = 0;
-        for (T timingType : timingTypes) {
-            total += timings[timingType.ordinal()].getApproximateTiming();
+        for (String timingType : timings.keySet()) {
+            total += timings.get(timingType).getApproximateTiming();
         }
         return total;
     }

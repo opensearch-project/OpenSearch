@@ -13,6 +13,8 @@ import org.opensearch.search.profile.AbstractInternalProfileTree;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 
+import java.util.Set;
+
 /**
  * This class tracks the dependency tree for queries (scoring and rewriting) and
  * generates {@link QueryProfileBreakdown} for each node in the tree.  It also finalizes the tree
@@ -25,6 +27,16 @@ public abstract class AbstractQueryProfileTree extends AbstractInternalProfileTr
     /** Rewrite time */
     private long rewriteTime;
     private long rewriteScratch;
+
+    private final Set<String> additionalProfilerTimings;
+
+    protected AbstractQueryProfileTree(Set<String> additionalProfilerTimings) {
+        this.additionalProfilerTimings = additionalProfilerTimings;
+    }
+
+    public Set<String> getAdditionalProfilerTimings() {
+        return additionalProfilerTimings;
+    }
 
     @Override
     protected String getTypeFromElement(Query query) {

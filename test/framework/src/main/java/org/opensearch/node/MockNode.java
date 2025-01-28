@@ -158,7 +158,8 @@ public class MockNode extends Node {
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        Set<String> additionalProfilerTimingTypes
     ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(
@@ -173,7 +174,8 @@ public class MockNode extends Node {
                 circuitBreakerService,
                 indexSearcherExecutor,
                 taskResourceTrackingService,
-                concurrentSearchDeciderFactories
+                concurrentSearchDeciderFactories,
+                Collections.emptySet()
             );
         }
         return new MockSearchService(

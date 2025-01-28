@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Base class for a profiling tree.
@@ -64,6 +65,10 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         tree = new ArrayList<>(10);
         elements = new ArrayList<>(10);
         roots = new ArrayList<>(10);
+    }
+
+    public Set<String> getAdditionalProfilerTimings() {
+        return Collections.emptySet();
     }
 
     /**

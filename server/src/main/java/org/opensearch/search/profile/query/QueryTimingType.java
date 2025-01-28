@@ -48,9 +48,7 @@ public enum QueryTimingType {
     SCORE,
     SHALLOW_ADVANCE,
     COMPUTE_MAX_SCORE,
-    SET_MIN_COMPETITIVE_SCORE,
-    EXACT_KNN_SEARCH,
-    ANN_SEARCH;
+    SET_MIN_COMPETITIVE_SCORE;
 
     @Override
     public String toString() {
