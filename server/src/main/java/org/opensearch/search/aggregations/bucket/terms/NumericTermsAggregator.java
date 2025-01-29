@@ -87,7 +87,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Aggregate all docs that contain numeric terms
@@ -211,7 +210,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
             @Override
             public void collectStarTreeEntry(int starTreeEntry, long owningBucketOrd) throws IOException {
-                if (valuesIterator.advance(starTreeEntry) == NO_MORE_DOCS) {
+                if (valuesIterator.advanceExact(starTreeEntry) == false) {
                     return;
                 }
                 long dimensionValue = valuesIterator.nextValue();
