@@ -101,7 +101,8 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                 return true;
             }
-            getStarTreeCollector(ctx, sub, supportedStarTree);
+            precomputeLeafUsingStarTree(ctx, supportedStarTree);
+            return true;
         }
         return false;
     }
@@ -112,12 +113,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-
-
-        return getDefaultLeafCollector(ctx, sub);
-    }
-
-    private LeafBucketCollector getDefaultLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
@@ -147,14 +142,13 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         };
     }
 
-    public void getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree) throws IOException {
+    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
 
-        StarTreeQueryHelper.getStarTreeLeafCollector(
+        StarTreeQueryHelper.precomputeLeafUsingStarTree(
             context,
             valuesSource,
             ctx,
-            sub,
             starTree,
             MetricStat.SUM.getTypeName(),
             value -> kahanSummation.add(NumericUtils.sortableLongToDouble(value)),

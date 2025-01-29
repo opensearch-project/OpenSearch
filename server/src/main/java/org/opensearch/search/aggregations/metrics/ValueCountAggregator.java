@@ -97,7 +97,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
                     // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                     return true;
                 }
-                getStarTreeCollector(ctx, sub, supportedStarTree);
+                precomputeLeafUsingStarTree(ctx, supportedStarTree);
                 return true;
             }
         }
@@ -151,12 +151,11 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
         };
     }
 
-    public void getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree) throws IOException {
-        StarTreeQueryHelper.getStarTreeLeafCollector(
+    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        StarTreeQueryHelper.precomputeLeafUsingStarTree(
             context,
             (ValuesSource.Numeric) valuesSource,
             ctx,
-            sub,
             starTree,
             MetricStat.VALUE_COUNT.getTypeName(),
             value -> counts.increment(0, value),

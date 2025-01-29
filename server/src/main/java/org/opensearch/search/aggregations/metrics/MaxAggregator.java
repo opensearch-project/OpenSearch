@@ -113,7 +113,8 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                 return true;
             }
-            getStarTreeCollector(ctx, sub, supportedStarTree);
+            precomputeLeafUsingStarTree(ctx, supportedStarTree);
+            return true;
         }
         return false;
     }
@@ -144,12 +145,6 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             }
         }
 
-
-        return getDefaultLeafCollector(ctx, sub);
-    }
-
-    private LeafBucketCollector getDefaultLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
@@ -173,9 +168,9 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
         };
     }
 
-    public void getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree) throws IOException {
+    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));
-        StarTreeQueryHelper.getStarTreeLeafCollector(context, valuesSource, ctx, sub, starTree, MetricStat.MAX.getTypeName(), value -> {
+        StarTreeQueryHelper.precomputeLeafUsingStarTree(context, valuesSource, ctx, starTree, MetricStat.MAX.getTypeName(), value -> {
             max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
         }, () -> maxes.set(0, max.get()));
     }
