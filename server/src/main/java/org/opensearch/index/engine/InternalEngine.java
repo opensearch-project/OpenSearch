@@ -1418,6 +1418,13 @@ public class InternalEngine extends Engine {
     }
 
     private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+        if (engineConfig.getIndexSettings().getIndexMetadata().isAppendOnlyIndex()) {
+            failEngine(
+                "Failing shard as update operation is not allowed for append only index ",
+                new EngineException(shardId, "Unable to update document as it is an append only index")
+            );
+        }
+
         if (docs.size() > 1) {
             indexWriter.softUpdateDocuments(uid, docs, softDeletesField);
         } else {
