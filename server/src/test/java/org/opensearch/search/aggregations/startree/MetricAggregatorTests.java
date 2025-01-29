@@ -144,9 +144,9 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             new DimensionFieldData("dv", () -> random().nextInt(20) - 10, DimensionTypes.INTEGER),
             new DimensionFieldData("keyword_field", () -> random().nextInt(50), DimensionTypes.KEYWORD),
             new DimensionFieldData("long_field", () -> random().nextInt(50), DimensionTypes.LONG),
-            new DimensionFieldData("half_float_field", () -> random().nextFloat(50), DimensionTypes.HALF_FLOAT),
-            new DimensionFieldData("float_field", () -> random().nextFloat(50), DimensionTypes.FLOAT),
-            new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE)
+            new DimensionFieldData("half_float_field", () -> random().nextFloat(), DimensionTypes.HALF_FLOAT),
+            new DimensionFieldData("float_field", () -> random().nextFloat(), DimensionTypes.FLOAT),
+            new DimensionFieldData("double_field", () -> random().nextDouble(), DimensionTypes.DOUBLE)
         );
         for (Supplier<Integer> maxLeafDocsSupplier : MAX_LEAF_DOC_VARIATIONS) {
             testStarTreeDocValuesInternal(
@@ -246,7 +246,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             // Get all types of queries (Term/Terms/Range) for all the given dimensions.
             List<QueryBuilder> allFieldQueries = dimensionFieldData.stream()
                 .flatMap(x -> Stream.of(x.getTermQueryBuilder(), x.getTermsQueryBuilder(), x.getRangeQueryBuilder()))
-                .toList();
+                .collect(Collectors.toList());
 
             for (QueryBuilder qb : allFieldQueries) {
                 query = qb.toQuery(queryShardContext);
