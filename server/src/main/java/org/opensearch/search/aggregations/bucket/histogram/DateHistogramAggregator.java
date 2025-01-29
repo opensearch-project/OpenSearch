@@ -136,8 +136,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.hardBounds = hardBounds;
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
-        this.fieldName = valuesSourceConfig.hasValues()
-            ? ((ValuesSource.Numeric.FieldData) valuesSourceConfig.getValuesSource()).getIndexFieldName()
+        this.fieldName = (valuesSource instanceof ValuesSource.Numeric.FieldData)
+            ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
             : null;
         this.formatter = valuesSourceConfig.format();
 
