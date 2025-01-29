@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -56,6 +57,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     private static final String TEST_INDEX = "test";
     Settings settings = Settings.builder()
         .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+        .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
         .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
         .build();
 
@@ -756,6 +758,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     public void testCompositeIndexWithIndexNotSpecified() {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .build();
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
@@ -767,9 +770,25 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         );
     }
 
+    public void testAppendOnlyInCompositeIndexNotSpecified() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .build();
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate(TEST_INDEX).setSettings(settings).setMapping(createMinimalTestMapping(false, false, false)).get()
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: Set 'index.append_only.enabled' as true as part of index settings to use star tree index",
+            ex.getMessage()
+        );
+    }
+
     public void testCompositeIndexWithHigherTranslogFlushSize() {
         Settings settings = Settings.builder()
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(513, ByteSizeUnit.MB))
             .build();
         IllegalArgumentException ex = expectThrows(
@@ -1082,6 +1101,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     Settings.builder()
                         .put(StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING.getKey(), 2)
                         .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
                         .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
                 )
                 .get()
@@ -1101,6 +1121,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     Settings.builder()
                         .put(StarTreeIndexSettings.STAR_TREE_MAX_BASE_METRICS_SETTING.getKey(), 4)
                         .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
                         .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
                 )
                 .get()
@@ -1119,6 +1140,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     Settings.builder()
                         .put(StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING.getKey(), 1)
                         .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
                         .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
                 )
                 .get()
