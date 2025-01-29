@@ -76,6 +76,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
@@ -127,6 +128,8 @@ public class QueryShardContext extends BaseQueryRewriteContext {
     private DerivedFieldResolver derivedFieldResolver;
     private boolean keywordIndexOrDocValuesEnabled;
     private boolean isInnerHitQuery;
+
+    private StarTreeQueryContext starTreeQueryContext;
 
     public QueryShardContext(
         int shardId,
@@ -377,6 +380,14 @@ public class QueryShardContext extends BaseQueryRewriteContext {
             fullyQualifiedIndex.getName(),
             () -> this.lookup().forkAndTrackFieldReferences(fieldType.name())
         );
+    }
+
+    public StarTreeQueryContext getStarTreeQueryContext() {
+        return starTreeQueryContext;
+    }
+
+    public void setStarTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
+        this.starTreeQueryContext = starTreeQueryContext;
     }
 
     public void addNamedQuery(String name, Query query) {
