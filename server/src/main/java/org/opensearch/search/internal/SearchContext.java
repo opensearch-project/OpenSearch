@@ -126,7 +126,6 @@ public abstract class SearchContext implements Releasable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
     private volatile boolean searchTimedOut;
-    private StarTreeQueryContext starTreeQueryContext;
 
     protected SearchContext() {}
 
@@ -536,12 +535,14 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    public SearchContext starTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
-        this.starTreeQueryContext = starTreeQueryContext;
-        return this;
+    // FIXME : Remove before OS 3.0 release
+    // This was added to make API Compatibility pass ( :server:japicmp )
+    public StarTreeQueryContext getStarTreeQueryContext() {
+        throw new UnsupportedOperationException("Use QueryShardContext instead");
     }
 
-    public StarTreeQueryContext getStarTreeQueryContext() {
-        return this.starTreeQueryContext;
+    public SearchContext starTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
+        throw new UnsupportedOperationException("Use QueryShardContext instead");
     }
+
 }
