@@ -1636,8 +1636,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                         phaser.arriveAndAwaitAdvance();
                         ICacheKey<String> iCacheKey = getICacheKey(key);
                         tieredSpilloverCache.computeIfAbsent(iCacheKey, loader);
-                    } catch (Exception ignored) {
-                    } finally {
+                    } catch (Exception ignored) {} finally {
                         countDownLatch.countDown();
                     }
                 });
