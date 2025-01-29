@@ -94,10 +94,8 @@ import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
-import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
@@ -128,7 +126,6 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.indices.IndicesModule;
-import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.ScriptService;
@@ -142,7 +139,6 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTr
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
-import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.opensearch.search.fetch.subphase.FetchSourcePhase;
@@ -161,6 +157,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -348,7 +345,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         IndexSearcher indexSearcher,
         IndexSettings indexSettings,
         CompositeIndexFieldInfo starTree,
-        List<Dimension> supportedDimensions,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
         List<Metric> supportedMetrics,
         MultiBucketConsumer bucketConsumer,
         AggregatorFactory aggregatorFactory,
@@ -393,7 +390,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         Query query,
         QueryBuilder queryBuilder,
         CompositeIndexFieldInfo starTree,
-        List<Dimension> supportedDimensions,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
         List<Metric> supportedMetrics,
         MultiBucketConsumer bucketConsumer,
         AggregatorFactory aggregatorFactory,
@@ -426,16 +423,23 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(compositeMappedFieldType.getCompositeIndexType()).thenReturn(starTree.getType());
         Set<CompositeMappedFieldType> compositeFieldTypes = Set.of(compositeMappedFieldType);
 
-        when((compositeMappedFieldType).getDimensions()).thenReturn(supportedDimensions);
+        when((compositeMappedFieldType).getDimensions()).thenReturn(new ArrayList<>(supportedDimensions.keySet()));
         when((compositeMappedFieldType).getMetrics()).thenReturn(supportedMetrics);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getCompositeFieldTypes()).thenReturn(compositeFieldTypes);
         when(searchContext.mapperService()).thenReturn(mapperService);
 
-        SearchSourceBuilder sb = new SearchSourceBuilder().query(queryBuilder);
-        StarTreeQueryContext starTreeQueryContext = StarTreeQueryHelper.getStarTreeQueryContext(searchContext, sb);
+        for (Dimension dimension : supportedDimensions.keySet()) {
+            when(mapperService.fieldType(dimension.getField())).thenReturn(supportedDimensions.get(dimension));
+            when(searchContext.getQueryShardContext().fieldMapper(dimension.getField())).thenReturn(supportedDimensions.get(dimension));
+        }
 
-        when(searchContext.getStarTreeQueryContext()).thenReturn(starTreeQueryContext);
+        StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(searchContext, queryBuilder);
+        boolean consolidated = starTreeQueryContext.consolidateAllFilters(searchContext);
+        if (consolidated) {
+            searchContext.getQueryShardContext().setStarTreeQueryContext(starTreeQueryContext);
+        }
+
         return searchContext;
     }
 
@@ -495,13 +499,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
         when(searchContext.mapperService()).thenReturn(mapperService);
-        IndexFieldDataService ifds = new IndexFieldDataService(
-            indexSettings,
-            new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
-            }),
-            circuitBreakerService,
-            mapperService
-        );
         QueryShardContext queryShardContext = queryShardContextMock(
             contextIndexSearcher,
             mapperService,
@@ -753,7 +750,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         QueryBuilder queryBuilder,
         AggregationBuilder builder,
         CompositeIndexFieldInfo compositeIndexFieldInfo,
-        List<Dimension> supportedDimensions,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
         List<Metric> supportedMetrics,
         int maxBucket,
         boolean hasNested,
