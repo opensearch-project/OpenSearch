@@ -94,6 +94,9 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (valuesSource == null) {
+            return false;
+        }
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             if (parent != null && subAggregators.length == 0) {
