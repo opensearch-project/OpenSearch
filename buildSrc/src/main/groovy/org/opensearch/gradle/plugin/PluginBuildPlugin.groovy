@@ -113,8 +113,15 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'customFolderName'    : extension1.customFolderName,
                     'extendedPlugins'     : extension1.extendedPlugins.join(','),
                     'hasNativeController' : extension1.hasNativeController,
-                    'requiresKeystore'    : extension1.requiresKeystore
+                    'requiresKeystore'    : extension1.requiresKeystore,
+                    'dependencies'        : extension1.dependencies
             ]
+
+            // Clear opensearch version if dependencies are specified
+            if (extension1.dependencies != null && !extension1.dependencies.trim().isEmpty()) {
+                properties.put('opensearchVersion', '');
+            }
+
             project.tasks.named('pluginProperties').configure {
                 expand(properties)
                 inputs.properties(properties)

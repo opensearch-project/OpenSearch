@@ -39,8 +39,8 @@ import org.gradle.api.internal.project.ProjectInternal;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Before;
-import org.junit.Ignore;
 
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
@@ -72,7 +72,6 @@ public class PluginBuildPluginTests extends GradleUnitTestCase {
         });
     }
 
-    @Ignore("https://github.com/elastic/elasticsearch/issues/47123")
     public void testApplyWithAfterEvaluate() {
         project.getExtensions().getExtraProperties().set("bwcVersions", Mockito.mock(BwcVersions.class));
         project.getPlugins().apply(PluginBuildPlugin.class);
@@ -88,5 +87,16 @@ public class PluginBuildPluginTests extends GradleUnitTestCase {
             "Task to generate notice not created: " + project.getTasks().stream().map(Task::getPath).collect(Collectors.joining(", ")),
             project.getTasks().findByName("generateNotice")
         );
+        Map<String, Object> taskProperties = project.getTasks().findByName("pluginProperties").getInputs().getProperties();
+        assertTrue(taskProperties.containsKey("description"));
+        assertTrue(taskProperties.containsKey("version"));
+        assertTrue(taskProperties.containsKey("name"));
+        assertTrue(taskProperties.containsKey("classname"));
+        assertTrue(taskProperties.containsKey("javaVersion"));
+        assertTrue(taskProperties.containsKey("opensearchVersion"));
+        assertTrue(taskProperties.containsKey("customFolderName"));
+        assertTrue(taskProperties.containsKey("extendedPlugins"));
+        assertTrue(taskProperties.containsKey("hasNativeController"));
+        assertTrue(taskProperties.containsKey("dependencies"));
     }
 }
