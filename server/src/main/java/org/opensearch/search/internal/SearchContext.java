@@ -76,6 +76,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collection;
@@ -533,4 +534,15 @@ public abstract class SearchContext implements Releasable {
     public boolean keywordIndexOrDocValuesEnabled() {
         return false;
     }
+
+    // FIXME : Remove before OS 3.0 release
+    // This was added to make API Compatibility pass ( :server:japicmp )
+    public StarTreeQueryContext getStarTreeQueryContext() {
+        throw new UnsupportedOperationException("Use QueryShardContext instead");
+    }
+
+    public SearchContext starTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
+        throw new UnsupportedOperationException("Use QueryShardContext instead");
+    }
+
 }

@@ -147,7 +147,9 @@ public class StarTreeQueryHelper {
     }
 
     public static Dimension getMatchingDimensionOrNull(String dimensionName, List<Dimension> orderedDimensions) {
-        List<Dimension> matchingDimensions = orderedDimensions.stream().filter(x -> x.getField().equals(dimensionName)).collect(Collectors.toList());
+        List<Dimension> matchingDimensions = orderedDimensions.stream()
+            .filter(x -> x.getField().equals(dimensionName))
+            .collect(Collectors.toList());
         if (matchingDimensions.size() != 1) {
             return null;
         }
