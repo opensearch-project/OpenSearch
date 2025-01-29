@@ -219,22 +219,10 @@ public class XContentMapValues {
      * @see #filter(Map, String[], String[]) for details
      */
     public static Function<Map<String, ?>, Map<String, Object>> filter(String[] includes, String[] excludes) {
-
-        return (map) -> {
-            if (hasNoDottedKeys(map) && hasNoWildcardsOrDots(includes) && hasNoWildcardsOrDots(excludes)) {
-                return createSetBasedFilter(includes, excludes).apply(map);
-            }
-            return createAutomatonFilter(includes, excludes).apply(map);
-        };
-    }
-
-    private static boolean hasNoDottedKeys(Map<String, ?> map) {
-        for (String key : map.keySet()) {
-            if (key.indexOf('.') != -1) {
-                return false;
-            }
+        if (hasNoWildcardsOrDots(includes) && hasNoWildcardsOrDots(excludes)) {
+            return createSetBasedFilter(includes, excludes);
         }
-        return true;
+        return createAutomatonFilter(includes, excludes);
     }
 
     private static boolean hasNoWildcardsOrDots(String[] fields) {
@@ -254,7 +242,6 @@ public class XContentMapValues {
      * Creates a simple HashSet-based filter for exact field name matching
      */
     private static Function<Map<String, ?>, Map<String, Object>> createSetBasedFilter(String[] includes, String[] excludes) {
-
         Set<String> includeSet = (includes == null || includes.length == 0) ? null : new HashSet<>(Arrays.asList(includes));
         Set<String> excludeSet = (excludes == null || excludes.length == 0)
             ? Collections.emptySet()
@@ -264,8 +251,12 @@ public class XContentMapValues {
             Map<String, Object> filtered = new HashMap<>();
             for (Map.Entry<String, ?> entry : map.entrySet()) {
                 String key = entry.getKey();
+                int dotPos = key.indexOf('.');
+                if (dotPos > 0) {
+                    key = key.substring(0, dotPos);
+                }
                 if ((includeSet == null || includeSet.contains(key)) && !excludeSet.contains(key)) {
-                    filtered.put(key, entry.getValue());
+                    filtered.put(entry.getKey(), entry.getValue());
                 }
             }
             return filtered;
