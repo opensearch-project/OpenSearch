@@ -308,8 +308,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         // kick off async ops for the first shard in this index
         this.refreshTask = new AsyncRefreshTask(this);
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
-        this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
-        this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        // disable these checks for ingestion source engine
+        if (!indexSettings.getIndexMetadata().useIngestionSource()) {
+            this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
+            this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        }
         if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
             this.asyncReplicationTask = new AsyncReplicationTask(this);
         }

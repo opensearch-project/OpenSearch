@@ -766,6 +766,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * creates an index with the given setting and mapping
+     */
+    public final void createIndex(String name, Settings indexSettings, String mapping) {
+        assertAcked(prepareCreate(name).setSettings(indexSettings).setMapping(mapping));
+    }
+
+    /**
      * creates an index with the given setting
      */
     public final void createIndex(String name, Context context) {
