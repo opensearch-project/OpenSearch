@@ -40,7 +40,6 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
-import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.Metadata;
@@ -386,14 +385,14 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         TimedClusterApplierService timedClusterApplierService = createTimedClusterService(false, Optional.empty());
 
         AtomicBoolean isClusterManager = new AtomicBoolean();
-        timedClusterApplierService.addLocalNodeMasterListener(new LocalNodeMasterListener() {
+        timedClusterApplierService.addLocalNodeClusterManagerListener(new LocalNodeClusterManagerListener() {
             @Override
-            public void onMaster() {
+            public void onClusterManager() {
                 isClusterManager.set(true);
             }
 
             @Override
-            public void offMaster() {
+            public void offClusterManager() {
                 isClusterManager.set(false);
             }
         });

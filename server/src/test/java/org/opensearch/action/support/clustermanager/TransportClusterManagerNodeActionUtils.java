@@ -15,7 +15,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -24,27 +24,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.cluster.coordination;
+package org.opensearch.action.support.clustermanager;
 
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 
-/**
- * Service to block the master node
- *
- * @opensearch.internal
- * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link NoClusterManagerBlockService}
- */
-@Deprecated
-public class NoMasterBlockService extends NoClusterManagerBlockService {
+public class TransportClusterManagerNodeActionUtils {
 
-    public NoMasterBlockService(Settings settings, ClusterSettings clusterSettings) {
-        super(settings, clusterSettings);
+    /**
+     * Allows to directly call {@link TransportClusterManagerNodeAction#clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)} which is
+     * a protected method.
+     */
+    public static <Request extends ClusterManagerNodeRequest<Request>, Response extends ActionResponse> void runClusterManagerOperation(
+        TransportClusterManagerNodeAction<Request, Response> clusterManagerNodeAction,
+        Request request,
+        ClusterState clusterState,
+        ActionListener<Response> actionListener
+    ) throws Exception {
+        assert clusterManagerNodeAction.checkBlock(request, clusterState) == null;
+        clusterManagerNodeAction.clusterManagerOperation(request, clusterState, actionListener);
     }
-
 }
