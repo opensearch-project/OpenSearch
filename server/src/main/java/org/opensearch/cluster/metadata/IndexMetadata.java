@@ -71,6 +71,7 @@ import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.common.ReplicationType;
 
@@ -657,6 +658,63 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Used to specify the type for the ingestion index. If not specified, the ingestion source not enabled
+     */
+    public static final String SETTING_INGESTION_SOURCE_TYPE = "index.ingestion_source.type";
+    public static final String NONE_INGESTION_SOURCE_TYPE = "none";
+    public static final Setting<String> INGESTION_SOURCE_TYPE_SETTING = Setting.simpleString(
+        SETTING_INGESTION_SOURCE_TYPE,
+        NONE_INGESTION_SOURCE_TYPE,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {
+                // TODO: validate this with the registered types in the ingestion source plugin
+            }
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                // TODO: validate this with the ingestion source params
+            }
+        },
+        Property.IndexScope
+    );
+
+    /**
+     * Used to specify initial reset policy for the ingestion pointer. If not specified, default to the latest
+     */
+    public static final String SETTING_INGESTION_SOURCE_POINTER_INIT_RESET = "index.ingestion_source.pointer.init.reset";
+    public static final Setting<String> INGESTION_SOURCE_POINTER_INIT_RESET_SETTING = Setting.simpleString(
+        SETTING_INGESTION_SOURCE_POINTER_INIT_RESET,
+        StreamPoller.ResetState.LATEST.name(),
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {
+                if (!(value.equalsIgnoreCase(StreamPoller.ResetState.LATEST.name())
+                    || value.equalsIgnoreCase(StreamPoller.ResetState.EARLIEST.name()))) {
+                    throw new IllegalArgumentException(
+                        "Invalid value for " + SETTING_INGESTION_SOURCE_POINTER_INIT_RESET + " [" + value + "]"
+                    );
+                }
+            }
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {}
+        },
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
+        "index.ingestion_source.param.",
+        key -> new Setting<>(key, "", (value) -> {
+            // TODO: add ingestion source params validation
+            return value;
+        }, Property.IndexScope)
+    );
+
+    /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
      */
     private static final String INDEX_FORMAT = "index.format";
@@ -683,6 +741,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
     public static final String CONTEXT_KEY = "context";
+    public static final String INGESTION_SOURCE_KEY = "ingestion_source";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -861,6 +920,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public Version getCreationVersion() {
         return indexCreatedVersion;
+    }
+
+    /**
+     * Gets the ingestion source.
+     * @return ingestion source, or null if ingestion source is not enabled
+     */
+    public IngestionSource getIngestionSource() {
+        final String ingestionSourceType = INGESTION_SOURCE_TYPE_SETTING.get(settings);
+        if (ingestionSourceType != null && !(NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType))) {
+            final String pointerInitReset = INGESTION_SOURCE_POINTER_INIT_RESET_SETTING.get(settings);
+            final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
+            return new IngestionSource(ingestionSourceType, pointerInitReset, ingestionSourceParams);
+        }
+        return null;
+    }
+
+    public boolean useIngestionSource() {
+        final String ingestionSourceType = INGESTION_SOURCE_TYPE_SETTING.get(settings);
+        return ingestionSourceType != null && !(NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType));
     }
 
     /**
@@ -1209,6 +1287,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.context(context);
+            // TODO: support ingestion source
             return builder.build();
         }
     }
