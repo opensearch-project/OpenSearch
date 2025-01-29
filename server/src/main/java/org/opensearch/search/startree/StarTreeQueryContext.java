@@ -172,10 +172,12 @@ public class StarTreeQueryContext {
         CompositeDataCubeFieldType compositeIndexFieldInfo,
         AggregatorFactory aggregatorFactory
     ) {
-        if (!(aggregatorFactory instanceof DateHistogramAggregatorFactory dateHistogramAggregatorFactory)
+        if (!(aggregatorFactory instanceof DateHistogramAggregatorFactory)
             || aggregatorFactory.getSubFactories().getFactories().length < 1) {
             return false;
         }
+
+        DateHistogramAggregatorFactory dateHistogramAggregatorFactory = (DateHistogramAggregatorFactory) aggregatorFactory;
 
         // Find the DateDimension in the dimensions list
         DateDimension starTreeDateDimension = null;

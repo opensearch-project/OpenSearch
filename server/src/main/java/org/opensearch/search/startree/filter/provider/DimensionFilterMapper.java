@@ -363,13 +363,20 @@ class KeywordFieldMapper implements DimensionFilterMapper {
                     case GTE:
                         return seekStatus == TermsEnum.SeekStatus.END ? Optional.empty() : Optional.of(termsEnum.ord());
                     case GT:
-                        return switch (seekStatus) {
-                            case END -> Optional.empty();
-                            case FOUND -> ((termsEnum.ord() + 1) < sortedSetIterator.getValueCount())
-                                ? Optional.of(termsEnum.ord() + 1)
-                                : Optional.empty();
-                            case NOT_FOUND -> Optional.of(termsEnum.ord());
-                        };
+                        switch (seekStatus) {
+                            case END:
+                                return Optional.empty();
+                            case FOUND:
+                                if ((termsEnum.ord() + 1) < sortedSetIterator.getValueCount()) {
+                                    return Optional.of(termsEnum.ord() + 1);
+                                } else {
+                                    return Optional.empty();
+                                }
+                            case NOT_FOUND:
+                                return Optional.of(termsEnum.ord());
+                            default:
+                                throw new IllegalStateException("Unexpected value: " + seekStatus);
+                        }
                     case LTE:
                         if (seekStatus == TermsEnum.SeekStatus.NOT_FOUND) {
                             return ((termsEnum.ord() - 1) >= 0) ? Optional.of(termsEnum.ord() - 1) : Optional.empty();
