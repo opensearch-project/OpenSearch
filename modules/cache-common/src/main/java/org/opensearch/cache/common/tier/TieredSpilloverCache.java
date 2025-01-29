@@ -145,8 +145,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         ReleasableLock writeLock = new ReleasableLock(readWriteLock.writeLock());
 
         private final Map<ICache<K, V>, TierInfo> caches;
-
+        // Policies guarding access to the cache overall.
         private final List<Predicate<V>> policies;
+
+        // Policies guarding access to the disk tier.
+        private final List<Predicate<V>> diskPolicies;
 
         private final TieredSpilloverCacheStatsHolder statsHolder;
 
@@ -220,7 +223,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             cacheListMap.put(onHeapCache, new TierInfo(true, TIER_DIMENSION_VALUE_ON_HEAP));
             cacheListMap.put(diskCache, new TierInfo(isDiskCacheEnabled, TIER_DIMENSION_VALUE_DISK));
             this.caches = Collections.synchronizedMap(cacheListMap);
-            this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
+            this.policies = builder.policies;
+            this.diskPolicies = builder.diskPolicies; // Will never be null; builder initializes it to an empty list
             this.onHeapCacheMaxWeight = onHeapCacheSizeInBytes;
             this.diskCacheMaxWeight = diskCacheSizeInBytes;
         }
@@ -257,19 +261,23 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             Tuple<V, String> cacheValueTuple = getValueFromTieredCache(true).apply(key);
             if (cacheValueTuple == null) {
                 // In case it is not present in any tier, put it inside onHeap cache by default.
-                try (ReleasableLock ignore = writeLock.acquire()) {
-                    onHeapCache.put(key, value);
+                if (evaluatePoliciesList(value, policies)) {
+                    try (ReleasableLock ignore = writeLock.acquire()) {
+                        onHeapCache.put(key, value);
+                    }
+                    updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, value);
                 }
-                updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, value);
             } else {
                 // Put it inside desired tier.
-                try (ReleasableLock ignore = writeLock.acquire()) {
-                    for (Map.Entry<ICache<K, V>, TierInfo> entry : this.caches.entrySet()) {
-                        if (cacheValueTuple.v2().equals(entry.getValue().tierName)) {
-                            entry.getKey().put(key, value);
+                if (evaluatePoliciesList(value, policies)) {
+                    try (ReleasableLock ignore = writeLock.acquire()) {
+                        for (Map.Entry<ICache<K, V>, TierInfo> entry : this.caches.entrySet()) {
+                            if (cacheValueTuple.v2().equals(entry.getValue().tierName)) {
+                                entry.getKey().put(key, value);
+                            }
                         }
+                        updateStatsOnPut(cacheValueTuple.v2(), key, value);
                     }
-                    updateStatsOnPut(cacheValueTuple.v2(), key, value);
                 }
             }
         }
@@ -297,13 +305,13 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 // Add the value to the onHeap cache. We are calling computeIfAbsent which does another get inside.
                 // This is needed as there can be many requests for the same key at the same time and we only want to load
                 // the value once.
-                V value = compute(key, loader, future);
+                Tuple<V, Boolean> computedValueTuple = compute(key, loader, future);
                 // Handle stats
-                if (loader.isLoaded()) {
+                if (computedValueTuple.v2()) {
                     // The value was just computed and added to the cache by this thread. Register a miss for the heap cache, and the disk
                     // cache
                     // if present
-                    updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, value);
+                    updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, computedValueTuple.v1());
                     statsHolder.incrementMisses(heapDimensionValues);
                     if (caches.get(diskCache).isEnabled()) {
                         statsHolder.incrementMisses(diskDimensionValues);
@@ -312,7 +320,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     // Another thread requesting this key already loaded the value. Register a hit for the heap cache
                     statsHolder.incrementHits(heapDimensionValues);
                 }
-                return value;
+                return computedValueTuple.v1();
             } else {
                 // Handle stats for an initial hit from getValueFromTieredCache()
                 if (cacheValueTuple.v2().equals(TIER_DIMENSION_VALUE_ON_HEAP)) {
@@ -327,32 +335,45 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             return cacheValueTuple.v1();
         }
 
-        private V compute(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader, CompletableFuture<Tuple<ICacheKey<K>, V>> future)
-            throws Exception {
+        private Tuple<V, Boolean> compute(
+            ICacheKey<K> key,
+            LoadAwareCacheLoader<ICacheKey<K>, V> loader,
+            CompletableFuture<Tuple<ICacheKey<K>, V>> future
+        ) throws Exception {
             // Handler to handle results post-processing. Takes a tuple<key, value> or exception as an input and returns
-            // the value. Also before returning value, puts the value in cache.
-            BiFunction<Tuple<ICacheKey<K>, V>, Throwable, Void> handler = (pair, ex) -> {
+            // a tuple of the value and a boolean for whether it entered the cache. Also before returning value, puts the value in cache
+            // if this is allowed by the cache policies.
+            boolean didPutIntoCache = false;
+            BiFunction<Tuple<ICacheKey<K>, V>, Throwable, Boolean> handler = (pair, ex) -> {
+                boolean lambdaDidPutIntoCache = false;
                 if (pair != null) {
-                    try (ReleasableLock ignore = writeLock.acquire()) {
-                        onHeapCache.put(pair.v1(), pair.v2());
-                    } catch (Exception e) {
-                        // TODO: Catch specific exceptions to know whether this resulted from cache or underlying removal
-                        // listeners/stats. Needs better exception handling at underlying layers.For now swallowing
-                        // exception.
-                        logger.warn("Exception occurred while putting item onto heap cache", e);
+                    if (evaluatePoliciesList(pair.v2(), policies)) {
+                        try (ReleasableLock ignore = writeLock.acquire()) {
+                            onHeapCache.put(pair.v1(), pair.v2());
+                            // We must load the value for the policy to check it, so we can't rely on loader.isLoaded()
+                            // to determine if the new value entered the cache since the policy may have blocked it.
+                            // Instead return this boolean as well.
+                            lambdaDidPutIntoCache = true;
+                        } catch (Exception e) {
+                            // TODO: Catch specific exceptions to know whether this resulted from cache or underlying removal
+                            // listeners/stats. Needs better exception handling at underlying layers.For now swallowing
+                            // exception.
+                            logger.warn("Exception occurred while putting item onto heap cache", e);
+                        }
                     }
                 } else {
                     if (ex != null) {
                         logger.warn("Exception occurred while trying to compute the value", ex);
                     }
                 }
+                // Safe to remove from the map even if policy blocks value from entering the cache
                 completableFutureMap.remove(key);// Remove key from map as not needed anymore.
-                return null;
+                return lambdaDidPutIntoCache;
             };
             V value = null;
             if (future == null) {
                 future = completableFutureMap.get(key);
-                future.handle(handler);
+                CompletableFuture<Boolean> didPutIntoCacheFuture = future.handle(handler);
                 try {
                     value = loader.load(key);
                 } catch (Exception ex) {
@@ -365,6 +386,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     throw new ExecutionException(npe);
                 } else {
                     future.complete(new Tuple<>(key, value));
+                    // If the future is completed, didPutIntoCacheFuture should also be completed, so it's safe to run .get() on it
+                    didPutIntoCache = didPutIntoCacheFuture.get();
                 }
             } else {
                 try {
@@ -373,7 +396,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     throw new IllegalStateException(ex);
                 }
             }
-            return value;
+            return new Tuple<>(value, didPutIntoCache);
         }
 
         @Override
@@ -442,7 +465,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             boolean wasEvicted = SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason());
             boolean countEvictionTowardsTotal = false; // Don't count this eviction towards the cache's total if it ends up in the disk tier
             boolean exceptionOccurredOnDiskCachePut = false;
-            boolean canCacheOnDisk = caches.get(diskCache).isEnabled() && wasEvicted && evaluatePolicies(notification.getValue());
+            boolean canCacheOnDisk = caches.get(diskCache).isEnabled()
+                && wasEvicted
+                && evaluatePoliciesList(notification.getValue(), diskPolicies);
             if (canCacheOnDisk) {
                 try (ReleasableLock ignore = writeLock.acquire()) {
                     diskCache.put(key, notification.getValue()); // spill over to the disk tier and increment its stats
@@ -465,8 +490,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             updateStatsOnRemoval(TIER_DIMENSION_VALUE_ON_HEAP, wasEvicted, key, notification.getValue(), countEvictionTowardsTotal);
         }
 
-        boolean evaluatePolicies(V value) {
-            for (Predicate<V> policy : policies) {
+        boolean evaluatePoliciesList(V value, List<Predicate<V>> policiesList) {
+            for (Predicate<V> policy : policiesList) {
                 if (!policy.test(value)) {
                     return false;
                 }
@@ -873,7 +898,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         private CacheConfig<K, V> cacheConfig;
         private CacheType cacheType;
         private Map<String, ICache.Factory> cacheFactories;
-        private final ArrayList<Predicate<V>> policies = new ArrayList<>();
+        private final List<Predicate<V>> policies = new ArrayList<>();
+        private final List<Predicate<V>> diskPolicies = new ArrayList<>();
 
         private int numberOfSegments;
         private long onHeapCacheSizeInBytes;
@@ -945,7 +971,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         }
 
         /**
-         * Set a cache policy to be used to limit access to this cache's disk tier.
+         * Set a cache policy to be used to limit access to this cache.
          * @param policy the policy
          * @return builder
          */
@@ -955,12 +981,32 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         }
 
         /**
-         * Set multiple policies to be used to limit access to this cache's disk tier.
+         * Set multiple policies to be used to limit access to this cache.
          * @param policies the policies
          * @return builder
          */
         public Builder<K, V> addPolicies(List<Predicate<V>> policies) {
             this.policies.addAll(policies);
+            return this;
+        }
+
+        /**
+         * Set a cache policy to be used to limit access to this cache's disk tier.
+         * @param diskPolicy the policy
+         * @return builder
+         */
+        public Builder<K, V> addDiskPolicy(Predicate<V> diskPolicy) {
+            this.diskPolicies.add(diskPolicy);
+            return this;
+        }
+
+        /**
+         * Set multiple policies to be used to limit access to this cache's disk tier.
+         * @param diskPolicies the policies
+         * @return builder
+         */
+        public Builder<K, V> addDiskPolicies(List<Predicate<V>> diskPolicies) {
+            this.diskPolicies.addAll(diskPolicies);
             return this;
         }
 
