@@ -43,7 +43,6 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
@@ -57,6 +56,7 @@ import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,7 +64,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * Aggregate all docs into a max value
@@ -130,14 +130,14 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             }
         }
 
-        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             if (parent != null && subAggregators.length == 0) {
                 // If this a child aggregator, then the parent will trigger star-tree pre-computation.
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
-            return getStarTreeCollector(ctx, sub, supportedStarTree);
+            getStarTreeCollector(ctx, sub, supportedStarTree);
         }
         return getDefaultLeafCollector(ctx, sub);
     }
@@ -167,21 +167,11 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
         };
     }
 
-    public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
-        throws IOException {
+    public void getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree) throws IOException {
         AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));
-        return StarTreeQueryHelper.getStarTreeLeafCollector(
-            context,
-            valuesSource,
-            ctx,
-            sub,
-            starTree,
-            MetricStat.MAX.getTypeName(),
-            value -> {
-                max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
-            },
-            () -> maxes.set(0, max.get())
-        );
+        StarTreeQueryHelper.getStarTreeLeafCollector(context, valuesSource, ctx, sub, starTree, MetricStat.MAX.getTypeName(), value -> {
+            max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
+        }, () -> maxes.set(0, max.get()));
     }
 
     @Override

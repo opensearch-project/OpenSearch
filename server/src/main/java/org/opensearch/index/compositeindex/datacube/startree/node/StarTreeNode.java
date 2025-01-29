@@ -9,6 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.node;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.search.startree.StarTreeNodeCollector;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -107,7 +108,27 @@ public interface StarTreeNode {
      * @return the child node for the given dimension value or null if child is not present
      * @throws IOException if an I/O error occurs while retrieving the child node
      */
-    StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException;
+    default StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException {
+        return getChildForDimensionValue(dimensionValue, null);
+    }
+
+    /**
+     * Matches the given @dimensionValue amongst the child default nodes for this node.
+     * @param dimensionValue : Value to match
+     * @param lastMatchedChild : If not null, binary search will use this as the start/low
+     * @return : Matched StarTreeNode or null if not found
+     * @throws IOException : Any exception in reading the node data from index.
+     */
+    StarTreeNode getChildForDimensionValue(Long dimensionValue, StarTreeNode lastMatchedChild) throws IOException;
+
+    /**
+     * Collects all matching child nodes whose dimension values lie within the range of low and high, both inclusive.
+     * @param low : Starting of the range ( inclusive )
+     * @param high : End of the range ( inclusive )
+     * @param collector : Collector to collect the matched child StarTreeNode's
+     * @throws IOException : Any exception in reading the node data from index.
+     */
+    void collectChildrenInRange(long low, long high, StarTreeNodeCollector collector) throws IOException;
 
     /**
      * Returns the child star node for a node in the star-tree.
