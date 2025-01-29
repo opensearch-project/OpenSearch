@@ -276,6 +276,14 @@ public abstract class Rounding implements Writeable {
     }
 
     /**
+     * Helper function for checking if the time zone requested for date histogram
+     * aggregation is utc or not
+     */
+    public boolean isUTC() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * A strategy for rounding milliseconds since epoch.
      *
      * @opensearch.api
@@ -1429,10 +1437,4 @@ public abstract class Rounding implements Writeable {
 
         return OptionalLong.of(interval);
     }
-
-    /**
-     * Helper function for checking if the time zone requested for date histogram
-     * aggregation is utc or not
-     */
-    public abstract boolean isUTC();
 }
