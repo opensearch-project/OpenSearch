@@ -96,6 +96,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .build();
         CreateIndexRequestBuilder builder = client().admin()
             .indices()
@@ -246,6 +247,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .build();
         CreateIndexRequestBuilder builder = client().admin()
             .indices()
@@ -494,6 +496,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .build();
         CreateIndexRequestBuilder builder = client().admin()
             .indices()
