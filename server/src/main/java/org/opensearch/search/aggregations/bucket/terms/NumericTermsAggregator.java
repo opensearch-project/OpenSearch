@@ -34,7 +34,6 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.FixedBitSet;
@@ -135,13 +134,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
-        if (supportedStarTree != null) {
-            if (preComputeWithStarTree(ctx, supportedStarTree) == true) {
-                throw new CollectionTerminatedException();
-            }
-        }
-
         SortedNumericDocValues values = resultStrategy.getValues(ctx);
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -169,6 +161,14 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 }
             }
         });
+    }
+
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            return preComputeWithStarTree(ctx, supportedStarTree);
+        }
+        return false;
     }
 
     public StarTreeBucketCollector getStarTreeBucketCollector(
