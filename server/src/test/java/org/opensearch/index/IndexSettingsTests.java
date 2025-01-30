@@ -608,8 +608,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test private setting validation for private settings defined in isPrivateSetting()
-     * https://github.com/opensearch-project/OpenSearch/blob/main/server/src/main/java/org/opensearch/common/settings/IndexScopedSettings.java
+     * Test private setting validation for private settings defined in {@link IndexScopedSettings#isPrivateSetting(String)}
      */
     public void testPrivateSettingsValidation() {
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.V_EMPTY).build();
