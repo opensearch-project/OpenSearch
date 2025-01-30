@@ -117,9 +117,9 @@
               text:
                 query: fox runs
                 operator: AND
-            highlight:
-              fields:
-                - text: {}
+          highlight:
+            fields:
+              - text: {}
   - match: {hits.total: 1}
   - match: {hits.hits.0.highlight.text.0: "the <em>fox</em> <em>runs</em> across the street"}
 
