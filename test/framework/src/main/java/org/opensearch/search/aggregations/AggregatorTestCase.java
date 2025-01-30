@@ -607,9 +607,19 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         IndexSearcher searcher,
         Query query,
         AggregationBuilder builder,
+        boolean shardFanOut,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduce(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
+        return searchAndReduce(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, shardFanOut, fieldTypes);
+    }
+
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return searchAndReduce(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
@@ -619,7 +629,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregationBuilder builder,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduce(indexSettings, searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
+        return searchAndReduce(indexSettings, searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
@@ -629,7 +639,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         int maxBucket,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduce(createIndexSettings(), searcher, query, builder, maxBucket, fieldTypes);
+        return searchAndReduce(createIndexSettings(), searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
@@ -638,9 +648,10 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         Query query,
         AggregationBuilder builder,
         int maxBucket,
+        boolean shardFanOut,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, false, fieldTypes);
+        return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, false, shardFanOut, fieldTypes);
     }
 
     /**
@@ -658,6 +669,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregationBuilder builder,
         int maxBucket,
         boolean hasNested,
+        boolean shardFanOut,
         MappedFieldType... fieldTypes
     ) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
@@ -673,7 +685,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         );
         C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
 
-        if (randomBoolean() && searcher.getIndexReader().leaves().size() > 0) {
+        if (shardFanOut && searcher.getIndexReader().leaves().size() > 0) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
             final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
             final int size = compCTX.leaves().size();
