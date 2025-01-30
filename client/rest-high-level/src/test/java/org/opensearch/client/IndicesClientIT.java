@@ -1405,9 +1405,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         final String unmodifiableSettingKey = IndexMetadata.SETTING_NUMBER_OF_SHARDS;
         final int unmodifiableSettingValue = 3;
 
-        final String privateSettingKey = SETTING_CREATION_DATE;
-        final int privateSettingValue = -1;
-
         String index = "index";
         createIndex(index, Settings.EMPTY);
 
@@ -1467,7 +1464,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                     + "reason=Can't update non dynamic settings [[index.number_of_shards]] for open indices [[index/"
             )
         );
-
         closeIndex(index);
         exception = expectThrows(
             OpenSearchException.class,
