@@ -32,7 +32,6 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.FixedBitSet;
@@ -104,23 +103,29 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
+            return false;
         }
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             if (parent != null && subAggregators.length == 0) {
                 // If this a child aggregator, then the parent will trigger star-tree pre-computation.
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
-                return LeafBucketCollector.NO_OP_COLLECTOR;
+                return true;
             }
-            return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
+            precomputeLeafUsingStarTree(ctx, supportedStarTree);
+            return true;
         }
-        return getDefaultLeafCollector(ctx, sub);
+        return false;
     }
 
-    private LeafBucketCollector getDefaultLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    @Override
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
@@ -154,8 +159,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
         };
     }
 
-    public LeafBucketCollector getStarTreeLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
-        throws IOException {
+    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         assert starTreeValues != null;
 
@@ -200,12 +204,6 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
 
         sums.set(0, kahanSummation.value());
         compensations.set(0, kahanSummation.delta());
-        return new LeafBucketCollectorBase(sub, valuesSource.doubleValues(ctx)) {
-            @Override
-            public void collect(int doc, long bucket) {
-                throw new CollectionTerminatedException();
-            }
-        };
     }
 
     @Override

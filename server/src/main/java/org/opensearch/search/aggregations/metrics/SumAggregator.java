@@ -93,24 +93,29 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
+            return false;
         }
-
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             if (parent != null && subAggregators.length == 0) {
                 // If this a child aggregator, then the parent will trigger star-tree pre-computation.
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
-                return LeafBucketCollector.NO_OP_COLLECTOR;
+                return true;
             }
-            getStarTreeCollector(ctx, sub, supportedStarTree);
+            precomputeLeafUsingStarTree(ctx, supportedStarTree);
+            return true;
         }
-        return getDefaultLeafCollector(ctx, sub);
+        return false;
     }
 
-    private LeafBucketCollector getDefaultLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    @Override
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
@@ -140,14 +145,13 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         };
     }
 
-    public void getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree) throws IOException {
+    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
 
-        StarTreeQueryHelper.getStarTreeLeafCollector(
+        StarTreeQueryHelper.precomputeLeafUsingStarTree(
             context,
             valuesSource,
             ctx,
-            sub,
             starTree,
             MetricStat.SUM.getTypeName(),
             value -> kahanSummation.add(NumericUtils.sortableLongToDouble(value)),

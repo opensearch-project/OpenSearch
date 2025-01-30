@@ -10,7 +10,6 @@ package org.opensearch.search.startree;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.lucene.Lucene;
@@ -21,7 +20,6 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
@@ -71,11 +69,10 @@ public class StarTreeQueryHelper {
      * Get the star-tree leaf collector
      * This collector computes the aggregation prematurely and invokes an early termination collector
      */
-    public static void getStarTreeLeafCollector(
+    public static void precomputeLeafUsingStarTree(
         SearchContext context,
         ValuesSource.Numeric valuesSource,
         LeafReaderContext ctx,
-        LeafBucketCollector sub,
         CompositeIndexFieldInfo starTree,
         String metric,
         Consumer<Long> valueConsumer,
@@ -113,10 +110,6 @@ public class StarTreeQueryHelper {
 
         // Call the final consumer after processing all entries
         finalConsumer.run();
-
-        // FIXME : Remove after @msfroh PR for precompute
-        // Terminate after pre-computing aggregation
-        throw new CollectionTerminatedException();
     }
 
     /**
