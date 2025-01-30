@@ -11,6 +11,7 @@ package org.opensearch.search.aggregations.bucket.filterrewrite;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.common.Rounding;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -22,8 +23,7 @@ import java.io.IOException;
 import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
-import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.multiRangesTraverse;
+import java.util.function.Supplier;
 
 /**
  * For date histogram aggregation
@@ -127,27 +127,31 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
         return (DateFieldMapper.DateFieldType) fieldType;
     }
 
+    /**
+     * Get the size of buckets to stop early
+     */
     protected int getSize() {
         return Integer.MAX_VALUE;
     }
 
     @Override
-    final FilterRewriteOptimizationContext.DebugInfo tryOptimize(
+    final FilterRewriteOptimizationContext.OptimizeResult tryOptimize(
         PointValues values,
         BiConsumer<Long, Long> incrementDocCount,
-        Ranges ranges
+        Ranges ranges,
+        Supplier<DocIdSetBuilder> disBuilderSupplier
     ) throws IOException {
         int size = getSize();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
-        BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
+
+        Function<Integer, Long> getBucketOrd = (activeIndex) -> {
             long rangeStart = LongPoint.decodeDimension(ranges.lowers[activeIndex], 0);
             rangeStart = fieldType.convertNanosToMillis(rangeStart);
-            long bucketOrd = getBucketOrd(bucketOrdProducer().apply(rangeStart));
-            incrementDocCount.accept(bucketOrd, (long) docCount);
+            return getBucketOrd(bucketOrdProducer().apply(rangeStart));
         };
 
-        return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
+        return getResult(values, incrementDocCount, ranges, disBuilderSupplier, getBucketOrd, size);
     }
 
     private static long getBucketOrd(long bucketOrd) {

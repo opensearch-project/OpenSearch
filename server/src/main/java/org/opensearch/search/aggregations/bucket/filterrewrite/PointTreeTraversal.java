@@ -13,18 +13,22 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.common.CheckedRunnable;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Utility class for traversing a {@link PointValues.PointTree} and collecting document counts for the ranges.
  *
- * <p>The main entry point is the {@link #multiRangesTraverse(PointValues.PointTree, Ranges,
- * BiConsumer, int)} method
+ * <p>The main entry point is the {@link #multiRangesTraverse} method
  *
  * <p>The class uses a {@link RangeCollectorForPointTree} to keep track of the active ranges and
  * determine which parts of the tree to visit. The {@link
@@ -39,58 +43,49 @@ final class PointTreeTraversal {
     /**
      * Traverses the given {@link PointValues.PointTree} and collects document counts for the intersecting ranges.
      *
-     * @param tree                 the point tree to traverse
-     * @param ranges               the set of ranges to intersect with
-     * @param incrementDocCount    a callback to increment the document count for a range bucket
-     * @param maxNumNonZeroRanges  the maximum number of non-zero ranges to collect
-     * @return a {@link FilterRewriteOptimizationContext.DebugInfo} object containing debug information about the traversal
+     * @param tree      the point tree to traverse
+     * @param collector
+     * @return a {@link FilterRewriteOptimizationContext.OptimizeResult} object containing debug information about the traversal
      */
-    static FilterRewriteOptimizationContext.DebugInfo multiRangesTraverse(
+    static FilterRewriteOptimizationContext.OptimizeResult multiRangesTraverse(
         final PointValues.PointTree tree,
-        final Ranges ranges,
-        final BiConsumer<Integer, Integer> incrementDocCount,
-        final int maxNumNonZeroRanges
+        RangeCollectorForPointTree collector
     ) throws IOException {
-        FilterRewriteOptimizationContext.DebugInfo debugInfo = new FilterRewriteOptimizationContext.DebugInfo();
-        int activeIndex = ranges.firstRangeIndex(tree.getMinPackedValue(), tree.getMaxPackedValue());
-        if (activeIndex < 0) {
-            logger.debug("No ranges match the query, skip the fast filter optimization");
-            return debugInfo;
-        }
-        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(incrementDocCount, maxNumNonZeroRanges, ranges, activeIndex);
         PointValues.IntersectVisitor visitor = getIntersectVisitor(collector);
         try {
-            intersectWithRanges(visitor, tree, collector, debugInfo);
+            intersectWithRanges(visitor, tree, collector);
         } catch (CollectionTerminatedException e) {
             logger.debug("Early terminate since no more range to collect");
         }
         collector.finalizePreviousRange();
-
-        return debugInfo;
+        collector.finalizeDocIdSetBuildersResult();
+        return collector.result;
     }
 
     private static void intersectWithRanges(
         PointValues.IntersectVisitor visitor,
         PointValues.PointTree pointTree,
-        RangeCollectorForPointTree collector,
-        FilterRewriteOptimizationContext.DebugInfo debug
+        RangeCollectorForPointTree collector
     ) throws IOException {
         PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
 
         switch (r) {
             case CELL_INSIDE_QUERY:
                 collector.countNode((int) pointTree.size());
-                debug.visitInner();
+                if (collector.hasSubAgg) {
+                    pointTree.visitDocIDs(visitor);
+                }
+                collector.result.visitInner();
                 break;
             case CELL_CROSSES_QUERY:
                 if (pointTree.moveToChild()) {
                     do {
-                        intersectWithRanges(visitor, pointTree, collector, debug);
+                        intersectWithRanges(visitor, pointTree, collector);
                     } while (pointTree.moveToSibling());
                     pointTree.moveToParent();
                 } else {
                     pointTree.visitDocValues(visitor);
-                    debug.visitLeaf();
+                    collector.result.visitLeaf();
                 }
                 break;
             case CELL_OUTSIDE_QUERY:
@@ -99,24 +94,53 @@ final class PointTreeTraversal {
 
     private static PointValues.IntersectVisitor getIntersectVisitor(RangeCollectorForPointTree collector) {
         return new PointValues.IntersectVisitor() {
+
+            @Override
+            public void grow(int count) {
+                if (collector.hasSubAgg) {
+                    collector.grow(count);
+                }
+            }
+
             @Override
             public void visit(int docID) {
-                // this branch should be unreachable
-                throw new UnsupportedOperationException(
-                    "This IntersectVisitor does not perform any actions on a " + "docID=" + docID + " node being visited"
-                );
+                if (!collector.hasSubAgg) {
+                    throw new UnsupportedOperationException(
+                        "This visitor should not visit when there's no subAgg and node is fully contained by the query"
+                    );
+                }
+                collector.collectDocId(docID);
+            }
+
+            @Override
+            public void visit(DocIdSetIterator iterator) throws IOException {
+                if (!collector.hasSubAgg) {
+                    throw new UnsupportedOperationException(
+                        "This visitor should not visit when there's no subAgg and node is fully contained by the query"
+                    );
+                }
+                collector.collectDocIdSet(iterator);
             }
 
             @Override
             public void visit(int docID, byte[] packedValue) throws IOException {
-                visitPoints(packedValue, collector::count);
+                visitPoints(packedValue, () -> {
+                    collector.count();
+                    if (collector.hasSubAgg) {
+                        collector.collectDocId(docID);
+                    }
+                });
             }
 
             @Override
             public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
                 visitPoints(packedValue, () -> {
+                    // note: iterator can only iterate once
                     for (int doc = iterator.nextDoc(); doc != NO_MORE_DOCS; doc = iterator.nextDoc()) {
                         collector.count();
+                        if (collector.hasSubAgg) {
+                            collector.collectDocId(doc);
+                        }
                     }
                 });
             }
@@ -124,7 +148,7 @@ final class PointTreeTraversal {
             private void visitPoints(byte[] packedValue, CheckedRunnable<IOException> collect) throws IOException {
                 if (!collector.withinUpperBound(packedValue)) {
                     collector.finalizePreviousRange();
-                    if (collector.iterateRangeEnd(packedValue)) {
+                    if (collector.iterateRangeEnd(packedValue, true)) {
                         throw new CollectionTerminatedException();
                     }
                 }
@@ -139,7 +163,7 @@ final class PointTreeTraversal {
                 // try to find the first range that may collect values from this cell
                 if (!collector.withinUpperBound(minPackedValue)) {
                     collector.finalizePreviousRange();
-                    if (collector.iterateRangeEnd(minPackedValue)) {
+                    if (collector.iterateRangeEnd(minPackedValue, false)) {
                         throw new CollectionTerminatedException();
                     }
                 }
@@ -156,7 +180,7 @@ final class PointTreeTraversal {
         };
     }
 
-    private static class RangeCollectorForPointTree {
+    static class RangeCollectorForPointTree {
         private final BiConsumer<Integer, Integer> incrementRangeDocCount;
         private int counter = 0;
 
@@ -166,24 +190,63 @@ final class PointTreeTraversal {
         private int visitedRange = 0;
         private final int maxNumNonZeroRange;
 
+        private boolean hasSubAgg = false;
+        private final DocIdSetBuilder[] docIdSetBuilders;
+        private final Supplier<DocIdSetBuilder> disBuilderSupplier;
+        private final Map<Long, DocIdSetBuilder> bucketOrdinalToDocIdSetBuilder = new HashMap<>();
+        private DocIdSetBuilder.BulkAdder currentAdder;
+        private final Function<Integer, Long> getBucketOrd;
+        private final FilterRewriteOptimizationContext.OptimizeResult result;
+
+        private int lastGrowCount;
+
         public RangeCollectorForPointTree(
+            Ranges ranges,
             BiConsumer<Integer, Integer> incrementRangeDocCount,
             int maxNumNonZeroRange,
-            Ranges ranges,
-            int activeIndex
+            int activeIndex,
+            Supplier<DocIdSetBuilder> disBuilderSupplier,
+            Function<Integer, Long> getBucketOrd,
+            FilterRewriteOptimizationContext.OptimizeResult result
         ) {
             this.incrementRangeDocCount = incrementRangeDocCount;
             this.maxNumNonZeroRange = maxNumNonZeroRange;
             this.ranges = ranges;
             this.activeIndex = activeIndex;
+            this.docIdSetBuilders = new DocIdSetBuilder[ranges.size];
+            this.disBuilderSupplier = disBuilderSupplier;
+            this.getBucketOrd = getBucketOrd;
+            if (disBuilderSupplier != null) {
+                hasSubAgg = true;
+            }
+            this.result = result;
+        }
+
+        private void grow(int count) {
+            if (docIdSetBuilders[activeIndex] == null) {
+                docIdSetBuilders[activeIndex] = disBuilderSupplier.get();
+            }
+            logger.trace("grow docIdSetBuilder[{}] with count {}", activeIndex, count);
+            currentAdder = docIdSetBuilders[activeIndex].grow(count);
+            lastGrowCount = count;
+        }
+
+        private void countNode(int count) {
+            counter += count;
         }
 
         private void count() {
             counter++;
         }
 
-        private void countNode(int count) {
-            counter += count;
+        private void collectDocId(int docId) {
+            logger.trace("collect docId {}", docId);
+            currentAdder.add(docId);
+        }
+
+        private void collectDocIdSet(DocIdSetIterator iter) throws IOException {
+            logger.trace("collect disi {}", iter);
+            currentAdder.add(iter);
         }
 
         private void finalizePreviousRange() {
@@ -191,21 +254,51 @@ final class PointTreeTraversal {
                 incrementRangeDocCount.accept(activeIndex, counter);
                 counter = 0;
             }
+
+            if (hasSubAgg && currentAdder != null) {
+                long bucketOrd = getBucketOrd.apply(activeIndex);
+                logger.trace("finalize docIdSetBuilder[{}] with bucket ordinal {}", activeIndex, bucketOrd);
+                bucketOrdinalToDocIdSetBuilder.put(bucketOrd, docIdSetBuilders[activeIndex]);
+                currentAdder = null;
+            }
+        }
+
+        private void finalizeDocIdSetBuildersResult() {
+            int maxOrdinal = bucketOrdinalToDocIdSetBuilder.keySet().stream().mapToInt(Long::intValue).max().orElse(0) + 1;
+            DocIdSetBuilder[] builder = new DocIdSetBuilder[maxOrdinal];
+            for (Map.Entry<Long, DocIdSetBuilder> entry : bucketOrdinalToDocIdSetBuilder.entrySet()) {
+                int ordinal = Math.toIntExact(entry.getKey());
+                builder[ordinal] = entry.getValue();
+            }
+            result.builders = builder;
         }
 
         /**
+         * Iterate to the first range that can include the given value
+         * under the assumption that ranges are not overlapping and increasing
+         *
+         * @param value the value that is outside current lower bound
+         * @param inLeaf whether this method is called when in the leaf node
          * @return true when iterator exhausted or collect enough non-zero ranges
          */
-        private boolean iterateRangeEnd(byte[] value) {
-            // the new value may not be contiguous to the previous one
-            // so try to find the first next range that cross the new value
+        private boolean iterateRangeEnd(byte[] value, boolean inLeaf) {
             while (!withinUpperBound(value)) {
                 if (++activeIndex >= ranges.size) {
                     return true;
                 }
             }
             visitedRange++;
-            return visitedRange > maxNumNonZeroRange;
+            if (visitedRange > maxNumNonZeroRange) {
+                return true;
+            } else {
+                // edge case: if finalizePreviousRange is called within the leaf node
+                // currentAdder is reset and grow would not be called immediately
+                // here we reuse previous grow count
+                if (hasSubAgg && inLeaf && currentAdder == null) {
+                    grow(lastGrowCount);
+                }
+                return false;
+            }
         }
 
         private boolean withinLowerBound(byte[] value) {

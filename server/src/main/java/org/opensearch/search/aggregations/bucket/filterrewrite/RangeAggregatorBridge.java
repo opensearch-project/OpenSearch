@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumericPointEncoder;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator;
@@ -19,8 +20,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
-import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.multiRangesTraverse;
+import java.util.function.Supplier;
 
 /**
  * For range aggregation
@@ -74,18 +74,17 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    final FilterRewriteOptimizationContext.DebugInfo tryOptimize(
+    final FilterRewriteOptimizationContext.OptimizeResult tryOptimize(
         PointValues values,
         BiConsumer<Long, Long> incrementDocCount,
-        Ranges ranges
+        Ranges ranges,
+        Supplier<DocIdSetBuilder> disBuilderSupplier
     ) throws IOException {
         int size = Integer.MAX_VALUE;
-        BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
-            long bucketOrd = bucketOrdProducer().apply(activeIndex);
-            incrementDocCount.accept(bucketOrd, (long) docCount);
-        };
 
-        return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
+        Function<Integer, Long> getBucketOrd = (activeIndex) -> bucketOrdProducer().apply(activeIndex);
+
+        return getResult(values, incrementDocCount, ranges, disBuilderSupplier, getBucketOrd, size);
     }
 
     /**

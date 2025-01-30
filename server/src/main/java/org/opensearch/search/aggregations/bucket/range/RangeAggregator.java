@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.core.ParseField;
@@ -253,6 +255,8 @@ public class RangeAggregator extends BucketsAggregator {
 
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
+    private final Logger logger = LogManager.getLogger(RangeAggregator.class);
+
     public RangeAggregator(
         String name,
         AggregatorFactories factories,
@@ -318,6 +322,18 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+
+                if (segmentMatchAll(context, ctx)
+                    && filterRewriteOptimizationContext.tryOptimize(
+                        ctx,
+                        this::incrementBucketDocCount,
+                        false,
+                        collectableSubAggregators,
+                        sub
+                    )) {
+                    throw new CollectionTerminatedException();
+                }
+
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {

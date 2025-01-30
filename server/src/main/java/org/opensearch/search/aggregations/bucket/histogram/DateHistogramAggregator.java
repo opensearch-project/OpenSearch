@@ -201,6 +201,17 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(
+            ctx,
+            this::incrementBucketDocCount,
+            segmentMatchAll(context, ctx),
+            collectableSubAggregators,
+            sub
+        );
+        if (optimized) {
+            throw new CollectionTerminatedException();
+        }
+
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
