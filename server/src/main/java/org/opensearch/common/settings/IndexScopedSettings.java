@@ -313,9 +313,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     @Override
     public boolean isPrivateSetting(String key) {
         switch (key) {
-            case IndexMetadata.SETTING_CREATION_DATE:
-            case IndexMetadata.SETTING_INDEX_UUID:
-            case IndexMetadata.SETTING_HISTORY_UUID:
             case IndexMetadata.SETTING_VERSION_UPGRADED:
             case IndexMetadata.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyProvider.INDEX_MERGE_ENABLED:

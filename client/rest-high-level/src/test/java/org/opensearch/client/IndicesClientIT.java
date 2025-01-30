@@ -1468,17 +1468,6 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             )
         );
 
-        UpdateSettingsRequest privateSettingRequest = new UpdateSettingsRequest(index);
-        privateSettingRequest.settings(Settings.builder().put(privateSettingKey, privateSettingValue).build());
-        exception = expectThrows(
-            OpenSearchException.class,
-            () -> execute(privateSettingRequest, highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync)
-        );
-        assertThat(
-            exception.getMessage(),
-            containsString("can not update private setting [index.creation_date]; this setting is managed by OpenSearch")
-        );
-
         closeIndex(index);
         exception = expectThrows(
             OpenSearchException.class,
