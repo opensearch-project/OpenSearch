@@ -21,6 +21,7 @@ import org.opensearch.arrow.custom.ArrowDocIdCollector;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.arrow.spi.StreamProducer;
 import org.opensearch.arrow.spi.StreamTicket;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.aggregations.AggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
@@ -180,6 +181,11 @@ public class StreamSearchPhase extends QueryPhase {
                             return searchContext.isCancelled() || isCancelled();
                         }
                     };
+                }
+
+                @Override
+                public TimeValue getJobDeadline() {
+                    return TimeValue.timeValueMinutes(5);
                 }
 
                 @Override

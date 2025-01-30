@@ -8,6 +8,7 @@
 
 package org.opensearch.arrow.flight.impl;
 
+import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.ExceptionsHelper;
@@ -33,18 +34,20 @@ public class FlightStreamReader implements StreamReader {
     /**
      * Moves the flightStream to the next batch of data.
      * @return true if there is a next batch of data, false otherwise.
+     * @throws FlightRuntimeException if an error occurs while advancing to the next batch like early termination of stream
      */
     @Override
-    public boolean next() {
+    public boolean next() throws FlightRuntimeException {
         return flightStream.next();
     }
 
     /**
      * Returns the VectorSchemaRoot containing the current batch of data.
      * @return The VectorSchemaRoot containing the current batch of data.
+     * @throws FlightRuntimeException if an error occurs while retrieving the root like early termination of stream
      */
     @Override
-    public VectorSchemaRoot getRoot() {
+    public VectorSchemaRoot getRoot() throws FlightRuntimeException {
         return flightStream.getRoot();
     }
 

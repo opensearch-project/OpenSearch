@@ -14,6 +14,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.arrow.spi.StreamProducer;
 import org.opensearch.arrow.spi.StreamReader;
 import org.opensearch.arrow.spi.StreamTicket;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -42,7 +43,7 @@ public class ProxyStreamProducer implements StreamProducer {
      * @return A VectorSchemaRoot representing the schema of the remote FlightStream
      */
     @Override
-    public VectorSchemaRoot createRoot(BufferAllocator allocator) {
+    public VectorSchemaRoot createRoot(BufferAllocator allocator) throws Exception {
         return remoteStream.getRoot();
     }
 
@@ -53,6 +54,16 @@ public class ProxyStreamProducer implements StreamProducer {
     @Override
     public BatchedJob createJob(BufferAllocator allocator) {
         return new ProxyBatchedJob(remoteStream);
+    }
+
+    /**
+     * Returns the deadline for the remote FlightStream.
+     * Since the stream is not present locally, the deadline is set to -1. It piggybacks on remote stream expiration
+     * @return The deadline for the remote FlightStream
+     */
+    @Override
+    public TimeValue getJobDeadline() {
+        return TimeValue.MINUS_ONE;
     }
 
     /**
@@ -91,7 +102,7 @@ public class ProxyStreamProducer implements StreamProducer {
         }
 
         @Override
-        public void run(VectorSchemaRoot root, FlushSignal flushSignal) {
+        public void run(VectorSchemaRoot root, FlushSignal flushSignal) throws Exception {
             while (!isCancelled.get() && remoteStream.next()) {
                 flushSignal.awaitConsumption(1000);
             }

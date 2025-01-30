@@ -9,9 +9,12 @@
 package org.opensearch.arrow.flight.impl;
 
 import org.apache.arrow.flight.FlightStream;
+import org.apache.arrow.flight.OSFlightClient;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.flight.bootstrap.FlightClientManager;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.arrow.spi.StreamProducer;
@@ -21,9 +24,13 @@ import org.opensearch.arrow.spi.StreamTicketFactory;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
+import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
 
+import java.io.IOException;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -33,13 +40,42 @@ import java.util.function.Supplier;
  * work with streams without direct exposure to Flight internals.
  */
 public class FlightStreamManager implements StreamManager {
+    private static final Logger logger = LogManager.getLogger(FlightStreamManager.class);
 
     private FlightStreamTicketFactory ticketFactory;
     private FlightClientManager clientManager;
     private final Supplier<BufferAllocator> allocatorSupplier;
     private final Cache<String, StreamProducerHolder> streamProducers;
-    private static final TimeValue expireAfter = TimeValue.timeValueMinutes(2);
-    private static final long MAX_PRODUCERS = 10000;
+    // TODO read from setting
+    private static final TimeValue DEFAULT_CACHE_EXPIRE = TimeValue.timeValueMinutes(10); // Maximum cache time
+
+    /**
+     * Holds a StreamProducer along with its metadata and resources
+     */
+    public record StreamProducerHolder(StreamProducer producer, BufferAllocator allocator, long creationTime, SetOnce<
+        VectorSchemaRoot> root) {
+        public StreamProducerHolder {
+            Objects.requireNonNull(producer, "StreamProducer cannot be null");
+            Objects.requireNonNull(allocator, "BufferAllocator cannot be null");
+        }
+
+        static StreamProducerHolder create(StreamProducer producer, BufferAllocator allocator) {
+            return new StreamProducerHolder(producer, allocator, System.currentTimeMillis(), new SetOnce<>());
+        }
+
+        boolean isExpired() {
+            return System.currentTimeMillis() - creationTime > producer.getJobDeadline().getMillis();
+        }
+
+        /**
+         * Gets the VectorSchemaRoot associated with the StreamProducer.
+         * If the root is not set, it creates a new one using the provided BufferAllocator.
+         */
+        public VectorSchemaRoot getRoot() throws Exception {
+            root.trySet(producer.createRoot(allocator));
+            return root.get();
+        }
+    }
 
     /**
      * Constructs a new FlightStreamManager.
@@ -49,9 +85,21 @@ public class FlightStreamManager implements StreamManager {
      */
     public FlightStreamManager(Supplier<BufferAllocator> allocatorSupplier) {
         this.allocatorSupplier = allocatorSupplier;
+        RemovalListener<String, StreamProducerHolder> onProducerRemoval = (notification) -> {
+            String ticketId = notification.getKey();
+            StreamProducerHolder holder = notification.getValue();
+            if (holder != null) {
+                try {
+                    holder.producer.close();
+                    logger.debug("Closed stream producer for ticket [{}], reason: {}", ticketId, notification.getRemovalReason());
+                } catch (Exception e) {
+                    logger.warn("Error closing stream producer for ticket [{}]. {}", ticketId, e.getMessage());
+                }
+            }
+        };
         this.streamProducers = CacheBuilder.<String, StreamProducerHolder>builder()
-            .setExpireAfterWrite(expireAfter)
-            .setMaximumWeight(MAX_PRODUCERS)
+            .setExpireAfterWrite(DEFAULT_CACHE_EXPIRE)
+            .removalListener(onProducerRemoval)
             .build();
     }
 
@@ -73,8 +121,9 @@ public class FlightStreamManager implements StreamManager {
      */
     @Override
     public StreamTicket registerStream(StreamProducer provider, TaskId parentTaskId) {
+        Objects.requireNonNull(provider, "StreamProducer cannot be null");
         StreamTicket ticket = ticketFactory.newTicket();
-        streamProducers.put(ticket.getTicketId(), new StreamProducerHolder(provider, allocatorSupplier.get()));
+        streamProducers.put(ticket.getTicketId(), StreamProducerHolder.create(provider, allocatorSupplier.get()));
         return ticket;
     }
 
@@ -85,7 +134,11 @@ public class FlightStreamManager implements StreamManager {
      */
     @Override
     public StreamReader getStreamReader(StreamTicket ticket) {
-        FlightStream stream = clientManager.getFlightClient(ticket.getNodeId()).getStream(new Ticket(ticket.toBytes()));
+        Optional<OSFlightClient> flightClient = clientManager.getFlightClient(ticket.getNodeId());
+        if (flightClient.isEmpty()) {
+            throw new RuntimeException("Flight client not found for node [" + ticket.getNodeId() + "].");
+        }
+        FlightStream stream = flightClient.get().getStream(new Ticket(ticket.toBytes()));
         return new FlightStreamReader(stream);
     }
 
@@ -99,22 +152,41 @@ public class FlightStreamManager implements StreamManager {
     }
 
     /**
-     * Retrieves the ArrowStreamProvider associated with the given StreamTicket.
+     * Gets the StreamProducer associated with a ticket if it hasn't expired based on its deadline.
      *
-     * @param ticket The StreamTicket of the desired stream.
-     * @return The ArrowStreamProvider associated with the ticket, or null if not found.
+     * @param ticket The StreamTicket identifying the stream
+     * @return Optional of StreamProducerHolder containing the producer if found and not expired
      */
-    public StreamProducerHolder getStreamProducer(StreamTicket ticket) {
-        return streamProducers.get(ticket.getTicketId());
+    public Optional<StreamProducerHolder> getStreamProducer(StreamTicket ticket) {
+        Objects.requireNonNull(ticket, "StreamTicket cannot be null");
+        StreamProducerHolder holder = streamProducers.get(ticket.getTicketId());
+        if (holder != null) {
+            if (holder.isExpired()) {
+                removeStreamProducer(ticket);
+                return Optional.empty();
+            }
+            return Optional.of(holder);
+        }
+        return Optional.empty();
     }
 
     /**
-     * Removes the StreamProducer with the given StreamTicket.
-     *
-     * @param ticket The StreamTicket against StreamProducer to remove.
+     * Gets and removes the StreamProducer associated with a ticket.
+     * Ensure that close is called on the StreamProducer after use.
+     * @param ticket The StreamTicket identifying the stream
+     * @return Optional of StreamProducerHolder containing the producer if found
      */
-    public void removeStreamProducer(StreamTicket ticket) {
-        streamProducers.invalidate(ticket.getTicketId());
+    public Optional<StreamProducerHolder> removeStreamProducer(StreamTicket ticket) {
+        Objects.requireNonNull(ticket, "StreamTicket cannot be null");
+
+        String ticketId = ticket.getTicketId();
+        StreamProducerHolder holder = streamProducers.get(ticketId);
+
+        if (holder != null) {
+            streamProducers.invalidate(ticketId);
+            return Optional.of(holder);
+        }
+        return Optional.empty();
     }
 
     /**
@@ -122,45 +194,16 @@ public class FlightStreamManager implements StreamManager {
      * This method should be called when the StreamManager is no longer needed to clean up resources.
      * It is recommended to implement this method to cancel all threads and clear the streamManager queue.
      */
-    public void close() {
+    @Override
+    public void close() throws Exception {
         // TODO: logic to cancel all threads and clear the streamManager queue
+        streamProducers.values().forEach(holder -> {
+            try {
+                holder.producer().close();
+            } catch (IOException e) {
+                logger.error("Error closing stream producer, this may cause memory leaks.", e);
+            }
+        });
         streamProducers.invalidateAll();
-    }
-
-    /**
-     * Holds a StreamProducer and its associated VectorSchemaRoot.
-     */
-    public static class StreamProducerHolder {
-        private final StreamProducer producer;
-        private final SetOnce<VectorSchemaRoot> root;
-        private final BufferAllocator allocator;
-
-        /**
-         * Constructs a new StreamProducerHolder.
-         *
-         * @param producer The StreamProducer instance.
-         * @param allocator The BufferAllocator to use for creating the VectorSchemaRoot.
-         */
-        public StreamProducerHolder(StreamProducer producer, BufferAllocator allocator) {
-            this.producer = producer;
-            this.allocator = allocator;
-            this.root = new SetOnce<>();
-        }
-
-        /**
-         * Gets the StreamProducer instance.
-         */
-        public StreamProducer getProducer() {
-            return producer;
-        }
-
-        /**
-         * Gets the VectorSchemaRoot associated with the StreamProducer.
-         * If the root is not set, it creates a new one using the provided BufferAllocator.
-         */
-        public VectorSchemaRoot getRoot() {
-            root.trySet(producer.createRoot(allocator));
-            return root.get();
-        }
     }
 }

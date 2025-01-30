@@ -44,6 +44,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -108,8 +109,10 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         clientManager.clusterChanged(event);
         assertBusy(() -> {
             assertEquals("Flight client isn't built in time limit", 2, clientManager.getClients().size());
-            assertNotNull("local_node should exist", clientManager.getFlightClient("local_node"));
-            assertNotNull("remote_node should exist", clientManager.getFlightClient("remote_node"));
+            assertTrue("local_node should exist", clientManager.getFlightClient("local_node").isPresent());
+            assertNotNull("local_node should exist", clientManager.getFlightClient("local_node").get());
+            assertTrue("remote_node should exist", clientManager.getFlightClient("remote_node").isPresent());
+            assertNotNull("remote_node should exist", clientManager.getFlightClient("remote_node").get());
         }, 2, TimeUnit.SECONDS);
     }
 
@@ -193,7 +196,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
     }
 
     public void testGetFlightClientForNonExistentNode() throws Exception {
-        assertNull(clientManager.getFlightClient("non_existent_node"));
+        assertTrue(clientManager.getFlightClient("non_existent_node").isEmpty());
     }
 
     public void testClusterChangedWithNodesChanged() throws Exception {
@@ -238,7 +241,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
     public void testCloseWithActiveClients() throws Exception {
         for (DiscoveryNode node : state.nodes()) {
-            OSFlightClient client = clientManager.getFlightClient(node.getId());
+            OSFlightClient client = clientManager.getFlightClient(node.getId()).get();
             assertNotNull(client);
         }
 
@@ -267,7 +270,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(oldVersionState);
         mockFlightInfoResponse(nodes, 0);
 
-        assertNull(clientManager.getFlightClient(oldVersionNode.getId()));
+        assertFalse(clientManager.getFlightClient(oldVersionNode.getId()).isPresent());
     }
 
     public void testGetFlightClientLocationTimeout() throws Exception {
@@ -287,7 +290,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
-        assertNull(clientManager.getFlightClient(nodeId));
+        assertFalse(clientManager.getFlightClient(nodeId).isPresent());
     }
 
     public void testGetFlightClientLocationExecutionError() throws Exception {
@@ -314,7 +317,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
 
-        assertNull(clientManager.getFlightClient(nodeId));
+        assertFalse(clientManager.getFlightClient(nodeId).isPresent());
     }
 
     public void testFailedClusterUpdateButSuccessfulDirectRequest() throws Exception {
@@ -387,8 +390,9 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
     private void validateNodes() {
         for (DiscoveryNode node : state.nodes()) {
-            OSFlightClient client = clientManager.getFlightClient(node.getId());
-            assertNotNull("Flight client should be created for existing node", client);
+            Optional<OSFlightClient> client = clientManager.getFlightClient(node.getId());
+            assertTrue("Flight client should be created for node [" + node.getId() + "].", client.isPresent());
+            assertNotNull("Flight client should be created for node [" + node.getId() + "].", client.get());
         }
     }
 

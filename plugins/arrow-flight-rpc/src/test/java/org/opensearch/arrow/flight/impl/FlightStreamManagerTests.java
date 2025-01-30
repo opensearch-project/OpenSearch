@@ -20,6 +20,7 @@ import org.opensearch.arrow.spi.StreamTicket;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -37,13 +38,13 @@ public class FlightStreamManagerTests extends OpenSearchTestCase {
         super.setUp();
         flightClient = mock(OSFlightClient.class);
         FlightClientManager clientManager = mock(FlightClientManager.class);
-        when(clientManager.getFlightClient(NODE_ID)).thenReturn(flightClient);
+        when(clientManager.getFlightClient(NODE_ID)).thenReturn(Optional.of(flightClient));
         BufferAllocator allocator = mock(BufferAllocator.class);
         flightStreamManager = new FlightStreamManager(() -> allocator);
         flightStreamManager.setClientManager(clientManager);
     }
 
-    public void testGetStreamReader() {
+    public void testGetStreamReader() throws Exception {
         StreamTicket ticket = new FlightStreamTicket(TICKET_ID, NODE_ID);
         FlightStream mockFlightStream = mock(FlightStream.class);
         VectorSchemaRoot mockRoot = mock(VectorSchemaRoot.class);

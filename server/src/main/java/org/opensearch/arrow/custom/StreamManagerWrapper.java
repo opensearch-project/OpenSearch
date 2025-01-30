@@ -17,6 +17,7 @@ import org.opensearch.arrow.spi.StreamTicket;
 import org.opensearch.arrow.spi.StreamTicketFactory;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.TaskId;
@@ -87,7 +88,7 @@ public class StreamManagerWrapper implements StreamManager {
         }
 
         @Override
-        public VectorSchemaRoot createRoot(BufferAllocator allocator) {
+        public VectorSchemaRoot createRoot(BufferAllocator allocator) throws Exception {
             return streamProducer.createRoot(allocator);
         }
 
@@ -95,6 +96,11 @@ public class StreamManagerWrapper implements StreamManager {
         public BatchedJob createJob(BufferAllocator allocator) {
             BatchedJob job = streamProducer.createJob(allocator);
             return new BatchedJobTaskWrapper(job, parentTaskId, taskManager, description, getAction());
+        }
+
+        @Override
+        public TimeValue getJobDeadline() {
+            return streamProducer.getJobDeadline();
         }
 
         @Override
@@ -129,7 +135,7 @@ public class StreamManagerWrapper implements StreamManager {
             }
 
             @Override
-            public void run(VectorSchemaRoot root, FlushSignal flushSignal) {
+            public void run(VectorSchemaRoot root, FlushSignal flushSignal) throws Exception {
                 final Task task;
                 final Releasable unregisterChildNode = registerChildNode();
                 try {

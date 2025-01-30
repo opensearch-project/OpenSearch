@@ -35,7 +35,7 @@ public class ProxyStreamProducerTests extends OpenSearchTestCase {
         proxyStreamProducer = new ProxyStreamProducer(new FlightStreamReader(mockRemoteStream));
     }
 
-    public void testCreateRoot() {
+    public void testCreateRoot() throws Exception {
         VectorSchemaRoot mockRoot = mock(VectorSchemaRoot.class);
         when(mockRemoteStream.getRoot()).thenReturn(mockRoot);
 
@@ -87,7 +87,7 @@ public class ProxyStreamProducerTests extends OpenSearchTestCase {
         verify(mockRemoteStream, times(1)).next();
     }
 
-    public void testProxyBatchedJobOnCancel() {
+    public void testProxyBatchedJobOnCancel() throws Exception {
         StreamProducer.BatchedJob job = proxyStreamProducer.createJob(mockAllocator);
         VectorSchemaRoot mockRoot = mock(VectorSchemaRoot.class);
         StreamProducer.FlushSignal mockFlushSignal = mock(StreamProducer.FlushSignal.class);

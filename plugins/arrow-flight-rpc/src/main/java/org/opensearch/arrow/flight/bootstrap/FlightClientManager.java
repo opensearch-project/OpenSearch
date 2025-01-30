@@ -30,12 +30,15 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
 
@@ -57,6 +60,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
     private final ClientConfiguration clientConfig;
     private final Map<String, ClientHolder> flightClients = new ConcurrentHashMap<>();
     private final Client client;
+    private static final long CLIENT_BUILD_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(1);
 
     /**
      * Creates a new FlightClientManager instance.
@@ -89,59 +93,153 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
     }
 
     /**
-     * Returns a Flight client for a given node ID.
-     *
-     * @param nodeId The ID of the node for which to retrieve the Flight client
-     * @return An OpenSearchFlightClient instance for the specified node
-     */
-    public OSFlightClient getFlightClient(String nodeId) {
-        ClientHolder clientHolder = flightClients.getOrDefault(nodeId, null);
-        return clientHolder != null ? clientHolder.flightClient : null;
-    }
-
-    /**
      * Returns the location of a Flight client for a given node ID.
      *
      * @param nodeId The ID of the node for which to retrieve the location
      * @return The Location of the Flight client for the specified node
      */
     public Location getFlightClientLocation(String nodeId) {
-        ClientHolder clientHolder = flightClients.getOrDefault(nodeId, null);
-        return clientHolder != null ? clientHolder.location : null;
+        ClientHolder clientHolder = flightClients.get(nodeId);
+        if (clientHolder != null && clientHolder.location != null) {
+            return clientHolder.location;
+        }
+        buildClientAsync(nodeId);
+        return null;
     }
 
     /**
-     * Builds a client for a given nodeId in asynchronous manner
-     * @param nodeId nodeId of the node to build client for
+     * Returns a Flight client for a given node ID.
+     *
+     * @param nodeId The ID of the node for which to retrieve the Flight client
+     * @return An OpenSearchFlightClient instance for the specified node
      */
-    public void buildClientAsync(String nodeId) {
+    public Optional<OSFlightClient> getFlightClient(String nodeId) {
+        if (nodeId == null || nodeId.isEmpty()) {
+            throw new IllegalArgumentException("Node ID cannot be null or empty");
+        }
+
+        ClientHolder holder = flightClients.get(nodeId);
+
+        if (holder == null) {
+            buildClientAsync(nodeId);
+            return Optional.empty();
+        }
+
+        if (holder.state == BuildState.COMPLETE) {
+            return Optional.ofNullable(holder.flightClient);
+        }
+
+        if (holder.isStale()) {
+            logger.warn("Detected stale building state for node [{}], triggering rebuild", nodeId);
+            if (flightClients.remove(nodeId, holder)) {
+                try {
+                    holder.close();
+                } catch (Exception e) {
+                    logger.warn("Error closing stale client holder for node [{}]. {}", nodeId, e.getMessage());
+                }
+                buildClientAsync(nodeId);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Represents the state and metadata of a Flight client
+     */
+    private record ClientHolder(OSFlightClient flightClient, Location location, long buildStartTime, BuildState state)
+        implements
+            AutoCloseable {
+
+        private static ClientHolder building() {
+            return new ClientHolder(null, null, System.currentTimeMillis(), BuildState.BUILDING);
+        }
+
+        private static ClientHolder complete(OSFlightClient client, Location location) {
+            return new ClientHolder(client, location, System.currentTimeMillis(), BuildState.COMPLETE);
+        }
+
+        boolean isStale() {
+            return state == BuildState.BUILDING && (System.currentTimeMillis() - buildStartTime) > CLIENT_BUILD_TIMEOUT_MS;
+        }
+
+        /**
+         * Closes the client holder and logs the operation
+         * @param nodeId The ID of the node this holder belongs to
+         * @param reason The reason for closing
+         */
+        public void close(String nodeId, String reason) {
+            try {
+                if (flightClient != null) {
+                    flightClient.close();
+                }
+                if (state == BuildState.BUILDING) {
+                    logger.info("Cleaned up building state for node [{}]: {}", nodeId, reason);
+                } else {
+                    logger.info("Closed client for node [{}]: {}", nodeId, reason);
+                }
+            } catch (Exception e) {
+                logger.error("Failed to close client for node [{}] ({}): {}", nodeId, reason, e.getMessage());
+            }
+        }
+
+        @Override
+        public void close() throws Exception {
+            if (flightClient != null) {
+                flightClient.close();
+            }
+        }
+    }
+
+    private enum BuildState {
+        BUILDING,
+        COMPLETE
+    }
+
+    /**
+     * Initiates async build of a flight client for the given node
+     */
+    void buildClientAsync(String nodeId) {
+        // Try to put a building placeholder
+        ClientHolder placeholder = ClientHolder.building();
+        if (flightClients.putIfAbsent(nodeId, placeholder) != null) {
+            return; // Another thread is already handling this node
+        }
+
         CompletableFuture<Location> locationFuture = new CompletableFuture<>();
         locationFuture.thenAccept(location -> {
-            DiscoveryNode node = getNodeFromClusterState(nodeId);
-            buildClientAndAddToPool(location, node);
+            try {
+                DiscoveryNode node = getNodeFromClusterState(nodeId);
+                if (!isValidNode(node)) {
+                    logger.warn("Node [{}] is not valid for client creation", nodeId);
+                    flightClients.remove(nodeId, placeholder);
+                    return;
+                }
+
+                OSFlightClient flightClient = buildClient(location);
+                ClientHolder newHolder = ClientHolder.complete(flightClient, location);
+
+                if (!flightClients.replace(nodeId, placeholder, newHolder)) {
+                    // Something changed while we were building
+                    logger.warn("Failed to store new client for node [{}], state changed during build", nodeId);
+                    flightClient.close();
+                }
+            } catch (Exception e) {
+                logger.error("Failed to build Flight client for node [{}]. {}", nodeId, e);
+                flightClients.remove(nodeId, placeholder);
+                throw new RuntimeException(e);
+            }
         }).exceptionally(throwable -> {
-            logger.error("Failed to get Flight server location for node: [{}] {}", nodeId, throwable);
-            throw new RuntimeException(throwable);
+            flightClients.remove(nodeId, placeholder);
+            logger.error("Failed to get Flight server location for node [{}] {}", nodeId, throwable);
+            throw new CompletionException(throwable);
         });
+
         requestNodeLocation(nodeId, locationFuture);
     }
 
-    Map<String, ClientHolder> getClients() {
-        return flightClients;
-    }
-
-    private void buildClientAndAddToPool(Location location, DiscoveryNode node) {
-        if (!isValidNode(node)) {
-            logger.warn(
-                "Unable to build FlightClient for node [{}] with role [{}] on version [{}]",
-                node.getId(),
-                node.getRoles(),
-                node.getVersion()
-            );
-            return;
-        }
-        OSFlightClient flightClient = buildClient(location);
-        flightClients.put(node.getId(), new ClientHolder(location, flightClient));
+    Collection<ClientHolder> getClients() {
+        return flightClients.values();
     }
 
     private void requestNodeLocation(String nodeId, CompletableFuture<Location> future) {
@@ -193,20 +291,10 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
     @Override
     public void close() throws Exception {
         for (ClientHolder clientHolder : flightClients.values()) {
-            clientHolder.flightClient.close();
+            clientHolder.close();
         }
         flightClients.clear();
         grpcExecutor.shutdown();
-    }
-
-    private static class ClientHolder {
-        final OSFlightClient flightClient;
-        final Location location;
-
-        ClientHolder(Location location, OSFlightClient flightClient) {
-            this.location = location;
-            this.flightClient = flightClient;
-        }
     }
 
     /**
@@ -225,23 +313,79 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.nodesChanged()) {
-            DiscoveryNodes nodes = event.state().nodes();
-            flightClients.keySet().removeIf(nodeId -> !nodes.nodeExists(nodeId));
-            for (DiscoveryNode node : nodes) {
-                if (!flightClients.containsKey(node.getId()) && isValidNode(node)) {
-                    buildClientAsync(node.getId());
+        if (!event.nodesChanged()) {
+            return;
+        }
+
+        final DiscoveryNodes nodes = event.state().nodes();
+
+        cleanupStaleBuilding();
+        removeStaleClients(nodes);
+        updateExistingClients(nodes);
+    }
+
+    private void removeStaleClients(DiscoveryNodes nodes) {
+        flightClients.entrySet().removeIf(entry -> {
+            String nodeId = entry.getKey();
+            ClientHolder holder = entry.getValue();
+
+            if (!nodes.nodeExists(nodeId)) {
+                holder.close(nodeId, "node no longer exists");
+                return true;
+            }
+
+            if (holder.state == BuildState.BUILDING && holder.isStale()) {
+                holder.close(nodeId, "client build state is stale");
+                return true;
+            }
+
+            return false;
+        });
+    }
+
+    /**
+     * Updates clients for existing nodes based on their validity
+     */
+    private void updateExistingClients(DiscoveryNodes nodes) {
+        for (DiscoveryNode node : nodes) {
+            String nodeId = node.getId();
+
+            if (isValidNode(node)) {
+                ClientHolder existingHolder = flightClients.get(nodeId);
+
+                if (existingHolder == null) {
+                    buildClientAsync(nodeId);
+                } else if (existingHolder.state == BuildState.BUILDING && existingHolder.isStale()) {
+                    if (flightClients.remove(nodeId, existingHolder)) {
+                        existingHolder.close(nodeId, "rebuilding stale client");
+                        buildClientAsync(nodeId);
+                    }
+                }
+            } else {
+                ClientHolder holder = flightClients.remove(nodeId);
+                if (holder != null) {
+                    holder.close(nodeId, "node is no longer valid");
                 }
             }
         }
     }
 
-    private static boolean isValidNode(DiscoveryNode node) {
-        return node != null && !node.getVersion().before(MIN_SUPPORTED_VERSION) && FeatureFlags.isEnabled(ARROW_STREAMS_SETTING);
+    /**
+     * Cleans up any clients that are in a stale BUILDING state
+     */
+    private void cleanupStaleBuilding() {
+        flightClients.entrySet().removeIf(entry -> {
+            ClientHolder holder = entry.getValue();
+            if (holder.state == BuildState.BUILDING && holder.isStale()) {
+                holder.close(entry.getKey(), "cleaning up stale building state");
+                return true;
+            }
+            return false;
+        });
     }
 
-    private Set<String> getCurrentClusterNodes() {
-        return Objects.requireNonNull(clientConfig.clusterService).state().nodes().getNodes().keySet();
+    private static boolean isValidNode(DiscoveryNode node) {
+        return node != null && !node.getVersion().before(MIN_SUPPORTED_VERSION) && FeatureFlags.isEnabled(ARROW_STREAMS_SETTING);
     }
 
     @VisibleForTesting
@@ -249,25 +393,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         return flightClients;
     }
 
-    private static class ClientConfiguration {
-        private final BufferAllocator allocator;
-        private final ClusterService clusterService;
-        private final SslContextProvider sslContextProvider;
-        private final EventLoopGroup workerELG;
-        private final ExecutorService grpcExecutor;
-
-        ClientConfiguration(
-            BufferAllocator allocator,
-            ClusterService clusterService,
-            SslContextProvider sslContextProvider,
-            EventLoopGroup workerELG,
-            ExecutorService grpcExecutor
-        ) {
-            this.allocator = allocator;
-            this.clusterService = clusterService;
-            this.sslContextProvider = sslContextProvider;
-            this.workerELG = workerELG;
-            this.grpcExecutor = grpcExecutor;
-        }
+    private record ClientConfiguration(BufferAllocator allocator, ClusterService clusterService, SslContextProvider sslContextProvider,
+        EventLoopGroup workerELG, ExecutorService grpcExecutor) {
     }
 }

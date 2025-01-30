@@ -46,6 +46,10 @@ dependencies {
   }
 }
 
+tasks.internalClusterTest {
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+}
+
 tasks.named('test').configure {
   jacoco {
     excludes = ['org/apache/arrow/flight/**']

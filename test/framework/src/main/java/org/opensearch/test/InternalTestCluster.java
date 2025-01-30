@@ -1723,7 +1723,7 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, nc -> true);
     }
 
-    private static <T> T getInstanceFromNode(Class<T> clazz, Node node) {
+    static <T> T getInstanceFromNode(Class<T> clazz, Node node) {
         return node.injector().getInstance(clazz);
     }
 
