@@ -67,4 +67,5 @@ public class SortedSetStarTreeValuesIterator extends StarTreeValuesIterator {
     public TermsEnum intersect(CompiledAutomaton automaton) throws IOException {
         return ((SortedSetDocValues) docIdSetIterator).intersect(automaton);
     }
+
 }
