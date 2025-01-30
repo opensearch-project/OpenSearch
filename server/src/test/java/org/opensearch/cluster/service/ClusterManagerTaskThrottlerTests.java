@@ -592,11 +592,6 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public boolean runOnlyOnMaster() {
-                return true;
-            }
-
-            @Override
             public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {}
 
             @Override

@@ -252,8 +252,6 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
      * Validate isBecomeClusterManagerTask() can identify "become cluster manager task" properly
      */
     public void testIsBecomeClusterManagerTask() {
-        JoinTaskExecutor.Task joinTaskOfMaster = JoinTaskExecutor.newBecomeMasterTask();
-        assertThat(joinTaskOfMaster.isBecomeClusterManagerTask(), is(true));
         JoinTaskExecutor.Task joinTaskOfClusterManager = JoinTaskExecutor.newBecomeClusterManagerTask();
         assertThat(joinTaskOfClusterManager.isBecomeClusterManagerTask(), is(true));
     }
