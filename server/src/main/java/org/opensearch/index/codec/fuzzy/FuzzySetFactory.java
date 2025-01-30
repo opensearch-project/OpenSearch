@@ -42,6 +42,11 @@ public class FuzzySetFactory {
         }
     }
 
+    public static CheckedSupplier<FuzzySet, IOException> buildSetProvider(IndexInput in) throws IOException {
+        FuzzySet.SetType setType = FuzzySet.SetType.from(in.readString());
+        return setType.extractMetaAndGetSupplier(in);
+    }
+
     public static FuzzySet deserializeFuzzySet(IndexInput in) throws IOException {
         FuzzySet.SetType setType = FuzzySet.SetType.from(in.readString());
         return setType.getDeserializer().apply(in);

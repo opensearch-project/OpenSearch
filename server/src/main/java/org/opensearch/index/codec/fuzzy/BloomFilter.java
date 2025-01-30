@@ -33,7 +33,7 @@ import java.util.Iterator;
  * Since the Lucene implementation is marked experimental,
  * this aims to ensure we can provide a bwc implementation during upgrades.
  */
-public class BloomFilter extends AbstractFuzzySet {
+public class BloomFilter extends AbstractFuzzySet<BloomFilter.BloomMeta> {
 
     private static final Logger logger = LogManager.getLogger(BloomFilter.class);
 
@@ -77,6 +77,13 @@ public class BloomFilter extends AbstractFuzzySet {
         this.bitset = new LongArrayBackedBitSet(in);
     }
 
+    BloomFilter(FuzzySet.Meta inMeta) throws IOException {
+        BloomMeta meta = (BloomMeta) inMeta;
+        hashCount = meta.hashCount;
+        setSize = meta.setSize;
+        bitset = new LongArrayBackedBitSet(meta.bitSetMeta);
+    }
+
     @Override
     public void writeTo(DataOutput out) throws IOException {
         out.writeInt(hashCount);
@@ -101,7 +108,7 @@ public class BloomFilter extends AbstractFuzzySet {
     }
 
     @Override
-    public Result containsHash(long hash) {
+    protected Result containsHash(long hash) {
         int msb = (int) (hash >>> Integer.SIZE);
         int lsb = (int) hash;
         for (int i = 0; i < hashCount; i++) {
@@ -146,5 +153,17 @@ public class BloomFilter extends AbstractFuzzySet {
     @Override
     public void close() throws IOException {
         IOUtils.close(bitset);
+    }
+
+    static class BloomMeta implements FuzzySet.Meta {
+        int setSize;
+        int hashCount;
+        LongArrayBackedBitSet.LongArrayBackedBitSetMeta bitSetMeta;
+
+        BloomMeta(IndexInput in) throws IOException {
+            this.hashCount = in.readInt();
+            this.setSize = in.readInt();
+            bitSetMeta = new LongArrayBackedBitSet.LongArrayBackedBitSetMeta(in);
+        }
     }
 }

@@ -38,7 +38,7 @@ class IndexInputImmutableLongArray implements LongArray {
     }
 
     @Override
-    public synchronized long get(long index) {
+    public long get(long index) {
         try {
             // Multiplying by 8 since each long is 8 bytes, and we need to get the long value at (index * 8) in the
             // RandomAccessInput being accessed.
