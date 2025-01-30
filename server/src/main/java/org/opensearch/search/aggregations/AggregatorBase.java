@@ -220,6 +220,17 @@ public abstract class AggregatorBase extends Aggregator {
      */
     protected void doPreCollection() throws IOException {}
 
+    /**
+     * Subclasses may override this method if they have an efficient way of computing their aggregation for the given
+     * segment (versus collecting matching documents). If this method returns true, collection for the given segment
+     * will be terminated, rather than executing normally.
+     * <p>
+     * If this method returns true, the aggregator's state should be identical to what it would be if matching
+     * documents from the segment were fully collected. If this method returns false, the aggregator's state should
+     * be unchanged from before this method is called.
+     * @param ctx the context for the given segment
+     * @return true if and only if results for this segment have been precomputed
+     */
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         return false;
     }
