@@ -58,7 +58,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
@@ -70,6 +69,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -494,7 +495,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             );
         }
 
-        String[] concreteIndices;
+        Set<String> concreteIndices;
         if (request.level().equals(ClusterHealthRequest.Level.AWARENESS_ATTRIBUTES)) {
             String awarenessAttribute = request.getAwarenessAttribute();
             concreteIndices = clusterState.getMetadata().getConcreteAllIndices();
@@ -512,12 +513,12 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         }
 
         try {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+            concreteIndices = Set.of(indexNameExpressionResolver.concreteIndexNames(clusterState, request));
         } catch (IndexNotFoundException e) {
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(
                 clusterState.getClusterName().value(),
-                Strings.EMPTY_ARRAY,
+                Collections.emptySet(),
                 request,
                 clusterState,
                 numberOfPendingTasks,

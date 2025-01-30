@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Breaking change: Do not request "search_pipelines" metrics by default in NodesInfoRequest ([#12497](https://github.com/opensearch-project/OpenSearch/pull/12497))
 - Refactor `:libs` module `bootstrap` package to eliminate top level split packages for JPMS support [#17117](https://github.com/opensearch-project/OpenSearch/pull/17117))
 - Refactor the codebase to eliminate top level split packages for JPMS support. [#17153](https://github.com/opensearch-project/OpenSearch/pull/17153))
+- Breaking change: Modify the utility APIs in the Metadata to get different indices ([#14723](https://github.com/opensearch-project/OpenSearch/pull/14723))
 
 ### Deprecated
 
