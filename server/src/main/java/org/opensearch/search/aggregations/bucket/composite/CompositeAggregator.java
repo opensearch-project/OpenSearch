@@ -182,6 +182,14 @@ public final class CompositeAggregator extends BucketsAggregator {
                         });
                     }
 
+                    /**
+                     * The filter rewrite optimized path does not support bucket intervals which are not fixed.
+                     * For this reason we exclude non UTC timezones.
+                     */
+                    if (valuesSource.getRounding().isUTC() == false) {
+                        return false;
+                    }
+
                     // bucketOrds is used for saving the date histogram results got from the optimization path
                     bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
                     return true;
