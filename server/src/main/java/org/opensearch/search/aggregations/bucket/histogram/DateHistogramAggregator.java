@@ -136,9 +136,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.hardBounds = hardBounds;
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
-        this.fieldName = (valuesSource instanceof ValuesSource.Numeric.FieldData)
-            ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
-            : null;
         this.formatter = valuesSourceConfig.format();
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
