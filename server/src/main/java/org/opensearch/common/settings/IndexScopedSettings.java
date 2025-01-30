@@ -91,6 +91,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
                 MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED,
+                IndexMetadata.SETTING_INDEX_CREATION_DATE,
+                IndexMetadata.INDEX_UUID_SETTING,
+                IndexMetadata.SETTING_INDEX_HISTORY_UUID,
                 IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
@@ -316,9 +319,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     @Override
     public boolean isPrivateSetting(String key) {
         switch (key) {
-            case IndexMetadata.SETTING_CREATION_DATE:
-            case IndexMetadata.SETTING_INDEX_UUID:
-            case IndexMetadata.SETTING_HISTORY_UUID:
             case IndexMetadata.SETTING_VERSION_UPGRADED:
             case IndexMetadata.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyProvider.INDEX_MERGE_ENABLED:
