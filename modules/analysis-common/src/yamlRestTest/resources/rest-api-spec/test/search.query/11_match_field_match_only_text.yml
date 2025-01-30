@@ -144,4 +144,4 @@
               - text: {}
   - match: {hits.total: 2}
   - match: {hits.hits.0.highlight.text.0: "the <em>fox</em> <em>runs</em> across the street"}
-  - match: {hits.hits.1.highlight.text.0: "run <em>fox</em> run"}
+  - match: {hits.hits.1.highlight.text.0: "<em>run</em> <em>fox</em> <em>run</em>"}
