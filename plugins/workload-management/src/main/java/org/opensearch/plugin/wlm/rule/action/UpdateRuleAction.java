@@ -11,26 +11,26 @@ package org.opensearch.plugin.wlm.rule.action;
 import org.opensearch.action.ActionType;
 
 /**
- * Transport action to create Rule
+ * Transport action to update Rule
  *
  * @opensearch.experimental
  */
-public class CreateRuleAction extends ActionType<CreateRuleResponse> {
+public class UpdateRuleAction extends ActionType<UpdateRuleResponse> {
 
     /**
-     * An instance of CreateRuleAction
+     * An instance of UpdateRuleAction
      */
-    public static final CreateRuleAction INSTANCE = new CreateRuleAction();
+    public static final UpdateRuleAction INSTANCE = new UpdateRuleAction();
 
     /**
-     * Name for CreateRuleAction
+     * Name for UpdateRuleAction
      */
-    public static final String NAME = "cluster:admin/opensearch/wlm/rule/_create";
+    public static final String NAME = "cluster:admin/opensearch/wlm/rule/_update";
 
     /**
      * Default constructor
      */
-    private CreateRuleAction() {
-        super(NAME, CreateRuleResponse::new);
+    private UpdateRuleAction() {
+        super(NAME, UpdateRuleResponse::new);
     }
 }

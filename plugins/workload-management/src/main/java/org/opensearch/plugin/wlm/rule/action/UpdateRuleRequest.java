@@ -8,50 +8,59 @@
 
 package org.opensearch.plugin.wlm.rule.action;
 
+import org.joda.time.Instant;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.metadata.Rule;
 import org.opensearch.cluster.metadata.Rule.Builder;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentParser;
-import org.joda.time.Instant;
+import org.opensearch.plugin.wlm.querygroup.action.UpdateQueryGroupRequest;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
- * A request for create Rule
+ * A request for update Rule
  * @opensearch.experimental
  */
-public class CreateRuleRequest extends ClusterManagerNodeRequest<CreateRuleRequest> {
-    private final Rule rule;
-
+public class UpdateRuleRequest extends ClusterManagerNodeRequest<UpdateRuleRequest> {
+//    private final String _id;
+//    private final Map<Rule.RuleAttribute, List<String>> attributeMap;
+//    private final String label;
+    private Rule rule;
 
     /**
-     * Constructor for CreateRuleRequest
+     * Constructor for UpdateRuleRequest
      * @param rule - A {@link Rule} object
      */
-    CreateRuleRequest(Rule rule) {
+    UpdateRuleRequest(Rule rule) {
         this.rule = rule;
     }
 
     /**
-     * Constructor for CreateRuleRequest
+     * Constructor for UpdateRuleRequest
      * @param in - A {@link StreamInput} object
      */
-    CreateRuleRequest(StreamInput in) throws IOException {
+    UpdateRuleRequest(StreamInput in) throws IOException {
         super(in);
         rule = new Rule(in);
     }
 
     /**
-     * Generate a CreateRuleRequest from XContent
+     * Generate a UpdateRuleRequest from XContent
      * @param parser - A {@link XContentParser} object
      */
-    public static CreateRuleRequest fromXContent(XContentParser parser) throws IOException {
+    public static UpdateRuleRequest fromXContent(XContentParser parser, String _id) throws IOException {
         Builder builder = Builder.fromXContent(parser);
-        return new CreateRuleRequest(builder._id(UUIDs.randomBase64UUID()).updatedAt(Instant.now().toString()).build());
+        if (builder.getLabel() == null) {
+            builder.label(""); //TODO: check
+        }
+        return new UpdateRuleRequest(builder._id(_id).updatedAt(Instant.now().toString()).build());
     }
 
     @Override

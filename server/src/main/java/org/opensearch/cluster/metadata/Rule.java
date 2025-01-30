@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.joda.time.Instant;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -17,26 +18,41 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.metadata.QueryGroup.isValid;
 
 @ExperimentalApi
 public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
     private final String _id;
     private final Map<RuleAttribute, List<String>> attributeMap;
+    private final Feature feature;
     private final String label;
     private final String updatedAt;
-    private final Feature feature;
+    public static final Map<Feature, Set<RuleAttribute>> featureAlloedAttributesMap = Map.of(
+        Feature.QUERY_GROUP, Set.of(RuleAttribute.INDEX_PATTERN)
+    );
 
     public Rule(String _id, Map<RuleAttribute, List<String>> attributeMap, String label, String updatedAt, Feature feature) {
+        requireNonNullOrEmpty(_id, "Rule _id can't be null or empty");
+        Objects.requireNonNull(feature, "Couldn't identify which feature the rule belongs to. Rule feature name can't be null.");
+        requireNonNullOrEmpty(label, feature.getName() + " value can't be null or empty");
+        requireNonNullOrEmpty(updatedAt, "Rule update time can't be null or empty");
+        if (attributeMap == null || attributeMap.isEmpty()) {
+            throw new IllegalArgumentException("Rule should have at least 1 attribute requirement");
+        }
+        if (!isValid(Instant.parse(updatedAt).getMillis())) {
+            throw new IllegalArgumentException("Rule update time is not a valid epoch");
+        }
+        validatedAttributeMap(attributeMap, feature);
+
         this._id = _id;
         this.attributeMap = attributeMap;
+        this.feature = feature;
         this.label = label;
         this.updatedAt = updatedAt;
-        this.feature = feature;
     }
 
     public Rule(StreamInput in) throws IOException {
@@ -44,6 +60,37 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
             in.readMap((i) -> RuleAttribute.fromName(i.readString()), StreamInput::readStringList),
             in.readString(), in.readString(),
             Feature.fromName(in.readString()));
+    }
+
+    public static void requireNonNullOrEmpty(String value, String message) {
+        if (value == null || value.isEmpty()) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    public static void validatedAttributeMap(Map<RuleAttribute, List<String>> attributeMap, Feature feature) {
+        if (!featureAlloedAttributesMap.containsKey(feature)) {
+            throw new IllegalArgumentException("Couldn't find any valid attribute name under the feature: " + feature.getName());
+        }
+        Set<RuleAttribute> ValidAttributesForFeature = featureAlloedAttributesMap.get(feature);
+        for (Map.Entry<RuleAttribute, List<String>> entry : attributeMap.entrySet()) {
+            RuleAttribute ruleAttribute = entry.getKey();
+            List<String> attributeValues = entry.getValue();
+            if (!ValidAttributesForFeature.contains(ruleAttribute)) {
+                throw new IllegalArgumentException(ruleAttribute.getName() + " is not a valid attribute name under the feature: " + feature.getName());
+            }
+            if (attributeValues.size() > 10) {
+                throw new IllegalArgumentException("Each attribute can only have a maximum of 10 values. The input attribute " + ruleAttribute + " exceeds this limit.");
+            }
+            for (String attributeValue: attributeValues) {
+                if (attributeValue.isEmpty()) {
+                    throw new IllegalArgumentException("Attribute value should not be an empty string");
+                }
+                if (attributeValue.length() > 100) {
+                    throw new IllegalArgumentException("Attribute value can only have a maximum of 100 characters. The input " + attributeValue + " exceeds this limit.");
+                }
+            }
+        }
     }
 
     @Override
@@ -79,9 +126,15 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
         return attributeMap;
     }
 
+    /**
+     * This Feature enum contains the different feature names for each rule.
+     * For example, if we're creating a rule for WLM/QueryGroup, the rule will contain the line
+     * "query_group": "query_group_id",
+     * so the feature name would be "query_group" in this case.
+     */
     @ExperimentalApi
     public enum Feature {
-        WLM("WLM");
+        QUERY_GROUP("query_group");
 
         private final String name;
 
@@ -93,6 +146,15 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
             return name;
         }
 
+        public static boolean isValidFeature(String s) {
+            for (Feature feature : values()) {
+                if (feature.getName().equalsIgnoreCase(s)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public static Feature fromName(String s) {
             for (Feature feature : values()) {
                 if (feature.getName().equalsIgnoreCase(s)) return feature;
@@ -102,6 +164,9 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
         }
     }
 
+    /**
+     * This RuleAttribute enum contains the attribute names for a rule.
+     */
     @ExperimentalApi
     public enum RuleAttribute {
         INDEX_PATTERN("index_pattern");
@@ -136,8 +201,7 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
         for (Map.Entry<RuleAttribute, List<String>> entry : attributeMap.entrySet()) {
             builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
         }
-        builder.field("label", label);
-        builder.field("feature", feature);
+        builder.field(feature.getName(), label);
         builder.field("updated_at", updatedAt);
         builder.endObject();
         return builder;
@@ -148,8 +212,7 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
         for (Map.Entry<RuleAttribute, List<String>> entry : attributeMap.entrySet()) {
             builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
         }
-        builder.field("label", label);
-        builder.field("feature", feature);
+        builder.field(feature.getName(), label);
         builder.field("updated_at", updatedAt);
         builder.endObject();
         return builder;
@@ -159,12 +222,37 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
         return readDiffFrom(Rule::new, in);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Rule that = (Rule) o;
+        return Objects.equals(_id, that._id)
+            && Objects.equals(label, that.label)
+            && Objects.equals(feature, that.feature)
+            && Objects.equals(attributeMap, that.attributeMap)
+            && Objects.equals(updatedAt, that.updatedAt);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(_id, label, feature, attributeMap, updatedAt);
+    }
+
     /**
-     * builder method for the {@link Rule}
+     * empty builder method for the {@link Rule}
      * @return Builder object
      */
     public static Builder builder() {
         return new Builder();
+    }
+
+    /**
+     * builder method for the {@link Rule}
+     * @return Builder object
+     */
+    public Builder builderFromRule() {
+        return new Builder()._id(_id).label(label).feature(feature.getName()).updatedAt(updatedAt).attributeMap(attributeMap);
     }
 
     /**
@@ -174,9 +262,9 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
     public static class Builder {
         private String _id;
         private Map<RuleAttribute, List<String>> attributeMap;
+        private Feature feature;
         private String label;
         private String updatedAt;
-        private Feature feature;
 
         private Builder() {}
 
@@ -186,13 +274,11 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
             }
 
             Builder builder = builder();
-
             XContentParser.Token token = parser.currentToken();
 
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Expected START_OBJECT token but found [" + parser.currentName() + "]");
             }
-
             Map<RuleAttribute, List<String>> attributeMap1 = new HashMap<>();
             String fieldName = "";
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -201,10 +287,9 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
                 } else if (token.isValue()) {
                     if (fieldName.equals("_id")) {
                         builder._id(parser.text());
-                    } else if (fieldName.equals("label")) {
+                    } else if (Feature.isValidFeature(fieldName)) {
+                        builder.feature(fieldName);
                         builder.label(parser.text());
-                    } else if (fieldName.equals("feature")) {
-                        builder.feature(parser.text());
                     } else if (fieldName.equals("updated_at")) {
                         builder.updatedAt(parser.text());
                     } else {
@@ -253,6 +338,10 @@ public class Rule extends AbstractDiffable<Rule> implements ToXContentObject {
 
         public Rule build() {
             return new Rule(_id, attributeMap, label, updatedAt, feature);
+        }
+
+        public String getLabel() {
+            return label;
         }
     }
 }
