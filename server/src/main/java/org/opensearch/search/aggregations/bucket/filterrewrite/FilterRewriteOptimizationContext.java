@@ -14,12 +14,19 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.search.aggregations.BucketCollector;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -41,6 +48,8 @@ public final class FilterRewriteOptimizationContext {
     private String shardId;
 
     private Ranges ranges; // built at shard level
+
+    private int subAggLength;
 
     // debug info related fields
     private final AtomicInteger leafNodeVisited = new AtomicInteger();
@@ -65,7 +74,9 @@ public final class FilterRewriteOptimizationContext {
     private boolean canOptimize(final Object parent, final int subAggLength, SearchContext context) throws IOException {
         if (context.maxAggRewriteFilters() == 0) return false;
 
-        if (parent != null || subAggLength != 0) return false;
+        // if (parent != null || subAggLength != 0) return false;
+        if (parent != null) return false;
+        this.subAggLength = subAggLength;
 
         boolean canOptimize = aggregatorBridge.canOptimize();
         if (canOptimize) {
@@ -96,8 +107,13 @@ public final class FilterRewriteOptimizationContext {
      * @param incrementDocCount consume the doc_count results for certain ordinal
      * @param segmentMatchAll if your optimization can prepareFromSegment, you should pass in this flag to decide whether to prepareFromSegment
      */
-    public boolean tryOptimize(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount, boolean segmentMatchAll)
-        throws IOException {
+    public boolean tryOptimize(
+        final LeafReaderContext leafCtx,
+        final BiConsumer<Long, Long> incrementDocCount,
+        boolean segmentMatchAll,
+        BucketCollector collectableSubAggregators,
+        LeafBucketCollector sub
+    ) throws IOException {
         segments.incrementAndGet();
         if (!canOptimize) {
             return false;
@@ -123,13 +139,52 @@ public final class FilterRewriteOptimizationContext {
         Ranges ranges = getRanges(leafCtx, segmentMatchAll);
         if (ranges == null) return false;
 
-        consumeDebugInfo(aggregatorBridge.tryOptimize(values, incrementDocCount, ranges));
+        // pass in the information of whether subagg exists
+        Supplier<DocIdSetBuilder> disBuilderSupplier = null;
+        if (subAggLength != 0) {
+            disBuilderSupplier = () -> {
+                try {
+                    return new DocIdSetBuilder(leafCtx.reader().maxDoc(), values, aggregatorBridge.fieldType.name());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            };
+        }
+
+        OptimizeResult optimizeResult = aggregatorBridge.tryOptimize(values, incrementDocCount, ranges, disBuilderSupplier);
+        consumeDebugInfo(optimizeResult);
 
         optimizedSegments.incrementAndGet();
         logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
         logger.debug("Crossed leaf nodes: {}, inner nodes: {}", leafNodeVisited, innerNodeVisited);
 
+        if (subAggLength == 0) {
+            return true;
+        }
+
+        // Handle sub aggregation
+        for (int bucketOrd = 0; bucketOrd < optimizeResult.builders.length; bucketOrd++) {
+            logger.debug("Collecting bucket {} for sub aggregation", bucketOrd);
+            DocIdSetBuilder builder = optimizeResult.builders[bucketOrd];
+            if (builder == null) {
+                continue;
+            }
+            DocIdSetIterator iterator = optimizeResult.builders[bucketOrd].build().iterator();
+            while (iterator.nextDoc() != NO_MORE_DOCS) {
+                int currentDoc = iterator.docID();
+                sub.collect(currentDoc, bucketOrd);
+            }
+            // resetting the sub collector after processing each bucket
+            sub = collectableSubAggregators.getLeafCollector(leafCtx);
+        }
+
         return true;
+    }
+
+    List<Weight> weights;
+
+    public List<Weight> getWeights() {
+        return weights;
     }
 
     Ranges getRanges(LeafReaderContext leafCtx, boolean segmentMatchAll) {
@@ -141,6 +196,7 @@ public final class FilterRewriteOptimizationContext {
                 return null;
             }
         }
+        logger.debug("number of ranges: {}", ranges.lowers.length);
         return ranges;
     }
 
@@ -160,9 +216,11 @@ public final class FilterRewriteOptimizationContext {
     /**
      * Contains debug info of BKD traversal to show in profile
      */
-    static class DebugInfo {
+    static class OptimizeResult {
         private final AtomicInteger leafNodeVisited = new AtomicInteger(); // leaf node visited
         private final AtomicInteger innerNodeVisited = new AtomicInteger(); // inner node visited
+
+        public DocIdSetBuilder[] builders;
 
         void visitLeaf() {
             leafNodeVisited.incrementAndGet();
@@ -173,7 +231,7 @@ public final class FilterRewriteOptimizationContext {
         }
     }
 
-    void consumeDebugInfo(DebugInfo debug) {
+    void consumeDebugInfo(OptimizeResult debug) {
         leafNodeVisited.addAndGet(debug.leafNodeVisited.get());
         innerNodeVisited.addAndGet(debug.innerNodeVisited.get());
     }
