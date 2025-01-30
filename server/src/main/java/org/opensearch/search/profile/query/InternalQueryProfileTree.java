@@ -32,9 +32,11 @@
 
 package org.opensearch.search.profile.query;
 
+import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -44,12 +46,12 @@ import java.util.Set;
  */
 public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
-    public InternalQueryProfileTree(Set<String> additionalProfilerTimings) {
-        super(additionalProfilerTimings);
+    public InternalQueryProfileTree(final Map<Class<? extends Query>, Set<String>> profilerTimingsPerQuery) {
+        super(profilerTimingsPerQuery);
     }
 
     @Override
-    protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new QueryProfileBreakdown(getAdditionalProfilerTimings());
+    protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown(Set<String> additionalProfilerTimings) {
+        return new QueryProfileBreakdown(additionalProfilerTimings);
     }
 }

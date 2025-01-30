@@ -32,12 +32,8 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.search.profile.query.QueryTimingType;
-
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -68,8 +64,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     /** Sole constructor. */
     public AbstractProfileBreakdown(final Class<T> timingType, final Set<String> additionalProfilerTimings) {
         Set<String> additionalTimings = additionalProfilerTimings == null ? Collections.emptySet() : additionalProfilerTimings;
-        timings = Stream.of(Arrays.stream(timingType.getEnumConstants()).map(Enum::name),
-                additionalTimings.stream())
+        timings = Stream.of(Arrays.stream(timingType.getEnumConstants()).map(Enum::name), additionalTimings.stream())
             .flatMap(Function.identity())
             .filter(Objects::nonNull)
             .map(val -> val.toLowerCase(Locale.ROOT))

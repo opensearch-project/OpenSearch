@@ -32,6 +32,7 @@
 
 package org.opensearch.search.profile;
 
+import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
@@ -44,6 +45,7 @@ import org.opensearch.search.profile.query.QueryProfiler;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -60,19 +62,28 @@ public final class Profilers {
     private final boolean isConcurrentSegmentSearchEnabled;
 
     /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
-    public Profilers(ContextIndexSearcher searcher, Set<String> additionalProfilerTimings, boolean isConcurrentSegmentSearchEnabled) {
+    public Profilers(
+        ContextIndexSearcher searcher,
+        boolean isConcurrentSegmentSearchEnabled,
+        Map<Class<? extends Query>, Set<String>> profileTimingsPerQuery
+    ) {
         this.searcher = searcher;
         this.isConcurrentSegmentSearchEnabled = isConcurrentSegmentSearchEnabled;
         this.queryProfilers = new ArrayList<>();
         this.aggProfiler = isConcurrentSegmentSearchEnabled ? new ConcurrentAggregationProfiler() : new AggregationProfiler();
-        addQueryProfiler(additionalProfilerTimings);
+        addQueryProfiler(profileTimingsPerQuery);
     }
 
     /** Switch to a new profile. */
-    public QueryProfiler addQueryProfiler(Set<String> additionalProfilerTimings) {
+    public QueryProfiler addQueryProfiler() {
+        return addQueryProfiler(Collections.emptyMap());
+    }
+
+    /** Switch to a new profile. */
+    public QueryProfiler addQueryProfiler(final Map<Class<? extends Query>, Set<String>> profileTimingsPerQuery) {
         QueryProfiler profiler = isConcurrentSegmentSearchEnabled
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(additionalProfilerTimings))
-            : new QueryProfiler(new InternalQueryProfileTree(additionalProfilerTimings));
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(profileTimingsPerQuery))
+            : new QueryProfiler(new InternalQueryProfileTree(profileTimingsPerQuery));
         searcher.setProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;

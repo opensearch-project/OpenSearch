@@ -13,6 +13,7 @@ import org.opensearch.search.profile.AbstractInternalProfileTree;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -28,14 +29,8 @@ public abstract class AbstractQueryProfileTree extends AbstractInternalProfileTr
     private long rewriteTime;
     private long rewriteScratch;
 
-    private final Set<String> additionalProfilerTimings;
-
-    protected AbstractQueryProfileTree(Set<String> additionalProfilerTimings) {
-        this.additionalProfilerTimings = additionalProfilerTimings;
-    }
-
-    public Set<String> getAdditionalProfilerTimings() {
-        return additionalProfilerTimings;
+    protected AbstractQueryProfileTree(Map<Class<? extends Query>, Set<String>> profilerTimingsPerQuery) {
+        super(profilerTimingsPerQuery);
     }
 
     @Override

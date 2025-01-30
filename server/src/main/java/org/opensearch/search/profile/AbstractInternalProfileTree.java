@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -58,17 +59,16 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     /** A temporary stack used to record where we are in the dependency tree. */
     protected Deque<Integer> stack;
     private int currentToken = 0;
+    /** Register of additional custom timings per element **/
+    private Map<Class<? extends E>, Set<String>> profilerTimingsPerElement;
 
-    public AbstractInternalProfileTree() {
+    public AbstractInternalProfileTree(Map<Class<? extends E>, Set<String>> profilerTimingsPerElement) {
         breakdowns = new ArrayList<>(10);
         stack = new ArrayDeque<>(10);
         tree = new ArrayList<>(10);
         elements = new ArrayList<>(10);
         roots = new ArrayList<>(10);
-    }
-
-    public Set<String> getAdditionalProfilerTimings() {
-        return Collections.emptySet();
+        this.profilerTimingsPerElement = profilerTimingsPerElement == null ? Collections.emptyMap() : profilerTimingsPerElement;
     }
 
     /**
@@ -133,12 +133,17 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // Save our query for lookup later
         elements.add(element);
 
-        PB breakdown = createProfileBreakdown();
+        final Set<String> timings = profilerTimingsPerElement.get(element.getClass());
+        PB breakdown = createProfileBreakdown(timings == null ? Collections.emptySet() : timings);
         breakdowns.add(token, breakdown);
         return breakdown;
     }
 
-    protected abstract PB createProfileBreakdown();
+    public Map<Class<? extends E>, Set<String>> getProfilerTimingsPerElement() {
+        return profilerTimingsPerElement;
+    }
+
+    protected abstract PB createProfileBreakdown(Set<String> profilerTimingsPerElement);
 
     /**
      * Removes the last (e.g. most recent) value on the stack

@@ -214,9 +214,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                     );
 
                     // compute the sliceEndTime for timingType using max of endTime across slice leaves
-                    final long sliceLeafTimingTypeEndTime = sliceLeafTimingTypeStartTime + currentSliceLeafBreakdownMap.get(
-                        timingType
-                    );
+                    final long sliceLeafTimingTypeEndTime = sliceLeafTimingTypeStartTime + currentSliceLeafBreakdownMap.get(timingType);
                     currentSliceBreakdown.compute(
                         timingTypeSliceEndTimeKey,
                         (key, value) -> (value == null) ? sliceLeafTimingTypeEndTime : Math.max(value, sliceLeafTimingTypeEndTime)

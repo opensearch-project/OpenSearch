@@ -38,6 +38,8 @@ import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.xcontent.ToXContentObject;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 /**
  * Foundation class for all OpenSearch query builders
@@ -96,6 +98,10 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
     @Override
     default QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
+    }
+
+    default Set<String> queryProfilerTimingTypes() {
+        return Collections.emptySet();
     }
 
     /**

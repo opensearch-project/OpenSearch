@@ -33,6 +33,7 @@
 package org.opensearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.GeoShapeType;
@@ -300,7 +301,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -337,7 +338,7 @@ public class SearchModule {
     private final SearchPlugin.ExecutorServiceProvider indexSearcherExecutorProvider;
 
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
-    private final Set<String> queryProfilerTimingTypes = new HashSet<>();
+    private final Map<Class<? extends Query>, Set<String>> profilerTimingsPerQuery = new HashMap<>();
 
     /**
      * Constructs a new SearchModule object
@@ -373,7 +374,7 @@ public class SearchModule {
 
     private void registerProfilerTimingTypes(List<SearchPlugin> plugins) {
         for (SearchPlugin plugin : plugins) {
-            queryProfilerTimingTypes.addAll(plugin.registerProfilerTimingTypes());
+            profilerTimingsPerQuery.putAll(plugin.registerProfilerTimingTypes());
         }
     }
 
@@ -393,8 +394,8 @@ public class SearchModule {
         return concurrentSearchDeciderFactories;
     }
 
-    public Set<String> getQueryProfilerTimingTypes() {
-        return queryProfilerTimingTypes;
+    public Map<Class<? extends Query>, Set<String>> getQueryProfilerTimingTypes() {
+        return profilerTimingsPerQuery;
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

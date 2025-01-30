@@ -35,6 +35,9 @@ package org.opensearch.search.profile.aggregation;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractInternalProfileTree;
 
+import java.util.Collections;
+import java.util.Set;
+
 /**
  * The profiling tree for different levels of agg profiling
  *
@@ -42,8 +45,12 @@ import org.opensearch.search.profile.AbstractInternalProfileTree;
  */
 public class InternalAggregationProfileTree extends AbstractInternalProfileTree<AggregationProfileBreakdown, Aggregator> {
 
+    public InternalAggregationProfileTree() {
+        super(Collections.emptyMap());
+    }
+
     @Override
-    protected AggregationProfileBreakdown createProfileBreakdown() {
+    protected AggregationProfileBreakdown createProfileBreakdown(Set<String> additionalProfilerTimings) {
         return new AggregationProfileBreakdown();
     }
 

@@ -90,7 +90,6 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 
 /**
  * Plugin for extending search time behavior.
@@ -232,8 +231,8 @@ public interface SearchPlugin {
     /**
      * Register any additional profiler timing types that is needed across all your queries
      */
-    default Set<String> registerProfilerTimingTypes() {
-        return emptySet();
+    default Map<Class<? extends Query>, Set<String>> registerProfilerTimingTypes() {
+        return emptyMap();
     }
 
     /**

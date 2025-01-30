@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
@@ -401,7 +402,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final String sessionId = UUIDs.randomBase64UUID();
     private final Executor indexSearcherExecutor;
     private final TaskResourceTrackingService taskResourceTrackingService;
-    private final Set<String> additionalProfilerTimingTypes;
+    private final Map<Class<? extends Query>, Set<String>> profilerTimingsPerQuery;
 
     public SearchService(
         ClusterService clusterService,
@@ -416,7 +417,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
-        Set<String> additionalProfilerTimingTypes
+        Map<Class<? extends Query>, Set<String>> profilerTimingsPerQuery
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -473,7 +474,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
 
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
-        this.additionalProfilerTimingTypes = additionalProfilerTimingTypes;
+        this.profilerTimingsPerQuery = profilerTimingsPerQuery;
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1544,7 +1545,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.evaluateRequestShouldUseConcurrentSearch();
         if (source.profile()) {
-            context.setProfilers(new Profilers(context.searcher(), this.additionalProfilerTimingTypes, context.shouldUseConcurrentSearch()));
+            context.setProfilers(new Profilers(context.searcher(), context.shouldUseConcurrentSearch(), this.profilerTimingsPerQuery));
         }
 
         if (this.indicesService.getCompositeIndexSettings() != null

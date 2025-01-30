@@ -34,6 +34,7 @@ package org.opensearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Build;
 import org.opensearch.ExceptionsHelper;
@@ -2052,7 +2053,7 @@ public class Node implements Closeable {
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
-        Set<String> additionalProfilerTimingTypes
+        Map<Class<? extends Query>, Set<String>> profilerTimingsPerQuery
     ) {
         return new SearchService(
             clusterService,
@@ -2067,7 +2068,7 @@ public class Node implements Closeable {
             indexSearcherExecutor,
             taskResourceTrackingService,
             concurrentSearchDeciderFactories,
-            additionalProfilerTimingTypes
+            profilerTimingsPerQuery
         );
     }
 

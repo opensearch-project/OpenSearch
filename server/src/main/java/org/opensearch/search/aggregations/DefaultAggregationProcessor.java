@@ -74,7 +74,7 @@ public class DefaultAggregationProcessor implements AggregationProcessor {
                     Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
                     if (context.getProfilers() != null) {
                         context.getProfilers()
-                            .addQueryProfiler(Collections.emptySet())
+                            .addQueryProfiler()
                             .setCollector(
                                 new InternalProfileCollector(
                                     globalCollectorManager.newCollector(),
