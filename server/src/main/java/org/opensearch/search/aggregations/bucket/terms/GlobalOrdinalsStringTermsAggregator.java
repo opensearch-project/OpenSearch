@@ -40,7 +40,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
@@ -244,6 +243,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, ord), docCount)
             );
         }
+        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            return preComputeWithStarTree(ctx, supportedStarTree);
+        }
         return false;
     }
 
@@ -251,14 +254,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
         collectionStrategy.globalOrdsReady(globalOrds);
-        globalOperator = valuesSource.globalOrdinalsMapping(ctx);
-
-        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
-        if (supportedStarTree != null) {
-            if (preComputeWithStarTree(ctx, supportedStarTree) == true) {
-                throw new CollectionTerminatedException();
-            }
-        }
 
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
         if (singleValues != null) {
@@ -398,6 +393,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     private boolean preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo supportedStarTree) throws IOException {
+        globalOperator = valuesSource.globalOrdinalsMapping(ctx);
         StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
         FixedBitSet matchingDocsBitSet = starTreeBucketCollector.getMatchingDocsBitSet();
 
