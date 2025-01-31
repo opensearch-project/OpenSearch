@@ -8,24 +8,28 @@
 
 package org.opensearch.gradle.info;
 
+import java.util.function.Function;
+
 public class FipsBuildParams {
 
-    private static final String FIPS_BUILD_PARAM = "OPENSEARCH_CRYPTO_STANDARD";
+    public static final String FIPS_BUILD_PARAM = "crypto.standard";
 
-    private static final String FIPS_MODE = System.getenv(FIPS_BUILD_PARAM);
+    public static final String FIPS_ENV_VAR = "OPENSEARCH_CRYPTO_STANDARD";
+
+    private static String fipsMode;
+
+    public static void init(Function<String, Object> fipsValue) {
+        fipsMode = (String) fipsValue.apply(FIPS_BUILD_PARAM);
+    }
 
     private FipsBuildParams() {}
 
     public static boolean isInFipsMode() {
-        return "FIPS-140-3".equals(FIPS_MODE);
+        return "FIPS-140-3".equals(fipsMode);
     }
 
     public static String getFipsMode() {
-        return FIPS_MODE;
-    }
-
-    public static String getFipsBuildParam() {
-        return FIPS_BUILD_PARAM;
+        return fipsMode;
     }
 
 }

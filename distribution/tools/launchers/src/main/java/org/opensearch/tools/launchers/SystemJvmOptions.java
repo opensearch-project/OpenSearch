@@ -44,6 +44,8 @@ final class SystemJvmOptions {
 
     static final String OPENSEARCH_CRYPTO_STANDARD = "OPENSEARCH_CRYPTO_STANDARD";
     static final String FIPS_140_3 = "FIPS-140-3";
+    static final boolean IS_IN_FIPS_JVM = FIPS_140_3.equals(System.getenv(OPENSEARCH_CRYPTO_STANDARD))
+        || "true".equalsIgnoreCase(System.getProperty("org.bouncycastle.fips.approved_only"));
 
     static List<String> systemJvmOptions(final Path config, Runtime.Version runtimeVersion) throws FileNotFoundException {
         return Collections.unmodifiableList(
@@ -93,21 +95,11 @@ final class SystemJvmOptions {
     }
 
     private static String enableFips() {
-        var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
-        if (FIPS_140_3.equals(cryptoStandard)) {
-            return "-Dorg.bouncycastle.fips.approved_only=true";
-        }
-        return "";
+        return IS_IN_FIPS_JVM ? "-Dorg.bouncycastle.fips.approved_only=true" : "";
     }
 
     private static String loadJavaSecurityProperties(final Path config) throws FileNotFoundException {
-        String securityFile;
-        var cryptoStandard = System.getenv(OPENSEARCH_CRYPTO_STANDARD);
-        if (FIPS_140_3.equals(cryptoStandard)) {
-            securityFile = "fips_java.security";
-        } else {
-            securityFile = "java.security";
-        }
+        String securityFile = IS_IN_FIPS_JVM ? "fips_java.security" : "java.security";
         var securityFilePath = config.resolve(securityFile);
 
         if (!Files.exists(securityFilePath)) {
