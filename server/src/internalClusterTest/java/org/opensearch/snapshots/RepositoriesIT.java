@@ -433,7 +433,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repositoryName, secondSnapshot);
 
         // Make repository to throw exception when trying to delete stale snapshot shard blobs
-        String clusterManagerNode = internalCluster().getMasterName();
+        String clusterManagerNode = internalCluster().getClusterManagerName();
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, clusterManagerNode).repository("test-repo"))
             .setThrowExceptionWhileDelete(true);
 
