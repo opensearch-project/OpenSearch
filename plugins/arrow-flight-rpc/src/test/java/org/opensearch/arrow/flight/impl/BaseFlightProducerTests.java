@@ -17,6 +17,7 @@ import org.apache.arrow.vector.dictionary.DictionaryProvider;
 import org.apache.arrow.vector.ipc.message.IpcOption;
 import org.opensearch.arrow.flight.bootstrap.FlightClientManager;
 import org.opensearch.arrow.spi.StreamProducer;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
@@ -172,7 +173,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                 });
                 listener.setReady(false);
                 clientThread.start();
-                flushSignal.awaitConsumption(100);
+                flushSignal.awaitConsumption(TimeValue.timeValueMillis(100));
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();
@@ -215,7 +216,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                 });
                 listener.setReady(false);
                 clientThread.start();
-                flushSignal.awaitConsumption(300); // waiting for consumption for more than client thread sleep
+                flushSignal.awaitConsumption(TimeValue.timeValueMillis(300)); // waiting for consumption for more than client thread sleep
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();
@@ -258,7 +259,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                 });
                 listener.setReady(false);
                 clientThread.start();
-                flushSignal.awaitConsumption(100); // waiting for consumption for less than client thread sleep
+                flushSignal.awaitConsumption(TimeValue.timeValueMillis(100)); // waiting for consumption for less than client thread sleep
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();
@@ -302,7 +303,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                 });
                 listener.setReady(false);
                 clientThread.start();
-                flushSignal.awaitConsumption(100); // waiting for consumption for less than client thread sleep
+                flushSignal.awaitConsumption(TimeValue.timeValueMillis(100)); // waiting for consumption for less than client thread sleep
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();
@@ -340,7 +341,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                 });
                 listener.setReady(false);
                 clientThread.start();
-                flushSignal.awaitConsumption(100); // waiting for consumption for less than client thread sleep
+                flushSignal.awaitConsumption(TimeValue.timeValueMillis(100)); // waiting for consumption for less than client thread sleep
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();
@@ -380,7 +381,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                 listener.setReady(false);
                 clientThread.start();
                 Thread.sleep(100); // simulating writer backpressure
-                flushSignal.awaitConsumption(100);
+                flushSignal.awaitConsumption(TimeValue.timeValueMillis(100));
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();
@@ -421,7 +422,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                 if (i == 4) {
                     throw new RuntimeException("Server error");
                 }
-                flushSignal.awaitConsumption(100);
+                flushSignal.awaitConsumption(TimeValue.timeValueMillis(100));
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();

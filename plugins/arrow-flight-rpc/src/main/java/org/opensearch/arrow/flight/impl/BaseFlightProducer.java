@@ -96,7 +96,7 @@ public class BaseFlightProducer extends NoOpFlightProducer {
                 BackpressureStrategy backpressureStrategy = new BaseBackpressureStrategy(null, batchedJob::onCancel);
                 backpressureStrategy.register(listener);
                 StreamProducer.FlushSignal flushSignal = (timeout) -> {
-                    BackpressureStrategy.WaitResult result = backpressureStrategy.waitForListener(timeout);
+                    BackpressureStrategy.WaitResult result = backpressureStrategy.waitForListener(timeout.millis());
                     if (result.equals(BackpressureStrategy.WaitResult.READY)) {
                         listener.putNext();
                     } else if (result.equals(BackpressureStrategy.WaitResult.TIMEOUT)) {

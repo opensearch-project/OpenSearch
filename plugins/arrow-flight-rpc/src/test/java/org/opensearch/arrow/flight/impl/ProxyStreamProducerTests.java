@@ -12,6 +12,7 @@ import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.arrow.spi.StreamProducer;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
@@ -67,7 +68,7 @@ public class ProxyStreamProducerTests extends OpenSearchTestCase {
         job.run(mockRoot, mockFlushSignal);
 
         verify(mockRemoteStream, times(3)).next();
-        verify(mockFlushSignal, times(2)).awaitConsumption(1000);
+        verify(mockFlushSignal, times(2)).awaitConsumption(TimeValue.timeValueMillis(1000));
     }
 
     public void testProxyBatchedJobWithException() throws Exception {
@@ -97,7 +98,7 @@ public class ProxyStreamProducerTests extends OpenSearchTestCase {
         job.onCancel();
         job.run(mockRoot, mockFlushSignal);
         verify(mockRemoteStream, times(0)).next();
-        verify(mockFlushSignal, times(0)).awaitConsumption(1000);
+        verify(mockFlushSignal, times(0)).awaitConsumption(TimeValue.timeValueMillis(1000));
         assertTrue(job.isCancelled());
     }
 

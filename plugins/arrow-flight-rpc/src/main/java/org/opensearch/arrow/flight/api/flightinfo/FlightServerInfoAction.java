@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.arrow.flight.api;
+package org.opensearch.arrow.flight.api.flightinfo;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;

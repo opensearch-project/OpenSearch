@@ -104,7 +104,7 @@ public class ProxyStreamProducer implements StreamProducer {
         @Override
         public void run(VectorSchemaRoot root, FlushSignal flushSignal) throws Exception {
             while (!isCancelled.get() && remoteStream.next()) {
-                flushSignal.awaitConsumption(1000);
+                flushSignal.awaitConsumption(TimeValue.timeValueMillis(1000));
             }
         }
 

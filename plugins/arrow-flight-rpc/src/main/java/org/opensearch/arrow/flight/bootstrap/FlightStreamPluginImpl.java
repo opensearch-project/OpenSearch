@@ -9,9 +9,9 @@
 package org.opensearch.arrow.flight.bootstrap;
 
 import org.opensearch.arrow.flight.BaseFlightStreamPlugin;
-import org.opensearch.arrow.flight.api.FlightServerInfoAction;
-import org.opensearch.arrow.flight.api.NodesFlightInfoAction;
-import org.opensearch.arrow.flight.api.TransportNodesFlightInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.FlightServerInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.TransportNodesFlightInfoAction;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;

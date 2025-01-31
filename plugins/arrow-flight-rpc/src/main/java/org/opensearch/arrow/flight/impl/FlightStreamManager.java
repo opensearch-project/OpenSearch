@@ -47,7 +47,8 @@ public class FlightStreamManager implements StreamManager {
     private final Supplier<BufferAllocator> allocatorSupplier;
     private final Cache<String, StreamProducerHolder> streamProducers;
     // TODO read from setting
-    private static final TimeValue DEFAULT_CACHE_EXPIRE = TimeValue.timeValueMinutes(10); // Maximum cache time
+    private static final TimeValue DEFAULT_CACHE_EXPIRE = TimeValue.timeValueMinutes(10);
+    private static final int MAX_WEIGHT = 1000;
 
     /**
      * Holds a StreamProducer along with its metadata and resources
@@ -99,6 +100,7 @@ public class FlightStreamManager implements StreamManager {
         };
         this.streamProducers = CacheBuilder.<String, StreamProducerHolder>builder()
             .setExpireAfterWrite(DEFAULT_CACHE_EXPIRE)
+            .setMaximumWeight(MAX_WEIGHT)
             .removalListener(onProducerRemoval)
             .build();
     }
@@ -196,7 +198,6 @@ public class FlightStreamManager implements StreamManager {
      */
     @Override
     public void close() throws Exception {
-        // TODO: logic to cancel all threads and clear the streamManager queue
         streamProducers.values().forEach(holder -> {
             try {
                 holder.producer().close();

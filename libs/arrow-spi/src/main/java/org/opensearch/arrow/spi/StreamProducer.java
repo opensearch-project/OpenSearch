@@ -159,8 +159,8 @@ public interface StreamProducer extends Closeable {
         /**
          * Blocks until the current batch has been consumed or timeout occurs.
          *
-         * @param timeout Maximum milliseconds to wait
+         * @param timeout Maximum time to wait
          */
-        void awaitConsumption(int timeout);
+        void awaitConsumption(TimeValue timeout);
     }
 }

@@ -18,6 +18,7 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.opensearch.arrow.spi.StreamProducer;
+import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -72,7 +73,7 @@ public class ArrowDocIdCollector extends FilterCollector {
                 currentRow++;
                 if (currentRow >= batchSize) {
                     root.setRowCount(batchSize);
-                    flushSignal.awaitConsumption(1000);
+                    flushSignal.awaitConsumption(TimeValue.timeValueMillis(1000));
                     currentRow = 0;
                 }
             }
@@ -81,7 +82,7 @@ public class ArrowDocIdCollector extends FilterCollector {
             public void finish() throws IOException {
                 if (currentRow > 0) {
                     root.setRowCount(currentRow);
-                    flushSignal.awaitConsumption(1000);
+                    flushSignal.awaitConsumption(TimeValue.timeValueMillis(1000));
                     currentRow = 0;
                 }
             }
