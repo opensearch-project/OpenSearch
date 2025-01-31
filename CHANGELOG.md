@@ -59,7 +59,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `codecov/codecov-action` from 4 to 5 ([#16667](https://github.com/opensearch-project/OpenSearch/pull/16667))
 - Bump `org.apache.logging.log4j:log4j-core` from 2.24.1 to 2.24.3 ([#16718](https://github.com/opensearch-project/OpenSearch/pull/16718), [#16858](https://github.com/opensearch-project/OpenSearch/pull/16858))
 - Bump `jackson` from 2.17.2 to 2.18.2 ([#16733](https://github.com/opensearch-project/OpenSearch/pull/16733))
-- Bump `ch.qos.logback:logback-classic` from 1.2.13 to 1.5.15 ([#16716](https://github.com/opensearch-project/OpenSearch/pull/16716), [#16898](https://github.com/opensearch-project/OpenSearch/pull/16898))
+- Bump `ch.qos.logback:logback-classic` from 1.2.13 to 1.5.16 ([#16716](https://github.com/opensearch-project/OpenSearch/pull/16716), [#16898](https://github.com/opensearch-project/OpenSearch/pull/16898), [#17133](https://github.com/opensearch-project/OpenSearch/pull/17133))
 - Bump `com.azure:azure-identity` from 1.13.2 to 1.14.2 ([#16778](https://github.com/opensearch-project/OpenSearch/pull/16778))
 - Bump Apache Lucene from 9.12.0 to 9.12.1 ([#16846](https://github.com/opensearch-project/OpenSearch/pull/16846))
 - Bump `com.gradle.develocity` from 3.18.2 to 3.19 ([#16855](https://github.com/opensearch-project/OpenSearch/pull/16855))
