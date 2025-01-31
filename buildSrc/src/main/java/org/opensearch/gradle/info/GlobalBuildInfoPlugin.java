@@ -109,6 +109,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File rootDir = project.getRootDir();
         GitInfo gitInfo = gitInfo(rootDir);
 
+        FipsBuildParams.init(project::findProperty);
+
         BuildParams.init(params -> {
             // Initialize global build parameters
             boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
