@@ -28,7 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Deprecate CamelCase `PathHierarchy` tokenizer name in favor to lowercase `path_hierarchy` ([#10894](https://github.com/opensearch-project/OpenSearch/pull/10894))
 - Breaking change: Do not request "search_pipelines" metrics by default in NodesInfoRequest ([#12497](https://github.com/opensearch-project/OpenSearch/pull/12497))
 - Refactor `:libs` module `bootstrap` package to eliminate top level split packages [#17117](https://github.com/opensearch-project/OpenSearch/pull/17117))
-
+- Use simpler matching logic for source fields when explicit field names (no wildcards or dot-paths) are specified ([#17160](https://github.com/opensearch-project/OpenSearch/pull/17160))
 ### Deprecated
 
 ### Removed
