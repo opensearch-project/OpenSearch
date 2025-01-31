@@ -1,5 +1,5 @@
 # integration tests for queries with specific analysis chains
-
+---
 "match query with stacked stems":
   - skip:
       version: " - 2.11.99"
@@ -68,3 +68,80 @@
                 query: fox runs
                 operator: AND
   - match: {hits.total: 2}
+
+---
+"wildcard highlighting on match_only_text":
+  - skip:
+      version: " - 2.99.99"
+      reason: "wildcard highlighting on match_only_text type was added in 2.19"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+            analysis:
+              analyzer:
+                index:
+                  tokenizer: standard
+                  filter: [lowercase]
+                search:
+                  rest_total_hits_as_int: true
+                  tokenizer: standard
+                  filter: [lowercase, keyword_repeat, porter_stem, unique_stem]
+              filter:
+                unique_stem:
+                  type: unique
+                  only_on_same_position: true
+          mappings:
+            properties:
+              text:
+                type: match_only_text
+                analyzer: index
+                search_analyzer: search
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  { "text": "the fox runs across the street" }
+        refresh: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              text:
+                query: fox runs
+                operator: AND
+          highlight:
+            fields:
+              - text: {}
+  - match: {hits.total: 1}
+  - match: {hits.hits.0.highlight.text.0: "the <em>fox</em> <em>runs</em> across the street"}
+
+  - do:
+      index:
+        index: test
+        id:    2
+        body:  { "text": "run fox run" }
+        refresh: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              text:
+                query: fox runs
+                operator: AND
+          highlight:
+            fields:
+              - text: {}
+  - match: {hits.total: 2}
+  - match: {hits.hits.0.highlight.text.0: "the <em>fox</em> <em>runs</em> across the street"}
+  - match: {hits.hits.1.highlight.text.0: "<em>run</em> <em>fox</em> <em>run</em>"}

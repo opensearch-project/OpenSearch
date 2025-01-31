@@ -36,6 +36,7 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionConfig;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
@@ -439,7 +440,7 @@ public class BuilderTestsUtils {
         StarTreeDocument[] expectedStarTreeDocumentsArray = expectedStarTreeDocuments.toArray(new StarTreeDocument[0]);
         StarTreeTestUtils.assertStarTreeDocuments(starTreeDocuments, expectedStarTreeDocumentsArray);
 
-        validateFileFormats(dataIn, metaIn, rootNode, expectedStarTreeMetadata);
+        validateFileFormats(dataIn, metaIn, rootNode, expectedStarTreeMetadata, starTreeField);
 
         dataIn.close();
         metaIn.close();
@@ -448,7 +449,7 @@ public class BuilderTestsUtils {
 
     public static SegmentReadState getReadState(
         int numDocs,
-        Map<String, DocValuesType> dimensionFields,
+        Map<String, DimensionConfig> dimensionFields,
         List<Metric> metrics,
         StarTreeField compositeField,
         SegmentWriteState writeState,
@@ -471,7 +472,7 @@ public class BuilderTestsUtils {
                 false,
                 true,
                 IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
-                dimensionFields.get(dimension),
+                dimensionFields.get(dimension).getDocValuesType(),
                 DocValuesSkipIndexType.RANGE,
                 -1,
                 Collections.emptyMap(),

@@ -46,6 +46,7 @@ grant codeBase "${codebase.opensearch-secure-sm}" {
 grant codeBase "${codebase.opensearch}" {
   // needed for loading plugins which may expect the context class loader to be set
   permission java.lang.RuntimePermission "setContextClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
   // needed for SPI class loading
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";

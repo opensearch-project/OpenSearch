@@ -15,13 +15,20 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoubleField;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FloatField;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.KeywordField;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -40,12 +47,16 @@ import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
+import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
@@ -69,11 +80,16 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
@@ -100,11 +116,17 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
-    protected Codec getCodec() {
+    protected Codec getCodec(
+        Supplier<Integer> maxLeafDocsSupplier,
+        LinkedHashMap<String, String> dimensionAndType,
+        Map<String, String> metricFieldAndType
+    ) {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);
         MapperService mapperService;
         try {
-            mapperService = StarTreeDocValuesFormatTests.createMapperService(StarTreeFilterTests.getExpandedMapping(1, false));
+            mapperService = StarTreeDocValuesFormatTests.createMapperService(
+                StarTreeFilterTests.getExpandedMapping(maxLeafDocsSupplier.get(), false, dimensionAndType, metricFieldAndType)
+            );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -112,36 +134,65 @@ public class MetricAggregatorTests extends AggregatorTestCase {
     }
 
     public void testStarTreeDocValues() throws IOException {
+        final List<Supplier<Integer>> MAX_LEAF_DOC_VARIATIONS = List.of(
+            () -> 1,
+            () -> randomIntBetween(2, 100),
+            () -> randomIntBetween(101, 10_000)
+        );
+        final List<DimensionFieldData> dimensionFieldDatum = List.of(
+            new DimensionFieldData("sndv", () -> random().nextInt(10) - 5, DimensionTypes.INTEGER),
+            new DimensionFieldData("dv", () -> random().nextInt(20) - 10, DimensionTypes.INTEGER),
+            new DimensionFieldData("keyword_field", () -> random().nextInt(50), DimensionTypes.KEYWORD),
+            new DimensionFieldData("long_field", () -> random().nextInt(50), DimensionTypes.LONG),
+            new DimensionFieldData("half_float_field", () -> random().nextFloat(50), DimensionTypes.HALF_FLOAT),
+            new DimensionFieldData("float_field", () -> random().nextFloat(50), DimensionTypes.FLOAT),
+            new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE)
+        );
+        for (Supplier<Integer> maxLeafDocsSupplier : MAX_LEAF_DOC_VARIATIONS) {
+            testStarTreeDocValuesInternal(
+                getCodec(
+                    maxLeafDocsSupplier,
+                    dimensionFieldDatum.stream()
+                        .collect(
+                            Collectors.toMap(
+                                df -> df.getDimension().getField(),
+                                DimensionFieldData::getFieldType,
+                                (v1, v2) -> v1,
+                                LinkedHashMap::new
+                            )
+                        ),
+                    StarTreeFilterTests.METRIC_TYPE_MAP
+                ),
+                dimensionFieldDatum
+            );
+        }
+    }
+
+    private void testStarTreeDocValuesInternal(Codec codec, List<DimensionFieldData> dimensionFieldData) throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
-        conf.setCodec(getCodec());
+        conf.setCodec(codec);
         conf.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
 
         Random random = RandomizedTest.getRandom();
         int totalDocs = 100;
-        final String SNDV = "sndv";
-        final String DV = "dv";
         int val;
 
-        List<Document> docs = new ArrayList<>();
         // Index 100 random documents
         for (int i = 0; i < totalDocs; i++) {
             Document doc = new Document();
-            if (random.nextBoolean()) {
-                val = random.nextInt(10) - 5; // Random long between -5 and 4
-                doc.add(new SortedNumericDocValuesField(SNDV, val));
-            }
-            if (random.nextBoolean()) {
-                val = random.nextInt(20) - 10; // Random long between -10 and 9
-                doc.add(new SortedNumericDocValuesField(DV, val));
+            for (DimensionFieldData fieldData : dimensionFieldData) {
+                // FIXME: Reduce the frequency of nulls to be with at least some non-null docs like after every 1-2 ?
+                if (random.nextBoolean()) {
+                    doc.add(fieldData.getField());
+                }
             }
             if (random.nextBoolean()) {
                 val = random.nextInt(50); // Random long between 0 and 49
                 doc.add(new SortedNumericDocValuesField(FIELD_NAME, val));
             }
             iw.addDocument(doc);
-            docs.add(doc);
         }
 
         if (randomBoolean()) {
@@ -157,6 +208,23 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(reader, false, false);
         CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
 
+        MapperService mapperService = mapperServiceMock();
+        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        for (DimensionFieldData fieldData : dimensionFieldData) {
+            when(mapperService.fieldType(fieldData.fieldName)).thenReturn(fieldData.getMappedField());
+        }
+        QueryShardContext queryShardContext = queryShardContextMock(
+            indexSearcher,
+            mapperService,
+            createIndexSettings(),
+            circuitBreakerService,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
+        );
+        for (DimensionFieldData fieldData : dimensionFieldData) {
+            when(mapperService.fieldType(fieldData.fieldName)).thenReturn(fieldData.getMappedField());
+            when(queryShardContext.fieldMapper(fieldData.fieldName)).thenReturn(fieldData.getMappedField());
+        }
+
         List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
         CompositeIndexFieldInfo starTree = compositeIndexFields.get(0);
 
@@ -166,130 +234,70 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         ValueCountAggregationBuilder valueCountAggregationBuilder = count("_name").field(FIELD_NAME);
         AvgAggregationBuilder avgAggregationBuilder = avg("_name").field(FIELD_NAME);
 
-        List<Dimension> supportedDimensions = new LinkedList<>();
-        supportedDimensions.add(new NumericDimension(SNDV));
-        supportedDimensions.add(new NumericDimension(DV));
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = dimensionFieldData.stream()
+            .collect(
+                Collectors.toMap(DimensionFieldData::getDimension, DimensionFieldData::getMappedField, (v1, v2) -> v1, LinkedHashMap::new)
+            );
 
-        Query query = new MatchAllDocsQuery();
-        // match-all query
-        QueryBuilder queryBuilder = null; // no predicates
-        testCase(
-            indexSearcher,
-            query,
-            queryBuilder,
-            sumAggregationBuilder,
-            starTree,
-            supportedDimensions,
-            verifyAggregation(InternalSum::getValue)
-        );
-        testCase(
-            indexSearcher,
-            query,
-            queryBuilder,
-            maxAggregationBuilder,
-            starTree,
-            supportedDimensions,
-            verifyAggregation(InternalMax::getValue)
-        );
-        testCase(
-            indexSearcher,
-            query,
-            queryBuilder,
-            minAggregationBuilder,
-            starTree,
-            supportedDimensions,
-            verifyAggregation(InternalMin::getValue)
-        );
-        testCase(
-            indexSearcher,
-            query,
-            queryBuilder,
-            valueCountAggregationBuilder,
-            starTree,
-            supportedDimensions,
-            verifyAggregation(InternalValueCount::getValue)
-        );
-        testCase(
-            indexSearcher,
-            query,
-            queryBuilder,
-            avgAggregationBuilder,
-            starTree,
-            supportedDimensions,
-            verifyAggregation(InternalAvg::getValue)
-        );
+        Query query = null;
+        QueryBuilder queryBuilder = null;
 
-        // Numeric-terms query
-        for (int cases = 0; cases < 100; cases++) {
-            String queryField;
-            long queryValue;
-            if (randomBoolean()) {
-                queryField = SNDV;
-                queryValue = random.nextInt(10);
-            } else {
-                queryField = DV;
-                queryValue = random.nextInt(20) - 15;
+        for (int cases = 0; cases < 15; cases++) {
+            // Get all types of queries (Term/Terms/Range) for all the given dimensions.
+            List<QueryBuilder> allFieldQueries = dimensionFieldData.stream()
+                .flatMap(x -> Stream.of(x.getTermQueryBuilder(), x.getTermsQueryBuilder(), x.getRangeQueryBuilder()))
+                .toList();
+
+            for (QueryBuilder qb : allFieldQueries) {
+                query = qb.toQuery(queryShardContext);
+                queryBuilder = qb;
+                testCase(
+                    indexSearcher,
+                    query,
+                    qb,
+                    sumAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalSum::getValue)
+                );
+                testCase(
+                    indexSearcher,
+                    query,
+                    qb,
+                    maxAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalMax::getValue)
+                );
+                testCase(
+                    indexSearcher,
+                    query,
+                    qb,
+                    minAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalMin::getValue)
+                );
+                testCase(
+                    indexSearcher,
+                    query,
+                    qb,
+                    valueCountAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalValueCount::getValue)
+                );
+                testCase(
+                    indexSearcher,
+                    query,
+                    qb,
+                    avgAggregationBuilder,
+                    starTree,
+                    supportedDimensions,
+                    verifyAggregation(InternalAvg::getValue)
+                );
             }
-
-            query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
-            queryBuilder = new TermQueryBuilder(queryField, queryValue);
-
-            testCase(
-                indexSearcher,
-                query,
-                queryBuilder,
-                sumAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                verifyAggregation(InternalSum::getValue)
-            );
-            testCase(
-                indexSearcher,
-                query,
-                queryBuilder,
-                maxAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                verifyAggregation(InternalMax::getValue)
-            );
-            testCase(
-                indexSearcher,
-                query,
-                queryBuilder,
-                minAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                verifyAggregation(InternalMin::getValue)
-            );
-            testCase(
-                indexSearcher,
-                query,
-                queryBuilder,
-                valueCountAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                verifyAggregation(InternalValueCount::getValue)
-            );
-            testCase(
-                indexSearcher,
-                query,
-                queryBuilder,
-                avgAggregationBuilder,
-                starTree,
-                supportedDimensions,
-                verifyAggregation(InternalAvg::getValue)
-            );
         }
-
-        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-
-        QueryShardContext queryShardContext = queryShardContextMock(
-            indexSearcher,
-            mapperServiceMock(),
-            createIndexSettings(),
-            circuitBreakerService,
-            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking()
-        );
 
         MetricAggregatorFactory aggregatorFactory = mock(MetricAggregatorFactory.class);
         when(aggregatorFactory.getSubFactories()).thenReturn(AggregatorFactories.EMPTY);
@@ -385,6 +393,22 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             false
         );
 
+        // Keyword Range query with missing Low Ordinal
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("keyword_field");
+        rangeQueryBuilder.from(Long.MAX_VALUE).includeLower(random().nextBoolean());
+        testCase(
+            indexSearcher,
+            rangeQueryBuilder.toQuery(queryShardContext),
+            rangeQueryBuilder,
+            sumAggregationBuilder,
+            starTree,
+            supportedDimensions,
+            List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX, MetricStat.MIN, MetricStat.AVG))),
+            verifyAggregation(InternalSum::getValue),
+            null,
+            true
+        );
+
         ir.close();
         directory.close();
     }
@@ -403,7 +427,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         QueryBuilder queryBuilder,
         T aggBuilder,
         CompositeIndexFieldInfo starTree,
-        List<Dimension> supportedDimensions,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
         BiConsumer<V, V> verify
     ) throws IOException {
         testCase(searcher, query, queryBuilder, aggBuilder, starTree, supportedDimensions, Collections.emptyList(), verify, null, true);
@@ -415,7 +439,8 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         QueryBuilder queryBuilder,
         T aggBuilder,
         CompositeIndexFieldInfo starTree,
-        List<Dimension> supportedDimensions,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions, // FIXME : Merge with the same input that goes to generating the
+        // codec.
         List<Metric> supportedMetrics,
         BiConsumer<V, V> verify,
         AggregatorFactory aggregatorFactory,
@@ -453,4 +478,164 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         );
         verify.accept(expectedAggregation, starTreeAggregation);
     }
+
+    private interface DimensionFieldDataSupplier {
+        IndexableField getField(String fieldName, Supplier<Object> valueSupplier);
+
+        MappedFieldType getMappedField(String fieldName);
+
+        Dimension getDimension(String fieldName);
+    }
+
+    private abstract static class NumericDimensionFieldDataSupplier implements DimensionFieldDataSupplier {
+
+        @Override
+        public Dimension getDimension(String fieldName) {
+            return new NumericDimension(fieldName);
+        }
+
+        @Override
+        public MappedFieldType getMappedField(String fieldName) {
+            return new NumberFieldMapper.NumberFieldType(fieldName, numberType());
+        }
+
+        abstract NumberFieldMapper.NumberType numberType();
+    }
+
+    private static class DimensionFieldData {
+        private final String fieldName;
+        private final Supplier<Object> valueSupplier;
+        private final DimensionFieldDataSupplier dimensionFieldDataSupplier;
+        private final String fieldType;
+
+        DimensionFieldData(String fieldName, Supplier<Object> valueSupplier, DimensionTypes dimensionType) {
+            this.fieldName = fieldName;
+            this.valueSupplier = valueSupplier;
+            this.dimensionFieldDataSupplier = dimensionType.getFieldDataSupplier();
+            this.fieldType = dimensionType.name().toLowerCase(Locale.ROOT);
+        }
+
+        public Dimension getDimension() {
+            return dimensionFieldDataSupplier.getDimension(fieldName);
+        }
+
+        public MappedFieldType getMappedField() {
+            return dimensionFieldDataSupplier.getMappedField(fieldName);
+        }
+
+        public IndexableField getField() {
+            return dimensionFieldDataSupplier.getField(fieldName, valueSupplier);
+        }
+
+        public QueryBuilder getTermQueryBuilder() {
+            return new TermQueryBuilder(fieldName, valueSupplier.get());
+        }
+
+        public QueryBuilder getTermsQueryBuilder() {
+            int limit = randomIntBetween(1, 20);
+            List<Object> values = new ArrayList<>(limit);
+            for (int i = 0; i < limit; i++) {
+                values.add(valueSupplier.get());
+            }
+            return new TermsQueryBuilder(fieldName, values);
+        }
+
+        public QueryBuilder getRangeQueryBuilder() {
+            return new RangeQueryBuilder(fieldName).from(valueSupplier.get())
+                .to(valueSupplier.get())
+                .includeLower(randomBoolean())
+                .includeUpper(randomBoolean());
+        }
+
+        public String getFieldType() {
+            return fieldType;
+        }
+    }
+
+    private enum DimensionTypes {
+
+        INTEGER(new NumericDimensionFieldDataSupplier() {
+            @Override
+            NumberFieldMapper.NumberType numberType() {
+                return NumberFieldMapper.NumberType.INTEGER;
+            }
+
+            @Override
+            public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
+                return new IntField(fieldName, (Integer) valueSupplier.get(), Field.Store.YES);
+            }
+        }),
+        LONG(new NumericDimensionFieldDataSupplier() {
+            @Override
+            NumberFieldMapper.NumberType numberType() {
+                return NumberFieldMapper.NumberType.LONG;
+            }
+
+            @Override
+            public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
+                return new LongField(fieldName, (Integer) valueSupplier.get(), Field.Store.YES);
+            }
+        }),
+        HALF_FLOAT(new NumericDimensionFieldDataSupplier() {
+            @Override
+            public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
+                return new SortedNumericDocValuesField(fieldName, HalfFloatPoint.halfFloatToSortableShort((Float) valueSupplier.get()));
+            }
+
+            @Override
+            NumberFieldMapper.NumberType numberType() {
+                return NumberFieldMapper.NumberType.HALF_FLOAT;
+            }
+        }),
+        FLOAT(new NumericDimensionFieldDataSupplier() {
+            @Override
+            public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
+                return new FloatField(fieldName, (Float) valueSupplier.get(), Field.Store.YES);
+            }
+
+            @Override
+            NumberFieldMapper.NumberType numberType() {
+                return NumberFieldMapper.NumberType.FLOAT;
+            }
+        }),
+        DOUBLE(new NumericDimensionFieldDataSupplier() {
+            @Override
+            public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
+                return new DoubleField(fieldName, (Double) valueSupplier.get(), Field.Store.YES);
+            }
+
+            @Override
+            NumberFieldMapper.NumberType numberType() {
+                return NumberFieldMapper.NumberType.DOUBLE;
+            }
+        }),
+        KEYWORD(new DimensionFieldDataSupplier() {
+            @Override
+            public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
+                return new KeywordField(fieldName, String.valueOf(valueSupplier.get()), Field.Store.YES);
+            }
+
+            @Override
+            public MappedFieldType getMappedField(String fieldName) {
+                return new KeywordFieldMapper.KeywordFieldType(fieldName, Lucene.STANDARD_ANALYZER);
+            }
+
+            @Override
+            public Dimension getDimension(String fieldName) {
+                return new OrdinalDimension(fieldName);
+            }
+        });
+
+        private final DimensionFieldDataSupplier dimensionFieldDataSupplier;
+
+        DimensionTypes(DimensionFieldDataSupplier dimensionFieldDataSupplier) {
+            this.dimensionFieldDataSupplier = dimensionFieldDataSupplier;
+        }
+
+        public DimensionFieldDataSupplier getFieldDataSupplier() {
+            return dimensionFieldDataSupplier;
+        }
+
+    }
+
 }

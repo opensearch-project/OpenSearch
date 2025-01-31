@@ -43,6 +43,8 @@ import org.opensearch.node.Node;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.TaskAwareRunnable;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -382,6 +384,19 @@ public class OpenSearchExecutors {
         return new OpenSearchThreadFactory(namePrefix);
     }
 
+    public static ThreadFactory privilegedDaemonThreadFactory(Settings settings, String namePrefix) {
+        return privilegedDaemonThreadFactory(threadName(settings, namePrefix));
+    }
+
+    public static ThreadFactory privilegedDaemonThreadFactory(String nodeName, String namePrefix) {
+        assert nodeName != null && false == nodeName.isEmpty();
+        return privilegedDaemonThreadFactory(threadName(nodeName, namePrefix));
+    }
+
+    public static ThreadFactory privilegedDaemonThreadFactory(String namePrefix) {
+        return new PrivilegedOpenSearchThreadFactory(namePrefix);
+    }
+
     /**
      * A thread factory
      *
@@ -403,6 +418,42 @@ public class OpenSearchExecutors {
         @Override
         public Thread newThread(Runnable r) {
             Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
+            t.setDaemon(true);
+            return t;
+        }
+
+    }
+
+    /**
+     * A thread factory
+     *
+     * @opensearch.internal
+     */
+    static class PrivilegedOpenSearchThreadFactory implements ThreadFactory {
+
+        final ThreadGroup group;
+        final AtomicInteger threadNumber = new AtomicInteger(1);
+        final String namePrefix;
+
+        @SuppressWarnings("removal")
+        PrivilegedOpenSearchThreadFactory(String namePrefix) {
+            this.namePrefix = namePrefix;
+            SecurityManager s = System.getSecurityManager();
+            group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
+        }
+
+        @Override
+        public Thread newThread(Runnable r) {
+            final Thread t = new Thread(group, new Runnable() {
+                @SuppressWarnings({ "deprecation", "removal" })
+                @Override
+                public void run() {
+                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                        r.run();
+                        return null;
+                    });
+                }
+            }, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
             t.setDaemon(true);
             return t;
         }
