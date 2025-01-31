@@ -328,7 +328,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+            protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (clusterManagerOperationFailure) {
                     listener.onFailure(exception);
                 } else {
@@ -656,7 +656,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+            protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (exception.getAndSet(false)) {
                     throw new ClusterManagerThrottlingException("Throttling Exception : Limit exceeded for test");
                 } else {
@@ -693,7 +693,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
         transport.handleRemoteError(
@@ -727,7 +727,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
+            protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
                 throws Exception {
                 if (exception.getAndSet(false)) {
                     throw new Exception("Different exception");

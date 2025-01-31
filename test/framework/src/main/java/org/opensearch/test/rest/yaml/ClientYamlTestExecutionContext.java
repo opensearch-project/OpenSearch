@@ -231,11 +231,4 @@ public class ClientYamlTestExecutionContext {
     public Version clusterManagerVersion() {
         return clientYamlTestClient.getClusterManagerVersion();
     }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerVersion()} */
-    @Deprecated
-    public Version masterVersion() {
-        return clusterManagerVersion();
-    }
-
 }

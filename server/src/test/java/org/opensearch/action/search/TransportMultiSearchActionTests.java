@@ -321,11 +321,8 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
         // and if there are more searches than is allowed create an error and remember that.
         int maxAllowedConcurrentSearches = 1; // Allow 1 search at a time.
         AtomicInteger counter = new AtomicInteger();
-        AtomicReference<AssertionError> errorHolder = new AtomicReference<>();
-        // randomize whether or not requests are executed asynchronously
         ExecutorService executorService = threadPool.executor(ThreadPool.Names.GENERIC);
-        final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
-        CountDownLatch countDownLatch = new CountDownLatch(1);
+        CountDownLatch canceledLatch = new CountDownLatch(1);
         CancellableTask[] parentTask = new CancellableTask[1];
         NodeClient client = new NodeClient(settings, threadPool) {
             @Override
@@ -333,14 +330,15 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
                 if (parentTask[0] != null && parentTask[0].isCancelled()) {
                     fail("Should not execute search after parent task is cancelled");
                 }
-                try {
-                    countDownLatch.await(10, TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
 
-                requests.add(request);
                 executorService.execute(() -> {
+                    try {
+                        if (!canceledLatch.await(1, TimeUnit.SECONDS)) {
+                            fail("Latch should have counted down");
+                        }
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                     counter.decrementAndGet();
                     listener.onResponse(
                         new SearchResponse(
@@ -399,7 +397,7 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
                 }
             });
             parentTask[0].cancel("Giving up");
-            countDownLatch.countDown();
+            canceledLatch.countDown();
 
             assertNull(responses[0]);
             assertNull(exceptions[0]);

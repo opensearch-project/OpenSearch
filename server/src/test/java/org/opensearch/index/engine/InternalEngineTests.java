@@ -1083,6 +1083,55 @@ public class InternalEngineTests extends EngineTestCase {
         latestGetResult.get().close();
     }
 
+    public void testUpdateOperationForAppendOnlyIndex() throws Exception {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), "true");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (
+            Store store = createStore();
+            InternalEngine engine = createUpdateOnlyEngine(
+                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
+            )
+        ) {
+            engine.refresh("warm_up");
+            Engine.Searcher searchResult = engine.acquireSearcher("test");
+            searchResult.close();
+
+            final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = engine::acquireSearcher;
+
+            // create a document
+            Document document = testDocumentWithTextField();
+            document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
+            ParsedDocument doc = testParsedDocument("1", null, document, B_1, null);
+            expectThrows(AlreadyClosedException.class, () -> engine.index(indexForDoc(doc)));
+        }
+    }
+
+    private InternalEngine createUpdateOnlyEngine(EngineConfig config) throws IOException {
+        final Store store = config.getStore();
+        final Directory directory = store.directory();
+        if (Lucene.indexExists(directory) == false) {
+            store.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
+            final String translogUuid = Translog.createEmptyTranslog(
+                config.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                shardId,
+                primaryTerm.get()
+            );
+            store.associateIndexWithNewTranslog(translogUuid);
+        }
+
+        return new InternalEngine(config) {
+            @Override
+            protected IndexingStrategy indexingStrategyForOperation(Index index) throws IOException {
+                return IndexingStrategy.processNormally(false, 0, 0);
+            }
+        };
+    }
+
     public void testSimpleOperations() throws Exception {
         engine.refresh("warm_up");
         Engine.Searcher searchResult = engine.acquireSearcher("test");

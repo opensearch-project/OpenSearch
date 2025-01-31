@@ -71,6 +71,7 @@ import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.common.ReplicationType;
 
@@ -351,6 +352,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
+    public static final String SETTING_INDEX_APPEND_ONLY_ENABLED = "index.append_only.enabled";
 
     public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
 
@@ -391,6 +393,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope,
         Property.PrivateIndex,
         Property.Dynamic
+    );
+
+    /**
+     * Used to specify if the index data should be persisted in the remote store.
+     */
+    public static final Setting<Boolean> INDEX_APPEND_ONLY_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_INDEX_APPEND_ONLY_ENABLED,
+        false,
+        Property.IndexScope,
+        Property.Final
     );
 
     /**
@@ -576,6 +588,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
 
+    public static final Setting<Long> SETTING_INDEX_CREATION_DATE = Setting.longSetting(
+        SETTING_CREATION_DATE,
+        -1,
+        -1,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.UnmodifiableOnRestore
+    );
+
     /**
      * The user provided name for an index. This is the plain string provided by the user when the index was created.
      * It might still contain date math expressions etc. (added in 5.0)
@@ -601,6 +622,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String INDEX_UUID_NA_VALUE = Strings.UNKNOWN_UUID_VALUE;
+
+    public static final Setting<String> INDEX_UUID_SETTING = Setting.simpleString(
+        SETTING_INDEX_UUID,
+        INDEX_UUID_NA_VALUE,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.UnmodifiableOnRestore
+    );
+
+    public static final Setting<String> SETTING_INDEX_HISTORY_UUID = Setting.simpleString(
+        SETTING_HISTORY_UUID,
+        INDEX_UUID_NA_VALUE,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.UnmodifiableOnRestore
+    );
 
     public static final String INDEX_ROUTING_REQUIRE_GROUP_PREFIX = "index.routing.allocation.require";
     public static final String INDEX_ROUTING_INCLUDE_GROUP_PREFIX = "index.routing.allocation.include";
@@ -646,6 +683,63 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Used to specify the type for the ingestion index. If not specified, the ingestion source not enabled
+     */
+    public static final String SETTING_INGESTION_SOURCE_TYPE = "index.ingestion_source.type";
+    public static final String NONE_INGESTION_SOURCE_TYPE = "none";
+    public static final Setting<String> INGESTION_SOURCE_TYPE_SETTING = Setting.simpleString(
+        SETTING_INGESTION_SOURCE_TYPE,
+        NONE_INGESTION_SOURCE_TYPE,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {
+                // TODO: validate this with the registered types in the ingestion source plugin
+            }
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                // TODO: validate this with the ingestion source params
+            }
+        },
+        Property.IndexScope
+    );
+
+    /**
+     * Used to specify initial reset policy for the ingestion pointer. If not specified, default to the latest
+     */
+    public static final String SETTING_INGESTION_SOURCE_POINTER_INIT_RESET = "index.ingestion_source.pointer.init.reset";
+    public static final Setting<String> INGESTION_SOURCE_POINTER_INIT_RESET_SETTING = Setting.simpleString(
+        SETTING_INGESTION_SOURCE_POINTER_INIT_RESET,
+        StreamPoller.ResetState.LATEST.name(),
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {
+                if (!(value.equalsIgnoreCase(StreamPoller.ResetState.LATEST.name())
+                    || value.equalsIgnoreCase(StreamPoller.ResetState.EARLIEST.name()))) {
+                    throw new IllegalArgumentException(
+                        "Invalid value for " + SETTING_INGESTION_SOURCE_POINTER_INIT_RESET + " [" + value + "]"
+                    );
+                }
+            }
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {}
+        },
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
+        "index.ingestion_source.param.",
+        key -> new Setting<>(key, "", (value) -> {
+            // TODO: add ingestion source params validation
+            return value;
+        }, Property.IndexScope)
+    );
+
+    /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
      */
     private static final String INDEX_FORMAT = "index.format";
@@ -672,6 +766,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
     public static final String CONTEXT_KEY = "context";
+    public static final String INGESTION_SOURCE_KEY = "ingestion_source";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -722,6 +817,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isRemoteSnapshot;
 
     private final int indexTotalShardsPerNodeLimit;
+    private final boolean isAppendOnlyIndex;
 
     private final Context context;
 
@@ -753,6 +849,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final Map<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
         final int indexTotalShardsPerNodeLimit,
+        boolean isAppendOnlyIndex,
         final Context context
     ) {
 
@@ -790,6 +887,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSystem = isSystem;
         this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
         this.indexTotalShardsPerNodeLimit = indexTotalShardsPerNodeLimit;
+        this.isAppendOnlyIndex = isAppendOnlyIndex;
         this.context = context;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
@@ -847,6 +945,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public Version getCreationVersion() {
         return indexCreatedVersion;
+    }
+
+    /**
+     * Gets the ingestion source.
+     * @return ingestion source, or null if ingestion source is not enabled
+     */
+    public IngestionSource getIngestionSource() {
+        final String ingestionSourceType = INGESTION_SOURCE_TYPE_SETTING.get(settings);
+        if (ingestionSourceType != null && !(NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType))) {
+            final String pointerInitReset = INGESTION_SOURCE_POINTER_INIT_RESET_SETTING.get(settings);
+            final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
+            return new IngestionSource(ingestionSourceType, pointerInitReset, ingestionSourceParams);
+        }
+        return null;
+    }
+
+    public boolean useIngestionSource() {
+        final String ingestionSourceType = INGESTION_SOURCE_TYPE_SETTING.get(settings);
+        return ingestionSourceType != null && !(NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType));
     }
 
     /**
@@ -950,6 +1067,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public int getIndexTotalShardsPerNodeLimit() {
         return this.indexTotalShardsPerNodeLimit;
+    }
+
+    public boolean isAppendOnlyIndex() {
+        return this.isAppendOnlyIndex;
     }
 
     @Nullable
@@ -1191,6 +1312,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.context(context);
+            // TODO: support ingestion source
             return builder.build();
         }
     }
@@ -1745,6 +1867,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final int indexTotalShardsPerNodeLimit = ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
+            final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings);
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
@@ -1776,6 +1899,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 rolloverInfos,
                 isSystem,
                 indexTotalShardsPerNodeLimit,
+                isAppendOnlyIndex,
                 context
             );
         }

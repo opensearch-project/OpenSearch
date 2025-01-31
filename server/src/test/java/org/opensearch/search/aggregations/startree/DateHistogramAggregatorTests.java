@@ -55,7 +55,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Random;
 
@@ -155,10 +155,16 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             count("_name").field(FIELD_NAME),
             avg("_name").field(FIELD_NAME) };
 
-        List<Dimension> supportedDimensions = new LinkedList<>();
-        supportedDimensions.add(new NumericDimension(STATUS));
-        supportedDimensions.add(new NumericDimension(SIZE));
-        supportedDimensions.add(
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = new LinkedHashMap<>();
+        supportedDimensions.put(
+            new NumericDimension(STATUS),
+            new NumberFieldMapper.NumberFieldType(STATUS, NumberFieldMapper.NumberType.INTEGER)
+        );
+        supportedDimensions.put(
+            new NumericDimension(SIZE),
+            new NumberFieldMapper.NumberFieldType(STATUS, NumberFieldMapper.NumberType.INTEGER)
+        );
+        supportedDimensions.put(
             new DateDimension(
                 TIMESTAMP_FIELD,
                 List.of(
@@ -166,7 +172,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)
                 ),
                 DateFieldMapper.Resolution.MILLISECONDS
-            )
+            ),
+            new DateFieldMapper.DateFieldType(TIMESTAMP_FIELD)
         );
 
         for (ValuesSourceAggregationBuilder aggregationBuilder : agggBuilders) {
@@ -224,7 +231,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         QueryBuilder queryBuilder,
         DateHistogramAggregationBuilder dateHistogramAggregationBuilder,
         CompositeIndexFieldInfo starTree,
-        List<Dimension> supportedDimensions
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions
     ) throws IOException {
         InternalDateHistogram starTreeAggregation = searchAndReduceStarTree(
             createIndexSettings(),

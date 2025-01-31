@@ -134,6 +134,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.support.XContentMapValues.extractRawValues;
@@ -256,6 +257,26 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         }
     }
 
+    public void testCreateIndexFailPrivateSetting() throws IOException {
+        {
+            // Create index with private setting
+            String indexName = "private_index";
+            assertFalse(indexExists(indexName));
+
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+
+            Settings.Builder settings = Settings.builder();
+            settings.put(SETTING_CREATION_DATE, -1);
+            createIndexRequest.settings(settings);
+
+            OpenSearchStatusException exception = expectThrows(
+                OpenSearchStatusException.class,
+                () -> execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync)
+            );
+            assertTrue(exception.getMessage().contains("private index setting [index.creation_date] can not be set explicitly"));
+        }
+    }
+
     public void testGetSettings() throws IOException {
         String indexName = "get_settings_index";
         Settings basicSettings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
@@ -279,6 +300,24 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             highLevelClient().indices()::getSettingsAsync
         );
         assertEquals("30s", updatedResponse.getSetting(indexName, "index.refresh_interval"));
+    }
+
+    public void testGetPrivateSettings() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
+
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName);
+        GetSettingsResponse getSettingsResponse = execute(
+            getSettingsRequest,
+            highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync
+        );
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.refresh_interval"));
+        assertNotNull(getSettingsResponse.getSetting(indexName, "index.creation_date"));
+        assertNotNull(getSettingsResponse.getSetting(indexName, "index.uuid"));
     }
 
     public void testGetSettingsNonExistentIndex() throws IOException {

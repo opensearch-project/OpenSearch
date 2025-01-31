@@ -17,7 +17,6 @@ import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.identity.shiro.ShiroIdentityPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.core.rest.RestStatus;
