@@ -113,7 +113,7 @@ dependencies {
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
-  testImplementation 'org.awaitility:awaitility:4.2.0'
+  testImplementation 'org.awaitility:awaitility:4.2.2'
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
