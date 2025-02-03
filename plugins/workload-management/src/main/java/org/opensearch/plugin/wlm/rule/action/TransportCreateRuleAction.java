@@ -34,7 +34,6 @@ import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 
 /**
  * Transport action to create Rule
- *
  * @opensearch.experimental
  */
 public class TransportCreateRuleAction extends HandledTransportAction<CreateRuleRequest, CreateRuleResponse> {

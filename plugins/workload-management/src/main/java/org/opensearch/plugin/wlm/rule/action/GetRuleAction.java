@@ -12,7 +12,6 @@ import org.opensearch.action.ActionType;
 
 /**
  * Transport action to get Rule
- *
  * @opensearch.experimental
  */
 public class GetRuleAction extends ActionType<GetRuleResponse> {

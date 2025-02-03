@@ -12,7 +12,6 @@ import org.opensearch.action.ActionType;
 
 /**
  * Transport action to create Rule
- *
  * @opensearch.experimental
  */
 public class CreateRuleAction extends ActionType<CreateRuleResponse> {

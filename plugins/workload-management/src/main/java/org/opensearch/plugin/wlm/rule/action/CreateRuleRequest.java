@@ -10,8 +10,8 @@ package org.opensearch.plugin.wlm.rule.action;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.cluster.metadata.Rule;
-import org.opensearch.cluster.metadata.Rule.Builder;
+import org.opensearch.wlm.Rule;
+import org.opensearch.wlm.Rule.Builder;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -26,7 +26,6 @@ import java.io.IOException;
  */
 public class CreateRuleRequest extends ClusterManagerNodeRequest<CreateRuleRequest> {
     private final Rule rule;
-
 
     /**
      * Constructor for CreateRuleRequest
@@ -51,7 +50,7 @@ public class CreateRuleRequest extends ClusterManagerNodeRequest<CreateRuleReque
      */
     public static CreateRuleRequest fromXContent(XContentParser parser) throws IOException {
         Builder builder = Builder.fromXContent(parser);
-        return new CreateRuleRequest(builder._id(UUIDs.randomBase64UUID()).updatedAt(Instant.now().toString()).build());
+        return new CreateRuleRequest(builder.updatedAt(Instant.now().toString()).build());
     }
 
     @Override

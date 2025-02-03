@@ -18,7 +18,6 @@ import org.opensearch.transport.TransportService;
 
 /**
  * Transport action to update Rule
- *
  * @opensearch.experimental
  */
 public class TransportUpdateRuleAction extends HandledTransportAction<UpdateRuleRequest, UpdateRuleResponse> {

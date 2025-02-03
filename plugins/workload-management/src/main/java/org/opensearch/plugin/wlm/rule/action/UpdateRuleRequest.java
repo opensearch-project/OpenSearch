@@ -12,8 +12,8 @@ import org.joda.time.Instant;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.cluster.metadata.Rule;
-import org.opensearch.cluster.metadata.Rule.Builder;
+import org.opensearch.wlm.Rule;
+import org.opensearch.wlm.Rule.Builder;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -60,7 +60,7 @@ public class UpdateRuleRequest extends ClusterManagerNodeRequest<UpdateRuleReque
         if (builder.getLabel() == null) {
             builder.label(""); //TODO: check
         }
-        return new UpdateRuleRequest(builder._id(_id).updatedAt(Instant.now().toString()).build());
+        return new UpdateRuleRequest(builder.updatedAt(Instant.now().toString()).build());
     }
 
     @Override

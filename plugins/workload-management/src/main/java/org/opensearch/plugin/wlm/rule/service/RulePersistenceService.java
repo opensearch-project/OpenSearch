@@ -14,7 +14,7 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.cluster.metadata.Rule;
+import org.opensearch.wlm.Rule;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.client.Client;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -29,10 +29,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
  * This class defines the functions for Rule persistence
+ * @opensearch.experimental
  */
 public class RulePersistenceService {
     public static final String RULE_INDEX = ".rule";
@@ -41,7 +43,6 @@ public class RulePersistenceService {
 
     /**
      * Constructor for RulePersistenceService
-     *
      * @param client {@link Client} - The client to be used by RulePersistenceService
      */
     @Inject
@@ -54,16 +55,15 @@ public class RulePersistenceService {
     public void createRule(Rule rule, ActionListener<CreateRuleResponse> listener) {
         try {
             IndexRequest indexRequest = new IndexRequest(RULE_INDEX)
-                .source(rule.toXContentWithoutId(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+                .source(rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
 
             client.index(indexRequest, ActionListener.wrap(
                 indexResponse -> {
-                    Rule savedRule = rule.builderFromRule()._id(indexResponse.getId()).build();
-                    CreateRuleResponse createRuleResponse = new CreateRuleResponse(savedRule, RestStatus.OK);
+                    CreateRuleResponse createRuleResponse = new CreateRuleResponse(indexResponse.getId(), rule, RestStatus.OK);
                     listener.onResponse(createRuleResponse);
                 },
                 e -> {
-                    logger.warn("failed to save Rule object due to error: {}", e.getMessage());
+                    logger.warn("Failed to save Rule object due to error: {}", e.getMessage());
                     listener.onFailure(e);
                 }
             ));
@@ -96,8 +96,8 @@ public class RulePersistenceService {
             try {
                 XContentParser parser = MediaTypeRegistry.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, getResponse.getSourceAsString());
-                Rule rule = Rule.Builder.fromXContent(parser)._id(id).build();
-                listener.onResponse(new GetRuleResponse(List.of(rule), RestStatus.OK));
+                Rule rule = Rule.Builder.fromXContent(parser).build();
+                listener.onResponse(new GetRuleResponse(Map.of(id, rule), RestStatus.OK));
             } catch (IOException e) {
                 logger.error("Error parsing rule with ID {}: {}", id, e.getMessage());
                 listener.onFailure(e);
@@ -121,19 +121,20 @@ public class RulePersistenceService {
     }
 
     private void handleGetAllRuleResponse(SearchResponse searchResponse, ActionListener<GetRuleResponse> listener) {
-        List<Rule> rules = Arrays.stream(searchResponse.getHits().getHits())
+        Map<String, Rule> ruleMap = Arrays.stream(searchResponse.getHits().getHits())
             .map(hit -> {
                 try {
                     XContentParser parser = MediaTypeRegistry.JSON.xContent()
                         .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, hit.getSourceAsString());
-                    return Rule.Builder.fromXContent(parser)._id(hit.getId()).build();
+                    return Map.entry(hit.getId(), Rule.Builder.fromXContent(parser).build());
                 } catch (IOException e) {
                     logger.error("Failed to parse rule from hit: {}", e.getMessage());
                     return null;
                 }
             })
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-        listener.onResponse(new GetRuleResponse(rules, RestStatus.OK));
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        listener.onResponse(new GetRuleResponse(ruleMap, RestStatus.OK));
     }
 }

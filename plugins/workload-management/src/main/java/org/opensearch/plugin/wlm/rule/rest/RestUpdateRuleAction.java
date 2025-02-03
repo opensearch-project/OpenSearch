@@ -24,7 +24,6 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
  * Rest action to update a Rule
- *
  * @opensearch.experimental
  */
 public class RestUpdateRuleAction extends BaseRestHandler {

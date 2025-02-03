@@ -30,6 +30,6 @@ public class RestGetRuleActionTests extends OpenSearchTestCase {
         assertEquals("_wlm/rule/", route.getPath());
         route = routes.get(1);
         assertEquals(GET, route.getMethod());
-        assertEquals("_wlm/rule/{id}", route.getPath());
+        assertEquals("_wlm/rule/{_id}", route.getPath());
     }
 }

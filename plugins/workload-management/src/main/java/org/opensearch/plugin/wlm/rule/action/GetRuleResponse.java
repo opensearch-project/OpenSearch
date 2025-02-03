@@ -9,7 +9,8 @@
 package org.opensearch.plugin.wlm.rule.action;
 
 import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.cluster.metadata.Rule;
+import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.Rule;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -20,22 +21,22 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Response for the get API for Rule
- *
  * @opensearch.experimental
  */
 public class GetRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
-    private final List<Rule> rules;
+    private final Map<String, Rule> rules;
     private final RestStatus restStatus;
 
     /**
      * Constructor for GetRuleResponse
-     * @param rules - The List of Rules to be included in the response
+     * @param rules - The Map of Rules to be included in the response
      * @param restStatus - The restStatus for the response
      */
-    public GetRuleResponse(final List<Rule> rules, RestStatus restStatus) {
+    public GetRuleResponse(final Map<String, Rule> rules, RestStatus restStatus) {
         this.rules = rules;
         this.restStatus = restStatus;
     }
@@ -45,13 +46,13 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
      * @param in - A {@link StreamInput} object
      */
     public GetRuleResponse(StreamInput in) throws IOException {
-        this.rules = in.readList(Rule::new);
+        this.rules = in.readMap(StreamInput::readString, Rule::new);
         restStatus = RestStatus.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(rules);
+        out.writeMap(rules, StreamOutput::writeString, (outStream, rule) -> rule.writeTo(outStream));
         RestStatus.writeTo(out, restStatus);
     }
 
@@ -59,8 +60,8 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("rules");
-        for (Rule rule : rules) {
-            rule.toXContent(builder, params);
+        for (Map.Entry<String, Rule> entry : rules.entrySet()) {
+            entry.getValue().toXContent(builder, new MapParams(Map.of("_id", entry.getKey())));
         }
         builder.endArray();
         builder.endObject();
@@ -70,7 +71,7 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
     /**
      * rules getter
      */
-    public List<Rule> getRules() {
+    public Map<String, Rule> getRules() {
         return rules;
     }
 

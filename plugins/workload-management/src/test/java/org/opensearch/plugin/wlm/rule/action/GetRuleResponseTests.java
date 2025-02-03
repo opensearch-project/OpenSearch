@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.wlm.rule.action;
 
-import org.opensearch.cluster.metadata.Rule;
+import org.opensearch.wlm.Rule;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -19,13 +19,12 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
-import static org.opensearch.plugin.wlm.RuleTestUtils.ruleOne;
-import static org.opensearch.plugin.wlm.RuleTestUtils.ruleTwo;
-import static org.opensearch.plugin.wlm.RuleTestUtils.assertEqualRules;
-import static org.opensearch.plugin.wlm.RuleTestUtils.ruleList;
+import static org.opensearch.plugin.wlm.RuleTestUtils.*;
 
 public class GetRuleResponseTests extends OpenSearchTestCase {
 
@@ -33,10 +32,10 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleResponse
      */
     public void testSerializationSingleRule() throws IOException {
-        List<Rule> list = new ArrayList<>();
-        list.add(ruleOne);
-        GetRuleResponse response = new GetRuleResponse(list, RestStatus.OK);
-        assertEquals(response.getRules(), list);
+        Map<String, Rule> map = new HashMap<>();
+        map.put(_ID_ONE, ruleOne);
+        GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), RestStatus.OK);
+        assertEquals(response.getRules(), map);
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
@@ -51,8 +50,8 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleResponse when the result contains multiple rules
      */
     public void testSerializationMultipleRule() throws IOException {
-        GetRuleResponse response = new GetRuleResponse(ruleList(), RestStatus.OK);
-        assertEquals(response.getRules(), ruleList());
+        GetRuleResponse response = new GetRuleResponse(ruleMap(), RestStatus.OK);
+        assertEquals(response.getRules(), ruleMap());
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
@@ -68,9 +67,9 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleResponse when the result is empty
      */
     public void testSerializationNull() throws IOException {
-        List<Rule> list = new ArrayList<>();
-        GetRuleResponse response = new GetRuleResponse(list, RestStatus.OK);
-        assertEquals(response.getRules(), list);
+        Map<String, Rule> map = new HashMap<>();
+        GetRuleResponse response = new GetRuleResponse(map, RestStatus.OK);
+        assertEquals(response.getRules(), map);
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
@@ -85,50 +84,23 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the toXContent of GetRuleResponse
      */
     public void testToXContentGetSingleRule() throws IOException {
-        List<Rule> ruleList = new ArrayList<>();
-        ruleList.add(ruleOne);
+        Map<String, Rule> map = new HashMap<>();
+        map.put(_ID_ONE, ruleOne);
+        GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), RestStatus.OK);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        GetRuleResponse response = new GetRuleResponse(ruleList, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
-        String expected = "{\n"
-            + "  \"rules\" : [\n"
-            + "    {\n"
-            + "      \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"
-            + "      \"label\" : \"label_one\",\n"
-            + "      \"feature\" : \"WLM\",\n"
-            + "      \"updated_at\" : \"1738011537558\", \n"
-            + "    }\n"
-            + "  ]\n"
-            + "}";
-        assertEquals(expected, actual);
-    }
-
-    /**
-     * Test case to verify the toXContent of GetRuleResponse when the result contains multiple rules
-     */
-    public void testToXContentGetMultipleRule() throws IOException {
-        List<Rule> ruleList = new ArrayList<>();
-        ruleList.add(ruleOne);
-        ruleList.add(ruleTwo);
-        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        GetRuleResponse response = new GetRuleResponse(ruleList, RestStatus.OK);
-        String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
-        String expected = "{\n"
-            + "  \"rules\" : [\n"
-            + "    {\n"
-            + "      \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"
-            + "      \"label\" : \"label_one\",\n"
-            + "      \"feature\" : \"WLM\",\n"
-            + "      \"updated_at\" : \"1738011537558\", \n"
-            + "    },\n"
-            + "    {\n"
-            + "      \"_id\" : \"G5iIq84j7eK1qIAAAAIH53=1\",\n"
-            + "      \"label\" : \"label_two\",\n"
-            + "      \"feature\" : \"WLM\",\n"
-            + "      \"updated_at\" : \"1738013454494\", \n"
-            + "    },\n"
-            + "  ]\n"
-            + "}";
+        String expected = "{\n" +
+            "  \"rules\" : [\n" +
+            "    {\n" +
+            "      \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n" +
+            "      \"index_pattern\" : [\n" +
+            "        \"pattern_1\"\n" +
+            "      ],\n" +
+            "      \"query_group\" : \"label_one\",\n" +
+            "      \"updated_at\" : \"2024-01-26T08:58:57.558Z\"\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}";
         assertEquals(expected, actual);
     }
 
@@ -137,7 +109,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      */
     public void testToXContentGetZeroRule() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        GetRuleResponse otherResponse = new GetRuleResponse(new ArrayList<>(), RestStatus.OK);
+        GetRuleResponse otherResponse = new GetRuleResponse(new HashMap<>(), RestStatus.OK);
         String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n" + "  \"rules\" : [ ]\n" + "}";
         assertEquals(expected, actual);

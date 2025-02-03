@@ -18,7 +18,6 @@ import org.opensearch.transport.TransportService;
 
 /**
  * Transport action to get Rule
- *
  * @opensearch.experimental
  */
 public class TransportGetRuleAction extends HandledTransportAction<GetRuleRequest, GetRuleResponse> {

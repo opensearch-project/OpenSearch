@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.wlm.rule.action;
 
-import org.opensearch.cluster.metadata.Rule;
+import org.opensearch.wlm.Rule;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -21,7 +21,6 @@ import java.io.IOException;
 
 /**
  * Response for the update API for Rule
- *
  * @opensearch.experimental
  */
 public class UpdateRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {

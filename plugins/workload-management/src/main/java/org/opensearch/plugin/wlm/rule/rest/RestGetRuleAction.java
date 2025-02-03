@@ -25,7 +25,6 @@ import static org.opensearch.rest.RestRequest.Method.*;
 
 /**
  * Rest action to get a Rule
- *
  * @opensearch.experimental
  */
 public class RestGetRuleAction extends BaseRestHandler {

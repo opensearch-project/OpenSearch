@@ -30,7 +30,6 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
  * Rest action to create a Rule
- *
  * @opensearch.experimental
  */
 public class RestCreateRuleAction extends BaseRestHandler {
