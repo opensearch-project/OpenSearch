@@ -69,7 +69,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
     TransportNodesListGatewayMetaState.NodeGatewayMetaState> {
 
     public static final String ACTION_NAME = "internal:gateway/local/meta_state";
-    public static final ActionType<NodesGatewayMetaState> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayMetaState::new);
+    public static final ActionType<NodesGatewayMetaState> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayMetaState::new) {
+    };
 
     private final GatewayMetaState metaState;
 

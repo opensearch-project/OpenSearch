@@ -102,7 +102,8 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
     public static final ActionType<FieldCapabilitiesIndexResponse> TYPE = new ActionType<>(
         ACTION_NAME,
         FieldCapabilitiesIndexResponse::new
-    );
+    ) {
+    };
 
     private final ClusterService clusterService;
     private final TransportService transportService;

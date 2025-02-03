@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.mgt.SecurityManager;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -39,6 +40,8 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Supplier;
@@ -136,6 +139,25 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin,
                 channel.sendResponse(bytesRestResponse);
             }
         }
+    }
+
+    /**
+     * Deliberately introducing the network access attempt to trigger SecurityException
+     */
+    public int getSocket(Client client) throws IOException {
+        System.out.println("Client? " + client);
+        System.out.println("AdminClient? " + client.admin());
+
+        try {
+            final ClusterStateResponse response = client.admin().cluster().prepareState().execute().actionGet();
+            System.out.println("Cluster? " + response);
+        } catch (final Exception ex) {
+            ex.printStackTrace();
+            throw ex;
+        }
+
+        final ServerSocket socket = new ServerSocket(0);
+        return socket.getLocalPort();
     }
 
     public PluginSubject getPluginSubject(Plugin plugin) {

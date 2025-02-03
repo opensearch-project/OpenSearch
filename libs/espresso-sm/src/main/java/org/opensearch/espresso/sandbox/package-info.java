@@ -6,6 +6,5 @@
  * compatible open source license.
  */
 
-grant {
-//   permission  java.net.SocketPermission "localhost:0", "listen";
-};
+/** GraalVM sandbox */
+package org.opensearch.espresso.sandbox;

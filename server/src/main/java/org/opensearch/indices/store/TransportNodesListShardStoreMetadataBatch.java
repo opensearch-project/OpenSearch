@@ -62,7 +62,8 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
     public static final ActionType<TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch> TYPE = new ActionType<>(
         ACTION_NAME,
         TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch::new
-    );
+    ) {
+    };
 
     private final Settings settings;
     private final IndicesService indicesService;

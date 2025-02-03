@@ -63,7 +63,8 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
     public static final ActionType<NodesGatewayStartedShardsBatch> TYPE = new ActionType<>(
         ACTION_NAME,
         NodesGatewayStartedShardsBatch::new
-    );
+    ) {
+    };
 
     private final Settings settings;
     private final NodeEnvironment nodeEnv;

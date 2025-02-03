@@ -81,7 +81,8 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> {
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
-    public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesStoreFilesMetadata::new);
+    public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesStoreFilesMetadata::new) {
+    };
 
     private final Settings settings;
     private final IndicesService indicesService;
