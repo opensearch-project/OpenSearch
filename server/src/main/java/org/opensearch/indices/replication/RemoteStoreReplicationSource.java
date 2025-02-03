@@ -73,23 +73,29 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 listener.onResponse(new CheckpointInfoResponse(checkpoint, Collections.emptyMap(), null));
                 return;
             }
-            assert mdFile != null : "Remote metadata file can't be null if shard is active " + indexShard.state();
-            metadataMap = mdFile.getMetadata()
-                .entrySet()
-                .stream()
-                .collect(
-                    Collectors.toMap(
-                        e -> e.getKey(),
-                        e -> new StoreFileMetadata(
-                            e.getValue().getOriginalFilename(),
-                            e.getValue().getLength(),
-                            Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
-                            version,
-                            null
+
+            // Added this
+            if (mdFile == null) {
+                listener.onResponse(new CheckpointInfoResponse(indexShard.getLatestReplicationCheckpoint(), Collections.emptyMap(), null));
+            } else {
+                assert mdFile != null : "Remote metadata file can't be null if shard is active " + indexShard.state();
+                metadataMap = mdFile.getMetadata()
+                    .entrySet()
+                    .stream()
+                    .collect(
+                        Collectors.toMap(
+                            e -> e.getKey(),
+                            e -> new StoreFileMetadata(
+                                e.getValue().getOriginalFilename(),
+                                e.getValue().getLength(),
+                                Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
+                                version,
+                                null
+                            )
                         )
-                    )
-                );
-            listener.onResponse(new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes()));
+                    );
+                listener.onResponse(new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes()));
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }

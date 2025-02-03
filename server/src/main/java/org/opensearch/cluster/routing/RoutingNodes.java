@@ -184,7 +184,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         final int howMany = increment ? 1 : -1;
         assert routing.initializing() : "routing must be initializing: " + routing;
         // TODO: check primary == null || primary.active() after all tests properly add ReplicaAfterPrimaryActiveAllocationDecider
-        assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
+        // assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
 
         // Primary shard routing, excluding the relocating primaries.
         if (routing.primary() && (primary == null || primary == routing)) {

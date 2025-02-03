@@ -184,8 +184,8 @@ import org.opensearch.action.admin.indices.replication.TransportSegmentReplicati
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.TransportRolloverAction;
-import org.opensearch.action.admin.indices.scale.PreScaleSyncAction;
-import org.opensearch.action.admin.indices.scale.TransportPreScaleSyncAction;
+import org.opensearch.action.admin.indices.searchonly.SearchOnlyAction;
+import org.opensearch.action.admin.indices.searchonly.TransportSearchOnlyAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
@@ -422,7 +422,7 @@ import org.opensearch.rest.action.admin.indices.RestRefreshAction;
 import org.opensearch.rest.action.admin.indices.RestResizeHandler;
 import org.opensearch.rest.action.admin.indices.RestResolveIndexAction;
 import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
-import org.opensearch.rest.action.admin.indices.RestScaleAction;
+import org.opensearch.rest.action.admin.indices.RestSearchonlyAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSyncedFlushAction;
@@ -689,7 +689,7 @@ public class ActionModule extends AbstractModule {
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
 
-        actions.register(PreScaleSyncAction.INSTANCE, TransportPreScaleSyncAction.class);
+        actions.register(SearchOnlyAction.INSTANCE, TransportSearchOnlyAction.class);
 
         actions.register(AnalyzeAction.INSTANCE, TransportAnalyzeAction.class);
         actions.register(PutIndexTemplateAction.INSTANCE, TransportPutIndexTemplateAction.class);
@@ -913,7 +913,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestUpgradeStatusAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
 
-        registerHandler.accept(new RestScaleAction());
+        registerHandler.accept(new RestSearchonlyAction());
 
         registerHandler.accept(new RestIndexAction());
         registerHandler.accept(new CreateHandler());

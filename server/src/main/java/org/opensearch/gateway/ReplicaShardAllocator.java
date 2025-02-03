@@ -55,6 +55,7 @@ import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeSto
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -228,6 +229,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return getAllocationDecision(unassignedShard, allocation, nodeShardStores, result, logger);
     }
 
+    // Added this
     protected AllocateUnassignedDecision getAllocationDecision(
         ShardRouting unassignedShard,
         RoutingAllocation allocation,
@@ -248,14 +250,62 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         final RoutingNodes routingNodes = allocation.routingNodes();
         final boolean explain = allocation.debugDecision();
         ShardRouting primaryShard = routingNodes.activePrimary(unassignedShard.shardId());
+
+
         if (primaryShard == null) {
-            assert explain : "primary should only be null here if we are in explain mode, so we didn't "
-                + "exit early when canBeAllocatedToAtLeastOneNode didn't return a YES decision";
-            return AllocateUnassignedDecision.no(
-                UnassignedInfo.AllocationStatus.fromDecision(allocationDecision.v1().type()),
-                new ArrayList<>(allocationDecision.v2().values())
-            );
+            // Determine if the index is configured for search-only.
+            boolean isIndexSearchOnly = allocation.metadata()
+                .getIndexSafe(unassignedShard.index())
+                .getSettings()
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+
+            // Only proceed if both the shard is marked search-only and the index setting is enabled.
+            if (unassignedShard.isSearchOnly() && isIndexSearchOnly) {
+                logger.info("getAllocationDecision: entering search-only branch for {}", unassignedShard);
+
+                // Obtain the collection of data nodes once.
+                Collection<DiscoveryNode> dataNodes = allocation.nodes().getDataNodes().values();
+
+                // Use a stream to find the first candidate node where the allocation decider returns YES.
+                DiscoveryNode selectedCandidate = dataNodes.stream()
+                    .filter(candidate -> allocation.routingNodes().node(candidate.getId()) != null)
+                    .filter(candidate -> {
+                        RoutingNode node = allocation.routingNodes().node(candidate.getId());
+                        Decision decision = allocation.deciders().canAllocate(unassignedShard, node, allocation);
+                        logger.info("Allocating decision for candidate {} is {}", candidate, decision.getDecisions());
+                        return decision.type() == Decision.Type.YES;
+                    })
+                    .findFirst()
+                    .orElse(null);
+
+                // If a candidate was found, return a YES allocation decision.
+                if (selectedCandidate != null) {
+                    logger.info("Allocating search-only replica {} to node {}", unassignedShard, selectedCandidate);
+                    return AllocateUnassignedDecision.yes(selectedCandidate, null, new ArrayList<>(), false);
+                }
+
+                /* force methad an allocation using the first available data node.
+                if (!dataNodes.isEmpty()) {
+                    // forcibly picks the first node
+                    DiscoveryNode forcedCandidate = dataNodes.iterator().next();
+                    logger.info("Forcing allocation of search-only replica {} to node {} because no candidate qualified normally", unassignedShard, forcedCandidate);
+                    return AllocateUnassignedDecision.yes(forcedCandidate, null, new ArrayList<>(), false);
+                }*/
+
+
+                // If there are no data nodes available, delay allocation.
+                return AllocateUnassignedDecision.delayed(0L, 0L, null);
+            } else {
+                // For non-search-only replicas, if there is no active primary we do not attempt an allocation.
+                return AllocateUnassignedDecision.no(
+                    UnassignedInfo.AllocationStatus.fromDecision(allocationDecision.v1().type()),
+                    new ArrayList<>(allocationDecision.v2().values())
+                );
+            }
         }
+
+
+
         assert primaryShard.currentNodeId() != null;
         final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());
         final StoreFilesMetadata primaryStore = findStore(primaryNode, nodeShardStores);

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.indices.scale;
+package org.opensearch.action.admin.indices.searchonly;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -16,18 +16,18 @@ import org.opensearch.core.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 
-public class NodePreScaleSyncResponse extends TransportResponse {
+public class NodeSearchOnlyResponse extends TransportResponse {
     private final DiscoveryNode node;
-    private final List<ShardPreScaleSyncResponse> shardResponses;
+    private final List<ShardSearchOnlyResponse> shardResponses;
 
-    public NodePreScaleSyncResponse(DiscoveryNode node, List<ShardPreScaleSyncResponse> shardResponses) {
+    public NodeSearchOnlyResponse(DiscoveryNode node, List<ShardSearchOnlyResponse> shardResponses) {
         this.node = node;
         this.shardResponses = shardResponses;
     }
 
-    public NodePreScaleSyncResponse(StreamInput in) throws IOException {
+    public NodeSearchOnlyResponse(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
-        shardResponses = in.readList(ShardPreScaleSyncResponse::new);
+        shardResponses = in.readList(ShardSearchOnlyResponse::new);
     }
 
     @Override
@@ -40,7 +40,7 @@ public class NodePreScaleSyncResponse extends TransportResponse {
         return node;
     }
 
-    public List<ShardPreScaleSyncResponse> getShardResponses() {
+    public List<ShardSearchOnlyResponse> getShardResponses() {
         return shardResponses;
     }
 }

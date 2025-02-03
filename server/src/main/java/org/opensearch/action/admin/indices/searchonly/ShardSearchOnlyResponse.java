@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.indices.scale;
+package org.opensearch.action.admin.indices.searchonly;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -15,18 +15,18 @@ import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class ShardPreScaleSyncResponse implements Writeable {
+public class ShardSearchOnlyResponse implements Writeable {
     private final ShardId shardId;
     private final boolean needsSync;
     private final int uncommittedOperations;
 
-    public ShardPreScaleSyncResponse(ShardId shardId, boolean needsSync, int uncommittedOperations) {
+    public ShardSearchOnlyResponse(ShardId shardId, boolean needsSync, int uncommittedOperations) {
         this.shardId = shardId;
         this.needsSync = needsSync;
         this.uncommittedOperations = uncommittedOperations;
     }
 
-    public ShardPreScaleSyncResponse(StreamInput in) throws IOException {
+    public ShardSearchOnlyResponse(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
         this.needsSync = in.readBoolean();
         this.uncommittedOperations = in.readVInt();

@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -56,9 +57,22 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
             return allocation.decision(Decision.YES, NAME, "shard is primary and can be allocated");
         }
         ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting.shardId());
-        if (primary == null) {
+        // Added this
+        /*if (primary == null && !shardRouting.isSearchOnly()) {
             return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
+        }*/
+        if (primary == null) {
+            boolean indexIsSearchOnly = allocation.metadata()
+                .getIndexSafe(shardRouting.index())
+                .getSettings()
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+            if (shardRouting.isSearchOnly() && indexIsSearchOnly) {
+                return allocation.decision(Decision.YES, NAME, "search only: both shard and index are marked search-only");
+            } else {
+                return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
+            }
         }
+
         return allocation.decision(Decision.YES, NAME, "primary shard for this replica is already active");
     }
 }

@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.block;
 
+import org.opensearch.action.admin.indices.searchonly.TransportSearchOnlyAction;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
@@ -431,6 +432,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> implements Ve
             }
             if (indexMetadata.isRemoteSnapshot()) {
                 addIndexBlock(indexName, IndexMetadata.REMOTE_READ_ONLY_ALLOW_DELETE);
+            }
+            if (IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.get(indexMetadata.getSettings())) {
+                addIndexBlock(indexName, IndexMetadata.APIBlock.SEARCH_ONLY.getBlock());
             }
             return this;
         }

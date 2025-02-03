@@ -1,9 +1,9 @@
-package org.opensearch.action.admin.indices.scale;
+package org.opensearch.action.admin.indices.searchonly;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -11,21 +11,21 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class PreScaleSyncRequest extends AcknowledgedRequest<PreScaleSyncRequest> {
+public class SearchOnlyRequest extends AcknowledgedRequest<SearchOnlyRequest> {
     private String[] indices;
     private boolean scaleDown;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    public PreScaleSyncRequest(String index) {
-        this(new String[]{Objects.requireNonNull(index)}, false);
+    public SearchOnlyRequest(String index) {
+        this(new String[] { Objects.requireNonNull(index) }, false);
     }
 
-    public PreScaleSyncRequest(String[] indices, boolean scaleDown) {
+    public SearchOnlyRequest(String[] indices, boolean scaleDown) {
         this.indices = Objects.requireNonNull(indices);
         this.scaleDown = scaleDown;
     }
 
-    public PreScaleSyncRequest(StreamInput in) throws IOException {
+    public SearchOnlyRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
         scaleDown = in.readBoolean();
@@ -52,7 +52,7 @@ public class PreScaleSyncRequest extends AcknowledgedRequest<PreScaleSyncRequest
         return indicesOptions;
     }
 
-    public PreScaleSyncRequest indicesOptions(IndicesOptions indicesOptions) {
+    public SearchOnlyRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }
@@ -65,7 +65,10 @@ public class PreScaleSyncRequest extends AcknowledgedRequest<PreScaleSyncRequest
         } else {
             for (String index : indices) {
                 if (index == null || index.trim().isEmpty()) {
-                    validationException = ValidateActions.addValidationError("index/indices contains null or empty value", validationException);
+                    validationException = ValidateActions.addValidationError(
+                        "index/indices contains null or empty value",
+                        validationException
+                    );
                     break;
                 }
             }
@@ -77,10 +80,8 @@ public class PreScaleSyncRequest extends AcknowledgedRequest<PreScaleSyncRequest
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PreScaleSyncRequest that = (PreScaleSyncRequest) o;
-        return scaleDown == that.scaleDown &&
-            Arrays.equals(indices, that.indices) &&
-            Objects.equals(indicesOptions, that.indicesOptions);
+        SearchOnlyRequest that = (SearchOnlyRequest) o;
+        return scaleDown == that.scaleDown && Arrays.equals(indices, that.indices) && Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
@@ -95,7 +96,7 @@ public class PreScaleSyncRequest extends AcknowledgedRequest<PreScaleSyncRequest
      * @param scaleDown true if scaling down, false if scaling up
      * @return this request
      */
-    public PreScaleSyncRequest scaleDown(boolean scaleDown) {
+    public SearchOnlyRequest scaleDown(boolean scaleDown) {
         this.scaleDown = scaleDown;
         return this;
     }

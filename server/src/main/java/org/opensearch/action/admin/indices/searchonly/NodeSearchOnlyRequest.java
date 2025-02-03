@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.indices.scale;
+package org.opensearch.action.admin.indices.searchonly;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -16,16 +16,16 @@ import org.opensearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.List;
 
-public class NodePreScaleSyncRequest extends TransportRequest {
+public class NodeSearchOnlyRequest extends TransportRequest {
     private final String index;
     private final List<ShardId> shardIds;
 
-    public NodePreScaleSyncRequest(String index, List<ShardId> shardIds) {
+    public NodeSearchOnlyRequest(String index, List<ShardId> shardIds) {
         this.index = index;
         this.shardIds = shardIds;
     }
 
-    public NodePreScaleSyncRequest(StreamInput in) throws IOException {
+    public NodeSearchOnlyRequest(StreamInput in) throws IOException {
         super(in);
         this.index = in.readString();
         this.shardIds = in.readList(ShardId::new);

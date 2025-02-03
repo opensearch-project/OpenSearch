@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.indices.scale;
+package org.opensearch.action.admin.indices.searchonly;
 
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -18,20 +18,20 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 
-public class PreScaleSyncResponse extends ActionResponse implements ToXContent {
-    private final Collection<NodePreScaleSyncResponse> nodeResponses;
+public class SearchOnlyResponse extends ActionResponse implements ToXContent {
+    private final Collection<NodeSearchOnlyResponse> nodeResponses;
     private final String failureReason;
     private final boolean hasFailures;
 
-    public PreScaleSyncResponse(Collection<NodePreScaleSyncResponse> responses) {
+    public SearchOnlyResponse(Collection<NodeSearchOnlyResponse> responses) {
         this.nodeResponses = responses;
         this.hasFailures = responses.stream()
             .anyMatch(r -> r.getShardResponses().stream().anyMatch(s -> s.hasUncommittedOperations() || s.needsSync()));
         this.failureReason = buildFailureReason();
     }
 
-    public PreScaleSyncResponse(StreamInput in) throws IOException {
-        this.nodeResponses = in.readList(NodePreScaleSyncResponse::new);
+    public SearchOnlyResponse(StreamInput in) throws IOException {
+        this.nodeResponses = in.readList(NodeSearchOnlyResponse::new);
         this.hasFailures = in.readBoolean();
         this.failureReason = in.readOptionalString();
     }
@@ -56,8 +56,8 @@ public class PreScaleSyncResponse extends ActionResponse implements ToXContent {
             return null;
         }
         StringBuilder reason = new StringBuilder();
-        for (NodePreScaleSyncResponse nodeResponse : nodeResponses) {
-            for (ShardPreScaleSyncResponse shardResponse : nodeResponse.getShardResponses()) {
+        for (NodeSearchOnlyResponse nodeResponse : nodeResponses) {
+            for (ShardSearchOnlyResponse shardResponse : nodeResponse.getShardResponses()) {
                 if (shardResponse.hasUncommittedOperations() || shardResponse.needsSync()) {
                     reason.append("Shard ")
                         .append(shardResponse.getShardId())
