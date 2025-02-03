@@ -120,24 +120,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
 
         public boolean isBecomeClusterManagerTask() {
-            return reason.equals(BECOME_MASTER_TASK_REASON) || reason.equals(BECOME_CLUSTER_MANAGER_TASK_REASON);
-        }
-
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isBecomeClusterManagerTask()} */
-        @Deprecated
-        public boolean isBecomeMasterTask() {
-            return isBecomeClusterManagerTask();
+            return reason.equals(BECOME_CLUSTER_MANAGER_TASK_REASON);
         }
 
         public boolean isFinishElectionTask() {
             return reason.equals(FINISH_ELECTION_TASK_REASON);
         }
 
-        /**
-         * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #BECOME_CLUSTER_MANAGER_TASK_REASON}
-         */
-        @Deprecated
-        private static final String BECOME_MASTER_TASK_REASON = "_BECOME_MASTER_TASK_";
         private static final String BECOME_CLUSTER_MANAGER_TASK_REASON = "_BECOME_CLUSTER_MANAGER_TASK_";
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
     }
@@ -377,16 +366,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     public boolean runOnlyOnClusterManager() {
         // we validate that we are allowed to change the cluster state during cluster state processing
         return false;
-    }
-
-    /**
-     * a task indicates that the current node should become master
-     *
-     * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #newBecomeClusterManagerTask()}
-     */
-    @Deprecated
-    public static Task newBecomeMasterTask() {
-        return new Task(null, Task.BECOME_MASTER_TASK_REASON);
     }
 
     /**

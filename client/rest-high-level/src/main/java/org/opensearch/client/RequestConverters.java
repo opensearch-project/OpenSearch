@@ -946,14 +946,6 @@ final class RequestConverters {
             return this;
         }
 
-        /**
-         * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #withClusterManagerTimeout(TimeValue)}
-         */
-        @Deprecated
-        Params withMasterTimeout(TimeValue clusterManagerTimeout) {
-            return putParam("master_timeout", clusterManagerTimeout);
-        }
-
         Params withClusterManagerTimeout(TimeValue clusterManagerTimeout) {
             return putParam("cluster_manager_timeout", clusterManagerTimeout);
         }

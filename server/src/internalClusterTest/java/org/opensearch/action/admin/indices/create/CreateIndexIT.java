@@ -39,7 +39,7 @@ import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
 import org.opensearch.cluster.applicationtemplates.SystemTemplate;
@@ -89,19 +89,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends OpenSearchIntegTestCase {
-
-    public void testCreationDateGivenFails() {
-        try {
-            prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, 4L)).get();
-            fail();
-        } catch (SettingsException ex) {
-            assertEquals(
-                "unknown setting [index.creation_date] please check that any required plugins are installed, or check the "
-                    + "breaking changes documentation for removed settings",
-                ex.getMessage()
-            );
-        }
-    }
 
     public void testCreationDateGenerated() {
         long timeBeforeRequest = System.currentTimeMillis();
@@ -221,6 +208,15 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
                     + " breaking changes documentation for removed settings",
                 e.getMessage()
             );
+        }
+    }
+
+    public void testPrivateSettingFails() {
+        try {
+            prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, -1).build()).get();
+            fail("should have thrown an exception about private settings");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("private index setting [index.creation_date] can not be set explicitly"));
         }
     }
 

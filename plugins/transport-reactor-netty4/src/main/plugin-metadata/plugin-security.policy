@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-grant codeBase "${codebase.netty-common}" {
+grant {
    // for reading the system-wide configuration for the backlog of established sockets
    permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
 
@@ -15,9 +15,8 @@ grant codeBase "${codebase.netty-common}" {
 
    // Netty sets custom classloader for some of its internal threads
    permission java.lang.RuntimePermission "*", "setContextClassLoader";
-};
+   permission java.lang.RuntimePermission "getClassLoader";
 
-grant codeBase "${codebase.netty-transport}" {
    // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
    // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";

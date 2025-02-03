@@ -93,7 +93,12 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     public MappedFieldType keyedFieldType(String key) {
-        return new FlatObjectFieldType(this.name() + DOT_SYMBOL + key, this.name(), valueFieldType, valueAndPathFieldType);
+        return new FlatObjectFieldType(
+            Strings.isNullOrEmpty(key) ? this.name() : (this.name() + DOT_SYMBOL + key),
+            this.name(),
+            valueFieldType,
+            valueAndPathFieldType
+        );
     }
 
     /**
@@ -177,7 +182,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Collections.emptyMap()
             );
-            assert rootFieldName == null || (name.length() > rootFieldName.length() && name.startsWith(rootFieldName));
+            assert rootFieldName == null || (name.length() >= rootFieldName.length() && name.startsWith(rootFieldName));
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
             this.rootFieldName = rootFieldName;
@@ -473,8 +478,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             String searchKey;
             String searchField;
             if (isSubField()) {
-                searchKey = this.rootFieldName;
-                searchField = name();
+                return rangeQuery(null, null, true, true, context);
             } else {
                 if (hasDocValues()) {
                     return new FieldExistsQuery(name());

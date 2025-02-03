@@ -38,7 +38,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -129,19 +129,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * Returns the number of data and cluster-manager eligible nodes in the cluster.
      */
-    // TODO: Add abstract keyword after removing the deprecated numDataAndMasterNodes()
-    public int numDataAndClusterManagerNodes() {
-        return numDataAndMasterNodes();
-    }
-
-    /**
-     * Returns the number of data and cluster-manager eligible nodes in the cluster.
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #numDataAndClusterManagerNodes()}
-     */
-    @Deprecated
-    public int numDataAndMasterNodes() {
-        throw new UnsupportedOperationException("Must be overridden");
-    }
+    public abstract int numDataAndClusterManagerNodes();
 
     /**
      * Returns the http addresses of the nodes within the cluster.
