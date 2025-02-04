@@ -14,7 +14,8 @@ import org.opensearch.common.io.IndexIOStreamHandlerFactory;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * {@link RemoteSegmentMetadataHandlerFactory}
+ * {@link RemoteSegmentMetadataHandlerFactory} is a factory class to create {@link RemoteSegmentMetadataHandler}
+ * instances based on the {@link RemoteSegmentMetadata} version
  *
  * @opensearch.internal
  */

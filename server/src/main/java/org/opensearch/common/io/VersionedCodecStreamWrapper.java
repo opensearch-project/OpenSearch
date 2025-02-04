@@ -62,7 +62,6 @@ public class VersionedCodecStreamWrapper<T> {
         try {
             CodecUtil.checksumEntireFile(indexInput);
             int readStreamVersion = checkHeader(indexInput);
-            logger.info("Read stream version :" + readStreamVersion);
             return getHandlerForVersion(readStreamVersion).readContent(indexInput);
         } catch (CorruptIndexException cie) {
             logger.error(

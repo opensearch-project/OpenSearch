@@ -8,8 +8,6 @@
 
 package org.opensearch.index.store.remote.metadata;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
@@ -54,8 +52,6 @@ public class RemoteSegmentMetadata {
     private final byte[] segmentInfosBytes;
 
     private final ReplicationCheckpoint replicationCheckpoint;
-
-    private static final Logger logger = LogManager.getLogger(RemoteSegmentMetadata.class);
 
     public RemoteSegmentMetadata(
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata,
@@ -116,9 +112,9 @@ public class RemoteSegmentMetadata {
     }
 
     /**
-     * Write always writes with latest version of the RemoteSegmentMetadata
-     * @param out
-     * @throws IOException
+     * Write always writes with the latest version of the RemoteSegmentMetadata
+     * @param out file output stream which will store stream content
+     * @throws IOException in case there is a problem writing the file
      */
     public void write(IndexOutput out) throws IOException {
         out.writeMapOfStrings(toMapOfStrings());
@@ -128,11 +124,11 @@ public class RemoteSegmentMetadata {
     }
 
     /**
-     *  Read can happen in the upgraded version of replica which needs to support all version of RemoteSegmentMetadata
-     * @param indexInput
-     * @param version
-     * @return
-     * @throws IOException
+     * Read can happen in the upgraded version of replica which needs to support all versions of RemoteSegmentMetadata
+     * @param indexInput file input stream
+     * @param version version of the RemoteSegmentMetadata
+     * @return {@code RemoteSegmentMetadata}
+     * @throws IOException in case there is a problem reading from the file input stream
      */
     public static RemoteSegmentMetadata read(IndexInput indexInput, int version) throws IOException {
         Map<String, String> metadata = indexInput.readMapOfStrings();
@@ -140,14 +136,12 @@ public class RemoteSegmentMetadata {
             .fromMapOfStrings(metadata);
         ReplicationCheckpoint replicationCheckpoint = readCheckpointFromIndexInput(indexInput, uploadedSegmentMetadataMap, version);
         int byteArraySize = (int) indexInput.readLong();
-        logger.info("ByteArray Size : " + byteArraySize);
         byte[] segmentInfosBytes = new byte[byteArraySize];
         indexInput.readBytes(segmentInfosBytes, 0, byteArraySize);
         return new RemoteSegmentMetadata(uploadedSegmentMetadataMap, segmentInfosBytes, replicationCheckpoint);
     }
 
     public static void writeCheckpointToIndexOutput(ReplicationCheckpoint replicationCheckpoint, IndexOutput out) throws IOException {
-        logger.info("----> writeCheckpointToIndexOutput");
         ShardId shardId = replicationCheckpoint.getShardId();
         // Write ShardId
         out.writeString(shardId.getIndex().getName());
@@ -167,7 +161,6 @@ public class RemoteSegmentMetadata {
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap,
         int version
     ) throws IOException {
-        logger.info("----> readCheckpointFromIndexInput");
         return new ReplicationCheckpoint(
             new ShardId(new Index(in.readString(), in.readString()), in.readVInt()),
             in.readLong(),

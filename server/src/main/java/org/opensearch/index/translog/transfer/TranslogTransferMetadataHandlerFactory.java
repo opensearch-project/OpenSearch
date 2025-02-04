@@ -14,7 +14,8 @@ import org.opensearch.common.io.IndexIOStreamHandlerFactory;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * {@link TranslogTransferMetadataHandlerFactory}
+ * {@link TranslogTransferMetadataHandlerFactory} is a factory class to create {@link TranslogTransferMetadataHandler}
+ * instances based on the {@link TranslogTransferMetadata} version
  *
  * @opensearch.internal
  */
