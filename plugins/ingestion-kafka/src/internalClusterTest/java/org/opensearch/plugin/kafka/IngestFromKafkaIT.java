@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.kafka;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -45,7 +45,11 @@ import static org.awaitility.Awaitility.await;
 /**
  * Integration test for Kafka ingestion
  */
-@ThreadLeakLingering(linger = 15000) // wait for container pull thread to die
+
+// This test uses a Kafka test container which schedules a watcher daemon thread for monitoring hanging tests.
+// The watcher thread sometimes is not stopped on time at the end of test execution resulting in the thread leak controller
+// detecting leaky threads. Add @ThreadLeakAction to make this non-blocking and interrupt the leaky threads.
+@ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
 public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
     static final String topicName = "test";
 
@@ -75,29 +79,31 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
     }
 
     public void testKafkaIngestion() {
-        setupKafka();
-        // create an index with ingestion source from kafka
-        createIndex(
-            "test",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("ingestion_source.type", "kafka")
-                .put("ingestion_source.pointer.init.reset", "earliest")
-                .put("ingestion_source.param.topic", "test")
-                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
-                .build(),
-            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
-        );
+        try {
+            setupKafka();
+            // create an index with ingestion source from kafka
+            createIndex(
+                "test",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("ingestion_source.type", "kafka")
+                    .put("ingestion_source.pointer.init.reset", "earliest")
+                    .put("ingestion_source.param.topic", "test")
+                    .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                    .build(),
+                "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+            );
 
-        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(21);
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
-            refresh("test");
-            SearchResponse response = client().prepareSearch("test").setQuery(query).get();
-            assertThat(response.getHits().getTotalHits().value(), is(1L));
-        });
-
-        stopKafka();
+            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(21);
+            await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+                refresh("test");
+                SearchResponse response = client().prepareSearch("test").setQuery(query).get();
+                assertThat(response.getHits().getTotalHits().value(), is(1L));
+            });
+        } finally {
+            stopKafka();
+        }
     }
 
     private void setupKafka() {
@@ -109,7 +115,9 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
     }
 
     private void stopKafka() {
-        kafka.stop();
+        if (kafka != null) {
+            kafka.stop();
+        }
     }
 
     private void prepareKafkaData() {
