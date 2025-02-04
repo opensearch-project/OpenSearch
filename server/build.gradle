@@ -116,9 +116,9 @@ dependencies {
   api libs.roaringbitmap
 
   // bouncyCastle
-  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
-  api "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
-  api "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+  api libs.bcjce
+  api libs.bctls
+  api libs.bcutil
 
   testImplementation 'org.awaitility:awaitility:4.2.2'
   testImplementation(project(":test:framework")) {

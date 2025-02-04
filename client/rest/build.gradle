@@ -29,6 +29,7 @@
  */
 
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import org.opensearch.gradle.precommit.TestingConventionsTasks
 
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
@@ -221,4 +222,8 @@ tasks.withType(JavaCompile) {
 
 tasks.withType(Test).configureEach {
   classpath += files(project(':libs:opensearch-ssl-config').jar.archiveFile)
+}
+
+tasks.named("testingConventions", TestingConventionsTasks).configure {
+  addExtraClassPath(project(":libs:opensearch-ssl-config").jar.archiveFile)
 }

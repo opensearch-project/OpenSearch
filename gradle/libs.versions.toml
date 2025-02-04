@@ -135,6 +135,9 @@ reactor-netty-http = { group = "io.projectreactor.netty", name = "reactor-netty-
 roaringbitmap = { group = "org.roaringbitmap", name = "RoaringBitmap", version.ref = "roaringbitmap" }
 spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }
 tdigest = { group = "com.tdunning", name = "t-digest", version.ref = "tdigest" }
+bcjce = { group = "org.bouncycastle", name = "bc-fips", version.ref = "bouncycastle_jce" }
+bctls = { group = "org.bouncycastle", name = "bctls-fips", version.ref = "bouncycastle_tls" }
+bcutil = { group = "org.bouncycastle", name = "bcutil-fips", version.ref = "bouncycastle_util" }
 
 [bundles]
 lucene = [

@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.netty4.ssl;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
@@ -67,7 +66,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTestCase {
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
@@ -81,9 +79,11 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
             @Override
             public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, Transport transport) throws SSLException {
                 try {
-                    final KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.JKS);
+                    var keyStoreType = inFipsJvm() ? KeyStoreType.BCFKS : KeyStoreType.JKS;
+                    var fileExtension = KeyStoreType.TYPE_TO_EXTENSION_MAP.get(keyStoreType).get(0);
+                    final KeyStore keyStore = KeyStoreFactory.getInstance(keyStoreType);
                     keyStore.load(
-                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure.jks"),
+                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure" + fileExtension),
                         "password".toCharArray()
                     );
 

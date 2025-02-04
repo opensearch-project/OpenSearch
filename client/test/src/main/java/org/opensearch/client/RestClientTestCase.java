@@ -45,6 +45,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.hc.core5.http.Header;
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -114,6 +115,10 @@ public abstract class RestClientTestCase extends RandomizedTest {
         }
         assertEquals("some headers meant to be ignored were not part of the actual headers", ignoreHeaders, actualIgnoredHeaders);
         assertTrue("some headers that were sent weren't returned " + expectedHeaders, expectedHeaders.isEmpty());
+    }
+
+    protected static boolean inFipsJvm() {
+        return CryptoServicesRegistrar.isInApprovedOnlyMode();
     }
 
     private static void addValueToListEntry(final Map<String, List<String>> map, final String name, final String value) {
