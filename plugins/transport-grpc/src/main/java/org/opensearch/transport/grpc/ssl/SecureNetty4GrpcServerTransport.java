@@ -77,10 +77,10 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
     private SslContext buildSslContext() throws SSLException, NoSuchAlgorithmException {
         Optional<SSLContext> SSLCtxt = secureAuxTransportSettingsProvider.buildSecureAuxServerSSLContext(this.settings, this);
 
-        if (SSLCtxt.isPresent()) {
-            return new SSLContextWrapper(SSLCtxt.get(), false);
+        if (SSLCtxt.isEmpty()) {
+            throw new SSLException("SSLContext could not be built from secureAuxTransportSettingsProvider.");
         }
 
-        return new SSLContextWrapper(false);
+        return new SSLContextWrapper(SSLCtxt.get(), false);
     }
 }
