@@ -6,4 +6,8 @@
  * compatible open source license.
  */
 
+/**
+ * This package defines the constructs for RuleStorage
+ */
+
 package org.opensearch.plugin.wlm.rule.structure;

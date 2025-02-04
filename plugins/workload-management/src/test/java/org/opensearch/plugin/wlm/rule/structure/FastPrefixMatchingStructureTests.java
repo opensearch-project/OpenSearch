@@ -17,6 +17,7 @@ import java.util.List;
 public class FastPrefixMatchingStructureTests extends OpenSearchTestCase {
     FastPrefixMatchingStructure trie;
 
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         trie = new RuleAttributeTrie();
@@ -29,22 +30,16 @@ public class FastPrefixMatchingStructureTests extends OpenSearchTestCase {
     }
 
     public void testInsertSinglePair() {
-        trie.insert("apple", "fruit");
         assertEquals(Collections.singletonList("fruit"), trie.search("apple"));
     }
 
     public void testInsertMultiplePairs() {
-        trie.insert("apple", "fruit");
-        trie.insert("app", "application");
-        trie.insert("application", "software");
-
         assertEquals(Collections.singletonList("fruit"), trie.search("apple"));
         assertEquals(Collections.singletonList("application"), trie.search("app"));
         assertEquals(Collections.singletonList("software"), trie.search("application"));
     }
 
     public void testOverwriteExistingKey() {
-        trie.insert("apple", "fruit");
         trie.insert("apple", "company");
         assertEquals(Collections.singletonList("company"), trie.search("apple"));
     }
