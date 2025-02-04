@@ -42,28 +42,27 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         }
     }
 
-//    public void testGrpcTransportHealthcheck() {
-//        try (Netty4GrpcServerTransport serverTransport = new Netty4GrpcServerTransport(
-//            createSettings(),
-//            services,
-//            networkService
-//        )) {
-//            serverTransport.start();
-////            serverTransport.stop();
-//
-////            final TransportAddress remoteAddress = randomFrom(serverTransport.boundAddress().boundAddresses());
-////
-////            NettyGrpcClient client = new NettyGrpcClient.Builder()
-////                .setAddress(remoteAddress)
-////                .setTls(false)
-////                .build();
-////
-////            client.checkHealth();
-////            serverTransport.stop();
-//        } catch (Exception e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
+    public void testGrpcTransportHealthcheck() {
+        try (Netty4GrpcServerTransport serverTransport = new Netty4GrpcServerTransport(
+            createSettings(),
+            services,
+            networkService
+        )) {
+            serverTransport.start();
+            final TransportAddress remoteAddress = randomFrom(serverTransport.boundAddress().boundAddresses());
+
+            NettyGrpcClient client = new NettyGrpcClient.Builder()
+                .setAddress(remoteAddress)
+                .setTls(false)
+                .build();
+
+            client.checkHealth();
+            client.shutdown();
+            serverTransport.stop();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private static Settings createSettings() {
         return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), getPortRange()).build();
