@@ -43,7 +43,7 @@ dependencies {
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
-  runtimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   runtimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 

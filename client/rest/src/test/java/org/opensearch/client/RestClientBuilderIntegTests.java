@@ -66,14 +66,14 @@ import static org.junit.Assert.fail;
 /**
  * Integration test to validate the builder builds a client with the correct configuration
  */
-public class RestClientBuilderIntegTests extends RestClientTestCase {
+public class RestClientBuilderIntegTests extends RestClientTestCase implements RestClientFipsAwareTestCase {
 
     private static HttpsServer httpsServer;
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext(true)));
+        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext(true, KeyStoreType.BCFKS)));
         httpsServer.createContext("/", new ResponseHandler());
         httpsServer.start();
     }
@@ -93,6 +93,11 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
+        makeRequest();
+    }
+
+    @Override
+    public void makeRequest(KeyStoreType keyStoreType) throws Exception {
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
@@ -104,7 +109,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                 }
             }
 
-            SSLContext.setDefault(getSslContext(false));
+            SSLContext.setDefault(getSslContext(false, keyStoreType));
             try (RestClient client = buildRestClient()) {
                 Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
@@ -119,21 +124,22 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         return RestClient.builder(new HttpHost("https", address.getHostString(), address.getPort())).build();
     }
 
-    private static SSLContext getSslContext(boolean server) throws Exception {
+    private static SSLContext getSslContext(boolean server, KeyStoreType keyStoreType) throws Exception {
         SSLContext sslContext;
         char[] password = "password".toCharArray();
         SecureRandom secureRandom = SecureRandom.getInstance("DEFAULT", "BCFIPS");
+        String fileExtension = KeyStoreType.TYPE_TO_EXTENSION_MAP.get(keyStoreType).get(0);
 
         try (
-            InputStream trustStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore.bcfks");
-            InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/testks.bcfks")
+            InputStream trustStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore" + fileExtension);
+            InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/testks" + fileExtension)
         ) {
-            KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
+            KeyStore keyStore = KeyStoreFactory.getInstance(keyStoreType);
             keyStore.load(keyStoreFile, password);
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             kmf.init(keyStore, password);
 
-            KeyStore trustStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
+            KeyStore trustStore = KeyStoreFactory.getInstance(keyStoreType);
             trustStore.load(trustStoreFile, password);
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             tmf.init(trustStore);
