@@ -131,19 +131,6 @@ public class MappingUpdatedAction {
         }
     }
 
-    /**
-     * Update mappings on the cluster-manager node, waiting for the change to be committed,
-     * but not for the mapping update to be applied on all nodes. The timeout specified by
-     * {@code timeout} is the cluster-manager node timeout ({@link ClusterManagerNodeRequest#clusterManagerNodeTimeout()}),
-     * potentially waiting for a cluster-manager node to be available.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #updateMappingOnClusterManager(Index, Mapping, ActionListener)}
-     */
-    @Deprecated
-    public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
-        updateMappingOnClusterManager(index, mappingUpdate, listener);
-    }
-
     // used by tests
     int blockedThreads() {
         return semaphore.getQueueLength();

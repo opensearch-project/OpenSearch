@@ -1288,7 +1288,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
                 final ClusterState initialClusterState = ClusterState.builder(
                     new ClusterName(ClusterManagerServiceTests.class.getSimpleName())
                 )
-                    .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+                    .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).clusterManagerNodeId(localNode.getId()))
                     .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                     .build();
                 final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
@@ -1460,7 +1460,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
                 final ClusterState initialClusterState = ClusterState.builder(
                     new ClusterName(ClusterManagerServiceTests.class.getSimpleName())
                 )
-                    .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+                    .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).clusterManagerNodeId(localNode.getId()))
                     .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                     .build();
                 final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
@@ -1543,7 +1543,9 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         ) {
 
             final ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterManagerServiceTests.class.getSimpleName()))
-                .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+                .nodes(
+                    DiscoveryNodes.builder().add(node1).add(node2).add(node3).localNodeId(node1.getId()).clusterManagerNodeId(node1.getId())
+                )
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
                 .build();
             final AtomicReference<ClusterStatePublisher> publisherRef = new AtomicReference<>();
