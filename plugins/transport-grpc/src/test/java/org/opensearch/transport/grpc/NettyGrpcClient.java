@@ -9,6 +9,7 @@
 package org.opensearch.transport.grpc;
 
 import io.grpc.ManagedChannel;
+import io.grpc.ProxyDetector;
 import io.grpc.health.v1.HealthCheckRequest;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.health.v1.HealthGrpc;
@@ -22,6 +23,8 @@ import org.opensearch.core.common.transport.TransportAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
 
 public class NettyGrpcClient {
     private final ManagedChannel channel;
@@ -94,11 +97,14 @@ public class NettyGrpcClient {
     public static class Builder {
         private boolean tls = false;
         private TransportAddress addr = new TransportAddress(new InetSocketAddress("localhost", 9300));
+        private final ProxyDetector proxyDetector = NOOP_PROXY_DETECTOR; // No proxy detection for test client
 
-        Builder () { }
+        Builder () {}
 
         public NettyGrpcClient build() {
-            NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(addr.getAddress(), addr.getPort());
+            NettyChannelBuilder channelBuilder = NettyChannelBuilder
+                .forAddress(addr.getAddress(), addr.getPort())
+                .proxyDetector(proxyDetector);
 
             if (!tls) {
                 channelBuilder.usePlaintext();
