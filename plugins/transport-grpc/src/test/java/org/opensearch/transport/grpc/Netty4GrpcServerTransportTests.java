@@ -33,7 +33,7 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         services = List.of();
     }
 
-    public void testStartAndStopServer() {
+    public void testGrpcTransportStartStop() {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService)) {
             transport.start();
             MatcherAssert.assertThat(transport.boundAddress().boundAddresses(), not(emptyArray()));
