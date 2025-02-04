@@ -17,6 +17,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
@@ -32,7 +33,7 @@ public class BaseQueryRewriteContext implements QueryRewriteContext {
     private final NamedWriteableRegistry writeableRegistry;
     protected final Client client;
     protected final LongSupplier nowInMillis;
-    private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
+    private final AtomicReference<List<BiConsumer<Client, ActionListener<?>>>> asyncActionsRef = new AtomicReference<>(new ArrayList<>());
     private final boolean validate;
 
     public BaseQueryRewriteContext(
@@ -90,14 +91,18 @@ public class BaseQueryRewriteContext implements QueryRewriteContext {
      * from an index.
      */
     public void registerAsyncAction(BiConsumer<Client, ActionListener<?>> asyncAction) {
-        asyncActions.add(asyncAction);
+        asyncActionsRef.updateAndGet(list -> {
+            List<BiConsumer<Client, ActionListener<?>>> newList = new ArrayList<>(list);
+            newList.add(asyncAction);
+            return newList;
+        });
     }
 
     /**
      * Returns <code>true</code> if there are any registered async actions.
      */
     public boolean hasAsyncActions() {
-        return asyncActions.isEmpty() == false;
+        return asyncActionsRef.get().isEmpty() == false;
     }
 
     /**
@@ -105,6 +110,8 @@ public class BaseQueryRewriteContext implements QueryRewriteContext {
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
     public void executeAsyncActions(ActionListener listener) {
+        // get asyncActions before execute
+        List<BiConsumer<Client, ActionListener<?>>> asyncActions = asyncActionsRef.getAndSet(new ArrayList<>());
         if (asyncActions.isEmpty()) {
             listener.onResponse(null);
             return;
@@ -126,11 +133,13 @@ public class BaseQueryRewriteContext implements QueryRewriteContext {
                 }
             }
         };
-        // make a copy to prevent concurrent modification exception
-        List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
-        asyncActions.clear();
-        for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
-            action.accept(client, internalListener);
+
+        for (BiConsumer<Client, ActionListener<?>> action : asyncActions) {
+            if (action != null) {
+                action.accept(client, internalListener);
+            } else {
+                countDown.countDown();
+            }
         }
     }
 
