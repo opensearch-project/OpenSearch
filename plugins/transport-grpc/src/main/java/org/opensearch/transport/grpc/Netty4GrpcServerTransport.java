@@ -155,7 +155,8 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         this.nettyEventLoopThreads = SETTING_GRPC_WORKER_COUNT.get(settings);
     }
 
-    BoundTransportAddress boundAddress() {
+    // public for tests
+    public BoundTransportAddress boundAddress() {
         return this.boundAddress;
     }
 
