@@ -12,14 +12,19 @@ package org.opensearch.transport.grpc.ssl;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSessionContext;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 import io.grpc.netty.shaded.io.netty.buffer.ByteBufAllocator;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNegotiator;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 
 /**
  * A light wrapper intended to negotiate the difference between two ssl context implementations.
@@ -31,6 +36,7 @@ public class SSLContextWrapper extends SslContext {
     private final boolean client;
 
     private static final String[] DEFAULT_SSL_PROTOCOLS = { "TLSv1.3", "TLSv1.2", "TLSv1.1" };
+    private static final String[] DEFAULT_ALPN = { "h2" };
 
     public SSLContextWrapper(boolean isClient) throws NoSuchAlgorithmException {
         this(SSLContext.getDefault(), isClient);
@@ -65,7 +71,7 @@ public class SSLContextWrapper extends SslContext {
         return new DefaultAPN() {
             @Override
             public List<String> protocols() {
-                return List.of(ctxt.getDefaultSSLParameters().getApplicationProtocols());
+                return List.of(DEFAULT_ALPN);
             }
         };
     }
