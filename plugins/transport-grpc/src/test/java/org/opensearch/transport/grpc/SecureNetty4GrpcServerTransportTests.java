@@ -97,7 +97,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             .build();
     }
 
-    public void testGrpcSecureTransportStart() {
+    public void testGrpcSecureTransportStartStop() {
         try (SecureNetty4GrpcServerTransport serverTransport = new SecureNetty4GrpcServerTransport(
             createSettings(),
             services,
