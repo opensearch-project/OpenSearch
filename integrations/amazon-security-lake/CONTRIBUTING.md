@@ -16,6 +16,12 @@ This Docker Compose project will bring up these services:
 - our [events generator](../tools/events-generator/README.md)
 - an AWS Lambda Python container.
 
+| Service       | Address                  | Credentials     |
+| ------------- | ------------------------ | --------------- |
+| Wazuh Indexer | https://localhost:9200   | admin:admin     |
+| Dashboards    | https://localhost:5601   | admin:admin     |
+| S3 Ninja      | http://localhost:9444/ui |                 |
+
 On the one hand, the event generator will push events constantly to the indexer, to the `wazuh-alerts-4.x-sample` index by default (refer to the [events generator](../tools/events-generator/README.md) documentation for customization options). On the other hand, Logstash will query for new data and deliver it to output configured in the pipeline `indexer-to-s3`. This pipeline delivers the data to an S3 bucket, from which the data is processed using a Lambda function, to finally be sent to the Amazon Security Lake bucket in Parquet format.
 
 The pipeline starts automatically, but if you need to start it manually, attach a terminal to the Logstash container and start the integration using the command below:
