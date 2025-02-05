@@ -1,6 +1,6 @@
 updates:
-  - directory: /server/
-    open-pull-requests-limit: 1
+  - directory: /
+    open-pull-requests-limit: 5
     package-ecosystem: gradle
     schedule:
       interval: weekly
