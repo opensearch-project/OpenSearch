@@ -42,6 +42,7 @@ import java.util.Map;
 
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_AND_PATH_SUFFIX;
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_SUFFIX;
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.apache.lucene.search.MultiTermQuery.DOC_VALUES_REWRITE;
 
@@ -417,8 +418,12 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 ft.getValueFieldType(),
                 ft.getValueAndPathFieldType()
             );
-            assertEquals(new TermQuery(new Term("field", "field.bar")), dynamicMappedFieldType.existsQuery(null));
-
+            Automaton termAutomaton = PrefixQuery.toAutomaton(new BytesRef("field.bar="));
+            Automaton dvAutomaton = PrefixQuery.toAutomaton(new BytesRef("field.field.bar="));
+            Query indexQuery = new AutomatonQuery(new Term("field" + VALUE_AND_PATH_SUFFIX), termAutomaton, true);
+            Query dvQuery = new AutomatonQuery(new Term("field" + VALUE_AND_PATH_SUFFIX), dvAutomaton, true, DOC_VALUES_REWRITE);
+            Query expected = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            assertEquals(expected, dynamicMappedFieldType.existsQuery(MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
         {
@@ -619,8 +624,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 true,
                 false
             );
-            Query expected = new PrefixQuery(new Term("field" + VALUE_SUFFIX, "foo"), CONSTANT_SCORE_REWRITE);
-            assertEquals(expected, ft.prefixQuery("foo", CONSTANT_SCORE_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            Query expected = new PrefixQuery(new Term("field" + VALUE_SUFFIX, "foo"), CONSTANT_SCORE_BLENDED_REWRITE);
+            assertEquals(expected, ft.prefixQuery("foo", CONSTANT_SCORE_BLENDED_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
         // test isSearchable=true, hasDocValues=false, mappedFieldTypeName!=null
@@ -644,7 +649,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 true
             );
             Query expected = new PrefixQuery(new Term("field" + VALUE_SUFFIX, "field.foo"), DOC_VALUES_REWRITE);
-            assertEquals(expected, ft.prefixQuery("foo", CONSTANT_SCORE_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            assertEquals(expected, ft.prefixQuery("foo", CONSTANT_SCORE_BLENDED_REWRITE, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
         // test isSearchable=false, hasDocValues=true, mappedFieldTypeName!=null
@@ -712,7 +717,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                     0,
                     RegexpQuery.DEFAULT_PROVIDER,
                     10,
-                    CONSTANT_SCORE_REWRITE
+                    CONSTANT_SCORE_BLENDED_REWRITE
                 ),
                 new RegexpQuery(
                     new Term("field" + VALUE_SUFFIX, new BytesRef("field.foo")),
@@ -741,7 +746,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                     0,
                     RegexpQuery.DEFAULT_PROVIDER,
                     10,
-                    CONSTANT_SCORE_REWRITE
+                    CONSTANT_SCORE_BLENDED_REWRITE
                 ),
                 new RegexpQuery(
                     new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field.field1=foo")),
@@ -769,7 +774,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 0,
                 RegexpQuery.DEFAULT_PROVIDER,
                 10,
-                CONSTANT_SCORE_REWRITE
+                CONSTANT_SCORE_BLENDED_REWRITE
             );
             assertEquals(expected, ft.regexpQuery("foo", 0, 0, 10, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
@@ -788,7 +793,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 0,
                 RegexpQuery.DEFAULT_PROVIDER,
                 10,
-                CONSTANT_SCORE_REWRITE
+                CONSTANT_SCORE_BLENDED_REWRITE
             );
             assertEquals(expected, ft.regexpQuery("foo", 0, 0, 10, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
@@ -1136,13 +1141,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                         true,
                         true
                     );
-                    Query dvQuery = new AutomatonQuery(
-                        new Term("field" + VALUE_SUFFIX),
-                        dvAutomaton,
-                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                        true,
-                        DOC_VALUES_REWRITE
-                    );
+                    Query dvQuery = new AutomatonQuery(new Term("field" + VALUE_SUFFIX), dvAutomaton, true, DOC_VALUES_REWRITE);
                     Query expected = searchable == false
                         ? dvQuery
                         : (hasDocValue ? new IndexOrDocValuesQuery(indexQuery, dvQuery) : indexQuery);
@@ -1181,8 +1180,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                         );
                         continue;
                     }
-                    boolean nullLowerTerm = true;// randomBoolean();
-                    boolean nullUpperTerm = true;// nullLowerTerm == false || randomBoolean();
+                    boolean nullLowerTerm = randomBoolean();
+                    boolean nullUpperTerm = nullLowerTerm == false || randomBoolean();
 
                     Automaton a1 = PrefixQuery.toAutomaton(new BytesRef("field.field1="));
                     Automaton a2 = TermRangeQuery.toAutomaton(
@@ -1201,19 +1200,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                         true
                     );
                     Automaton dvAutomaton = Operations.intersection(dvA1, dvA2);
-                    Query indexQuery = new AutomatonQuery(
-                        new Term("field" + VALUE_AND_PATH_SUFFIX),
-                        termAutomaton,
-                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                        true
-                    );
-                    Query dvQuery = new AutomatonQuery(
-                        new Term("field" + VALUE_AND_PATH_SUFFIX),
-                        dvAutomaton,
-                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                        true,
-                        DOC_VALUES_REWRITE
-                    );
+                    Query indexQuery = new AutomatonQuery(new Term("field" + VALUE_AND_PATH_SUFFIX), termAutomaton, true);
+                    Query dvQuery = new AutomatonQuery(new Term("field" + VALUE_AND_PATH_SUFFIX), dvAutomaton, true, DOC_VALUES_REWRITE);
                     Query expected = searchable == false
                         ? dvQuery
                         : (hasDocValue ? new IndexOrDocValuesQuery(indexQuery, dvQuery) : indexQuery);
@@ -1245,7 +1233,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 new WildcardQuery(
                     new Term("field" + VALUE_SUFFIX, "foo*"),
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    MultiTermQuery.CONSTANT_SCORE_REWRITE
+                    MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
                 ),
                 new WildcardQuery(
                     new Term("field" + VALUE_SUFFIX, "field.foo*"),
@@ -1268,7 +1256,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 new WildcardQuery(
                     new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field1=foo*"),
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    MultiTermQuery.CONSTANT_SCORE_REWRITE
+                    MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
                 ),
                 new WildcardQuery(
                     new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field.field1=foo*"),
@@ -1290,7 +1278,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             Query expected = new WildcardQuery(
                 new Term("field" + VALUE_SUFFIX, "foo*"),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                MultiTermQuery.CONSTANT_SCORE_REWRITE
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
             );
             assertEquals(expected, ft.wildcardQuery("foo*", null, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
@@ -1306,7 +1294,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             Query expected = new WildcardQuery(
                 new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field1=foo*"),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                MultiTermQuery.CONSTANT_SCORE_REWRITE
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
             );
             assertEquals(expected, ft.wildcardQuery("foo*", null, false, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }

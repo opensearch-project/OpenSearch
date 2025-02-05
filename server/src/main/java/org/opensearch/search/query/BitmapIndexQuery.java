@@ -98,17 +98,7 @@ public class BitmapIndexQuery extends Query implements Accountable {
             final long cardinality = bitmap.getLongCardinality();
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
-                }
-                return scorerSupplier.get(Long.MAX_VALUE);
-            }
-
-            @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                final Weight weight = this;
                 LeafReader reader = context.reader();
                 // get the point value which should be one dimension, since bitmap saves integers
                 PointValues values = reader.getPointValues(field);
@@ -128,7 +118,7 @@ public class BitmapIndexQuery extends Query implements Accountable {
                     @Override
                     public Scorer get(long leadCost) throws IOException {
                         values.intersect(visitor);
-                        return new ConstantScoreScorer(weight, score(), scoreMode, result.build().iterator());
+                        return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
                     }
 
                     @Override

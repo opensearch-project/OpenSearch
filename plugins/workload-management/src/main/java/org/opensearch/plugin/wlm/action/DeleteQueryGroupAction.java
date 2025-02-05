@@ -9,7 +9,7 @@
 package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 
 /**
  * Transport action for delete QueryGroup

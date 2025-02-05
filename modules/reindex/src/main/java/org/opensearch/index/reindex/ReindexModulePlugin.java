@@ -130,7 +130,6 @@ public class ReindexModulePlugin extends Plugin implements ActionPlugin, Extensi
     @Override
     public List<Setting<?>> getSettings() {
         final List<Setting<?>> settings = new ArrayList<>();
-        settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
         settings.add(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST);
         settings.add(TransportReindexAction.REMOTE_REINDEX_RETRY_INITIAL_BACKOFF);
         settings.add(TransportReindexAction.REMOTE_REINDEX_RETRY_MAX_COUNT);

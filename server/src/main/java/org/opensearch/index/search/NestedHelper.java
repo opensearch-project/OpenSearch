@@ -32,7 +32,6 @@
 
 package org.opensearch.index.search;
 
-import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -76,11 +75,9 @@ public final class NestedHelper {
             // cover a high majority of use-cases
             return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
         } else if (query instanceof TermInSetQuery) {
-            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
-            if (terms.size() > 0) {
-                PrefixCodedTerms.TermIterator it = terms.iterator();
-                it.next();
-                return mightMatchNestedDocs(it.field());
+            final TermInSetQuery termInSetQuery = (TermInSetQuery) query;
+            if (termInSetQuery.getTermsCount() > 0) {
+                return mightMatchNestedDocs(termInSetQuery.getField());
             } else {
                 return false;
             }
@@ -95,13 +92,13 @@ public final class NestedHelper {
                 return bq.clauses()
                     .stream()
                     .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::getQuery)
+                    .map(BooleanClause::query)
                     .allMatch(this::mightMatchNestedDocs);
             } else {
                 return bq.clauses()
                     .stream()
-                    .filter(c -> c.getOccur() == Occur.SHOULD)
-                    .map(BooleanClause::getQuery)
+                    .filter(c -> c.occur() == Occur.SHOULD)
+                    .map(BooleanClause::query)
                     .anyMatch(this::mightMatchNestedDocs);
             }
         } else if (query instanceof OpenSearchToParentBlockJoinQuery) {
@@ -148,11 +145,9 @@ public final class NestedHelper {
         } else if (query instanceof TermQuery) {
             return mightMatchNonNestedDocs(((TermQuery) query).getTerm().field(), nestedPath);
         } else if (query instanceof TermInSetQuery) {
-            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
-            if (terms.size() > 0) {
-                PrefixCodedTerms.TermIterator it = terms.iterator();
-                it.next();
-                return mightMatchNonNestedDocs(it.field(), nestedPath);
+            final TermInSetQuery termInSetQuery = (TermInSetQuery) query;
+            if (termInSetQuery.getTermsCount() > 0) {
+                return mightMatchNonNestedDocs(termInSetQuery.getField(), nestedPath);
             } else {
                 return false;
             }
@@ -167,13 +162,13 @@ public final class NestedHelper {
                 return bq.clauses()
                     .stream()
                     .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::getQuery)
+                    .map(BooleanClause::query)
                     .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
             } else {
                 return bq.clauses()
                     .stream()
-                    .filter(c -> c.getOccur() == Occur.SHOULD)
-                    .map(BooleanClause::getQuery)
+                    .filter(c -> c.occur() == Occur.SHOULD)
+                    .map(BooleanClause::query)
                     .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
             }
         } else {

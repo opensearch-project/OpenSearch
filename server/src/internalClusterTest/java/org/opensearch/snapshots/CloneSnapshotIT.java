@@ -36,7 +36,7 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRespon
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.metadata.RepositoryMetadata;

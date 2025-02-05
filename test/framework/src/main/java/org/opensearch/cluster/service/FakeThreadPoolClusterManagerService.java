@@ -110,7 +110,7 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
         };
     }
 
-    public int getFakeMasterServicePendingTaskCount() {
+    public int getFakeClusterManagerServicePendingTaskCount() {
         return pendingTasks.size();
     }
 

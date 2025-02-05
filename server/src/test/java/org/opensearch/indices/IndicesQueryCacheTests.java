@@ -93,8 +93,18 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new ConstantScoreWeight(this, boost) {
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long l) throws IOException {
+                            return new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                        }
+
+                        @Override
+                        public long cost() {
+                            return 0;
+                        }
+                    };
                 }
 
                 @Override
@@ -401,12 +411,6 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return weight.explain(context, doc);
-        }
-
-        @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            scorerCalled = true;
-            return weight.scorer(context);
         }
 
         @Override

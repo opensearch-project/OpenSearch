@@ -77,7 +77,6 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
@@ -85,6 +84,7 @@ import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryCoordinatorContext;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
@@ -126,6 +126,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchRequest;
@@ -139,6 +140,7 @@ import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.startree.StarTreeQueryContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -1546,15 +1548,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (this.indicesService.getCompositeIndexSettings() != null
             && this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
             && StarTreeQueryHelper.isStarTreeSupported(context)) {
-            try {
-                StarTreeQueryContext starTreeQueryContext = StarTreeQueryHelper.getStarTreeQueryContext(context, source);
-                if (starTreeQueryContext != null) {
-                    context.starTreeQueryContext(starTreeQueryContext);
-                    logger.debug("can use star tree");
-                } else {
-                    logger.debug("cannot use star tree");
-                }
-            } catch (IOException ignored) {}
+            StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(context, source.query());
+            boolean consolidated = starTreeQueryContext.consolidateAllFilters(context);
+            if (consolidated) {
+                queryShardContext.setStarTreeQueryContext(starTreeQueryContext);
+            }
         }
     }
 
@@ -1775,8 +1773,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return indicesService.getRewriteContext(nowInMillis);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, PipelinedRequest searchRequest) {
+        return new QueryCoordinatorContext(indicesService.getRewriteContext(nowInMillis), searchRequest);
     }
 
     /**

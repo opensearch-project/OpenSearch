@@ -1281,7 +1281,8 @@ public class RemoteClusterStateService implements Closeable {
                     entry.getKey(),
                     clusterUUID,
                     blobStoreRepository.getCompressor(),
-                    namedWriteableRegistry
+                    namedWriteableRegistry,
+                    manifest.getOpensearchVersion()
                 ),
                 listener
             );

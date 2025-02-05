@@ -45,4 +45,9 @@ public abstract class StarTreeValuesIterator {
     public long cost() {
         return docIdSetIterator.cost();
     }
+
+    public abstract long value() throws IOException;
+
+    public abstract boolean advanceExact(int target) throws IOException;
+
 }

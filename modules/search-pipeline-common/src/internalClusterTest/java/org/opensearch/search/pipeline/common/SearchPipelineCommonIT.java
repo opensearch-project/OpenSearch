@@ -19,7 +19,7 @@ import org.opensearch.action.search.GetSearchPipelineResponse;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -77,12 +77,12 @@ public class SearchPipelineCommonIT extends OpenSearchIntegTestCase {
         // Search without the pipeline. Should see both documents.
         SearchRequest req = new SearchRequest(TEST_INDEX).source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
         SearchResponse rsp = client().search(req).actionGet();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
 
         // Search with the pipeline. Should only see document with "field":"value".
         req.pipeline(PIPELINE_NAME);
         rsp = client().search(req).actionGet();
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
 
         // Clean up.
         deletePipeline();
@@ -93,7 +93,7 @@ public class SearchPipelineCommonIT extends OpenSearchIntegTestCase {
         // Search without the pipeline. Should see both documents.
         SearchRequest req = new SearchRequest(TEST_INDEX).source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
         SearchResponse rsp = client().search(req).actionGet();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
 
         // Search with temporary pipeline
         Map<String, Object> pipelineSourceMap = new HashMap<>();
@@ -109,7 +109,7 @@ public class SearchPipelineCommonIT extends OpenSearchIntegTestCase {
         );
 
         SearchResponse rspWithTempPipeline = client().search(req).actionGet();
-        assertEquals(1, rspWithTempPipeline.getHits().getTotalHits().value);
+        assertEquals(1, rspWithTempPipeline.getHits().getTotalHits().value());
     }
 
     public void testSearchWithDefaultPipeline() throws Exception {
@@ -119,7 +119,7 @@ public class SearchPipelineCommonIT extends OpenSearchIntegTestCase {
         // Search without the pipeline. Should see both documents.
         SearchRequest req = new SearchRequest(TEST_INDEX).source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
         SearchResponse rsp = client().search(req).actionGet();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
 
         // Set pipeline as default for the index
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(TEST_INDEX);
@@ -129,7 +129,7 @@ public class SearchPipelineCommonIT extends OpenSearchIntegTestCase {
 
         // Search with the default pipeline. Should only see document with "field":"value".
         rsp = client().search(req).actionGet();
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
 
         // Clean up: Remove default pipeline setting
         updateSettingsRequest = new UpdateSettingsRequest(TEST_INDEX);
@@ -149,7 +149,7 @@ public class SearchPipelineCommonIT extends OpenSearchIntegTestCase {
         SearchRequest req = new SearchRequest(TEST_INDEX).source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
         req.pipeline(PIPELINE_NAME);
         SearchResponse initialRsp = client().search(req).actionGet();
-        assertEquals(1, initialRsp.getHits().getTotalHits().value);
+        assertEquals(1, initialRsp.getHits().getTotalHits().value());
 
         BytesReference pipelineConfig = new BytesArray(
             "{"

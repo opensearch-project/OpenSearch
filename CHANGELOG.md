@@ -24,6 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add stats for remote publication failure and move download failure stats to remote methods([#16682](https://github.com/opensearch-project/OpenSearch/pull/16682/))
 - Update script supports java.lang.String.sha1() and java.lang.String.sha256() methods ([#16923](https://github.com/opensearch-project/OpenSearch/pull/16923))
 - Added a precaution to handle extreme date values during sorting to prevent `arithmetic_exception: long overflow` ([#16812](https://github.com/opensearch-project/OpenSearch/pull/16812)).
+- Add support for append only indices([#17039](https://github.com/opensearch-project/OpenSearch/pull/17039))
+- Add `verbose_pipeline` parameter to output each processor's execution details ([#16843](https://github.com/opensearch-project/OpenSearch/pull/16843)).
 - Add search replica stats to segment replication stats API ([#16678](https://github.com/opensearch-project/OpenSearch/pull/16678))
 - Introduce a setting to disable download of full cluster state from remote on term mismatch([#16798](https://github.com/opensearch-project/OpenSearch/pull/16798/))
 - Added ability to retrieve value from DocValues in a flat_object filed([#16802](https://github.com/opensearch-project/OpenSearch/pull/16802))
@@ -34,6 +36,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added a new `time` field to replace the deprecated `getTime` field in `GetStats`. ([#17009](https://github.com/opensearch-project/OpenSearch/pull/17009))
 - Improve flat_object field parsing performance by reducing two passes to a single pass ([#16297](https://github.com/opensearch-project/OpenSearch/pull/16297))
 - Improve performance of the bitmap filtering([#16936](https://github.com/opensearch-project/OpenSearch/pull/16936/))
+- Added new Setting property UnmodifiableOnRestore to prevent updating settings on restore snapshot ([#16957](https://github.com/opensearch-project/OpenSearch/pull/16957))
+- Introduce Template query ([#16818](https://github.com/opensearch-project/OpenSearch/pull/16818))
+- Propagate the sourceIncludes and excludes fields from fetchSourceContext to FieldsVisitor. ([#17080](https://github.com/opensearch-project/OpenSearch/pull/17080))
+- [Star Tree] [Search] Resolving Date histogram with metric aggregation using star-tree ([#16674](https://github.com/opensearch-project/OpenSearch/pull/16674))
+- [Star Tree] [Search] Extensible design to support different query and field types ([#17137](https://github.com/opensearch-project/OpenSearch/pull/17137))
 
 ### Dependencies
 - Bump `com.google.cloud:google-cloud-core-http` from 2.23.0 to 2.47.0 ([#16504](https://github.com/opensearch-project/OpenSearch/pull/16504))
@@ -47,12 +54,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `lycheeverse/lychee-action` from 2.0.2 to 2.2.0 ([#16610](https://github.com/opensearch-project/OpenSearch/pull/16610), [#16897](https://github.com/opensearch-project/OpenSearch/pull/16897))
 - Bump `me.champeau.gradle.japicmp` from 0.4.4 to 0.4.5 ([#16614](https://github.com/opensearch-project/OpenSearch/pull/16614))
 - Bump `mockito` from 5.14.1 to 5.14.2, `objenesis` from 3.2 to 3.3 and `bytebuddy` from 1.15.4 to 1.15.10 ([#16655](https://github.com/opensearch-project/OpenSearch/pull/16655))
-- Bump `Netty` from 4.1.114.Final to 4.1.115.Final ([#16661](https://github.com/opensearch-project/OpenSearch/pull/16661))
+- Bump `Netty` from 4.1.114.Final to 4.1.117.Final ([#16661](https://github.com/opensearch-project/OpenSearch/pull/16661), [#17041](https://github.com/opensearch-project/OpenSearch/pull/17041))
 - Bump `org.xerial.snappy:snappy-java` from 1.1.10.6 to 1.1.10.7 ([#16665](https://github.com/opensearch-project/OpenSearch/pull/16665))
 - Bump `codecov/codecov-action` from 4 to 5 ([#16667](https://github.com/opensearch-project/OpenSearch/pull/16667))
 - Bump `org.apache.logging.log4j:log4j-core` from 2.24.1 to 2.24.3 ([#16718](https://github.com/opensearch-project/OpenSearch/pull/16718), [#16858](https://github.com/opensearch-project/OpenSearch/pull/16858))
 - Bump `jackson` from 2.17.2 to 2.18.2 ([#16733](https://github.com/opensearch-project/OpenSearch/pull/16733))
-- Bump `ch.qos.logback:logback-classic` from 1.2.13 to 1.5.15 ([#16716](https://github.com/opensearch-project/OpenSearch/pull/16716), [#16898](https://github.com/opensearch-project/OpenSearch/pull/16898))
+- Bump `ch.qos.logback:logback-classic` from 1.2.13 to 1.5.16 ([#16716](https://github.com/opensearch-project/OpenSearch/pull/16716), [#16898](https://github.com/opensearch-project/OpenSearch/pull/16898), [#17133](https://github.com/opensearch-project/OpenSearch/pull/17133))
 - Bump `com.azure:azure-identity` from 1.13.2 to 1.14.2 ([#16778](https://github.com/opensearch-project/OpenSearch/pull/16778))
 - Bump Apache Lucene from 9.12.0 to 9.12.1 ([#16846](https://github.com/opensearch-project/OpenSearch/pull/16846))
 - Bump `com.gradle.develocity` from 3.18.2 to 3.19 ([#16855](https://github.com/opensearch-project/OpenSearch/pull/16855))
@@ -68,6 +75,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `opentelemetry-semconv` from 1.27.0-alpha to 1.29.0-alpha ([#16700](https://github.com/opensearch-project/OpenSearch/pull/16700))
 - Bump `com.google.re2j:re2j` from 1.7 to 1.8 ([#17012](https://github.com/opensearch-project/OpenSearch/pull/17012))
 - Bump `com.squareup.okio:okio` from 3.9.1 to 3.10.2 ([#17060](https://github.com/opensearch-project/OpenSearch/pull/17060))
+- Bump `org.jruby.jcodings:jcodings` from 1.0.58 to 1.0.61 ([#17061](https://github.com/opensearch-project/OpenSearch/pull/17061))
+- Bump `org.awaitility:awaitility` from 4.2.0 to 4.2.2 ([#17230](https://github.com/opensearch-project/OpenSearch/pull/17230))
+- Bump `dnsjava:dnsjava` from 3.6.2 to 3.6.3 ([#17231](https://github.com/opensearch-project/OpenSearch/pull/17231))
+- Bump `com.google.code.gson:gson` from 2.11.0 to 2.12.1 ([#17229](https://github.com/opensearch-project/OpenSearch/pull/17229))
 
 ### Changed
 - Indexed IP field supports `terms_query` with more than 1025 IP masks [#16391](https://github.com/opensearch-project/OpenSearch/pull/16391)
@@ -106,7 +117,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix Shallow copy snapshot failures on closed index ([#16868](https://github.com/opensearch-project/OpenSearch/pull/16868))
 - Fix multi-value sort for unsigned long ([#16732](https://github.com/opensearch-project/OpenSearch/pull/16732))
 - The `phone-search` analyzer no longer emits the tel/sip prefix, international calling code, extension numbers and unformatted input as a token ([#16993](https://github.com/opensearch-project/OpenSearch/pull/16993))
+- Stop processing search requests when _msearch request is cancelled ([#17005](https://github.com/opensearch-project/OpenSearch/pull/17005))
 - Fix GRPC AUX_TRANSPORT_PORT and SETTING_GRPC_PORT settings and remove lingering HTTP terminology ([#17037](https://github.com/opensearch-project/OpenSearch/pull/17037))
+- [WLM] Fix the QueryGroupTask logging bug ([#17169](https://github.com/opensearch-project/OpenSearch/pull/17169))
+- Fix exists queries on nested flat_object fields throws exception ([#16803](https://github.com/opensearch-project/OpenSearch/pull/16803))
+- Use OpenSearch version to deserialize remote custom metadata([#16494](https://github.com/opensearch-project/OpenSearch/pull/16494))
+- Fix AutoDateHistogramAggregator rounding assertion failure ([#17023](https://github.com/opensearch-project/OpenSearch/pull/17023))
+- Add highlighting for wildcard search on `match_only_text` field ([#17101](https://github.com/opensearch-project/OpenSearch/pull/17101))
+- Fix the failing CI's with `Failed to load eclipse jdt formatter` error ([#17172](https://github.com/opensearch-project/OpenSearch/pull/17172))
 
 ### Security
 

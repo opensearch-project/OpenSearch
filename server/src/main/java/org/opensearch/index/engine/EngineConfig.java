@@ -53,6 +53,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
@@ -110,6 +111,7 @@ public final class EngineConfig {
     private final boolean isReadOnlyReplica;
     private final BooleanSupplier startedPrimarySupplier;
     private final Comparator<LeafReader> leafSorter;
+    private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -296,6 +298,7 @@ public final class EngineConfig {
         this.startedPrimarySupplier = builder.startedPrimarySupplier;
         this.translogFactory = builder.translogFactory;
         this.leafSorter = builder.leafSorter;
+        this.documentMapperForTypeSupplier = builder.documentMapperForTypeSupplier;
     }
 
     /**
@@ -544,6 +547,10 @@ public final class EngineConfig {
         return tombstoneDocSupplier;
     }
 
+    public Supplier<DocumentMapperForType> getDocumentMapperForTypeSupplier() {
+        return documentMapperForTypeSupplier;
+    }
+
     public TranslogDeletionPolicyFactory getCustomTranslogDeletionPolicyFactory() {
         return translogDeletionPolicyFactory;
     }
@@ -589,6 +596,7 @@ public final class EngineConfig {
         private boolean isReadOnlyReplica;
         private BooleanSupplier startedPrimarySupplier;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
+        private Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
         Comparator<LeafReader> leafSorter;
 
         public Builder shardId(ShardId shardId) {
@@ -698,6 +706,11 @@ public final class EngineConfig {
 
         public Builder tombstoneDocSupplier(TombstoneDocSupplier tombstoneDocSupplier) {
             this.tombstoneDocSupplier = tombstoneDocSupplier;
+            return this;
+        }
+
+        public Builder documentMapperForTypeSupplier(Supplier<DocumentMapperForType> documentMapperForTypeSupplier) {
+            this.documentMapperForTypeSupplier = documentMapperForTypeSupplier;
             return this;
         }
 

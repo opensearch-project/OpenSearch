@@ -49,7 +49,6 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -60,7 +59,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
@@ -304,7 +303,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
 
         TopDocs topDocs = searcher.search(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("foo", "bar"))), 3f), 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(3f, topDocs.scoreDocs[0].score, 0);
 
@@ -348,7 +347,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 // 2 slices will be created since max segment per slice of 5 will be reached
                 assertEquals(expectedSliceCount, slices.length);
                 for (int i = 0; i < expectedSliceCount; ++i) {
-                    assertEquals(5, slices[i].leaves.length);
+                    assertEquals(5, slices[i].partitions.length);
                 }
 
                 // Case 2: Verify the slice count when custom max slice computation is used
@@ -359,9 +358,9 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 assertEquals(expectedSliceCount, slices.length);
                 for (int i = 0; i < expectedSliceCount; ++i) {
                     if (i < 2) {
-                        assertEquals(3, slices[i].leaves.length);
+                        assertEquals(3, slices[i].partitions.length);
                     } else {
-                        assertEquals(2, slices[i].leaves.length);
+                        assertEquals(2, slices[i].partitions.length);
                     }
                 }
             }
@@ -419,9 +418,9 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 assertEquals(expectedSliceCount, slices.length);
                 for (int i = 0; i < expectedSliceCount; ++i) {
                     if (i < 2) {
-                        assertEquals(3, slices[i].leaves.length);
+                        assertEquals(3, slices[i].partitions.length);
                     } else {
-                        assertEquals(2, slices[i].leaves.length);
+                        assertEquals(2, slices[i].partitions.length);
                     }
                 }
             }
@@ -559,15 +558,8 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
-            return weight.scorer(context);
-        }
-
-        @Override
-        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-            assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
-            return weight.bulkScorer(context);
+        public ScorerSupplier scorerSupplier(LeafReaderContext leafReaderContext) throws IOException {
+            return weight.scorerSupplier(leafReaderContext);
         }
 
         @Override

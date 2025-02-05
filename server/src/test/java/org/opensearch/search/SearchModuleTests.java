@@ -608,7 +608,8 @@ public class SearchModuleTests extends OpenSearchTestCase {
         "terms_set",
         "wildcard",
         "wrapper",
-        "distance_feature" };
+        "distance_feature",
+        "template" };
 
     // add here deprecated queries to make sure we log a deprecation warnings when they are used
     private static final String[] DEPRECATED_QUERIES = new String[] { "common", "field_masking_span" };

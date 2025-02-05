@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.indices.create;
 
-import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.ShardsAcknowledgedResponse;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;

@@ -159,7 +159,7 @@ public class ExistsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase
                 assertEquals(
                     String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, mapping.toString(), resp),
                     count,
-                    resp.getHits().getTotalHits().value
+                    resp.getHits().getTotalHits().value()
                 );
             } catch (AssertionError e) {
                 for (SearchHit searchHit : allDocs.getHits()) {
