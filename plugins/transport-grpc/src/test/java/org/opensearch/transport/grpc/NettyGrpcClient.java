@@ -17,10 +17,13 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.reflection.v1alpha.ServerReflectionGrpc;
 import io.grpc.reflection.v1alpha.ServerReflectionRequest;
 import io.grpc.reflection.v1alpha.ServerReflectionResponse;
+import io.grpc.reflection.v1alpha.ServiceResponse;
 import io.grpc.stub.StreamObserver;
 import org.opensearch.core.common.transport.TransportAddress;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -43,24 +46,24 @@ public class NettyGrpcClient {
 
     /**
      * ProtoReflectionService only implements a streaming interface and has no blocking stub.
+     * @return List<ServiceResponse> services reported
      */
-    public void listServices() {
+    public List<ServiceResponse> listServices() {
+        List<ServiceResponse> respServices = new ArrayList<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         StreamObserver<ServerReflectionResponse> responseObserver = new StreamObserver<>() {
             @Override
             public void onNext(ServerReflectionResponse response) {
                 if (response.hasListServicesResponse()) {
-                    response.getListServicesResponse().getServiceList().forEach(service ->
-                        System.out.println(service.getName())
-                    );
+                    respServices.addAll(response.getListServicesResponse().getServiceList());
                 }
             }
 
             @Override
             public void onError(Throwable t) {
-                System.err.println("Error: " + t.getMessage());
                 latch.countDown();
+                throw new RuntimeException(t);
             }
 
             @Override
@@ -69,8 +72,7 @@ public class NettyGrpcClient {
             }
         };
 
-        StreamObserver<ServerReflectionRequest> requestObserver =
-            reflectionStub.serverReflectionInfo(responseObserver);
+        StreamObserver<ServerReflectionRequest> requestObserver = reflectionStub.serverReflectionInfo(responseObserver);
         requestObserver.onNext(ServerReflectionRequest.newBuilder()
             .setListServices("")
             .build());
@@ -83,15 +85,12 @@ public class NettyGrpcClient {
         } catch (InterruptedException e) {
             throw new RuntimeException(NettyGrpcClient.class.getSimpleName() + " interrupted waiting for response: " + e.getMessage());
         }
+
+        return respServices;
     }
 
-    public void checkHealth() {
-        try {
-            HealthCheckResponse response = healthStub.check(HealthCheckRequest.newBuilder().build());
-            System.out.println("Health Status: " + response.getStatus());
-        } catch (Exception e) {
-            System.err.println("Error checking health: " + e.getMessage());
-        }
+    public HealthCheckResponse.ServingStatus checkHealth() {
+        return healthStub.check(HealthCheckRequest.newBuilder().build()).getStatus();
     }
 
     public static class Builder {

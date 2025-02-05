@@ -9,6 +9,7 @@
 package org.opensearch.transport.grpc;
 
 import io.grpc.BindableService;
+import io.grpc.health.v1.HealthCheckResponse;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.opensearch.common.network.NetworkService;
@@ -128,7 +129,10 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                     .setTls(false)
                     .build();
 
-                client.checkHealth();
+                assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
+
+                client.shutdown();
+                serverTransport.stop();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
