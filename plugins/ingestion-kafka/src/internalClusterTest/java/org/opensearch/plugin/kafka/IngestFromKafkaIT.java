@@ -48,7 +48,7 @@ import static org.awaitility.Awaitility.await;
 
 // This test uses a Kafka test container which schedules a watcher daemon thread for monitoring hanging tests.
 // The watcher thread sometimes is not stopped on time at the end of test execution resulting in the thread leak controller
-// detecting leaky threads. Add @ThreadLeakAction to make this non-blocking and interrupt the leaky threads.
+// detecting leaky threads. @ThreadLeakAction is added to make this non-blocking and interrupt the leaky threads.
 @ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
 public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
     static final String topicName = "test";
