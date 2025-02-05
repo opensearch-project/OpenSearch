@@ -123,8 +123,8 @@ netty-transport = { group = "io.netty", name = "netty-transport", version.ref = 
 netty-transport-native-unix-common = { group = "io.netty", name = "netty-transport-native-unix-common", version.ref = "netty" }
 protobuf = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
 reactivestreams = { group = "org.reactivestreams", name = "reactive-streams", version.ref = "reactivestreams" }
-reactorcore = { group = "io.projectreactor", name = "reactor-core", version.ref = "reactor" }
-reactortest = { group = "io.projectreactor", name = "reactor-test", version.ref = "reactor" }
+reactor-core = { group = "io.projectreactor", name = "reactor-core", version.ref = "reactor" }
+reactor-test = { group = "io.projectreactor", name = "reactor-test", version.ref = "reactor" }
 reactor-netty-core = { group = "io.projectreactor.netty", name = "reactor-netty-core", version.ref = "reactor_netty" }
 reactor-netty-http = { group = "io.projectreactor.netty", name = "reactor-netty-http", version.ref = "reactor_netty" }
 

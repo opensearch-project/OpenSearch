@@ -35,7 +35,7 @@ dependencies {
   api libs.bundles.reactornetty
 
   testImplementation libs.log4jslf4jimpl
-  javaRestTestImplementation libs.reactortest
+  javaRestTestImplementation libs.reactor.test
   testImplementation project(":modules:transport-netty4")
 }
 
