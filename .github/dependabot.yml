@@ -7,4 +7,5 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
+      - "testing"
 version: 2

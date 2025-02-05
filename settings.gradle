@@ -93,6 +93,14 @@ List projects = [
   'test:telemetry'
 ]
 
+dependencyResolutionManagement {
+  versionCatalogs {
+    create("libs") {
+      from(files("buildSrc/libs.versions.toml"))
+    }
+  }
+}
+
 /**
  * Iterates over sub directories, looking for build.gradle, and adds a project if found
  * for that dir with the given path prefix. Note that this requires each level
