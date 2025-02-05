@@ -51,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove custom Map, List and Set collection classes ([#6871](https://github.com/opensearch-project/OpenSearch/pull/6871))
 - Remove `index.store.hybrid.mmap.extensions` setting in favor of `index.store.hybrid.nio.extensions` setting ([#9392](https://github.com/opensearch-project/OpenSearch/pull/9392))
 - Remove package org.opensearch.action.support.master ([#4856](https://github.com/opensearch-project/OpenSearch/issues/4856))
+- Remove transport-nio plugin ([#16887](https://github.com/opensearch-project/OpenSearch/issues/16887))
 
 ### Fixed
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
