@@ -92,6 +92,22 @@ configure(allprojects - project(':distribution:archives:integ-test-zip')) {
   }
 }
 
+repositories {
+  mavenCentral()
+  maven {
+    name = 'test'
+    url = "${rootProject.buildDir}/local-test-repo"
+  }
+  maven {
+    name = 'Snapshots'
+    url = 'https://aws.oss.sonatype.org/content/repositories/snapshots'
+    credentials {
+      username = "$System.env.SONATYPE_USERNAME"
+      password = "$System.env.SONATYPE_PASSWORD"
+    }
+  }
+}
+
 subprojects {
   // Default to the apache license
   project.ext.licenseName = 'The Apache Software License, Version 2.0'
@@ -119,7 +135,6 @@ subprojects {
         }
       }
       repositories {
-        mavenCentral()
         maven {
           name = 'test'
           url = "${rootProject.buildDir}/local-test-repo"
