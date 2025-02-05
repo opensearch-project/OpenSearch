@@ -10,15 +10,17 @@ package org.opensearch.core.util;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Map;
 
 /**
  * Utility class for parsing configurations.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public class ConfigurationUtils {
+@PublicApi(since = "3.0.0")
+public final class ConfigurationUtils {
 
     private ConfigurationUtils() {}
 
