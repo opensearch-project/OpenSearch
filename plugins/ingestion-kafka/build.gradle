@@ -28,7 +28,9 @@ dependencies {
   // kafka
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.kafka:kafka-clients:${versions.kafka}"
-  api "org.xerial.snappy:snappy-java:${versions.snappy}"
+
+  // dependencies of kafka-clients
+  runtimeOnly "org.xerial.snappy:snappy-java:${versions.snappy}"
 
   // test
   testImplementation "com.github.docker-java:docker-java-api:${versions.docker}"
