@@ -322,7 +322,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
             // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
             // miss the mappings for everything is corrupted and hard to debug
             .ackTimeout(targetIndex.timeout())
-            .masterNodeTimeout(targetIndex.clusterManagerNodeTimeout())
+            .clusterManagerNodeTimeout(targetIndex.clusterManagerNodeTimeout())
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())
             .waitForActiveShards(targetIndex.waitForActiveShards())
