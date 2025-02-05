@@ -305,6 +305,9 @@ public class LeaderChecker {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;
                         }
+
+                        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.leaderCheckAttemptFailureCounter, 1.0);
+
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(new ParameterizedMessage("leader [{}] disconnected during check", leader), exp);
                             leaderFailed(new ConnectTransportException(leader, "disconnected during check", exp));

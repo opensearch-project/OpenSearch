@@ -394,6 +394,7 @@ public class FollowersChecker {
                         }
 
                         failureCountSinceLastSuccess++;
+                        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerCheckAttemptFailureCounter, 1.0);
 
                         final String reason;
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
