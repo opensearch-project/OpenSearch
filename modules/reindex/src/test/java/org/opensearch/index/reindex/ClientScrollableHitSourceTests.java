@@ -36,6 +36,9 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.bulk.BackoffPolicy;
+import org.opensearch.action.search.ClearScrollAction;
+import org.opensearch.action.search.ClearScrollRequest;
+import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -43,6 +46,7 @@ import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -63,6 +67,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -179,6 +184,45 @@ public class ClientScrollableHitSourceTests extends OpenSearchTestCase {
         client.validateRequest(SearchScrollAction.INSTANCE, (SearchScrollRequest r) -> assertEquals(r.scroll().keepAlive().seconds(), 110));
     }
 
+    public void testClearScrollRunsAsInternalAction() {
+        MockClient client = new MockClient(threadPool);
+        ClientScrollableHitSource hitSource = new ClientScrollableHitSource(
+            logger,
+            BackoffPolicy.noBackoff(),
+            threadPool,
+            () -> fail(),
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, new TaskId("thenode", randomInt())),
+            new SearchRequest().scroll("1m")
+        );
+        ThreadContext threadContext = threadPool.getThreadContext();
+        String header = "bulk-by-scroll-test-header";
+        String headerValue = randomAlphaOfLength(10);
+        String scrollId = randomAlphaOfLength(10);
+        threadContext.putHeader(header, headerValue);
+        AtomicBoolean completed = new AtomicBoolean();
+
+        hitSource.clearScroll(scrollId, () -> {
+            assertFalse(threadContext.isSystemContext());
+            assertEquals(headerValue, threadContext.getHeader(header));
+            completed.set(true);
+        });
+
+        assertTrue(client.systemContextAtExecution);
+        assertNull(client.headerAtExecution);
+        assertFalse(threadContext.isSystemContext());
+        assertEquals(headerValue, threadContext.getHeader(header));
+        client.validateRequest(ClearScrollAction.INSTANCE, (ClearScrollRequest r) -> assertEquals(List.of(scrollId), r.getScrollIds()));
+
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            client.respond(ClearScrollAction.INSTANCE, new ClearScrollResponse(true, 1));
+            assertTrue(completed.get());
+            assertFalse(threadContext.isSystemContext());
+            assertNull(threadContext.getHeader(header));
+        }
+    }
+
     private SearchResponse createSearchResponse() {
         // create a simulated response.
         SearchHit hit = new SearchHit(0, "id", emptyMap(), emptyMap()).sourceRef(new BytesArray("{}"));
@@ -242,6 +286,8 @@ public class ClientScrollableHitSourceTests extends OpenSearchTestCase {
 
     private static class MockClient extends AbstractClient {
         private ExecuteRequest<?, ?> executeRequest;
+        private boolean systemContextAtExecution;
+        private String headerAtExecution;
 
         MockClient(ThreadPool threadPool) {
             super(Settings.EMPTY, threadPool);
@@ -253,7 +299,8 @@ public class ClientScrollableHitSourceTests extends OpenSearchTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-
+            this.systemContextAtExecution = threadPool().getThreadContext().isSystemContext();
+            this.headerAtExecution = threadPool().getThreadContext().getHeader("bulk-by-scroll-test-header");
             this.executeRequest = new ExecuteRequest<>(action, request, listener);
             this.notifyAll();
         }
