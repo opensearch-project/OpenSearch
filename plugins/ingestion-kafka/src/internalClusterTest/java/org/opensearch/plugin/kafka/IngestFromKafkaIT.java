@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.kafka;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -47,9 +47,10 @@ import static org.awaitility.Awaitility.await;
  */
 
 // This test uses a Kafka test container which schedules a watcher daemon thread for monitoring hanging tests.
-// The watcher thread sometimes is not stopped on time at the end of test execution resulting in the thread leak controller
-// detecting leaky threads. @ThreadLeakAction is added to make this non-blocking and interrupt the leaky threads.
-@ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
+// The watcher thread sometimes is not stopped on time at the end of test execution resulting in thread leak check
+// errors after which they are attempted to be stopped. Since these threads are outside the scope of this test and have
+// no good way to stop them, we disable the checks using ThreadLeakScope.Scope.NONE
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
     static final String topicName = "test";
 
