@@ -251,6 +251,68 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 
     /**
+     * This test verifies primary shard balance is not reset when primary shard balance factors are changed.
+     */
+    public void testPreferPrimaryBalanceSettingRemainsUnchangedWithUpdatingPrimaryBalanceFactors() {
+        final int numberOfNodes = 5;
+        final int numberOfIndices = 5;
+        final int numberOfShards = 25;
+        final int numberOfReplicas = 1;
+        final int numberOfRuns = 5;
+        int balanceFailed = 0;
+
+        Settings settings = getSettingsBuilderForPrimaryBalance().build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AllocationService strategy = createAllocationService(
+            settings,
+            clusterSettings,
+            new TestGatewayAllocator(),
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
+        for (int i = 0; i < numberOfRuns; i++) {
+            ClusterState clusterState = initCluster(strategy, numberOfIndices, numberOfNodes, numberOfShards, numberOfReplicas);
+            clusterState = removeOneNode(clusterState, strategy);
+            logger.info(ShardAllocations.printShardDistribution(clusterState));
+            try {
+                verifyPerIndexPrimaryBalance(clusterState);
+            } catch (AssertionError e) {
+                balanceFailed++;
+                logger.info("Unexpected assertion failure");
+            }
+        }
+        assertTrue(balanceFailed <= 1);
+
+        // Update settings & apply
+        Settings updatedSettings = getSettingsBuilderForPrimaryBalance().put(
+            BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(),
+            BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.get(settings) + 0.01f
+        )
+            .put(
+                BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(),
+                BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.get(settings) + 0.01f
+            )
+            .put(
+                BalancedShardsAllocator.PRIMARY_SHARD_REBALANCE_BUFFER.getKey(),
+                BalancedShardsAllocator.PRIMARY_SHARD_REBALANCE_BUFFER.get(settings) + 0.01f
+            )
+            .build();
+        clusterSettings.applySettings(updatedSettings);
+        // Test if primary shard balancing still works
+        for (int i = 0; i < numberOfRuns; i++) {
+            ClusterState clusterState = initCluster(strategy, numberOfIndices, numberOfNodes, numberOfShards, numberOfReplicas);
+            clusterState = removeOneNode(clusterState, strategy);
+            logger.info(ShardAllocations.printShardDistribution(clusterState));
+            try {
+                verifyPerIndexPrimaryBalance(clusterState);
+            } catch (AssertionError e) {
+                balanceFailed++;
+                logger.info("Unexpected assertion failure");
+            }
+        }
+        assertTrue(balanceFailed <= 1);
+    }
+
+    /**
      * This test verifies primary shard balance is attained  setting.
      */
     public void testPrimaryBalanceNotSolvedForNodeDropWithPreferPrimaryBalanceSetting() {
