@@ -52,6 +52,8 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.Rewriteable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.AliasFilter;
@@ -65,6 +67,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.LongSupplier;
 
 /**
  * Explain transport action. Computes the explain on the targeted shard.
@@ -101,7 +104,21 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(task, request, listener);
+        // super.doExecute(task, request, listener);
+        LongSupplier timeProvider = () -> request.nowInMillis;
+        ActionListener<QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
+            request.query(rewrittenQuery);
+            super.doExecute(task, request, listener);
+        }, listener::onFailure);
+        if (request.query() == null) {
+            rewriteListener.onResponse(request.query());
+        } else {
+            Rewriteable.rewriteAndFetch(
+                request.query(),
+                searchService.getIndicesService().getRewriteContext(timeProvider),
+                rewriteListener
+            );
+        }
     }
 
     @Override
