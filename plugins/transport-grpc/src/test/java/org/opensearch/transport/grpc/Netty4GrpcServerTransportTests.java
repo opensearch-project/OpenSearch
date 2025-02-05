@@ -8,6 +8,7 @@
 
 package org.opensearch.transport.grpc;
 
+import io.grpc.health.v1.HealthCheckResponse;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -56,7 +57,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
                 .setTls(false)
                 .build();
 
-            client.checkHealth();
+            assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
+
             client.shutdown();
             serverTransport.stop();
         } catch (Exception e) {
