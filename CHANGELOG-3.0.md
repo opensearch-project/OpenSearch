@@ -32,7 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor `:libs` module `bootstrap` package to eliminate top level split packages for JPMS support ([#17117](https://github.com/opensearch-project/OpenSearch/pull/17117))
 - Refactor the codebase to eliminate top level split packages for JPMS support ([#17153](https://github.com/opensearch-project/OpenSearch/pull/17153)
 - Refactor `:server` module `org.apacge.lucene` package to eliminate top level split packages for JPMS support ([#17241](https://github.com/opensearch-project/OpenSearch/pull/17241))
-- Convert transport-nio and transport-reactor-netty4 to use gradle version catalog [#17233](https://github.com/opensearch-project/OpenSearch/pull/17233))
+- Convert transport-reactor-netty4 to use gradle version catalog [#17233](https://github.com/opensearch-project/OpenSearch/pull/17233))
 
 ### Deprecated
 
