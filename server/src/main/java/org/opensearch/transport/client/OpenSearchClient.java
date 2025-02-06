@@ -30,48 +30,54 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.transport.client;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.ContextPreservingActionListener;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.util.concurrent.ThreadContextAccess;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
-
-import java.util.function.Supplier;
+import org.opensearch.threadpool.ThreadPool;
 
 /**
- * A {@linkplain Client} that sends requests with the
- * {@link ThreadContext#stashWithOrigin origin} set to a particular
- * value and calls its {@linkplain ActionListener} in its original
- * {@link ThreadContext}.
+ * Interface for an OpenSearch client implementation
  *
  * @opensearch.internal
  */
-public final class OriginSettingClient extends FilterClient {
+public interface OpenSearchClient {
 
-    private final String origin;
+    /**
+     * Executes a generic action, denoted by an {@link ActionType}.
+     *
+     * @param action           The action type to execute.
+     * @param request          The action request.
+     * @param <Request>        The request type.
+     * @param <Response>       the response type.
+     * @return A future allowing to get back the response.
+     */
+    <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
+        ActionType<Response> action,
+        Request request
+    );
 
-    public OriginSettingClient(Client in, String origin) {
-        super(in);
-        this.origin = origin;
-    }
-
-    @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+    /**
+     * Executes a generic action, denoted by an {@link ActionType}.
+     *
+     * @param action           The action type to execute.
+     * @param request          The action request.
+     * @param listener         The listener to receive the response back.
+     * @param <Request>        The request type.
+     * @param <Response>       The response type.
+     */
+    <Request extends ActionRequest, Response extends ActionResponse> void execute(
         ActionType<Response> action,
         Request request,
         ActionListener<Response> listener
-    ) {
-        final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
-        try (
-            ThreadContext.StoredContext ignore = ThreadContextAccess.doPrivileged(
-                () -> in().threadPool().getThreadContext().stashWithOrigin(origin)
-            )
-        ) {
-            super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-        }
-    }
+    );
+
+    /**
+     * Returns the threadpool used to execute requests on this client
+     */
+    ThreadPool threadPool();
+
 }

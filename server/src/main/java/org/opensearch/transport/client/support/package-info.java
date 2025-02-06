@@ -9,4 +9,4 @@
 /**
  * The Abstract client for implementing new client types.
  */
-package org.opensearch.client.support;
+package org.opensearch.transport.client.support;

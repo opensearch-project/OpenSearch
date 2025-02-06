@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client.support;
+package org.opensearch.transport.client.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -408,12 +408,6 @@ import org.opensearch.action.update.UpdateAction;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.client.AdminClient;
-import org.opensearch.client.Client;
-import org.opensearch.client.ClusterAdminClient;
-import org.opensearch.client.FilterClient;
-import org.opensearch.client.IndicesAdminClient;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.action.ActionFuture;
@@ -426,6 +420,12 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.AdminClient;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.ClusterAdminClient;
+import org.opensearch.transport.client.FilterClient;
+import org.opensearch.transport.client.IndicesAdminClient;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.Map;
 

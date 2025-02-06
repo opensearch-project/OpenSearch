@@ -30,14 +30,12 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client.node;
+package org.opensearch.transport.client.node;
 
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.TransportAction;
-import org.opensearch.client.Client;
-import org.opensearch.client.support.AbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
@@ -48,6 +46,8 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.support.AbstractClient;
 
 import java.util.function.Supplier;
 

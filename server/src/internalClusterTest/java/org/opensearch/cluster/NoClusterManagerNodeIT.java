@@ -40,8 +40,6 @@ import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.AutoCreateIndex;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
@@ -61,6 +59,8 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.NetworkDisruption.IsolateAllNodes;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.util.Collection;
 import java.util.Collections;

@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.transport.client;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;

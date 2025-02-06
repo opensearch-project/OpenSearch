@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.transport.client.node;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionType;
@@ -53,6 +53,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.util.HashMap;
 import java.util.Map;
