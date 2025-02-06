@@ -19,7 +19,6 @@ import org.junit.Before;
 import java.util.List;
 
 import io.grpc.BindableService;
-import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.not;
@@ -54,7 +53,6 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
 
             NettyGrpcClient client = new NettyGrpcClient.Builder()
                 .setAddress(remoteAddress)
-                .setTls(false)
                 .build();
 
             assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);

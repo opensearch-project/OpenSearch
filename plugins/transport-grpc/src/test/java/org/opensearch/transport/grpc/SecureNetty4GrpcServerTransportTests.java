@@ -10,6 +10,7 @@ package org.opensearch.transport.grpc;
 
 import io.grpc.BindableService;
 import io.grpc.health.v1.HealthCheckResponse;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.opensearch.common.network.NetworkService;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.transport.grpc.ssl.SSLContextWrapper;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -48,38 +50,48 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private final List<BindableService> services = new ArrayList<>();
     private SecureAuxTransportSettingsProvider settingsProvider;
 
-    static class TestSecureAuxTransportSettingsProvider implements SecureAuxTransportSettingsProvider {
-        @Override
-        public Optional<SSLContext> buildSecureAuxServerSSLContext(Settings settings, NetworkPlugin.AuxTransport transport) throws SSLException {
-            try {
-                final KeyStore keyStore = KeyStore.getInstance("PKCS12");
-                keyStore.load(
-                    SecureNetty4GrpcServerTransport.class.getResourceAsStream("/netty4-secure.jks"),
-                    "password".toCharArray()
-                );
-
-                final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
-                keyManagerFactory.init(keyStore, "password".toCharArray());
-
-                SSLContext sslContext = SSLContext.getInstance("TLS");
-                sslContext.init(keyManagerFactory.getKeyManagers(), null, null);
-                return Optional.of(sslContext);
-            } catch (final IOException |
-                           NoSuchAlgorithmException |
-                           UnrecoverableKeyException |
-                           KeyStoreException |
-                           CertificateException |
-                           KeyManagementException ex) {
-                throw new SSLException(ex);
-            }
+    private static SSLContext buildTestSSLContext() throws SSLException {
+        try {
+            final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            keyStore.load(
+                SecureNetty4GrpcServerTransport.class.getResourceAsStream("/netty4-secure.jks"),
+                "password".toCharArray()
+            );
+            final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+            keyManagerFactory.init(keyStore, "password".toCharArray());
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(keyManagerFactory.getKeyManagers(), null, null);
+            return sslContext;
+        } catch (final IOException |
+                       NoSuchAlgorithmException |
+                       UnrecoverableKeyException |
+                       KeyStoreException |
+                       CertificateException |
+                       KeyManagementException ex) {
+            throw new SSLException(ex);
         }
+    }
+
+    private static SslContext buildClientTestSslContext() throws SSLException, NoSuchAlgorithmException {
+        return new SSLContextWrapper(buildTestSSLContext(), true);
+    }
+
+    private static SecureAuxTransportSettingsProvider getSecureSettingsProvider() {
+        return (settings, transport) -> Optional.of(buildTestSSLContext());
+    }
+
+    private static Settings createSettings() {
+        return Settings.builder().put(
+                SecureNetty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(),
+                getPortRange())
+            .build();
     }
 
     @Before
     public void setup() {
         threadPool = new TestThreadPool("test");
         networkService = new NetworkService(Collections.emptyList());
-        settingsProvider = new TestSecureAuxTransportSettingsProvider();
+        settingsProvider = getSecureSettingsProvider();
     }
 
     @After
@@ -89,13 +101,6 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
         }
         threadPool = null;
         networkService = null;
-    }
-
-    private static Settings createSettings() {
-        return Settings.builder().put(
-            SecureNetty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(),
-            getPortRange())
-            .build();
     }
 
     public void testGrpcSecureTransportStartStop() {
@@ -126,7 +131,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
 
                 NettyGrpcClient client = new NettyGrpcClient.Builder()
                     .setAddress(remoteAddress)
-                    .setTls(false)
+                    .setSslContext(buildClientTestSslContext())
                     .build();
 
                 assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);

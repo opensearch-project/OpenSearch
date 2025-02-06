@@ -14,6 +14,7 @@ import io.grpc.health.v1.HealthCheckRequest;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.health.v1.HealthGrpc;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import io.grpc.reflection.v1alpha.ServerReflectionGrpc;
 import io.grpc.reflection.v1alpha.ServerReflectionRequest;
 import io.grpc.reflection.v1alpha.ServerReflectionResponse;
@@ -94,7 +95,7 @@ public class NettyGrpcClient {
     }
 
     public static class Builder {
-        private boolean tls = false;
+        private SslContext sslCtxt = null;
         private TransportAddress addr = new TransportAddress(new InetSocketAddress("localhost", 9300));
         private final ProxyDetector proxyDetector = NOOP_PROXY_DETECTOR; // No proxy detection for test client
 
@@ -105,15 +106,17 @@ public class NettyGrpcClient {
                 .forAddress(addr.getAddress(), addr.getPort())
                 .proxyDetector(proxyDetector);
 
-            if (!tls) {
+            if (sslCtxt == null) {
                 channelBuilder.usePlaintext();
+            } else {
+                channelBuilder.sslContext(sslCtxt);
             }
 
             return new NettyGrpcClient(addr, channelBuilder);
         }
 
-        public Builder setTls(boolean tls) {
-            this.tls = tls;
+        public Builder setSslContext(SslContext sslCtxt) {
+            this.sslCtxt = sslCtxt;
             return this;
         }
 
