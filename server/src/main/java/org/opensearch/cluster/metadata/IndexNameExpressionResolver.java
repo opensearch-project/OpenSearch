@@ -53,6 +53,8 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.InvalidIndexNameException;
+import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.indices.SystemIndexRegistry;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -223,7 +225,8 @@ public class IndexNameExpressionResolver {
             false,
             request.includeDataStreams(),
             false,
-            isSystemIndexAccessAllowed()
+            isSystemIndexAccessAllowed(),
+            false
         );
         return concreteIndices(context, request.indices());
     }
@@ -358,21 +361,28 @@ public class IndexNameExpressionResolver {
 
     private void checkSystemIndexAccess(Context context, Metadata metadata, Set<Index> concreteIndices, String[] originalPatterns) {
         if (context.isSystemIndexAccessAllowed() == false) {
-            final List<String> resolvedSystemIndices = concreteIndices.stream()
+            final Set<String> resolvedSystemIndices = concreteIndices.stream()
                 .map(metadata::index)
                 .filter(IndexMetadata::isSystem)
                 .map(i -> i.getIndex().getName())
                 .sorted() // reliable order for testing
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
             if (resolvedSystemIndices.isEmpty() == false) {
-                resolvedSystemIndices.forEach(
-                    systemIndexName -> deprecationLogger.deprecate(
+                for (String systemIndexName : resolvedSystemIndices) {
+                    SystemIndexDescriptor descriptor = SystemIndexRegistry.matchesSystemIndexDescriptor(resolvedSystemIndices)
+                        .stream()
+                        .findFirst()
+                        .orElse(null);
+                    if (descriptor != null && descriptor.isSearchable() && context.isSearchRequest()) {
+                        continue;
+                    }
+                    deprecationLogger.deprecate(
                         "open_system_index_access_" + systemIndexName,
                         "this request accesses system indices: [{}], but in a future major version, direct access to system "
                             + "indices will be prevented by default",
                         systemIndexName
-                    )
-                );
+                    );
+                }
             }
         }
     }
@@ -788,6 +798,7 @@ public class IndexNameExpressionResolver {
         private final boolean includeDataStreams;
         private final boolean preserveDataStreams;
         private final boolean isSystemIndexAccessAllowed;
+        private final boolean isSearchRequest;
 
         Context(ClusterState state, IndicesOptions options, boolean isSystemIndexAccessAllowed) {
             this(state, options, System.currentTimeMillis(), isSystemIndexAccessAllowed);
@@ -809,7 +820,8 @@ public class IndexNameExpressionResolver {
                 resolveToWriteIndex,
                 includeDataStreams,
                 false,
-                isSystemIndexAccessAllowed
+                isSystemIndexAccessAllowed,
+                false
             );
         }
 
@@ -830,12 +842,13 @@ public class IndexNameExpressionResolver {
                 resolveToWriteIndex,
                 includeDataStreams,
                 preserveDataStreams,
-                isSystemIndexAccessAllowed
+                isSystemIndexAccessAllowed,
+                false
             );
         }
 
         Context(ClusterState state, IndicesOptions options, long startTime, boolean isSystemIndexAccessAllowed) {
-            this(state, options, startTime, false, false, false, false, isSystemIndexAccessAllowed);
+            this(state, options, startTime, false, false, false, false, isSystemIndexAccessAllowed, false);
         }
 
         protected Context(
@@ -846,7 +859,8 @@ public class IndexNameExpressionResolver {
             boolean resolveToWriteIndex,
             boolean includeDataStreams,
             boolean preserveDataStreams,
-            boolean isSystemIndexAccessAllowed
+            boolean isSystemIndexAccessAllowed,
+            boolean isSearchRequest
         ) {
             this.state = state;
             this.options = options;
@@ -856,6 +870,7 @@ public class IndexNameExpressionResolver {
             this.includeDataStreams = includeDataStreams;
             this.preserveDataStreams = preserveDataStreams;
             this.isSystemIndexAccessAllowed = isSystemIndexAccessAllowed;
+            this.isSearchRequest = isSearchRequest;
         }
 
         public ClusterState getState() {
@@ -893,6 +908,10 @@ public class IndexNameExpressionResolver {
 
         public boolean isPreserveDataStreams() {
             return preserveDataStreams;
+        }
+
+        public boolean isSearchRequest() {
+            return isSearchRequest;
         }
 
         /**

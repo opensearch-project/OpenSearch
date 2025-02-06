@@ -50,6 +50,7 @@ public class SystemIndexDescriptor {
     private final String indexPattern;
     private final String description;
     private final CharacterRunAutomaton indexPatternAutomaton;
+    private boolean searchable;
 
     /**
      *
@@ -104,9 +105,41 @@ public class SystemIndexDescriptor {
         return description;
     }
 
+    /**
+     * Set whether this system index is searchable. Defaults to false.
+     * @param searchable Whether this system index is searchable.
+     */
+    public void setSearchable(boolean searchable) {
+        this.searchable = searchable;
+    }
+
+    /**
+     * @return A boolean corresponding to whether this system index is searchable.
+     */
+    public boolean isSearchable() {
+        return searchable;
+    }
+
     @Override
     public String toString() {
-        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "]]";
+        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "], searchable=[" + searchable + "]]";
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof SystemIndexDescriptor)) {
+            return false;
+        }
+        SystemIndexDescriptor other = (SystemIndexDescriptor) obj;
+        return indexPattern.equals(other.indexPattern);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(indexPattern);
     }
 
     // TODO: Index settings and mapping
