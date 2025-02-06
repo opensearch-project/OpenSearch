@@ -36,6 +36,7 @@ import org.opensearch.index.codec.composite.LuceneDocValuesProducerFactory;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionConfig;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.index.CompositeIndexValues;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -157,15 +158,15 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                             compositeIndexInputMap.put(compositeFieldName, starTreeIndexInput);
                             compositeIndexMetadataMap.put(compositeFieldName, starTreeMetadata);
 
-                            Map<String, DocValuesType> dimensionFieldToDocValuesMap = starTreeMetadata.getDimensionFields();
+                            Map<String, DimensionConfig> dimensionFieldToDocValuesMap = starTreeMetadata.getDimensionFields();
                             // generating star tree unique fields (fully qualified name for dimension and metrics)
-                            for (Map.Entry<String, DocValuesType> dimensionEntry : dimensionFieldToDocValuesMap.entrySet()) {
+                            for (Map.Entry<String, DimensionConfig> dimensionEntry : dimensionFieldToDocValuesMap.entrySet()) {
                                 String dimName = fullyQualifiedFieldNameForStarTreeDimensionsDocValues(
                                     compositeFieldName,
                                     dimensionEntry.getKey()
                                 );
                                 fields.add(dimName);
-                                dimensionFieldTypeMap.put(dimName, dimensionEntry.getValue());
+                                dimensionFieldTypeMap.put(dimName, dimensionEntry.getValue().getDocValuesType());
                             }
                             // adding metric fields
                             for (Metric metric : starTreeMetadata.getMetrics()) {

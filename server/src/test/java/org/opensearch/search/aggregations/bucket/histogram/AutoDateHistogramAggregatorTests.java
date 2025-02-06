@@ -38,7 +38,9 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -72,6 +74,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -910,6 +913,58 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
             }
         );
+    }
+
+    // Bugfix: https://github.com/opensearch-project/OpenSearch/issues/16932
+    public void testFilterRewriteWithTZRoundingRangeAssert() throws IOException {
+        /*
+        multiBucketIndexData must overlap with DST to produce a 'LinkedListLookup' prepared rounding.
+        This lookup rounding style maintains a strict max/min input range and will assert each value is in range.
+         */
+        final List<ZonedDateTime> multiBucketIndexData = Arrays.asList(
+            ZonedDateTime.of(2023, 10, 10, 0, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2023, 11, 11, 0, 0, 0, 0, ZoneOffset.UTC)
+        );
+
+        final List<ZonedDateTime> singleBucketIndexData = Arrays.asList(ZonedDateTime.of(2023, 12, 27, 0, 0, 0, 0, ZoneOffset.UTC));
+
+        try (Directory directory = newDirectory()) {
+            /*
+            Ensure we produce two segments on one shard such that the documents in seg 1 will be out of range of the
+            prepared rounding produced by the filter rewrite optimization considering seg 2 for optimized path.
+            */
+            IndexWriterConfig c = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, c)) {
+                indexSampleData(multiBucketIndexData, indexWriter);
+                indexWriter.flush();
+                indexSampleData(singleBucketIndexData, indexWriter);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                // Force agg to update rounding when it begins collecting from the second segment.
+                final AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
+                aggregationBuilder.setNumBuckets(3).field(DATE_FIELD).timeZone(ZoneId.of("America/New_York"));
+
+                Map<String, Integer> expectedDocCount = new TreeMap<>();
+                expectedDocCount.put("2023-10-01T00:00:00.000-04:00", 1);
+                expectedDocCount.put("2023-11-01T00:00:00.000-04:00", 1);
+                expectedDocCount.put("2023-12-01T00:00:00.000-05:00", 1);
+
+                final InternalAutoDateHistogram histogram = searchAndReduce(
+                    indexSearcher,
+                    DEFAULT_QUERY,
+                    aggregationBuilder,
+                    false,
+                    new DateFieldMapper.DateFieldType(aggregationBuilder.field()),
+                    new NumberFieldMapper.NumberFieldType(INSTANT_FIELD, NumberFieldMapper.NumberType.LONG),
+                    new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG)
+                );
+
+                assertThat(bucketCountsAsMap(histogram), equalTo(expectedDocCount));
+            }
+        }
     }
 
     @Override

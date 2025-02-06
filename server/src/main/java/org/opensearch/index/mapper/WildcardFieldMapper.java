@@ -102,7 +102,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         );
         private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false);
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false).alwaysSerialize();
         private final IndexAnalyzers indexAnalyzers;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {

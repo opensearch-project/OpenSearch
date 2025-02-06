@@ -25,7 +25,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.LongHashSet;
+import org.opensearch.lucene.util.LongHashSet;
 
 import java.io.IOException;
 import java.math.BigInteger;

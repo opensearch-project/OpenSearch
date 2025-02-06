@@ -32,7 +32,6 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -310,10 +309,15 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (segmentMatchAll(context, ctx) && filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false)) {
-            throw new CollectionTerminatedException();
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (segmentMatchAll(context, ctx)) {
+            return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false);
         }
+        return false;
+    }
+
+    @Override
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {

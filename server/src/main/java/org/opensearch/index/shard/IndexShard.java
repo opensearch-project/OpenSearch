@@ -2515,8 +2515,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
         };
 
-        // Do not load the global checkpoint if this is a remote snapshot index
-        if (indexSettings.isRemoteSnapshot() == false && indexSettings.isRemoteTranslogStoreEnabled() == false) {
+        // Do not load the global checkpoint if this is a remote snapshot index or using ingestion source
+        if (indexSettings.isRemoteSnapshot() == false
+            && indexSettings.isRemoteTranslogStoreEnabled() == false
+            && !indexSettings.getIndexMetadata().useIngestionSource()) {
             loadGlobalCheckpointToReplicationTracker();
         }
 
@@ -2635,6 +2637,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
+        if (indexSettings.getIndexMetadata().useIngestionSource()) {
+            return;
+        }
         assert assertSequenceNumbersInCommit();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
     }
@@ -4071,8 +4076,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isReadOnlyReplica,
             this::enableUploadToRemoteTranslog,
             translogFactorySupplier.apply(indexSettings, shardRouting),
-            isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
+            isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
             // timeseries
+            () -> docMapper()
         );
     }
 

@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add stats for remote publication failure and move download failure stats to remote methods([#16682](https://github.com/opensearch-project/OpenSearch/pull/16682/))
 - Update script supports java.lang.String.sha1() and java.lang.String.sha256() methods ([#16923](https://github.com/opensearch-project/OpenSearch/pull/16923))
 - Added a precaution to handle extreme date values during sorting to prevent `arithmetic_exception: long overflow` ([#16812](https://github.com/opensearch-project/OpenSearch/pull/16812)).
+- Add support for append only indices([#17039](https://github.com/opensearch-project/OpenSearch/pull/17039))
 - Add `verbose_pipeline` parameter to output each processor's execution details ([#16843](https://github.com/opensearch-project/OpenSearch/pull/16843)).
 - Add search replica stats to segment replication stats API ([#16678](https://github.com/opensearch-project/OpenSearch/pull/16678))
 - Introduce a setting to disable download of full cluster state from remote on term mismatch([#16798](https://github.com/opensearch-project/OpenSearch/pull/16798/))
@@ -38,6 +39,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added new Setting property UnmodifiableOnRestore to prevent updating settings on restore snapshot ([#16957](https://github.com/opensearch-project/OpenSearch/pull/16957))
 - Introduce Template query ([#16818](https://github.com/opensearch-project/OpenSearch/pull/16818))
 - Propagate the sourceIncludes and excludes fields from fetchSourceContext to FieldsVisitor. ([#17080](https://github.com/opensearch-project/OpenSearch/pull/17080))
+- [Star Tree] [Search] Resolving Date histogram with metric aggregation using star-tree ([#16674](https://github.com/opensearch-project/OpenSearch/pull/16674))
+- [Star Tree] [Search] Extensible design to support different query and field types ([#17137](https://github.com/opensearch-project/OpenSearch/pull/17137))
 
 ### Dependencies
 - Bump `com.google.cloud:google-cloud-core-http` from 2.23.0 to 2.47.0 ([#16504](https://github.com/opensearch-project/OpenSearch/pull/16504))
@@ -48,7 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.4.0 to 3.4.1 ([#16550](https://github.com/opensearch-project/OpenSearch/pull/16550))
 - Bump `org.apache.xmlbeans:xmlbeans` from 5.2.1 to 5.3.0 ([#16612](https://github.com/opensearch-project/OpenSearch/pull/16612), [#16854](https://github.com/opensearch-project/OpenSearch/pull/16854))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 10.0.1 ([#16611](https://github.com/opensearch-project/OpenSearch/pull/16611), [#16807](https://github.com/opensearch-project/OpenSearch/pull/16807), [#17011](https://github.com/opensearch-project/OpenSearch/pull/17011))
-- Bump `lycheeverse/lychee-action` from 2.0.2 to 2.2.0 ([#16610](https://github.com/opensearch-project/OpenSearch/pull/16610), [#16897](https://github.com/opensearch-project/OpenSearch/pull/16897))
+- Bump `lycheeverse/lychee-action` from 2.0.2 to 2.3.0 ([#16610](https://github.com/opensearch-project/OpenSearch/pull/16610), [#16897](https://github.com/opensearch-project/OpenSearch/pull/16897), [#17262](https://github.com/opensearch-project/OpenSearch/pull/17262))
 - Bump `me.champeau.gradle.japicmp` from 0.4.4 to 0.4.5 ([#16614](https://github.com/opensearch-project/OpenSearch/pull/16614))
 - Bump `mockito` from 5.14.1 to 5.14.2, `objenesis` from 3.2 to 3.3 and `bytebuddy` from 1.15.4 to 1.15.10 ([#16655](https://github.com/opensearch-project/OpenSearch/pull/16655))
 - Bump `Netty` from 4.1.114.Final to 4.1.117.Final ([#16661](https://github.com/opensearch-project/OpenSearch/pull/16661), [#17041](https://github.com/opensearch-project/OpenSearch/pull/17041))
@@ -56,10 +59,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `codecov/codecov-action` from 4 to 5 ([#16667](https://github.com/opensearch-project/OpenSearch/pull/16667))
 - Bump `org.apache.logging.log4j:log4j-core` from 2.24.1 to 2.24.3 ([#16718](https://github.com/opensearch-project/OpenSearch/pull/16718), [#16858](https://github.com/opensearch-project/OpenSearch/pull/16858))
 - Bump `jackson` from 2.17.2 to 2.18.2 ([#16733](https://github.com/opensearch-project/OpenSearch/pull/16733))
-- Bump `ch.qos.logback:logback-classic` from 1.2.13 to 1.5.15 ([#16716](https://github.com/opensearch-project/OpenSearch/pull/16716), [#16898](https://github.com/opensearch-project/OpenSearch/pull/16898))
+- Bump `ch.qos.logback:logback-classic` from 1.2.13 to 1.5.16 ([#16716](https://github.com/opensearch-project/OpenSearch/pull/16716), [#16898](https://github.com/opensearch-project/OpenSearch/pull/16898), [#17133](https://github.com/opensearch-project/OpenSearch/pull/17133))
 - Bump `com.azure:azure-identity` from 1.13.2 to 1.14.2 ([#16778](https://github.com/opensearch-project/OpenSearch/pull/16778))
 - Bump Apache Lucene from 9.12.0 to 9.12.1 ([#16846](https://github.com/opensearch-project/OpenSearch/pull/16846))
-- Bump `com.gradle.develocity` from 3.18.2 to 3.19 ([#16855](https://github.com/opensearch-project/OpenSearch/pull/16855))
+- Bump `com.gradle.develocity` from 3.18.2 to 3.19.1 ([#16855](https://github.com/opensearch-project/OpenSearch/pull/16855), [#17132](https://github.com/opensearch-project/OpenSearch/pull/17132))
 - Bump `org.jline:jline` from 3.27.1 to 3.28.0 ([#16857](https://github.com/opensearch-project/OpenSearch/pull/16857))
 - Bump `com.azure:azure-core` from 1.51.0 to 1.54.1 ([#16856](https://github.com/opensearch-project/OpenSearch/pull/16856))
 - Bump `com.nimbusds:oauth2-oidc-sdk` from 11.19.1 to 11.21 ([#16895](https://github.com/opensearch-project/OpenSearch/pull/16895), [#17010](https://github.com/opensearch-project/OpenSearch/pull/17010))
@@ -73,6 +76,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.re2j:re2j` from 1.7 to 1.8 ([#17012](https://github.com/opensearch-project/OpenSearch/pull/17012))
 - Bump `com.squareup.okio:okio` from 3.9.1 to 3.10.2 ([#17060](https://github.com/opensearch-project/OpenSearch/pull/17060))
 - Bump `org.jruby.jcodings:jcodings` from 1.0.58 to 1.0.61 ([#17061](https://github.com/opensearch-project/OpenSearch/pull/17061))
+- Bump `org.awaitility:awaitility` from 4.2.0 to 4.2.2 ([#17230](https://github.com/opensearch-project/OpenSearch/pull/17230))
+- Bump `dnsjava:dnsjava` from 3.6.2 to 3.6.3 ([#17231](https://github.com/opensearch-project/OpenSearch/pull/17231))
+- Bump `com.google.code.gson:gson` from 2.11.0 to 2.12.1 ([#17229](https://github.com/opensearch-project/OpenSearch/pull/17229))
+- Bump `org.jruby.joni:joni` from 2.2.1 to 2.2.3 ([#17136](https://github.com/opensearch-project/OpenSearch/pull/17136))
 
 ### Changed
 - Indexed IP field supports `terms_query` with more than 1025 IP masks [#16391](https://github.com/opensearch-project/OpenSearch/pull/16391)
@@ -80,8 +87,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Sliced search only fans out to shards matched by the selected slice, reducing open search contexts ([#16771](https://github.com/opensearch-project/OpenSearch/pull/16771))
 - Allow extended plugins to be optional ([#16909](https://github.com/opensearch-project/OpenSearch/pull/16909))
 - Use the correct type to widen the sort fields when merging top docs ([#16881](https://github.com/opensearch-project/OpenSearch/pull/16881))
-- Limit reader writer separation to remote store enabled clusters [#16760](https://github.com/opensearch-project/OpenSearch/pull/16760)
-- Optimize innerhits query performance [#16937](https://github.com/opensearch-project/OpenSearch/pull/16937)
+- Limit reader writer separation to remote store enabled clusters ([#16760](https://github.com/opensearch-project/OpenSearch/pull/16760)
+- Optimize innerhits query performance ([#16937](https://github.com/opensearch-project/OpenSearch/pull/16937)
+- Convert transport-reactor-netty4 to use gradle version catalog [#17233](https://github.com/opensearch-project/OpenSearch/pull/17233))
 - TieredSpilloverCache took-time threshold now guards heap tier as well as disk tier [#17190](https://github.com/opensearch-project/OpenSearch/pull/17190)
 
 ### Deprecated
@@ -114,8 +122,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - The `phone-search` analyzer no longer emits the tel/sip prefix, international calling code, extension numbers and unformatted input as a token ([#16993](https://github.com/opensearch-project/OpenSearch/pull/16993))
 - Stop processing search requests when _msearch request is cancelled ([#17005](https://github.com/opensearch-project/OpenSearch/pull/17005))
 - Fix GRPC AUX_TRANSPORT_PORT and SETTING_GRPC_PORT settings and remove lingering HTTP terminology ([#17037](https://github.com/opensearch-project/OpenSearch/pull/17037))
+- [WLM] Fix the QueryGroupTask logging bug ([#17169](https://github.com/opensearch-project/OpenSearch/pull/17169))
 - Fix exists queries on nested flat_object fields throws exception ([#16803](https://github.com/opensearch-project/OpenSearch/pull/16803))
 - Use OpenSearch version to deserialize remote custom metadata([#16494](https://github.com/opensearch-project/OpenSearch/pull/16494))
+- Fix AutoDateHistogramAggregator rounding assertion failure ([#17023](https://github.com/opensearch-project/OpenSearch/pull/17023))
+- Add highlighting for wildcard search on `match_only_text` field ([#17101](https://github.com/opensearch-project/OpenSearch/pull/17101))
+- Fix the failing CI's with `Failed to load eclipse jdt formatter` error ([#17172](https://github.com/opensearch-project/OpenSearch/pull/17172))
 
 ### Security
 

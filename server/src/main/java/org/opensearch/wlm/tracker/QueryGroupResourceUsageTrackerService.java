@@ -76,6 +76,7 @@ public class QueryGroupResourceUsageTrackerService {
             .stream()
             .filter(QueryGroupTask.class::isInstance)
             .map(QueryGroupTask.class::cast)
+            .filter(QueryGroupTask::isQueryGroupSet)
             .collect(Collectors.groupingBy(QueryGroupTask::getQueryGroupId, Collectors.mapping(task -> task, Collectors.toList())));
     }
 }

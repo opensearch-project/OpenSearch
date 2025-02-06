@@ -567,7 +567,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
 
-            final int pendingTaskCount = leader.clusterManagerService.getFakeMasterServicePendingTaskCount();
+            final int pendingTaskCount = leader.clusterManagerService.getFakeClusterManagerServicePendingTaskCount();
             runFor((pendingTaskCount + 1) * DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "draining task queue");
 
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
