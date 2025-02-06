@@ -53,6 +53,8 @@ import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_SIZE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
 import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE;
@@ -388,6 +390,14 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     future.complete(new Tuple<>(key, value));
                     // If the future is completed, didPutIntoCacheFuture should also be completed, so it's safe to run .get() on it
                     didPutIntoCache = didPutIntoCacheFuture.get();
+                    if (!didPutIntoCache) {
+                        // The old indices stats API runs onCached() whenever loader.load() runs. We can't change this as it's PublicApi.
+                        // But now it may not be the case that the key actually enters the cache on loader.load().
+                        // To cancel this out, send the removalListener (the IRC) a removal notification with evicted = false,
+                        // so that it subtracts the stats off again without incrementing evictions.
+                        // These old stats will be removed anyway in 3.0.
+                        removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
+                    }
                 }
             } else {
                 try {
@@ -847,8 +857,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             }
             ICache.Factory diskCacheFactory = cacheFactories.get(diskCacheStoreName);
 
-            TimeValue diskPolicyThreshold = TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType)
-                .get(settings);
+            TimeValue tookTimePolicyThreshold = TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType).get(settings);
+            TimeValue tookTimeDiskPolicyThreshold = TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType).get(settings);
             Function<V, CachedQueryResult.PolicyValues> cachedResultParser = Objects.requireNonNull(
                 config.getCachedResultParser(),
                 "Cached result parser fn can't be null"
@@ -874,7 +884,22 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setCacheConfig(config)
                 .setCacheType(cacheType)
                 .setNumberOfSegments(numberOfSegments)
-                .addPolicy(new TookTimePolicy<V>(diskPolicyThreshold, cachedResultParser, config.getClusterSettings(), cacheType))
+                .addPolicy(
+                    new TookTimePolicy<>(
+                        tookTimePolicyThreshold,
+                        cachedResultParser,
+                        config.getClusterSettings(),
+                        TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType)
+                    )
+                )
+                .addDiskPolicy(
+                    new TookTimePolicy<>(
+                        tookTimeDiskPolicyThreshold,
+                        cachedResultParser,
+                        config.getClusterSettings(),
+                        TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType)
+                    )
+                )
                 .setOnHeapCacheSizeInBytes(onHeapCacheSize)
                 .setDiskCacheSize(diskCacheSize)
                 .build();

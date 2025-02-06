@@ -58,12 +58,13 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCache.ZERO_SEGMENT_COUNT_EXCEPTION_MESSAGE;
-import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DEFAULT_TOOK_TIME_THRESHOLD;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DEFAULT_TOOK_TIME_DISK_THRESHOLD;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.MIN_DISK_CACHE_SIZE_IN_BYTES;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
-import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
@@ -84,7 +85,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     public void setup() {
         Settings settings = Settings.EMPTY;
         clusterSettings = new ClusterSettings(settings, new HashSet<>());
-        clusterSettings.registerSetting(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
+        clusterSettings.registerSetting(TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
+        clusterSettings.registerSetting(TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
         clusterSettings.registerSetting(DISK_CACHE_ENABLED_SETTING_MAP.get(CacheType.INDICES_REQUEST_CACHE));
     }
 
@@ -194,7 +196,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setSettings(settings)
                 .setDimensionNames(dimensionNames)
                 // Values will always appear to have taken 2x the took time threshold to compute, so they will be admitted
-                .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_THRESHOLD.getNanos() * 2))
+                .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_DISK_THRESHOLD.getNanos() * 2))
                 .setClusterSettings(clusterSettings)
                 .setStoragePath(storagePath)
                 .build(),
@@ -294,7 +296,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setSettings(settings)
                 .setDimensionNames(dimensionNames)
                 // Values will always appear to have taken 2x the took time threshold to compute, so they will be admitted
-                .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_THRESHOLD.getNanos() * 2))
+                .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_DISK_THRESHOLD.getNanos() * 2))
                 .setClusterSettings(clusterSettings)
                 .setStoragePath(storagePath)
                 .setSegmentCount(numberOfSegments)
@@ -1424,31 +1426,54 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         return new Tuple<>(policies, keyValuePairs);
     }
 
-    public void testTookTimePolicyFromFactory() throws Exception {
+    public void testTookTimePoliciesFromFactory() throws Exception {
         // Mock took time by passing this map to the policy info wrapper fn
         // The policy inspects values, not keys, so this is a map from values -> took time
+
+        long cacheThresholdNanos = 2_000_000L;
+        long diskThresholdNanos = 11_000_000L;
         Map<String, Long> tookTimeMap = new HashMap<>();
-        tookTimeMap.put("a", 10_000_000L);
+        tookTimeMap.put("a", diskThresholdNanos);
         tookTimeMap.put("b", 0L);
-        tookTimeMap.put("c", 99_999_999L);
+        tookTimeMap.put("c", diskThresholdNanos * 3);
         tookTimeMap.put("d", null);
         tookTimeMap.put("e", -1L);
-        tookTimeMap.put("f", 8_888_888L);
-        long timeValueThresholdNanos = 10_000_000L;
+        tookTimeMap.put("f", cacheThresholdNanos * 2);
+        tookTimeMap.put("g", cacheThresholdNanos - 1);
+        assertTrue(cacheThresholdNanos * 2 < diskThresholdNanos);
 
-        Map<String, Tuple<String, Boolean>> keyValueMap = Map.of(
+        Map<String, String> keyValueMap = Map.of("A", "a", "B", "b", "C", "c", "D", "d", "E", "e", "F", "f", "G", "g");
+        Map<String, Boolean> expectedInHeapTierMap = Map.of(
             "A",
-            new Tuple<>("a", true),
+            true,
             "B",
-            new Tuple<>("b", false),
+            false,
             "C",
-            new Tuple<>("c", true),
+            true,
             "D",
-            new Tuple<>("d", false),
+            false,
             "E",
-            new Tuple<>("e", false),
+            false,
             "F",
-            new Tuple<>("f", false)
+            true,
+            "G",
+            false
+        );
+        Map<String, Boolean> expectedInDiskTierMap = Map.of(
+            "A",
+            true,
+            "B",
+            false,
+            "C",
+            true,
+            "D",
+            false,
+            "E",
+            false,
+            "F",
+            false,
+            "G",
+            false
         );
 
         // Most of setup duplicated from testComputeIfAbsentWithFactoryBasedCacheCreation()
@@ -1478,10 +1503,9 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 ).getKey(),
                 onHeapCacheSize * keyValueSize + "b"
             )
-            .put(
-                TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
-                new TimeValue(timeValueThresholdNanos / 1_000_000)
-            )
+            // Initialize the settings to some other value, so we can demonstrate the updating logic works correctly.
+            .put(TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), TimeValue.ZERO)
+            .put(TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), TimeValue.ZERO)
             .put(TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(), 1)
             .build();
 
@@ -1515,20 +1539,70 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         TieredSpilloverCache<String, String> tieredSpilloverCache = (TieredSpilloverCache<String, String>) tieredSpilloverICache;
 
+        // Change setting values to the target values to show both updates work as expected.
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(
+                    TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    new TimeValue(cacheThresholdNanos / 1_000_000)
+                )
+                .put(
+                    TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    new TimeValue(diskThresholdNanos / 1_000_000)
+                )
+                .build()
+        );
+
+        Map<String, Tuple<String, Boolean>> loaderMap = new HashMap<>();
+        for (String key : keyValueMap.keySet()) {
+            loaderMap.put(key, new Tuple<>(keyValueMap.get(key), false)); // The boolean here is not needed, just to fit with the get loader
+                                                                          // method
+        }
+        LoadAwareCacheLoader<ICacheKey<String>, String> loader = getLoadAwareCacheLoader(loaderMap);
+        // First check whether keys respect the heap tier threshold.
         int expectedKeys = 0;
         for (String key : keyValueMap.keySet()) {
-            tieredSpilloverCache.computeIfAbsent(getICacheKey(key), getLoadAwareCacheLoader(keyValueMap));
-            if (keyValueMap.get(key).v2()) {
+            tieredSpilloverCache.computeIfAbsent(getICacheKey(key), loader);
+            if (expectedInHeapTierMap.get(key)) {
                 expectedKeys++;
             }
         }
         assertEquals(expectedKeys, tieredSpilloverCache.count());
+
+        // Ensure all these keys get evicted from the on heap tier by adding > heap tier size worth of random keys (this works as we have 1
+        // segment)
+        // Set heap threshold to 0 to ensure random keys can all enter
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), TimeValue.ZERO)
+                .build()
+        );
+        for (int i = 0; i < onHeapCacheSize; i++) {
+            tieredSpilloverCache.computeIfAbsent(getICacheKey(UUID.randomUUID().toString()), getLoadAwareCacheLoader());
+        }
+        for (String key : keyValueMap.keySet()) {
+            ICacheKey<String> iCacheKey = getICacheKey(key);
+            assertNull(tieredSpilloverCache.getTieredCacheSegment(iCacheKey).getOnHeapCache().get(iCacheKey));
+        }
+
+        // Now the original keys should be in the disk tier if the policy allows them, or misses if not
+        for (String key : keyValueMap.keySet()) {
+            String computedValue = tieredSpilloverCache.get(getICacheKey(key));
+            if (expectedInDiskTierMap.get(key)) {
+                // expect a hit
+                assertNotNull(computedValue);
+            } else {
+                // expect a miss
+                assertNull(computedValue);
+            }
+        }
     }
 
     public void testMinimumThresholdSettingValue() throws Exception {
         // Confirm we can't set TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD to below
         // TimeValue.ZERO (for example, MINUS_ONE)
-        Setting<TimeValue> concreteSetting = TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(
+        Setting<TimeValue> concreteSetting = TieredSpilloverCacheSettings.TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(
             CacheType.INDICES_REQUEST_CACHE
         );
         TimeValue validDuration = new TimeValue(0, TimeUnit.MILLISECONDS);
@@ -2094,7 +2168,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     .setSettings(settings)
                     .setDimensionNames(dimensionNames)
                     // Values will always appear to have taken 2x the took time threshold to compute, so they will be admitted
-                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_THRESHOLD.getNanos() * 2))
+                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_DISK_THRESHOLD.getNanos() * 2))
                     .setClusterSettings(clusterSettings)
                     .setStoragePath(storagePath)
                     .build(),
@@ -2159,7 +2233,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     .setSettings(settings)
                     .setDimensionNames(dimensionNames)
                     // Values will always appear to have taken 2x the took time threshold to compute, so they will be admitted
-                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_THRESHOLD.getNanos() * 2))
+                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_DISK_THRESHOLD.getNanos() * 2))
                     .setClusterSettings(clusterSettings)
                     .setStoragePath(storagePath)
                     .build(),
@@ -2218,7 +2292,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     .setSettings(settings)
                     .setDimensionNames(dimensionNames)
                     // Values will always appear to have taken 2x the took time threshold to compute, so they will be admitted
-                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_THRESHOLD.getNanos() * 2))
+                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_DISK_THRESHOLD.getNanos() * 2))
                     .setClusterSettings(clusterSettings)
                     .setStoragePath(storagePath)
                     .build(),
@@ -2356,7 +2430,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     .setSettings(settings)
                     .setDimensionNames(dimensionNames)
                     // Values will always appear to have taken 2x the took time threshold to compute, so they will be admitted
-                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_THRESHOLD.getNanos() * 2))
+                    .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(DEFAULT_TOOK_TIME_DISK_THRESHOLD.getNanos() * 2))
                     .setClusterSettings(clusterSettings)
                     .setStoragePath(storagePath)
                     .build(),
