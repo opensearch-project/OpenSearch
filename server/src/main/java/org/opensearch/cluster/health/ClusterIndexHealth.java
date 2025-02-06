@@ -254,18 +254,8 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
                     }
                 }
                 ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
-                /*if (primaryShard.active()) {
-                    computeActivePrimaryShards++;
-                }
-                ClusterHealthStatus shardHealth = ClusterShardHealth.getShardHealth(
-                    primaryShard,
-                    activeShardsPerShardId,
-                    shardRoutingCountPerShardId
-                );
-                computeStatus = getIndexHealthStatus(shardHealth, computeStatus);*/
 
                 if (primaryShard == null) {
-                    // 3. If there is no primary shard:
                     if (isSearchOnlyEnabled) {
                         computeStatus = getIndexHealthStatus(ClusterHealthStatus.GREEN, computeStatus);
                     } else {

@@ -38,7 +38,7 @@ public class SearchOnlyResponse extends ActionResponse implements ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(new ArrayList<>(nodeResponses));  // Convert Collection to List
+        out.writeList(new ArrayList<>(nodeResponses));
         out.writeBoolean(hasFailures);
         out.writeOptionalString(failureReason);
     }

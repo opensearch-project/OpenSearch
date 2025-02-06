@@ -6,8 +6,8 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.GroupedActionListener;
-import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlock;
@@ -143,10 +143,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         }
     }
 
-    private void addBlockAndScaleDown(
-        final String[] indices,
-        final ActionListener<AcknowledgedResponse> listener
-    ) {
+    private void addBlockAndScaleDown(final String[] indices, final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask(
             "add-block-index-to-scale " + Arrays.toString(indices),
             new ClusterStateUpdateTask(Priority.URGENT) {
@@ -336,9 +333,11 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
                         .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), true)
                         .build();
 
-                    metadata.put(IndexMetadata.builder(indexMetadata)
-                        .settings(updatedSettings)
-                        .settingsVersion(indexMetadata.getSettingsVersion() + 1));
+                    metadata.put(
+                        IndexMetadata.builder(indexMetadata)
+                            .settings(updatedSettings)
+                            .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                    );
 
                     blocks.addIndexBlock(index.getName(), INDEX_SEARCHONLY_BLOCK);
                 }
@@ -487,9 +486,11 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
                         .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)  // Remove the search-only setting
                         .build();
 
-                    metadataBuilder.put(IndexMetadata.builder(indexMetadata)
-                        .settings(updatedSettings)
-                        .settingsVersion(indexMetadata.getSettingsVersion() + 1));
+                    metadataBuilder.put(
+                        IndexMetadata.builder(indexMetadata)
+                            .settings(updatedSettings)
+                            .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                    );
                 }
                 // Perform reroute to allocate restored shards
                 return ClusterState.builder(tempState)

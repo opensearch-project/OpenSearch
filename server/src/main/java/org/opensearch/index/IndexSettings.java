@@ -793,7 +793,6 @@ public final class IndexSettings {
         Property.InternalIndex
     );
 
-
     private final Index index;
     private final Version version;
     private final Logger logger;

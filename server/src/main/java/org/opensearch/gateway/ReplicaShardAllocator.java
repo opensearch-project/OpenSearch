@@ -229,7 +229,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return getAllocationDecision(unassignedShard, allocation, nodeShardStores, result, logger);
     }
 
-    // Added this
     protected AllocateUnassignedDecision getAllocationDecision(
         ShardRouting unassignedShard,
         RoutingAllocation allocation,
@@ -251,9 +250,9 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         final boolean explain = allocation.debugDecision();
         ShardRouting primaryShard = routingNodes.activePrimary(unassignedShard.shardId());
 
-
         if (primaryShard == null) {
             // Determine if the index is configured for search-only.
+
             boolean isIndexSearchOnly = allocation.metadata()
                 .getIndexSafe(unassignedShard.index())
                 .getSettings()
@@ -284,15 +283,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     return AllocateUnassignedDecision.yes(selectedCandidate, null, new ArrayList<>(), false);
                 }
 
-                /* force methad an allocation using the first available data node.
-                if (!dataNodes.isEmpty()) {
-                    // forcibly picks the first node
-                    DiscoveryNode forcedCandidate = dataNodes.iterator().next();
-                    logger.info("Forcing allocation of search-only replica {} to node {} because no candidate qualified normally", unassignedShard, forcedCandidate);
-                    return AllocateUnassignedDecision.yes(forcedCandidate, null, new ArrayList<>(), false);
-                }*/
-
-
                 // If there are no data nodes available, delay allocation.
                 return AllocateUnassignedDecision.delayed(0L, 0L, null);
             } else {
@@ -303,8 +293,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 );
             }
         }
-
-
 
         assert primaryShard.currentNodeId() != null;
         final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());

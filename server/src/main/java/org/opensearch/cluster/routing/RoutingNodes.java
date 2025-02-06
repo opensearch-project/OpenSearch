@@ -127,6 +127,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // also fill replicaSet information
         for (final IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
+                // TO DO
                 // assert indexShard.primary != null;
                 for (ShardRouting shard : indexShard) {
                     // to get all the shards belonging to an index, including the replicas,
@@ -183,8 +184,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         final int howMany = increment ? 1 : -1;
         assert routing.initializing() : "routing must be initializing: " + routing;
+
+        boolean isSearchOnly = metadata.index(routing.index())
+            .getSettings()
+            .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
         // TODO: check primary == null || primary.active() after all tests properly add ReplicaAfterPrimaryActiveAllocationDecider
-        // assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
+        if (!isSearchOnly) {
+            assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
+        }
 
         // Primary shard routing, excluding the relocating primaries.
         if (routing.primary() && (primary == null || primary == routing)) {

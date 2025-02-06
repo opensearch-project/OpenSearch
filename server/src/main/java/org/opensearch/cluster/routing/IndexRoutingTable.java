@@ -85,8 +85,8 @@ import java.util.function.Predicate;
 @PublicApi(since = "1.0.0")
 public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
     implements
-    Iterable<IndexShardRoutingTable>,
-    VerifiableWriteable {
+        Iterable<IndexShardRoutingTable>,
+        VerifiableWriteable {
 
     private final Index index;
     private final ShardShuffler shuffler;
@@ -129,9 +129,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
         }
         IndexMetadata indexMetadata = metadata.index(index.getName());
         if (indexMetadata.getIndexUUID().equals(index.getUUID()) == false) {
-            throw new IllegalStateException(
-                index.getName() + " exists in routing but does not exist in metadata with the same uuid"
-            );
+            throw new IllegalStateException(index.getName() + " exists in routing but does not exist in metadata with the same uuid");
         }
 
         // check the number of shards
@@ -156,10 +154,16 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
             // Only throw if we are NOT in search-only mode. Otherwise, we ignore or log the mismatch.
             if (routingNumberOfReplicas != expectedReplicas && isSearchOnlyEnabled == false) {
                 throw new IllegalStateException(
-                    "Shard [" + indexShardRoutingTable.shardId().id() + "] routing table has wrong number of replicas, expected ["
-                        + "Replicas: " + indexMetadata.getNumberOfReplicas()
-                        + ", Search Replicas: " + indexMetadata.getNumberOfSearchOnlyReplicas()
-                        + "], got [" + routingNumberOfReplicas + "]"
+                    "Shard ["
+                        + indexShardRoutingTable.shardId().id()
+                        + "] routing table has wrong number of replicas, expected ["
+                        + "Replicas: "
+                        + indexMetadata.getNumberOfReplicas()
+                        + ", Search Replicas: "
+                        + indexMetadata.getNumberOfSearchOnlyReplicas()
+                        + "], got ["
+                        + routingNumberOfReplicas
+                        + "]"
                 );
             } else if (routingNumberOfReplicas != expectedReplicas) {
                 // Just log if there's a mismatch but the index is search-only.
@@ -182,8 +186,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                     && inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false
                     && shardRouting.isSearchOnly() == false) {
                     throw new IllegalStateException(
-                        "active shard routing " + shardRouting + " has no corresponding entry in the in-sync "
-                            + "allocation set " + inSyncAllocationIds
+                        "active shard routing "
+                            + shardRouting
+                            + " has no corresponding entry in the in-sync "
+                            + "allocation set "
+                            + inSyncAllocationIds
                     );
                 }
 
@@ -193,14 +200,18 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                     if (inSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)) {
                         if (inSyncAllocationIds.size() != 1) {
                             throw new IllegalStateException(
-                                "a primary shard routing " + shardRouting + " is a primary that is recovering "
+                                "a primary shard routing "
+                                    + shardRouting
+                                    + " is a primary that is recovering "
                                     + "from a stale primary but has unexpected allocation ids in the in-sync set "
                                     + inSyncAllocationIds
                             );
                         }
                     } else if (inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
                         throw new IllegalStateException(
-                            "a primary shard routing " + shardRouting + " is a primary that is recovering "
+                            "a primary shard routing "
+                                + shardRouting
+                                + " is a primary that is recovering "
                                 + "from a known allocation id but has no corresponding entry in the in-sync set "
                                 + inSyncAllocationIds
                         );
@@ -210,7 +221,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
         }
         return true;
     }
-
 
     @Override
     public Iterator<IndexShardRoutingTable> iterator() {

@@ -74,7 +74,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 return;
             }
 
-            // Added this
             if (mdFile == null) {
                 listener.onResponse(new CheckpointInfoResponse(indexShard.getLatestReplicationCheckpoint(), Collections.emptyMap(), null));
             } else {
@@ -94,7 +93,9 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                             )
                         )
                     );
-                listener.onResponse(new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes()));
+                listener.onResponse(
+                    new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes())
+                );
             }
         } catch (Exception e) {
             listener.onFailure(e);

@@ -231,6 +231,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
      * </p>
      */
     public static ClusterHealthStatus getShardHealth(final ShardRouting primaryRouting, final int activeShards, final int totalShards) {
+        // TO DO
         // assert primaryRouting != null : "Primary shard routing can't be null";
         if (primaryRouting.active()) {
             if (activeShards == totalShards) {

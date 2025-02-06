@@ -230,8 +230,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID,
                 IndexSettings.SEARCHABLE_SNAPSHOT_SHARD_PATH_TYPE,
 
-
-                // Search only setting
+                // Index Search only setting
                 IndexSettings.INDEX_SEARCH_ONLY_SETTING,
 
                 // Settings for remote translog
