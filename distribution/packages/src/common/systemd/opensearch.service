@@ -123,7 +123,8 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 ReadWritePaths=/var/log/opensearch
 ReadWritePaths=/var/lib/opensearch
-ReadWritePaths=/mnt/snapshots
+ReadWritePaths=/etc/opensearch
+ReadWritePaths=-/mnt/snapshots
 
 ## Allow read access to system files
 ReadOnlyPaths=/etc/os-release /usr/lib/os-release /etc/system-release
