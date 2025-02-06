@@ -257,7 +257,8 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
             try {
 
                 final InetSocketAddress address = new InetSocketAddress(hostAddress, portNumber);
-                final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(address, InsecureServerCredentials.create())
+                final NettyServerBuilder serverBuilder = NettyServerBuilder
+                    .forAddress(address)
                     .bossEventLoopGroup(eventLoopGroup)
                     .workerEventLoopGroup(eventLoopGroup)
                     .channelType(NioServerSocketChannel.class)
