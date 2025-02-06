@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
-import org.apache.lucene.index.OneMergeHelper;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
@@ -93,6 +92,13 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         return readOnlyOnGoingMerges;
     }
 
+    /**
+     *Refactored to move the getSegmentName from OneMergeHelper which used to be part of :server org.apache.lucene.index
+     */
+    private static String getSegmentName(MergePolicy.OneMerge merge) {
+        return merge.getMergeInfo() != null ? merge.getMergeInfo().info.name : "_na_";
+    }
+
     @Override
     protected void doMerge(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
         int totalNumDocs = merge.totalNumDocs();
@@ -108,7 +114,7 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size",
-                OneMergeHelper.getSegmentName(merge),
+                getSegmentName(merge),
                 merge.segments.size(),
                 totalNumDocs,
                 new ByteSizeValue(totalSizeInBytes),
@@ -137,24 +143,18 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             long throttledMS = TimeValue.nsecToMSec(
                 merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.PAUSED)
             );
-            final Thread thread = Thread.currentThread();
-            long totalBytesWritten = OneMergeHelper.getTotalBytesWritten(thread, merge);
-            double mbPerSec = OneMergeHelper.getMbPerSec(thread, merge);
             totalMergeStoppedTime.inc(stoppedMS);
             totalMergeThrottledTime.inc(throttledMS);
 
             String message = String.format(
                 Locale.ROOT,
-                "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], "
-                    + "[%s throttled], [%,.1f MB written], [%,.1f MB/sec throttle]",
-                OneMergeHelper.getSegmentName(merge),
+                "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], " + "[%s throttled]",
+                getSegmentName(merge),
                 TimeValue.timeValueMillis(tookMS),
                 totalSizeInBytes / 1024f / 1024f,
                 totalNumDocs,
                 TimeValue.timeValueMillis(stoppedMS),
-                TimeValue.timeValueMillis(throttledMS),
-                totalBytesWritten / 1024f / 1024f,
-                mbPerSec
+                TimeValue.timeValueMillis(throttledMS)
             );
 
             if (tookMS > 20000) { // if more than 20 seconds, DEBUG log it

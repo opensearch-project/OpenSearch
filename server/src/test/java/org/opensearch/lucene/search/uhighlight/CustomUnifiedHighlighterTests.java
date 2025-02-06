@@ -56,10 +56,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
-import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
-import org.apache.lucene.search.uhighlight.CustomPassageFormatter;
-import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
-import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -70,8 +66,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.text.BreakIterator;
 import java.util.Locale;
 
+import static org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class CustomUnifiedHighlighterTests extends OpenSearchTestCase {
     private void assertHighlightOneDoc(

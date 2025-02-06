@@ -40,8 +40,8 @@ public final class RestRestoreRemoteStoreAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RestoreRemoteStoreRequest restoreRemoteStoreRequest = new RestoreRemoteStoreRequest();
-        restoreRemoteStoreRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", restoreRemoteStoreRequest.masterNodeTimeout())
+        restoreRemoteStoreRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", restoreRemoteStoreRequest.clusterManagerNodeTimeout())
         );
         restoreRemoteStoreRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         restoreRemoteStoreRequest.restoreAllShards(request.paramAsBoolean("restore_all_shards", false));

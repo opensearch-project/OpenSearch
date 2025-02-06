@@ -174,7 +174,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                 request.cause(),
                                 indexName,
                                 request.index()
-                            ).ackTimeout(request.timeout()).masterNodeTimeout(request.clusterManagerNodeTimeout());
+                            ).ackTimeout(request.timeout()).clusterManagerNodeTimeout(request.clusterManagerNodeTimeout());
                             return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                         }
                     }

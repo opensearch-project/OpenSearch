@@ -171,7 +171,7 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
     ) {
         PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest(request.source()).indices(
             concreteIndices
-        ).ackTimeout(request.timeout()).masterNodeTimeout(request.clusterManagerNodeTimeout());
+        ).ackTimeout(request.timeout()).clusterManagerNodeTimeout(request.clusterManagerNodeTimeout());
 
         metadataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 

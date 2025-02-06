@@ -37,11 +37,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.core.index.Index;
+import org.opensearch.lucene.util.automaton.MinimizationOperations;
 
 import java.util.Collection;
 import java.util.List;
