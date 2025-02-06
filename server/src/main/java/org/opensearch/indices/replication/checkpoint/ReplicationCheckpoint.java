@@ -38,6 +38,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
     private final long length;
     private final String codec;
     private final Map<String, StoreFileMetadata> metadataMap;
+    private final long createdTimeStamp;
 
     public static ReplicationCheckpoint empty(ShardId shardId) {
         return empty(shardId, "");
@@ -55,10 +56,11 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         length = 0L;
         this.codec = codec;
         this.metadataMap = Collections.emptyMap();
+        this.createdTimeStamp = System.nanoTime();
     }
 
     public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion, String codec) {
-        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec, Collections.emptyMap());
+        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec, Collections.emptyMap(), System.nanoTime());
     }
 
     public ReplicationCheckpoint(
@@ -68,7 +70,8 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         long segmentInfosVersion,
         long length,
         String codec,
-        Map<String, StoreFileMetadata> metadataMap
+        Map<String, StoreFileMetadata> metadataMap,
+        long createdTimeStamp
     ) {
         this.shardId = shardId;
         this.primaryTerm = primaryTerm;
@@ -77,6 +80,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         this.length = length;
         this.codec = codec;
         this.metadataMap = metadataMap;
+        this.createdTimeStamp = createdTimeStamp;
     }
 
     public ReplicationCheckpoint(StreamInput in) throws IOException {
@@ -95,6 +99,11 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             this.metadataMap = in.readMap(StreamInput::readString, StoreFileMetadata::new);
         } else {
             this.metadataMap = Collections.emptyMap();
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            this.createdTimeStamp = in.readLong();
+        } else {
+            this.createdTimeStamp = 0;
         }
     }
 
@@ -159,6 +168,9 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeMap(metadataMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
         }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeLong(createdTimeStamp);
+        }
     }
 
     @Override
@@ -197,6 +209,10 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         return metadataMap;
     }
 
+    public long getCreatedTimeStamp() {
+        return createdTimeStamp;
+    }
+
     @Override
     public String toString() {
         return "ReplicationCheckpoint{"
@@ -212,6 +228,8 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             + length
             + ", codec="
             + codec
+            + ", timestamp="
+            + createdTimeStamp
             + '}';
     }
 }
