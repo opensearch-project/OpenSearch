@@ -16,6 +16,7 @@ import org.opensearch.search.startree.StarTreeNodeCollector;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Optional;
 
 /**
@@ -37,6 +38,8 @@ public class RangeMatchDimFilter implements DimensionFilter {
 
     private boolean skipRangeCollection = false;
 
+    private Comparator<Long> comparator;
+
     public RangeMatchDimFilter(String dimensionName, Object low, Object high, boolean includeLow, boolean includeHigh) {
         this.dimensionName = dimensionName;
         this.low = low;
@@ -51,6 +54,8 @@ public class RangeMatchDimFilter implements DimensionFilter {
         DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
             searchContext.mapperService().fieldType(dimensionName)
         );
+        this.comparator = dimensionFilterMapper.comparator();
+
         lowOrdinal = 0L;
         if (low != null) {
             MatchType lowMatchType = includeLow ? MatchType.GTE : MatchType.GT;
@@ -77,13 +82,13 @@ public class RangeMatchDimFilter implements DimensionFilter {
     public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
         throws IOException {
         if (parentNode != null && !skipRangeCollection) {
-            parentNode.collectChildrenInRange(lowOrdinal, highOrdinal, collector);
+            parentNode.collectChildrenInRange(lowOrdinal, highOrdinal, collector, comparator);
         }
     }
 
     @Override
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
-        return lowOrdinal <= ordinal && ordinal <= highOrdinal;
+        return comparator.compare(lowOrdinal, ordinal) <= 0 && comparator.compare(ordinal, highOrdinal) <= 0;
     }
 
 }

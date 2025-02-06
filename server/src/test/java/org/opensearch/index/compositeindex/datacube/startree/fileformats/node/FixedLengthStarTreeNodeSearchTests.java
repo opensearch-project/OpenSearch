@@ -20,6 +20,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
@@ -53,18 +54,30 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                         result &= -1 == lastMatchedNode.getDimensionValue();
                         // Leaf Node should return null
                         result &= null == lastMatchedNode.getChildForDimensionValue(5L);
-                        result &= null == lastMatchedNode.getChildForDimensionValue(5L, lastMatchedNode);
+                        result &= null == lastMatchedNode.getChildForDimensionValue(5L, lastMatchedNode, DimensionDataType.LONG::compare);
                         // Asserting Last Matched Node works as expected
-                        lastMatchedNode = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(1L, lastMatchedNode);
+                        lastMatchedNode = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(
+                            1L,
+                            lastMatchedNode,
+                            DimensionDataType.LONG::compare
+                        );
                         result &= 1 == lastMatchedNode.getDimensionValue();
-                        lastMatchedNode = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(5L, lastMatchedNode);
+                        lastMatchedNode = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(
+                            5L,
+                            lastMatchedNode,
+                            DimensionDataType.LONG::compare
+                        );
                         result &= 5 == lastMatchedNode.getDimensionValue();
                         // Asserting null is returned when last matched node is after the value to search.
-                        lastMatchedNode = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(2L, lastMatchedNode);
+                        lastMatchedNode = (FixedLengthStarTreeNode) fixedLengthStarTreeNode.getChildForDimensionValue(
+                            2L,
+                            lastMatchedNode,
+                            DimensionDataType.LONG::compare
+                        );
                         result &= null == lastMatchedNode;
                         // When dimension value is null
                         result &= null == fixedLengthStarTreeNode.getChildForDimensionValue(null);
-                        result &= null == fixedLengthStarTreeNode.getChildForDimensionValue(null, null);
+                        result &= null == fixedLengthStarTreeNode.getChildForDimensionValue(null, null, DimensionDataType.LONG::compare);
                         // non-existing dimensionValue
                         result &= null == fixedLengthStarTreeNode.getChildForDimensionValue(4L);
                         result &= null == fixedLengthStarTreeNode.getChildForDimensionValue(randomLongBetween(6, Long.MAX_VALUE));
@@ -136,43 +149,43 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                             ArrayBasedCollector collector;
                             // Whole range
                             collector = new ArrayBasedCollector();
-                            fixedLengthStarTreeNode.collectChildrenInRange(-20, 26, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(-20, 26, collector, DimensionDataType.LONG::compare);
                             result &= collector.matchAllCollectedValues(new long[] { -10, -1, 1, 2, 5, 9, 25 });
                             // Subset matched from left
                             collector = new ArrayBasedCollector();
-                            fixedLengthStarTreeNode.collectChildrenInRange(-2, 1, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(-2, 1, collector, DimensionDataType.LONG::compare);
                             result &= collector.matchAllCollectedValues(new long[] { -1, 1 });
                             // Subset matched from right
                             collector = new ArrayBasedCollector();
-                            fixedLengthStarTreeNode.collectChildrenInRange(6, 100, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(6, 100, collector, DimensionDataType.LONG::compare);
                             result &= collector.matchAllCollectedValues(new long[] { 9, 25 });
                             // No match on left
                             collector = new ArrayBasedCollector();
-                            fixedLengthStarTreeNode.collectChildrenInRange(-30, -20, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(-30, -20, collector, DimensionDataType.LONG::compare);
                             result &= collector.collectedNodeCount() == 0;
                             // No match on right
                             collector = new ArrayBasedCollector();
-                            fixedLengthStarTreeNode.collectChildrenInRange(30, 50, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(30, 50, collector, DimensionDataType.LONG::compare);
                             result &= collector.collectedNodeCount() == 0;
                             // Low > High
                             collector = new ArrayBasedCollector();
-                            fixedLengthStarTreeNode.collectChildrenInRange(50, 10, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(50, 10, collector, DimensionDataType.LONG::compare);
                             result &= collector.collectedNodeCount() == 0;
                             // Match leftmost
                             collector = new ArrayBasedCollector();
-                            fixedLengthStarTreeNode.collectChildrenInRange(-30, -10, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(-30, -10, collector, DimensionDataType.LONG::compare);
                             result &= collector.matchAllCollectedValues(new long[] { -10 });
                             // Match rightmost
                             collector = new ArrayBasedCollector();
-                            fixedLengthStarTreeNode.collectChildrenInRange(10, 25, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(10, 25, collector, DimensionDataType.LONG::compare);
                             result &= collector.matchAllCollectedValues(new long[] { 25 });
                             // Match contains interval which has nothing
                             collector = new ArrayBasedCollector();
-                            fixedLengthStarTreeNode.collectChildrenInRange(10, 24, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(10, 24, collector, DimensionDataType.LONG::compare);
                             result &= collector.collectedNodeCount() == 0;
                             // Match contains interval which has nothing
                             collector = new ArrayBasedCollector();
-                            fixedLengthStarTreeNode.collectChildrenInRange(6, 24, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(6, 24, collector, DimensionDataType.LONG::compare);
                             result &= collector.matchAllCollectedValues(new long[] { 9 });
                             return result;
                         } catch (IOException e) {
@@ -187,7 +200,7 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
                         try {
                             ArrayBasedCollector collector = new ArrayBasedCollector();
                             long low = randomLong(), high = randomLong();
-                            fixedLengthStarTreeNode.collectChildrenInRange(low, high, collector);
+                            fixedLengthStarTreeNode.collectChildrenInRange(low, high, collector, DimensionDataType.LONG::compare);
                             if (low < high) {
                                 Long lowValue = treeSet.ceiling(low);
                                 if (lowValue != null) {
