@@ -42,7 +42,6 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsTests;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
@@ -83,6 +82,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

@@ -30,27 +30,35 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.transport.client.transport;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.OpenSearchException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
- * Administrative actions/operations against the cluster or the indices.
+ * An exception indicating no node is available to perform the operation.
  *
- * @see org.opensearch.client.Client#admin()
- *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
-public interface AdminClient {
+public class NoNodeAvailableException extends OpenSearchException {
 
-    /**
-     * A client allowing to perform actions/operations against the cluster.
-     */
-    ClusterAdminClient cluster();
+    public NoNodeAvailableException(String message) {
+        super(message);
+    }
 
-    /**
-     * A client allowing to perform actions/operations against the indices.
-     */
-    IndicesAdminClient indices();
+    public NoNodeAvailableException(String message, Throwable t) {
+        super(message, t);
+    }
+
+    public NoNodeAvailableException(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.SERVICE_UNAVAILABLE;
+    }
 }

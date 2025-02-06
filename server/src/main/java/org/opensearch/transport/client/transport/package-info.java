@@ -7,6 +7,6 @@
  */
 
 /**
- * The node client module allowing to easily perform actions/operations at node level.
+ * Transport Client support classes.
  */
-package org.opensearch.client.node;
+package org.opensearch.transport.client.transport;

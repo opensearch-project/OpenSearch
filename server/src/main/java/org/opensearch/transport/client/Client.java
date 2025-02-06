@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.transport.client;
 
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;

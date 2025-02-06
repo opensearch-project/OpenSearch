@@ -35,12 +35,13 @@ package org.opensearch.test.client;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
-import org.opensearch.client.support.AbstractClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.transport.client.support.AbstractClient;
 
 import java.util.concurrent.TimeUnit;
 
@@ -48,7 +49,7 @@ import java.util.concurrent.TimeUnit;
  * Client that always responds with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)}
  * for testing.
  * <p>
- * See also {@link NoOpNodeClient} if you need to mock a {@link org.opensearch.client.node.NodeClient}.
+ * See also {@link NoOpNodeClient} if you need to mock a {@link NodeClient}.
  */
 public class NoOpClient extends AbstractClient {
     /**

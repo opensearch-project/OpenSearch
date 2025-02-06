@@ -30,27 +30,25 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.transport.client.node;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
+import org.opensearch.transport.client.ParentTaskAssigningClient;
 
-public class OriginSettingClientTests extends OpenSearchTestCase {
+public class ParentTaskAssigningClientTests extends OpenSearchTestCase {
     public void testSetsParentId() {
-        String origin = randomAlphaOfLength(7);
+        TaskId[] parentTaskId = new TaskId[] { new TaskId(randomAlphaOfLength(3), randomLong()) };
 
-        /*
-         * This mock will do nothing but verify that origin is set in the
-         * thread context before executing the action.
-         */
+        // This mock will do nothing but verify that parentTaskId is set on all requests sent to it.
         NoOpClient mock = new NoOpClient(getTestName()) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -58,27 +56,21 @@ public class OriginSettingClientTests extends OpenSearchTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertEquals(origin, threadPool().getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
+                assertEquals(parentTaskId[0], request.getParentTask());
                 super.doExecute(action, request, listener);
             }
         };
-
-        try (OriginSettingClient client = new OriginSettingClient(mock, origin)) {
-            // All of these should have the origin set
+        try (ParentTaskAssigningClient client = new ParentTaskAssigningClient(mock, parentTaskId[0])) {
+            // All of these should have the parentTaskId set
             client.bulk(new BulkRequest());
             client.search(new SearchRequest());
             client.clearScroll(new ClearScrollRequest());
 
-            ThreadContext threadContext = client.threadPool().getThreadContext();
-            client.bulk(new BulkRequest(), listenerThatAssertsOriginNotSet(threadContext));
-            client.search(new SearchRequest(), listenerThatAssertsOriginNotSet(threadContext));
-            client.clearScroll(new ClearScrollRequest(), listenerThatAssertsOriginNotSet(threadContext));
+            // Now lets verify that unwrapped calls don't have the parentTaskId set
+            parentTaskId[0] = TaskId.EMPTY_TASK_ID;
+            client.unwrap().bulk(new BulkRequest());
+            client.unwrap().search(new SearchRequest());
+            client.unwrap().clearScroll(new ClearScrollRequest());
         }
-    }
-
-    private <T> ActionListener<T> listenerThatAssertsOriginNotSet(ThreadContext threadContext) {
-        return ActionListener.wrap(r -> { assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME)); }, e -> {
-            fail("didn't expect to fail but: " + e);
-        });
     }
 }

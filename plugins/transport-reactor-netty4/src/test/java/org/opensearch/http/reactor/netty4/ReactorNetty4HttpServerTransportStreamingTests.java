@@ -9,7 +9,6 @@
 package org.opensearch.http.reactor.netty4;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -34,6 +33,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.reactor.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;

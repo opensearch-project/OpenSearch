@@ -24,60 +24,74 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.transport.client;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
-import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.support.AbstractClient;
 
 /**
- * Interface for an OpenSearch client implementation
+ * A {@link Client} that contains another {@link Client} which it
+ * uses as its basic source, possibly transforming the requests / responses along the
+ * way or providing additional functionality.
  *
  * @opensearch.internal
  */
-public interface OpenSearchClient {
+public abstract class FilterClient extends AbstractClient {
+
+    protected final Client in;
 
     /**
-     * Executes a generic action, denoted by an {@link ActionType}.
+     * Creates a new FilterClient
      *
-     * @param action           The action type to execute.
-     * @param request          The action request.
-     * @param <Request>        The request type.
-     * @param <Response>       the response type.
-     * @return A future allowing to get back the response.
+     * @param in the client to delegate to
+     * @see #in()
      */
-    <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
-        ActionType<Response> action,
-        Request request
-    );
+    public FilterClient(Client in) {
+        this(in.settings(), in.threadPool(), in);
+    }
 
     /**
-     * Executes a generic action, denoted by an {@link ActionType}.
-     *
-     * @param action           The action type to execute.
-     * @param request          The action request.
-     * @param listener         The listener to receive the response back.
-     * @param <Request>        The request type.
-     * @param <Response>       The response type.
+     * A Constructor that allows to pass settings and threadpool separately. This is useful if the
+     * client is a proxy and not yet fully constructed ie. both dependencies are not available yet.
      */
-    <Request extends ActionRequest, Response extends ActionResponse> void execute(
+    protected FilterClient(Settings settings, ThreadPool threadPool, Client in) {
+        super(settings, threadPool);
+        this.in = in;
+    }
+
+    @Override
+    public void close() {
+        in().close();
+    }
+
+    @Override
+    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
         ActionType<Response> action,
         Request request,
         ActionListener<Response> listener
-    );
+    ) {
+        in().execute(action, request, listener);
+    }
 
     /**
-     * Returns the threadpool used to execute requests on this client
+     * Returns the delegate {@link Client}
      */
-    ThreadPool threadPool();
+    protected Client in() {
+        return in;
+    }
 
+    @Override
+    public Client getRemoteClusterClient(String clusterAlias) {
+        return in.getRemoteClusterClient(clusterAlias);
+    }
 }

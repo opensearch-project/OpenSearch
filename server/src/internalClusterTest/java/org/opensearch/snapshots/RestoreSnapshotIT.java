@@ -39,7 +39,6 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -53,6 +52,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.transport.client.Client;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

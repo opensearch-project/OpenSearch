@@ -40,6 +40,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 
@@ -49,7 +50,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * A response of an index operation,
  *
  * @see IndexRequest
- * @see org.opensearch.client.Client#index(IndexRequest)
+ * @see Client#index(IndexRequest)
  *
  * @opensearch.api
  */
