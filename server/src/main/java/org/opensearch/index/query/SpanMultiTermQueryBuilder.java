@@ -31,7 +31,6 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
@@ -50,6 +49,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.support.QueryParsers;
+import org.opensearch.lucene.queries.SpanMatchNoDocsQuery;
 
 import java.io.IOException;
 import java.util.Objects;

@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow to pass the list settings through environment variables (like [], ["a", "b", "c"], ...) ([#10625](https://github.com/opensearch-project/OpenSearch/pull/10625))
 - Views, simplify data access and manipulation by providing a virtual layer over one or more indices ([#11957](https://github.com/opensearch-project/OpenSearch/pull/11957))
 - Added pull-based Ingestion (APIs, for ingestion source, a Kafka plugin, and IngestionEngine that pulls data from the ingestion source) ([#16958](https://github.com/opensearch-project/OpenSearch/pull/16958))
+- Added ConfigurationUtils to core for the ease of configuration parsing [#17223](https://github.com/opensearch-project/OpenSearch/pull/17223)
 
 ### Dependencies
 - Update Apache Lucene to 10.1.0 ([#16366](https://github.com/opensearch-project/OpenSearch/pull/16366))
@@ -29,8 +30,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add task completion count in search backpressure stats API ([#10028](https://github.com/opensearch-project/OpenSearch/pull/10028/))
 - Deprecate CamelCase `PathHierarchy` tokenizer name in favor to lowercase `path_hierarchy` ([#10894](https://github.com/opensearch-project/OpenSearch/pull/10894))
 - Breaking change: Do not request "search_pipelines" metrics by default in NodesInfoRequest ([#12497](https://github.com/opensearch-project/OpenSearch/pull/12497))
-- Refactor `:libs` module `bootstrap` package to eliminate top level split packages for JPMS support [#17117](https://github.com/opensearch-project/OpenSearch/pull/17117))
-- Refactor the codebase to eliminate top level split packages for JPMS support. [#17153](https://github.com/opensearch-project/OpenSearch/pull/17153))
+- Refactor `:libs` module `bootstrap` package to eliminate top level split packages for JPMS support ([#17117](https://github.com/opensearch-project/OpenSearch/pull/17117))
+- Refactor the codebase to eliminate top level split packages for JPMS support ([#17153](https://github.com/opensearch-project/OpenSearch/pull/17153)
+- Refactor `:server` module `org.apacge.lucene` package to eliminate top level split packages for JPMS support ([#17241](https://github.com/opensearch-project/OpenSearch/pull/17241))
 
 ### Deprecated
 
