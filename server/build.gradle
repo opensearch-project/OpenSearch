@@ -104,7 +104,7 @@ dependencies {
   api libs.jzlib
 
   // reactor
-  api libs.reactorcore
+  api libs.reactor.core
   api libs.reactivestreams
 
   // protobuf
