@@ -21,6 +21,7 @@ import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
+import org.opensearch.search.aggregations.bucket.range.RangeAggregatorFactory;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.StarTreeFilter;
@@ -111,6 +112,11 @@ public class StarTreeQueryContext {
 
             // if not a metric aggregation, check for applicable date histogram shape
             if (validateDateHistogramSupport(compositeMappedFieldType, aggregatorFactory)) {
+                continue;
+            }
+
+            // test for range aggregation
+            if (aggregatorFactory instanceof RangeAggregatorFactory) {
                 continue;
             }
             return false;
