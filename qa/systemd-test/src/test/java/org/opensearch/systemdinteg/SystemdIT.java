@@ -44,8 +44,8 @@ import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import static org.junit.Assert.*;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 
@@ -72,7 +72,7 @@ public class SystemdIT {
         return executeCommand("docker ps -qf name=" + CONTAINER_NAME, "OpenSearch container '" + CONTAINER_NAME + "' is not running");
     }
 
-        private static String getOpenSearchPid() throws IOException, InterruptedException {
+    private static String getOpenSearchPid() throws IOException, InterruptedException {
         String command = "docker exec " + containerId + " systemctl show --property=MainPID opensearch";
         String output = executeCommand(command, "Failed to get OpenSearch PID");
         return output.replace("MainPID=", "").trim();
@@ -137,7 +137,6 @@ public class SystemdIT {
                 limits.contains("Max open files            unlimited            unlimited"));
     }
 
-
     @Test
     public void testSystemCallFilter() throws IOException, InterruptedException {
         // Check if Seccomp is enabled
@@ -151,7 +150,6 @@ public class SystemdIT {
         String swapResult = executeCommand("docker exec " + containerId + " su opensearch -c 'swapon -a' 2>&1 || echo 'Operation not permitted'", "Failed to test swap system call");
         assertTrue("Swap system call should be blocked", swapResult.contains("Operation not permitted"));
     }
-
 
     @Test
     public void testReadOnlyPaths() throws IOException, InterruptedException {
