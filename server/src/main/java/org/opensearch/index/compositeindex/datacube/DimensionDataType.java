@@ -19,7 +19,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 public enum DimensionDataType {
     LONG {
         @Override
-        int compare(Long a, Long b) {
+        public int compare(Long a, Long b) {
             if (a == null && b == null) {
                 return 0;
             }
@@ -34,7 +34,7 @@ public enum DimensionDataType {
     },
     UNSIGNED_LONG {
         @Override
-        int compare(Long a, Long b) {
+        public int compare(Long a, Long b) {
             if (a == null && b == null) {
                 return 0;
             }
@@ -48,5 +48,5 @@ public enum DimensionDataType {
         }
     };
 
-    abstract int compare(Long a, Long b);
+    public abstract int compare(Long a, Long b);
 }
