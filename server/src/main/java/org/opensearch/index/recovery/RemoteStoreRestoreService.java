@@ -49,7 +49,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 
@@ -142,17 +141,14 @@ public class RemoteStoreRestoreService {
     ) {
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap = new HashMap<>();
         ClusterState remoteState = null;
-        boolean metadataFromRemoteStore = (restoreClusterUUID == null
-            || restoreClusterUUID.isEmpty()
-            || restoreClusterUUID.isBlank()) == false;
+        boolean metadataFromRemoteStore = restoreClusterUUID != null && !restoreClusterUUID.isEmpty();
+
         if (metadataFromRemoteStore) {
             try {
-                // Restore with current cluster UUID will fail as same indices would be present in the cluster which we are trying to
-                // restore
                 if (currentState.metadata().clusterUUID().equals(restoreClusterUUID)) {
-                    throw new IllegalArgumentException("clusterUUID to restore from should be different from current cluster UUID");
+                    throw new IllegalArgumentException("Cluster UUID for restore must be different from the current cluster UUID.");
                 }
-                logger.info("Restoring cluster state from remote store from cluster UUID : [{}]", restoreClusterUUID);
+                logger.info("Restoring cluster state from remote store for cluster UUID: [{}]", restoreClusterUUID);
                 remoteState = remoteClusterStateService.getLatestClusterState(
                     currentState.getClusterName().value(),
                     restoreClusterUUID,
@@ -170,12 +166,20 @@ public class RemoteStoreRestoreService {
                 indexNames,
                 IndicesOptions.fromOptions(true, true, true, true)
             );
+
+            boolean allSearchOnly = true;
             for (String indexName : filteredIndices) {
                 IndexMetadata indexMetadata = currentState.metadata().index(indexName);
                 if (indexMetadata == null) {
-                    logger.warn("Index restore is not supported for non-existent index. Skipping: {}", indexName);
-                } else if (indexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false) == false) {
-                    logger.warn("Remote store is not enabled for index: {}", indexName);
+                    logger.warn("Skipping restore: index [{}] does not exist.", indexName);
+                    continue;
+                }
+
+                boolean isSearchOnly = indexMetadata.getSettings()
+                    .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+
+                if (isSearchOnly) {
+                    logger.warn("Skipping _remotestore/_restore for index [{}] as search-only mode is enabled.", indexName);
                 } else if (restoreAllShards && IndexMetadata.State.CLOSE.equals(indexMetadata.getState()) == false) {
                     throw new IllegalStateException(
                         String.format(
@@ -185,10 +189,18 @@ public class RemoteStoreRestoreService {
                         ) + " Close the existing index."
                     );
                 } else {
+                    allSearchOnly = false;
                     indexMetadataMap.put(indexName, new Tuple<>(false, indexMetadata));
                 }
             }
+
+            if (allSearchOnly) {
+                throw new IllegalArgumentException(
+                    "Skipping _remotestore/_restore for all selected indices as search-only mode is enabled."
+                );
+            }
         }
+
         return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteState);
     }
 

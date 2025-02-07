@@ -7,4 +7,4 @@
  */
 
 /** Index Rollover transport handlers. */
-package org.opensearch.action.admin.indices.searchonly;
+package org.opensearch.action.admin.indices.scale.searchonly;

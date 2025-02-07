@@ -268,7 +268,7 @@ import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
-import org.opensearch.action.admin.indices.searchonly.SearchOnlyRequestBuilder;
+import org.opensearch.action.admin.indices.scale.searchonly.SearchOnlyRequestBuilder;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -2147,8 +2147,8 @@ public abstract class AbstractClient implements Client {
             return execute(UpdateViewAction.INSTANCE, request);
         }
 
-        public SearchOnlyRequestBuilder prepareSearchOnly(String... indices) {
-            return new SearchOnlyRequestBuilder(this, indices);
+        public SearchOnlyRequestBuilder prepareSearchOnly(String index) {
+            return new SearchOnlyRequestBuilder(this, index);
         }
 
     }

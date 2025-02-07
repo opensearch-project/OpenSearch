@@ -94,7 +94,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 
-import static org.opensearch.action.admin.indices.searchonly.TransportSearchOnlyAction.INDEX_SEARCHONLY_BLOCK;
+import static org.opensearch.action.admin.indices.scale.searchonly.TransportSearchOnlyAction.INDEX_SEARCHONLY_BLOCK;
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
@@ -568,6 +568,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_BLOCKS_WRITE = APIBlock.WRITE.settingName();
     public static final Setting<Boolean> INDEX_BLOCKS_WRITE_SETTING = APIBlock.WRITE.setting();;
+
+    public static final String SETTING_BLOCKS_METADATA = APIBlock.METADATA.settingName();
     public static final Setting<Boolean> INDEX_BLOCKS_METADATA_SETTING = APIBlock.METADATA.setting();
 
     public static final String SETTING_READ_ONLY_ALLOW_DELETE = APIBlock.READ_ONLY_ALLOW_DELETE.settingName();

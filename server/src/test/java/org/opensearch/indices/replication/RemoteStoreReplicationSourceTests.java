@@ -137,29 +137,30 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         assert (response.files.isEmpty());
     }
 
-    public void testGetCheckpointMetadataEmpty() throws ExecutionException, InterruptedException, IOException {
+    public void testGetCheckpointMetadataEmpty() throws ExecutionException, InterruptedException {
         IndexShard mockShard = mock(IndexShard.class);
-        // Build mockShard to return replicaShard directory so that empty metadata file is returned.
+        // Build mockShard to return replicaShard directory so that an empty metadata file is returned.
         buildIndexShardBehavior(mockShard, replicaShard);
         replicationSource = new RemoteStoreReplicationSource(mockShard);
 
-        // Mock replica shard state to RECOVERING so that getCheckpointInfo return empty map
+        // For a RECOVERING shard, the response should have an empty metadata map.
         final ReplicationCheckpoint checkpoint = replicaShard.getLatestReplicationCheckpoint();
         final PlainActionFuture<CheckpointInfoResponse> res = PlainActionFuture.newFuture();
         when(mockShard.state()).thenReturn(IndexShardState.RECOVERING);
-        replicationSource = new RemoteStoreReplicationSource(mockShard);
-        // Recovering shard should just do a noop and return empty metadata map.
         replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res);
         CheckpointInfoResponse response = res.get();
-        assert (response.getCheckpoint().equals(checkpoint));
-        assert (response.getMetadataMap().isEmpty());
+        assertTrue(response.getCheckpoint().equals(checkpoint));
+        assertTrue(response.getMetadataMap().isEmpty());
 
-        // Started shard should fail with assertion error.
+        // For a STARTED shard, the new behavior returns an empty metadata map with the shard's latest replication checkpoint.
         when(mockShard.state()).thenReturn(IndexShardState.STARTED);
-        expectThrows(AssertionError.class, () -> {
-            final PlainActionFuture<CheckpointInfoResponse> res2 = PlainActionFuture.newFuture();
-            replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res2);
-        });
+        // Ensure the mock returns the expected checkpoint when getLatestReplicationCheckpoint is called.
+        when(mockShard.getLatestReplicationCheckpoint()).thenReturn(replicaShard.getLatestReplicationCheckpoint());
+        final PlainActionFuture<CheckpointInfoResponse> res2 = PlainActionFuture.newFuture();
+        replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res2);
+        CheckpointInfoResponse response2 = res2.get();
+        assertTrue(response2.getCheckpoint().equals(replicaShard.getLatestReplicationCheckpoint()));
+        assertTrue(response2.getMetadataMap().isEmpty());
     }
 
     private void buildIndexShardBehavior(IndexShard mockShard, IndexShard indexShard) {
