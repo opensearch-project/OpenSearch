@@ -1,0 +1,34 @@
+---
+setup:
+  - skip:
+      features: allowed_warnings
+  - do:
+      indices.create:
+        index: .nonreadable-system-index
+
+  - do:
+      allowed_warnings:
+        - "this request accesses system indices: [.nonreadable-system-index], but in a future major version, direct access to system indices will be prevented by default"
+      index:
+        index: .nonreadable-system-index
+        id: 1
+        refresh: true
+        body:
+          query:
+            match_all: { }
+
+---
+"Test that .nonreadable-system-index does output deprecation log on search":
+  - skip:
+      features: [warnings, headers]
+  - do:
+      headers: { "X-Opaque-Id": "search-request" }
+      warnings:
+        - "this request accesses system indices: [.nonreadable-system-index], but in a future major version, direct access to system indices will be prevented by default"
+      search:
+        rest_total_hits_as_int: true
+        index: .nonreadable-system-index
+        body:
+          query:
+            match_all: { }
+  - match: { hits.total: 1 }

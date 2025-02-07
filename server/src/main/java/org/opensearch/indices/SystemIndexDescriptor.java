@@ -56,8 +56,9 @@ public class SystemIndexDescriptor {
      *
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
      * @param description The name of the plugin responsible for this system index.
+     * @param readable Whether this system index is readable. A readable index is one where search and get actions are permitted.
      */
-    public SystemIndexDescriptor(String indexPattern, String description) {
+    public SystemIndexDescriptor(String indexPattern, String description, boolean readable) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
             throw new IllegalArgumentException(
@@ -80,6 +81,16 @@ public class SystemIndexDescriptor {
         Automaton a = Operations.determinize(Regex.simpleMatchToAutomaton(indexPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         this.indexPatternAutomaton = new CharacterRunAutomaton(a);
         this.description = description;
+        this.readable = readable;
+    }
+
+    /**
+     *
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param description The name of the plugin responsible for this system index.
+     */
+    public SystemIndexDescriptor(String indexPattern, String description) {
+        this(indexPattern, description, false);
     }
 
     /**
@@ -103,15 +114,6 @@ public class SystemIndexDescriptor {
      */
     public String getDescription() {
         return description;
-    }
-
-    /**
-     * Set whether this system index is readable. Defaults to false.
-     * @param readable Whether this system index is readable. A readable index is one where search and get
-     *                 actions are permitted.
-     */
-    public void setReadable(boolean readable) {
-        this.readable = readable;
     }
 
     /**
