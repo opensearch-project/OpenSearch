@@ -57,7 +57,14 @@ import static java.util.Collections.singletonList;
  */
 public class ExampleRestHandlerPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin, ClusterPlugin {
 
+    /**
+     * The name of the readable system index.
+     */
     public static final String READABLE_SYSTEM_INDEX_NAME = ".readable-system-index";
+
+    /**
+     * The name of the non-readable system index.
+     */
     public static final String NONREADABLE_SYSTEM_INDEX_NAME = ".nonreadable-system-index";
 
     /**
