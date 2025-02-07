@@ -13,9 +13,7 @@ setup:
         index: .readable-system-index
         id: 1
         refresh: true
-        body:
-          query:
-            match_all: { }
+        body: { "test": 1 }
 
 ---
 "Test that .readable-system-index does not output deprecation log on search":
@@ -31,3 +29,11 @@ setup:
           query:
             match_all: { }
   - match: { hits.total: 1 }
+
+  - do:
+      warnings: [ ]
+      headers: { "X-Opaque-Id": "get-request" }
+      get:
+        index: .readable-system-index
+        id: 1
+  - match: { _source.test: 1 }
