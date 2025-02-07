@@ -92,7 +92,7 @@ import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
-import org.opensearch.action.admin.indices.searchonly.SearchOnlyRequestBuilder;
+import org.opensearch.action.admin.indices.scale.searchonly.SearchOnlyRequestBuilder;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
@@ -870,8 +870,8 @@ public interface IndicesAdminClient extends OpenSearchClient {
     /**
      * Make one or more indices search only.
      *
-     * @param indices The indices to make search only
+     * @param index The index to make search only
      * @return The request builder
      */
-    SearchOnlyRequestBuilder prepareSearchOnly(String... indices);
+    SearchOnlyRequestBuilder prepareSearchOnly(String index);
 }

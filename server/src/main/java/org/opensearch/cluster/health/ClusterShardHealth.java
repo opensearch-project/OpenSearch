@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.health;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -113,7 +114,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     private int delayedUnassignedShards;
     private final boolean primaryActive;
 
-    public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable) {
+    public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable, final IndexMetadata indexMetadata) {
         this.shardId = shardId;
         int computeActiveShards = 0;
         int computeRelocatingShards = 0;
@@ -139,13 +140,13 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
             }
         }
         final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
-        this.status = getShardHealth(primaryRouting, computeActiveShards, shardRoutingTable.size());
+        this.status = getShardHealth(primaryRouting, computeActiveShards, shardRoutingTable.size(), indexMetadata);
         this.activeShards = computeActiveShards;
         this.relocatingShards = computeRelocatingShards;
         this.initializingShards = computeInitializingShards;
         this.unassignedShards = computeUnassignedShards;
         this.delayedUnassignedShards = computeDelayedUnassignedShards;
-        this.primaryActive = primaryRouting.active();
+        this.primaryActive = primaryRouting != null && primaryRouting.active();
     }
 
     public ClusterShardHealth(final StreamInput in) throws IOException {
@@ -230,9 +231,17 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
      *     Shard health is RED when the primary is not active.
      * </p>
      */
-    public static ClusterHealthStatus getShardHealth(final ShardRouting primaryRouting, final int activeShards, final int totalShards) {
-        // TO DO
-        // assert primaryRouting != null : "Primary shard routing can't be null";
+    public static ClusterHealthStatus getShardHealth(
+        final ShardRouting primaryRouting,
+        final int activeShards,
+        final int totalShards,
+        final IndexMetadata indexMetadata
+    ) {
+        if (primaryRouting == null) {
+            boolean isSearchOnlyEnabled = indexMetadata.getSettings()
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+            return isSearchOnlyEnabled ? ClusterHealthStatus.GREEN : ClusterHealthStatus.RED;
+        }
         if (primaryRouting.active()) {
             if (activeShards == totalShards) {
                 return ClusterHealthStatus.GREEN;
