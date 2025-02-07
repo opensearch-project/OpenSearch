@@ -14,26 +14,24 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.*;
-import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.List;
-
-import static org.opensearch.cluster.OpenSearchAllocationTestCase.createAllocationService;
 import static org.opensearch.cluster.routing.allocation.decider.Decision.Type.NO;
 import static org.opensearch.cluster.routing.allocation.decider.Decision.Type.YES;
 
 public class ShardsLimitAllocationDeciderTests extends OpenSearchTestCase {
 
-    public void testWithNoLimit(){
-        Settings settings = Settings.builder()
-            .build();
+    public void testWithNoLimit() {
+        Settings settings = Settings.builder().build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ShardsLimitAllocationDecider decider = new ShardsLimitAllocationDecider(settings, clusterSettings);
 
@@ -46,14 +44,11 @@ public class ShardsLimitAllocationDeciderTests extends OpenSearchTestCase {
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(metadata.index("test").getIndex());
 
         // Shard 0 and 1: STARTED on node1
-        indexRoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED));
-        indexRoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test", 1, "node1", null, true, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test", 1, "node1", null, true, ShardRoutingState.STARTED));
 
         // Shard 2: Unassigned
-        indexRoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test", 2, null, null, true, ShardRoutingState.UNASSIGNED));
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test", 2, null, null, true, ShardRoutingState.UNASSIGNED));
 
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         RoutingTable routingTable = routingTableBuilder.build();
@@ -78,9 +73,7 @@ public class ShardsLimitAllocationDeciderTests extends OpenSearchTestCase {
     }
 
     public void testClusterShardLimit() {
-        Settings settings = Settings.builder()
-            .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)
-            .build();
+        Settings settings = Settings.builder().put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ShardsLimitAllocationDecider decider = new ShardsLimitAllocationDecider(settings, clusterSettings);
 
@@ -93,14 +86,11 @@ public class ShardsLimitAllocationDeciderTests extends OpenSearchTestCase {
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(metadata.index("test").getIndex());
 
         // Shard 0 and 1: STARTED on node1
-        indexRoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED));
-        indexRoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test", 1, "node1", null, true, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test", 1, "node1", null, true, ShardRoutingState.STARTED));
 
         // Shard 2: Unassigned
-        indexRoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test", 2, null, null, true, ShardRoutingState.UNASSIGNED));
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test", 2, null, null, true, ShardRoutingState.UNASSIGNED));
 
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         RoutingTable routingTable = routingTableBuilder.build();
@@ -146,22 +136,16 @@ public class ShardsLimitAllocationDeciderTests extends OpenSearchTestCase {
 
         // Set up routing table for test1
         IndexRoutingTable.Builder test1RoutingTableBuilder = IndexRoutingTable.builder(metadata.index("test1").getIndex());
-        test1RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test1", 0, "node1", null, true, ShardRoutingState.STARTED));
-        test1RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test1", 1, null, null, true, ShardRoutingState.UNASSIGNED));
-        test1RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test1", 2, null, null, true, ShardRoutingState.UNASSIGNED));
+        test1RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test1", 0, "node1", null, true, ShardRoutingState.STARTED));
+        test1RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test1", 1, null, null, true, ShardRoutingState.UNASSIGNED));
+        test1RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test1", 2, null, null, true, ShardRoutingState.UNASSIGNED));
         routingTableBuilder.add(test1RoutingTableBuilder.build());
 
         // Set up routing table for test2
         IndexRoutingTable.Builder test2RoutingTableBuilder = IndexRoutingTable.builder(metadata.index("test2").getIndex());
-        test2RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test2", 0, "node2", null, true, ShardRoutingState.STARTED));
-        test2RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test2", 1, null, null, true, ShardRoutingState.UNASSIGNED));
-        test2RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test2", 2, null, null, true, ShardRoutingState.UNASSIGNED));
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 0, "node2", null, true, ShardRoutingState.STARTED));
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 1, null, null, true, ShardRoutingState.UNASSIGNED));
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 2, null, null, true, ShardRoutingState.UNASSIGNED));
         routingTableBuilder.add(test2RoutingTableBuilder.build());
 
         RoutingTable routingTable = routingTableBuilder.build();
@@ -212,31 +196,22 @@ public class ShardsLimitAllocationDeciderTests extends OpenSearchTestCase {
             .put(IndexMetadata.builder("test2").settings(indexSettingsTest2).numberOfShards(3).numberOfReplicas(0))
             .build();
 
-
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         // Set up routing table for test1
         IndexRoutingTable.Builder test1RoutingTableBuilder = IndexRoutingTable.builder(metadata.index("test1").getIndex());
-        test1RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test1", 0, "node1", null, true, ShardRoutingState.STARTED));
-        test1RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test1", 0, "node2", null, false, ShardRoutingState.STARTED));
-        test1RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test1", 1, null, null, true, ShardRoutingState.UNASSIGNED));
-        test1RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test1", 1, null, null, false, ShardRoutingState.UNASSIGNED));
+        test1RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test1", 0, "node1", null, true, ShardRoutingState.STARTED));
+        test1RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test1", 0, "node2", null, false, ShardRoutingState.STARTED));
+        test1RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test1", 1, null, null, true, ShardRoutingState.UNASSIGNED));
+        test1RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test1", 1, null, null, false, ShardRoutingState.UNASSIGNED));
         routingTableBuilder.add(test1RoutingTableBuilder.build());
 
         // Set up routing table for test2
         IndexRoutingTable.Builder test2RoutingTableBuilder = IndexRoutingTable.builder(metadata.index("test2").getIndex());
-        test2RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test2", 0, "node2", null, true, ShardRoutingState.STARTED));
-        test2RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test2", 0, "node1", null, false, ShardRoutingState.STARTED));
-        test2RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test2", 1, null, null, true, ShardRoutingState.UNASSIGNED));
-        test2RoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting("test2", 1, null, null, false, ShardRoutingState.UNASSIGNED));
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 0, "node2", null, true, ShardRoutingState.STARTED));
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 0, "node1", null, false, ShardRoutingState.STARTED));
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 1, null, null, true, ShardRoutingState.UNASSIGNED));
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 1, null, null, false, ShardRoutingState.UNASSIGNED));
         routingTableBuilder.add(test2RoutingTableBuilder.build());
 
         RoutingTable routingTable = routingTableBuilder.build();
@@ -267,4 +242,3 @@ public class ShardsLimitAllocationDeciderTests extends OpenSearchTestCase {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), Version.CURRENT);
     }
 }
-

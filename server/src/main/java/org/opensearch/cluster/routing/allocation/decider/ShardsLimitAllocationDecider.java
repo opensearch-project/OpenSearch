@@ -42,7 +42,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.function.BiPredicate;
@@ -140,8 +139,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Index index = shardRouting.index();
         int count = 0;
         for (ShardRouting shard : node) {
-            if (shard.index().equals(index) &&
-                shard.primary() && !shard.relocating()) {
+            if (shard.index().equals(index) && shard.primary() && !shard.relocating()) {
                 count++;
             }
         }
@@ -151,7 +149,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     /**
      * Checks whether the given shardRouting's index uses segment replication
      */
-    private boolean isIndexSegmentReplicationUsed(RoutingAllocation allocation, ShardRouting shardRouting){
+    private boolean isIndexSegmentReplicationUsed(RoutingAllocation allocation, ShardRouting shardRouting) {
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         Settings indexSettings = indexMetadata.getSettings();
         return IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexSettings) == ReplicationType.SEGMENT;
@@ -164,7 +162,9 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         BiPredicate<Integer, Integer> decider
     ) {
         final int indexShardLimit = allocation.metadata().getIndexSafe(shardRouting.index()).getIndexTotalShardsPerNodeLimit();
-        final int indexPrimaryShardLimit = allocation.metadata().getIndexSafe(shardRouting.index()).getIndexTotalPrimaryShardsPerNodeLimit();
+        final int indexPrimaryShardLimit = allocation.metadata()
+            .getIndexSafe(shardRouting.index())
+            .getIndexTotalPrimaryShardsPerNodeLimit();
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = this.clusterShardLimit;

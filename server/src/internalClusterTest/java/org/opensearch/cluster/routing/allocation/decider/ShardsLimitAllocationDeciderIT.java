@@ -10,26 +10,35 @@ package org.opensearch.cluster.routing.allocation.decider;
 
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.routing.*;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.*;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 3)
 public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     public void testClusterWideShardsLimit() {
@@ -37,20 +46,11 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
         updateClusterSetting(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 4);
 
         // Create the first two indices with 3 shards and 1 replica each
-        createIndex("test1", Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 3)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .build());
-        createIndex("test2", Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 3)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .build());
+        createIndex("test1", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
+        createIndex("test2", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
 
         // Create the third index with 2 shards and 1 replica
-        createIndex("test3", Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 2)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .build());
+        createIndex("test3", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
 
         // Wait for the shard limit to be applied
         try {
@@ -69,7 +69,7 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
                     assertTrue("Node exceeds shard limit", routingNode.numberOfOwningShards() <= 4);
                 }
             });
-        } catch(Exception e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
@@ -91,10 +91,7 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
             .put(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)
             .build();
 
-        Settings indexSettingsWithoutLimit = Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 4)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings indexSettingsWithoutLimit = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 4).put(SETTING_NUMBER_OF_REPLICAS, 1).build();
 
         // Create the first index with 4 shards, 1 replica, and the index-specific limit
         createIndex("test1", indexSettingsWithLimit);
@@ -103,10 +100,7 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
         createIndex("test2", indexSettingsWithoutLimit);
 
         // Create the third index with 3 shards and 1 replica, without the index-specific limit
-        createIndex("test3", Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 3)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .build());
+        createIndex("test3", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
 
         try {
             // Wait for the shard limit to be applied
@@ -165,16 +159,10 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
         createIndex("test1", indexSettingsWithLimit);
 
         // Create the second index with 4 shards and 1 replica
-        createIndex("test2", Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 4)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .build());
+        createIndex("test2", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 4).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
 
         // Create the third index with 3 shards and 1 replica
-        createIndex("test3", Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 3)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .build());
+        createIndex("test3", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
 
         try {
             assertBusy(() -> {
@@ -255,10 +243,7 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
             .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 1)
             .build();
 
-        Settings indexSettingsWithoutLimit = Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 4)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings indexSettingsWithoutLimit = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 4).put(SETTING_NUMBER_OF_REPLICAS, 1).build();
 
         // Create the first index with 4 shards, 1 replica, index-specific primary shard limit, and segment replication
         createIndex("test1", indexSettingsWithLimitAndSegmentReplication);
@@ -363,10 +348,7 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
             .build();
 
         // Fourth index settings
-        Settings fourthIndexSettings = Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 2)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings fourthIndexSettings = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 1).build();
 
         // Create indices
         createIndex("test1", firstIndexSettings);
@@ -432,8 +414,14 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
                 }
 
                 // Verify that test1 and test3 use segment replication
-                assertEquals(ReplicationType.SEGMENT, IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(state.metadata().index("test1").getSettings()));
-                assertEquals(ReplicationType.SEGMENT, IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(state.metadata().index("test3").getSettings()));
+                assertEquals(
+                    ReplicationType.SEGMENT,
+                    IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(state.metadata().index("test1").getSettings())
+                );
+                assertEquals(
+                    ReplicationType.SEGMENT,
+                    IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(state.metadata().index("test3").getSettings())
+                );
             });
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -441,8 +429,6 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
     }
 
     private void updateClusterSetting(String setting, int value) {
-        client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(setting, value))
-            .get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(setting, value)).get();
     }
 }
