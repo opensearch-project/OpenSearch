@@ -26,7 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.wlm.Rule.*;
+import static org.opensearch.wlm.Rule._ID_STRING;
+import static org.opensearch.wlm.Rule.MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING;
+import static org.opensearch.wlm.Rule.MAX_NUMBER_OF_VALUES_PER_ATTRIBUTE;
 
 public class RuleTests extends AbstractSerializingTestCase<Rule> {
     public static final String _ID = "AgfUfjw039vhdONlYi3TQ==";

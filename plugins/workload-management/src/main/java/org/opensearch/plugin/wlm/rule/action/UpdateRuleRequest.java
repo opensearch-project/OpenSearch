@@ -13,6 +13,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.wlm.Rule;
+import org.opensearch.wlm.Rule.RuleAttribute;
 import org.opensearch.wlm.Rule.Builder;
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -21,25 +22,33 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.plugin.wlm.querygroup.action.UpdateQueryGroupRequest;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
+
+import static org.opensearch.wlm.Rule.builder;
 
 /**
  * A request for update Rule
  * @opensearch.experimental
  */
 public class UpdateRuleRequest extends ClusterManagerNodeRequest<UpdateRuleRequest> {
-//    private final String _id;
-//    private final Map<Rule.RuleAttribute, List<String>> attributeMap;
-//    private final String label;
-    private Rule rule;
+    private final String _id;
+    private final Map<RuleAttribute, Set<String>> attributeMap;
+    private final String label;
 
     /**
      * Constructor for UpdateRuleRequest
-     * @param rule - A {@link Rule} object
+     * @param _id - Id for the Rule
+     * @param attributeMap - attributeMap for the Rule
+     * @param label - label for the Rule
      */
-    UpdateRuleRequest(Rule rule) {
-        this.rule = rule;
+    public UpdateRuleRequest(String _id, Map<RuleAttribute, Set<String>> attributeMap, String label) throws IOException {
+        this._id = _id;
+        this.attributeMap = attributeMap;
+        this.label = label;
     }
 
     /**
@@ -47,8 +56,7 @@ public class UpdateRuleRequest extends ClusterManagerNodeRequest<UpdateRuleReque
      * @param in - A {@link StreamInput} object
      */
     UpdateRuleRequest(StreamInput in) throws IOException {
-        super(in);
-        rule = new Rule(in);
+        this(in.readString(), in.readMap((i) -> RuleAttribute.fromName(i.readString()), i -> new HashSet<>(i.readStringList())), in.readString());
     }
 
     /**
@@ -60,7 +68,7 @@ public class UpdateRuleRequest extends ClusterManagerNodeRequest<UpdateRuleReque
         if (builder.getLabel() == null) {
             builder.label(""); //TODO: check
         }
-        return new UpdateRuleRequest(builder.updatedAt(Instant.now().toString()).build());
+        return new UpdateRuleRequest(_id, builder().getAttributeMap(), null);
     }
 
     @Override
@@ -71,13 +79,13 @@ public class UpdateRuleRequest extends ClusterManagerNodeRequest<UpdateRuleReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        rule.writeTo(out);
+        //rule.writeTo(out);
     }
 
     /**
      * Rule getter
      */
     public Rule getRule() {
-        return rule;
+        return null;
     }
 }

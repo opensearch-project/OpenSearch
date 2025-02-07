@@ -29,8 +29,10 @@ import java.util.Set;
 import static org.opensearch.cluster.metadata.QueryGroup.isValid;
 
 /**
- * The class defines the Rule schema and represents a Rule in the system for automatic query tagging.
- * The rules are evaluated against queries to automatically apply relevant tags based on matching attribute patterns.
+ * Represents a rule schema used for automatic query tagging in the system.
+ * This class encapsulates the criteria (defined through attributes) for automatically applying relevant
+ * tags to queries based on matching attribute patterns. This class provides an in-memory representation
+ * of a rule. The indexed view may differ in representation.
  * {
  *     "_id": "fwehf8302582mglfio349==",
  *     "index_pattern": ["logs123", "user*"],
@@ -51,18 +53,7 @@ public class Rule implements Writeable, ToXContentObject {
 
     public Rule(Map<RuleAttribute, Set<String>> attributeMap, String label, String updatedAt, Feature feature) {
         ValidationException validationException = new ValidationException();
-        if (feature == null) {
-            validationException.addValidationError("Couldn't identify which feature the rule belongs to. Rule feature name can't be null.");
-        }
-        requireNonNullOrEmpty(label, feature.getName() + " value can't be null or empty", validationException);
-        requireNonNullOrEmpty(updatedAt, "Rule update time can't be null or empty", validationException);
-        if (attributeMap == null || attributeMap.isEmpty()) {
-            validationException.addValidationError("Rule should have at least 1 attribute requirement");
-        }
-        if (!isValid(Instant.parse(updatedAt).getMillis())) {
-            validationException.addValidationError("Rule update time is not a valid epoch");
-        }
-        validatedAttributeMap(attributeMap, feature, validationException);
+        validateRuleInputs(attributeMap, label, updatedAt, feature, validationException);
         if (!validationException.validationErrors().isEmpty()) {
             throw new IllegalArgumentException(validationException);
         }
@@ -88,7 +79,25 @@ public class Rule implements Writeable, ToXContentObject {
         }
     }
 
-    public static void validatedAttributeMap(Map<RuleAttribute, Set<String>> attributeMap, Feature feature, ValidationException validationException) {
+    public static void validateRuleInputs(Map<RuleAttribute, Set<String>> attributeMap, String label, String updatedAt,
+                                Feature feature, ValidationException validationException) {
+        if (feature == null) {
+            validationException.addValidationError("Couldn't identify which feature the rule belongs to. Rule feature name can't be null.");
+        }
+        requireNonNullOrEmpty(label, "Rule label can't be null or empty", validationException);
+        requireNonNullOrEmpty(updatedAt, "Rule update time can't be null or empty", validationException);
+        if (attributeMap == null || attributeMap.isEmpty()) {
+            validationException.addValidationError("Rule should have at least 1 attribute requirement");
+        }
+        if (updatedAt != null && !isValid(Instant.parse(updatedAt).getMillis())) {
+            validationException.addValidationError("Rule update time is not a valid epoch");
+        }
+        if (attributeMap != null && feature != null) {
+            validateAttributeMap(attributeMap, feature, validationException);
+        }
+    }
+
+    public static void validateAttributeMap(Map<RuleAttribute, Set<String>> attributeMap, Feature feature, ValidationException validationException) {
         for (Map.Entry<RuleAttribute, Set<String>> entry : attributeMap.entrySet()) {
             RuleAttribute ruleAttribute = entry.getKey();
             Set<String> attributeValues = entry.getValue();
@@ -101,12 +110,9 @@ public class Rule implements Writeable, ToXContentObject {
                 );
             }
             for (String attributeValue : attributeValues) {
-                if (attributeValue.isEmpty()) {
-                    validationException.addValidationError("Attribute value should not be an empty string");
-                }
-                if (attributeValue.length() > MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING) {
+                if (attributeValue.isEmpty() || attributeValue.length() > MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING) {
                     validationException.addValidationError(
-                        "Attribute value can only have a maximum of 100 characters. The input " + attributeValue + " exceeds this limit."
+                        "Attribute value [" + attributeValue + "] is invalid (empty or exceeds 100 characters)"
                     );
                 }
             }
@@ -267,7 +273,6 @@ public class Rule implements Writeable, ToXContentObject {
             if (parser.currentToken() == null) {
                 parser.nextToken();
             }
-
             Builder builder = builder();
             XContentParser.Token token = parser.currentToken();
 
@@ -289,19 +294,23 @@ public class Rule implements Writeable, ToXContentObject {
                         throw new IllegalArgumentException(fieldName + " is not a valid field in Rule");
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    RuleAttribute ruleAttribute = RuleAttribute.fromName(fieldName);
-                    Set<String> indexPatternList = new HashSet<>();
-                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                            indexPatternList.add(parser.text());
-                        } else {
-                            throw new XContentParseException("Unexpected token in array: " + parser.currentToken());
-                        }
-                    }
-                    attributeMap1.put(ruleAttribute, indexPatternList);
+                    fromXContentParseArray(parser, fieldName, attributeMap1);
                 }
             }
             return builder.attributeMap(attributeMap1);
+        }
+
+        public static void fromXContentParseArray(XContentParser parser, String fieldName, Map<RuleAttribute, Set<String>> attributeMap) throws IOException {
+            RuleAttribute ruleAttribute = RuleAttribute.fromName(fieldName);
+            Set<String> attributeValueSet = new HashSet<>();
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    attributeValueSet.add(parser.text());
+                } else {
+                    throw new XContentParseException("Unexpected token in array: " + parser.currentToken());
+                }
+            }
+            attributeMap.put(ruleAttribute, attributeValueSet);
         }
 
         public Builder label(String label) {
@@ -330,6 +339,10 @@ public class Rule implements Writeable, ToXContentObject {
 
         public String getLabel() {
             return label;
+        }
+
+        public Map<RuleAttribute, Set<String>> getAttributeMap() {
+            return attributeMap;
         }
     }
 }
