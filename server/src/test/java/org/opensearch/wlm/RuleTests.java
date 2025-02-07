@@ -26,16 +26,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.wlm.Rule.featureAlloedAttributesMap;
+import static org.opensearch.wlm.Rule.MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING;
+import static org.opensearch.wlm.Rule.MAX_NUMBER_OF_VALUES_PER_ATTRIBUTE;
+import static org.opensearch.wlm.Rule._ID_STRING;
 
 public class RuleTests extends AbstractSerializingTestCase<Rule> {
     public static final String _ID = "AgfUfjw039vhdONlYi3TQ==";
     public static final String LABEL = "label";
 
-    static Rule createRandomRule(String _id, String label) {
+    static Rule createRandomRule(String label) {
         Feature feature = randomFeature();
         return Rule.builder()
-            ._id(_id)
             .label(label)
             .feature(feature.getName())
             .attributeMap(randomAttributeMaps(feature))
@@ -52,7 +53,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         if (feature == null) {
             return attributeMap;
         }
-        List<RuleAttribute> allowedAttributes = new ArrayList<>(featureAlloedAttributesMap.get(feature));
+        List<RuleAttribute> allowedAttributes = new ArrayList<>(feature.getAllowedAttributes());
         do {
             attributeMap.clear();
             for (RuleAttribute currAttribute : allowedAttributes) {
@@ -66,9 +67,9 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
 
     private static Set<String> randomAttributeValues() {
         Set<String> res = new HashSet<>();
-        int numberOfValues = randomIntBetween(1, 10);
+        int numberOfValues = randomIntBetween(1, MAX_NUMBER_OF_VALUES_PER_ATTRIBUTE);
         for (int i = 0; i < numberOfValues; i++) {
-            res.add(randomAlphaOfLength(randomIntBetween(1, 100)));
+            res.add(randomAlphaOfLength(randomIntBetween(1, MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING)));
         }
         return res;
     }
@@ -85,69 +86,56 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
 
     @Override
     protected Rule createTestInstance() {
-        return createRandomRule(_ID, LABEL);
+        return createRandomRule(LABEL);
     }
 
-    static Rule buildRule(String _id, String label, String feature, Map<RuleAttribute, Set<String>> attributeListMap, String updatedAt) {
-        return Rule.builder()._id(_id).label(label).feature(feature).attributeMap(attributeListMap).updatedAt(updatedAt).build();
-    }
-
-    public void testInvalidId() {
-        assertThrows(IllegalArgumentException.class, () -> createRandomRule(null, LABEL));
-        assertThrows(IllegalArgumentException.class, () -> createRandomRule("", LABEL));
+    static Rule buildRule(String label, String feature, Map<RuleAttribute, Set<String>> attributeListMap, String updatedAt) {
+        return Rule.builder().label(label).feature(feature).attributeMap(attributeListMap).updatedAt(updatedAt).build();
     }
 
     public void testInvalidFeature() {
+        assertThrows(IllegalArgumentException.class, () -> buildRule(LABEL, null, randomAttributeMaps(null), Instant.now().toString()));
         assertThrows(
             IllegalArgumentException.class,
-            () -> buildRule(_ID, LABEL, null, randomAttributeMaps(null), Instant.now().toString())
-        );
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> buildRule(_ID, LABEL, "invalid", randomAttributeMaps(null), Instant.now().toString())
+            () -> buildRule(LABEL, "invalid", randomAttributeMaps(null), Instant.now().toString())
         );
     }
 
     public void testInvalidLabel() {
-        assertThrows(IllegalArgumentException.class, () -> createRandomRule(_ID, null));
-        assertThrows(IllegalArgumentException.class, () -> createRandomRule(_ID, ""));
+        assertThrows(IllegalArgumentException.class, () -> createRandomRule(null));
+        assertThrows(IllegalArgumentException.class, () -> createRandomRule(""));
     }
 
     public void testInvalidUpdateTime() {
         Feature feature = randomFeature();
-        assertThrows(IllegalArgumentException.class, () -> buildRule(_ID, LABEL, feature.toString(), randomAttributeMaps(feature), null));
+        assertThrows(IllegalArgumentException.class, () -> buildRule(LABEL, feature.toString(), randomAttributeMaps(feature), null));
     }
 
     public void testNullOrEmptyAttributeMap() {
         Feature feature = randomFeature();
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> buildRule(_ID, LABEL, feature.toString(), new HashMap<>(), Instant.now().toString())
-        );
-        assertThrows(IllegalArgumentException.class, () -> buildRule(_ID, LABEL, feature.toString(), null, Instant.now().toString()));
+        assertThrows(IllegalArgumentException.class, () -> buildRule(LABEL, feature.toString(), new HashMap<>(), Instant.now().toString()));
+        assertThrows(IllegalArgumentException.class, () -> buildRule(LABEL, feature.toString(), null, Instant.now().toString()));
     }
 
     public void testInvalidAttributeMap() {
         Map<RuleAttribute, Set<String>> map = new HashMap<>();
         map.put(RuleAttribute.INDEX_PATTERN, Set.of(""));
-        assertThrows(IllegalArgumentException.class, () -> buildRule(_ID, LABEL, randomFeature().getName(), map, Instant.now().toString()));
+        assertThrows(IllegalArgumentException.class, () -> buildRule(LABEL, randomFeature().getName(), map, Instant.now().toString()));
 
-        map.put(RuleAttribute.INDEX_PATTERN, Set.of(randomAlphaOfLength(101)));
-        assertThrows(IllegalArgumentException.class, () -> buildRule(_ID, LABEL, randomFeature().getName(), map, Instant.now().toString()));
+        map.put(RuleAttribute.INDEX_PATTERN, Set.of(randomAlphaOfLength(MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING + 1)));
+        assertThrows(IllegalArgumentException.class, () -> buildRule(LABEL, randomFeature().getName(), map, Instant.now().toString()));
 
         map.put(RuleAttribute.INDEX_PATTERN, new HashSet<>());
-        for (int i = 0; i < 11; i++) {
+        for (int i = 0; i < MAX_NUMBER_OF_VALUES_PER_ATTRIBUTE + 1; i++) {
             map.get(RuleAttribute.INDEX_PATTERN).add(String.valueOf(i));
         }
-        assertThrows(IllegalArgumentException.class, () -> buildRule(_ID, LABEL, randomFeature().getName(), map, Instant.now().toString()));
+        assertThrows(IllegalArgumentException.class, () -> buildRule(LABEL, randomFeature().getName(), map, Instant.now().toString()));
     }
 
     public void testValidRule() {
         Map<RuleAttribute, Set<String>> map = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("index*", "log*"));
         String updatedAt = Instant.now().toString();
-        Rule rule = buildRule(_ID, LABEL, Feature.QUERY_GROUP.getName(), map, updatedAt);
-        assertNotNull(rule.get_id());
-        assertEquals(_ID, rule.get_id());
+        Rule rule = buildRule(LABEL, Feature.QUERY_GROUP.getName(), map, updatedAt);
         assertNotNull(rule.getLabel());
         assertEquals(LABEL, rule.getLabel());
         assertNotNull(updatedAt);
@@ -162,10 +150,10 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
     public void testToXContent() throws IOException {
         Map<RuleAttribute, Set<String>> map = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("log*"));
         String updatedAt = Instant.now().toString();
-        Rule rule = buildRule(_ID, LABEL, Feature.QUERY_GROUP.getName(), map, updatedAt);
+        Rule rule = buildRule(LABEL, Feature.QUERY_GROUP.getName(), map, updatedAt);
 
         XContentBuilder builder = JsonXContent.contentBuilder();
-        rule.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        rule.toXContent(builder, new ToXContent.MapParams(Map.of(_ID_STRING, _ID)));
 
         assertEquals(
             "{\"_id\":\"" + _ID + "\",\"index_pattern\":[\"log*\"],\"query_group\":\"label\",\"updated_at\":\"" + updatedAt + "\"}",
