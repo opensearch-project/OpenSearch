@@ -378,6 +378,7 @@ public class LeaderChecker {
         void handleDisconnectedNode(DiscoveryNode discoveryNode) {
             if (discoveryNode.equals(leader)) {
                 logger.debug("leader [{}] disconnected", leader);
+                clusterManagerMetrics.incrementCounter(clusterManagerMetrics.leaderCheckAttemptFailureCounter, 1.0);
                 leaderFailed(new NodeDisconnectedException(discoveryNode, "disconnected"));
             }
         }

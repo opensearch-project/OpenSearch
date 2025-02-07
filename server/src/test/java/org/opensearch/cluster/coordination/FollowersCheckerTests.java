@@ -88,6 +88,7 @@ import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.opensearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
+import static org.opensearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -126,7 +127,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final TransportService transportService = mockTransport.createTransportService(
             settings,
             deterministicTaskQueue.getThreadPool(),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode,
             null,
             emptySet(),
@@ -273,6 +274,10 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             metricsRegistry
         );
         assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
+        assertEquals(
+            Integer.valueOf(2),
+            metricsRegistry.getCounterStore().get("followers.checker.attempt.failure.count").getCounterValue()
+        );
     }
 
     public void testFailsNodeThatDisconnects() {
@@ -307,7 +312,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final TransportService transportService = mockTransport.createTransportService(
             settings,
             deterministicTaskQueue.getThreadPool(),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode,
             null,
             emptySet(),
@@ -341,6 +346,10 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         assertTrue(nodeFailed.get());
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
         assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
+        assertEquals(
+            Integer.valueOf(1),
+            metricsRegistry.getCounterStore().get("followers.checker.attempt.failure.count").getCounterValue()
+        );
     }
 
     public void testFailsNodeThatIsUnhealthy() {
@@ -403,7 +412,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final TransportService transportService = mockTransport.createTransportService(
             settings,
             deterministicTaskQueue.getThreadPool(),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode,
             null,
             emptySet(),
@@ -510,7 +519,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final TransportService transportService = mockTransport.createTransportService(
             settings,
             deterministicTaskQueue.getThreadPool(),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> follower,
             null,
             emptySet(),
@@ -587,7 +596,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final TransportService transportService = mockTransport.createTransportService(
             settings,
             deterministicTaskQueue.getThreadPool(),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> follower,
             null,
             emptySet(),
@@ -748,7 +757,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         TransportService transportService = capturingTransport.createTransportService(
             Settings.EMPTY,
             deterministicTaskQueue.getThreadPool(),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            NOOP_TRANSPORT_INTERCEPTOR,
             x -> nodes.get(0),
             null,
             emptySet(),
@@ -768,6 +777,83 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         List<DiscoveryNode> sortedFollowerTargets = new ArrayList<>(followerTargets);
         Collections.sort(sortedFollowerTargets, Comparator.comparing(n -> n.isClusterManagerNode() == false));
         assertEquals(sortedFollowerTargets, followerTargets);
+    }
+
+    public void testFollowerCheckerAttemptFailureCountMetric() {
+        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode follower = new DiscoveryNode("follower", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        AtomicBoolean followerCheckerAttemptFailedOnce = new AtomicBoolean();
+        final MockTransport mockTransport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                    handleResponse(requestId, new TransportService.HandshakeResponse(node, ClusterName.DEFAULT, Version.CURRENT));
+                    return;
+                }
+                assertThat(action, equalTo(FOLLOWER_CHECK_ACTION_NAME));
+                assertEquals(node, follower);
+
+                deterministicTaskQueue.scheduleNow(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (followerCheckerAttemptFailedOnce.compareAndSet(false, true)) {
+                            handleRemoteError(requestId, new OpenSearchException("simulated error"));
+                        } else {
+                            handleResponse(requestId, Empty.INSTANCE);
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "response to request " + requestId;
+                    }
+                });
+            }
+        };
+
+        final TransportService transportService = mockTransport.createTransportService(
+            settings,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet(),
+            NoopTracer.INSTANCE
+        );
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final AtomicBoolean followerFailed = new AtomicBoolean();
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
+        final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
+        final FollowersChecker followersChecker = new FollowersChecker(
+            settings,
+            clusterSettings,
+            transportService,
+            fcr -> { assert false : fcr; },
+            (node, reason) -> {
+                assertThat(reason, equalTo("disconnected"));
+                assertTrue(followerFailed.compareAndSet(false, true));
+            },
+            () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"),
+            clusterManagerMetrics
+        );
+
+        followersChecker.setCurrentNodes(DiscoveryNodes.builder().add(localNode).add(follower).localNodeId(localNode.getId()).build());
+
+        deterministicTaskQueue.advanceTime();
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertFalse(followerFailed.get());
+        assertEquals(Integer.valueOf(0), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
+        assertEquals(
+            Integer.valueOf(1),
+            metricsRegistry.getCounterStore().get("followers.checker.attempt.failure.count").getCounterValue()
+        );
     }
 
     private static List<DiscoveryNode> randomNodes(final int numNodes) {

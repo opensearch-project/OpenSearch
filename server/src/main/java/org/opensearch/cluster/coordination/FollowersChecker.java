@@ -308,6 +308,7 @@ public class FollowersChecker {
         FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
         if (followerChecker != null) {
             logger.info(() -> new ParameterizedMessage("{} disconnected", followerChecker));
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerCheckAttemptFailureCounter, 1.0);
             followerChecker.failNode("disconnected");
         }
     }
