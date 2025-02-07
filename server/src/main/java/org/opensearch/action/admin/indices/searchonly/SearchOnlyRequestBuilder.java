@@ -2,8 +2,8 @@ package org.opensearch.action.admin.indices.searchonly;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 @PublicApi(since = "1.0.0")
 public class SearchOnlyRequestBuilder extends ActionRequestBuilder<SearchOnlyRequest, AcknowledgedResponse> {

@@ -53,21 +53,21 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction<SearchOnlyRequest, AcknowledgedResponse> {
+
     private static final Logger logger = LogManager.getLogger(TransportSearchOnlyAction.class);
-    private final AllocationService allocationService;
-    private final IndicesService indicesService;
     public static final String NAME = SearchOnlyAction.NAME + "[s]";
 
-    /**
-     * Block IDs for scaling operations (20-29):
-     * 20: INDEX_SEARCHONLY_BLOCK_ID - Block writes during index scaling
-     * 21-29: Reserved for future scaling operations
-     */
+    private final AllocationService allocationService;
+    private final IndicesService indicesService;
+    private final TransportService transportService;
+
+    // Block ID and block for scale operations (IDs 20-29 reserved for scaling)
     public static final int INDEX_SEARCHONLY_BLOCK_ID = 20;
     public static final ClusterBlock INDEX_SEARCHONLY_BLOCK = new ClusterBlock(
         INDEX_SEARCHONLY_BLOCK_ID,
@@ -100,25 +100,13 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         );
         this.allocationService = allocationService;
         this.indicesService = indicesService;
+        this.transportService = transportService;
 
         transportService.registerRequestHandler(
             NAME,
             ThreadPool.Names.SAME,
             NodeSearchOnlyRequest::new,
             (request, channel, task) -> handleShardSyncRequest(request, channel)
-        );
-    }
-
-    private static ClusterBlock createScaleBlock() {
-        return new ClusterBlock(
-            INDEX_SEARCHONLY_BLOCK_ID,
-            UUIDs.randomBase64UUID(),
-            "index preparing to scale down",
-            false,
-            false,
-            false,
-            RestStatus.FORBIDDEN,
-            EnumSet.of(ClusterBlockLevel.WRITE)
         );
     }
 
@@ -137,13 +125,16 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), request.indices());
 
         if (request.isScaleDown()) {
-            addBlockAndScaleDown(concreteIndices, listener);
+            submitScaleDownTask(concreteIndices, listener);
         } else {
-            scaleUp(concreteIndices, state, listener);
+            submitScaleUpTask(concreteIndices, state, listener);
         }
     }
 
-    private void addBlockAndScaleDown(final String[] indices, final ActionListener<AcknowledgedResponse> listener) {
+    /**
+     * Submits the scale-down update task: it first adds a temporary block to the indices and then initiates shard synchronization.
+     */
+    private void submitScaleDownTask(final String[] indices, final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask(
             "add-block-index-to-scale " + Arrays.toString(indices),
             new ClusterStateUpdateTask(Priority.URGENT) {
@@ -151,25 +142,14 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
+                    // Validate prerequisites for each index
                     for (String index : indices) {
                         IndexMetadata indexMetadata = currentState.metadata().index(index);
                         if (!validateScalePrerequisites(indexMetadata, index, listener, true)) {
                             return currentState;
                         }
                     }
-
-                    final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-                    final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                    final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
-
-                    for (String indexName : indices) {
-                        Index index = currentState.metadata().index(indexName).getIndex();
-                        ClusterBlock scaleBlock = createScaleBlock();
-                        blocks.addIndexBlock(indexName, scaleBlock);
-                        blockedIndices.put(index, scaleBlock);
-                    }
-
-                    return ClusterState.builder(currentState).metadata(metadata).blocks(blocks).routingTable(routingTable.build()).build();
+                    return buildScaleDownState(currentState, indices, blockedIndices);
                 }
 
                 @Override
@@ -178,15 +158,14 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
                         listener.onResponse(new AcknowledgedResponse(true));
                         return;
                     }
-
+                    // Gather primary shard assignments
                     Map<ShardId, String> primaryShardsNodes = new HashMap<>();
                     for (String index : indices) {
                         IndexMetadata indexMetadata = newState.metadata().index(index);
                         if (indexMetadata != null) {
-                            primaryShardsNodes.putAll(getPrimaryShardNodeAssignments(indexMetadata, newState));
+                            primaryShardsNodes.putAll(getPrimaryShardAssignments(indexMetadata, newState));
                         }
                     }
-
                     proceedWithScaleDown(indices, primaryShardsNodes, blockedIndices, listener);
                 }
 
@@ -198,54 +177,55 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         );
     }
 
-    private void handleShardSyncRequest(NodeSearchOnlyRequest request, TransportChannel channel) throws Exception {
-        logger.info("Handling shard sync request");
-        final ClusterState state = clusterService.state();
-        final IndexMetadata indexMetadata = state.metadata().index(request.getIndex());
-        if (indexMetadata == null) {
-            throw new IllegalStateException("Index " + request.getIndex() + " not found");
+    /**
+     * Builds the new cluster state by adding a temporary scale-down block on each target index.
+     */
+    private ClusterState buildScaleDownState(ClusterState currentState, String[] indices, Map<Index, ClusterBlock> blockedIndices) {
+        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+
+        for (String indexName : indices) {
+            Index index = currentState.metadata().index(indexName).getIndex();
+            ClusterBlock scaleBlock = createScaleDownBlock();
+            blocksBuilder.addIndexBlock(indexName, scaleBlock);
+            blockedIndices.put(index, scaleBlock);
         }
-
-        IndexService indexService = indicesService.indexService(indexMetadata.getIndex());
-        if (indexService == null) {
-            throw new IllegalStateException("IndexService not found for index " + request.getIndex());
-        }
-
-        List<ShardSearchOnlyResponse> shardResponses = new ArrayList<>();
-        for (ShardId shardId : request.getShardIds()) {
-            IndexShard shard = indexService.getShardOrNull(shardId.id());
-            if (shard == null) continue;
-
-            logger.info("Doing final Sync before closing shard");
-            shard.sync();
-            logger.info("Doing final Flush before closing shard");
-            shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
-
-            if (shard.translogStats().getUncommittedOperations() > 0) {
-                logger.info(
-                    "Translog has {} uncommitted operations before closing shard [{}]",
-                    shard.translogStats().getUncommittedOperations(),
-                    shard.shardId()
-                );
-                throw new IllegalStateException(
-                    String.format(
-                        "Shard [%s] still has %d uncommitted operations after flush. Please wait and retry the scale down operation.",
-                        shard.shardId(),
-                        shard.translogStats().getUncommittedOperations()
-                    )
-                );
-            }
-
-            shard.waitForRemoteStoreSync();
-
-            shardResponses.add(
-                new ShardSearchOnlyResponse(shardId, shard.isSyncNeeded(), shard.translogStats().getUncommittedOperations())
-            );
-        }
-
-        channel.sendResponse(new NodeSearchOnlyResponse(clusterService.localNode(), shardResponses));
+        return ClusterState.builder(currentState)
+            .metadata(metadataBuilder)
+            .blocks(blocksBuilder)
+            .routingTable(routingTableBuilder.build())
+            .build();
     }
 
+    /**
+     * Returns a new temporary scale-down block.
+     */
+    private static ClusterBlock createScaleDownBlock() {
+        return new ClusterBlock(
+            INDEX_SEARCHONLY_BLOCK_ID,
+            UUIDs.randomBase64UUID(),
+            "index preparing to scale down",
+            false,
+            false,
+            false,
+            RestStatus.FORBIDDEN,
+            EnumSet.of(ClusterBlockLevel.WRITE)
+        );
+    }
+
+    /**
+     * For each primary shard, groups the shard IDs by the node ID to which the primary is assigned
+     */
+    private Map<String, List<ShardId>> groupShardsByNode(Map<ShardId, String> primaryShardsNodes) {
+        return primaryShardsNodes.entrySet()
+            .stream()
+            .collect(Collectors.groupingBy(Map.Entry::getValue, Collectors.mapping(Map.Entry::getKey, Collectors.toList())));
+    }
+
+    /**
+     * Sends shard sync requests to each node that holds a primary shard.
+     */
     private void proceedWithScaleDown(
         String[] indices,
         Map<ShardId, String> primaryShardsNodes,
@@ -256,10 +236,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
             listener.onFailure(new IllegalStateException("No primary shards found for indices"));
             return;
         }
-
-        Map<String, List<ShardId>> nodeShardGroups = primaryShardsNodes.entrySet()
-            .stream()
-            .collect(Collectors.groupingBy(Map.Entry::getValue, Collectors.mapping(Map.Entry::getKey, Collectors.toList())));
+        final Map<String, List<ShardId>> nodeShardGroups = groupShardsByNode(primaryShardsNodes);
 
         final GroupedActionListener<NodeSearchOnlyResponse> groupedListener = new GroupedActionListener<>(
             ActionListener.wrap(
@@ -272,16 +249,15 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
             nodeShardGroups.size()
         );
 
-        for (Map.Entry<String, List<ShardId>> nodeShards : nodeShardGroups.entrySet()) {
-            final String nodeId = nodeShards.getKey();
-            final List<ShardId> shards = nodeShards.getValue();
-
+        // Send a sync request to each node
+        for (Map.Entry<String, List<ShardId>> entry : nodeShardGroups.entrySet()) {
+            final String nodeId = entry.getKey();
+            final List<ShardId> shards = entry.getValue();
             final DiscoveryNode targetNode = clusterService.state().nodes().get(nodeId);
             if (targetNode == null) {
                 groupedListener.onFailure(new IllegalStateException("Node [" + nodeId + "] not found"));
                 continue;
             }
-
             transportService.sendRequest(
                 targetNode,
                 NAME,
@@ -311,6 +287,10 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         }
     }
 
+    /**
+     * Finalizes scale-down by updating the metadata and routing table:
+     * removes the temporary block and adds a permanent search-only block.
+     */
     private void finalizeScaleDown(
         String[] indices,
         Map<Index, ClusterBlock> blockedIndices,
@@ -319,52 +299,56 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         clusterService.submitStateUpdateTask("finalize-scale-down", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
-                Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+                ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
 
                 for (Map.Entry<Index, ClusterBlock> entry : blockedIndices.entrySet()) {
                     Index index = entry.getKey();
-                    blocks.removeIndexBlockWithId(index.getName(), INDEX_SEARCHONLY_BLOCK_ID);
+                    String indexName = index.getName();
+                    // Remove temporary scale-down block
+                    blocksBuilder.removeIndexBlockWithId(indexName, INDEX_SEARCHONLY_BLOCK_ID);
 
+                    // Update index metadata: set search-only flag and update settings version
                     IndexMetadata indexMetadata = currentState.metadata().index(index);
-                    Settings updatedSettings = Settings.builder()
-                        .put(indexMetadata.getSettings())
-                        .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), true)
-                        .build();
-
-                    metadata.put(
-                        IndexMetadata.builder(indexMetadata)
-                            .settings(updatedSettings)
-                            .settingsVersion(indexMetadata.getSettingsVersion() + 1)
-                    );
-
-                    blocks.addIndexBlock(index.getName(), INDEX_SEARCHONLY_BLOCK);
+                    if (indexMetadata != null) {
+                        Settings updatedSettings = Settings.builder()
+                            .put(indexMetadata.getSettings())
+                            .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), true)
+                            .build();
+                        metadataBuilder.put(
+                            IndexMetadata.builder(indexMetadata)
+                                .settings(updatedSettings)
+                                .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                        );
+                    }
+                    // Add permanent search-only block
+                    blocksBuilder.addIndexBlock(indexName, INDEX_SEARCHONLY_BLOCK);
                 }
 
-                for (String index : indices) {
-                    IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
-                    if (indexRoutingTable == null) continue;
-
+                // Optionally update routing table to keep only search replicas
+                for (String indexName : indices) {
+                    IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexName);
+                    if (indexRoutingTable == null) {
+                        continue;
+                    }
                     IndexRoutingTable.Builder indexBuilder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
-
-                    // Keep only search replicas in the routing table
                     for (IndexShardRoutingTable shardTable : indexRoutingTable) {
                         IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(shardTable.shardId());
-
                         for (ShardRouting shardRouting : shardTable) {
                             if (shardRouting.isSearchOnly()) {
                                 shardBuilder.addShard(shardRouting);
                             }
                         }
-
                         indexBuilder.addIndexShard(shardBuilder.build());
                     }
-
-                    routingTable.add(indexBuilder.build());
+                    routingTableBuilder.add(indexBuilder.build());
                 }
-
-                return ClusterState.builder(currentState).metadata(metadata).blocks(blocks).routingTable(routingTable.build()).build();
+                return ClusterState.builder(currentState)
+                    .metadata(metadataBuilder)
+                    .blocks(blocksBuilder)
+                    .routingTable(routingTableBuilder.build())
+                    .build();
             }
 
             @Override
@@ -379,6 +363,51 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         });
     }
 
+    /**
+     * Handles an incoming shard sync request from another node.
+     */
+    private void handleShardSyncRequest(NodeSearchOnlyRequest request, TransportChannel channel) throws Exception {
+        logger.info("Handling shard sync request");
+        ClusterState state = clusterService.state();
+        IndexMetadata indexMetadata = state.metadata().index(request.getIndex());
+        if (indexMetadata == null) {
+            throw new IllegalStateException("Index " + request.getIndex() + " not found");
+        }
+        IndexService indexService = indicesService.indexService(indexMetadata.getIndex());
+        if (indexService == null) {
+            throw new IllegalStateException("IndexService not found for index " + request.getIndex());
+        }
+
+        List<ShardSearchOnlyResponse> shardResponses = new ArrayList<>();
+        for (ShardId shardId : request.getShardIds()) {
+            IndexShard shard = indexService.getShardOrNull(shardId.id());
+            if (shard == null) {
+                continue;
+            }
+            logger.info("Performing final sync and flush for shard {}", shard.shardId());
+            shard.sync();
+            shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+
+            if (shard.translogStats().getUncommittedOperations() > 0) {
+                String errorMsg = String.format(
+                    Locale.ROOT,
+                    "Shard [%s] still has %d uncommitted operations after flush. Please wait and retry the scale down operation.",
+                    shard.shardId(),
+                    shard.translogStats().getUncommittedOperations()
+                );
+                throw new IllegalStateException(errorMsg);
+            }
+            shard.waitForRemoteStoreSync();
+            shardResponses.add(
+                new ShardSearchOnlyResponse(shardId, shard.isSyncNeeded(), shard.translogStats().getUncommittedOperations())
+            );
+        }
+        channel.sendResponse(new NodeSearchOnlyResponse(clusterService.localNode(), shardResponses));
+    }
+
+    /**
+     * Aggregates node responses and verifies that no shard reports uncommitted operations or a pending sync.
+     */
     private void handleNodeResponses(Collection<NodeSearchOnlyResponse> responses, ActionListener<SearchOnlyResponse> listener) {
         boolean hasUncommittedOps = false;
         boolean needsSync = false;
@@ -398,159 +427,149 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         }
 
         if (hasUncommittedOps || needsSync) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "Pre-scale sync failed for shards: "
-                        + String.join(", ", failedShards)
-                        + (hasUncommittedOps ? " - uncommitted operations remain" : "")
-                        + (needsSync ? " - sync needed" : "")
-                )
-            );
-            return;
+            String errorDetails = "Pre-scale sync failed for shards: "
+                + String.join(", ", failedShards)
+                + (hasUncommittedOps ? " - uncommitted operations remain" : "")
+                + (needsSync ? " - sync needed" : "");
+            listener.onFailure(new IllegalStateException(errorDetails));
+        } else {
+            listener.onResponse(new SearchOnlyResponse(responses));
         }
-
-        listener.onResponse(new SearchOnlyResponse(responses));
     }
 
-    private void scaleUp(final String[] indices, final ClusterState currentState, final ActionListener<AcknowledgedResponse> listener) {
-
+    /**
+     * Submits the scale-up update task that rebuilds the routing table and updates index metadata.
+     */
+    private void submitScaleUpTask(
+        final String[] indices,
+        final ClusterState currentState,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        // Validate prerequisites for scale-up
         for (String index : indices) {
             if (!validateScalePrerequisites(currentState.metadata().index(index), index, listener, false)) {
                 return;
             }
         }
-
         clusterService.submitStateUpdateTask("scale-up-index", new ClusterStateUpdateTask() {
+            @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+                RoutingTable newRoutingTable = buildScaleUpRoutingTable(currentState, indices);
+                ClusterState tempState = ClusterState.builder(currentState).routingTable(newRoutingTable).build();
 
-                // For each index, modify its routing table
-                for (String index : indices) {
-                    IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
-                    if (indexRoutingTable == null) continue;
-
-                    // Build new routing table
-                    IndexRoutingTable.Builder indexBuilder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
-
-                    for (IndexShardRoutingTable shardTable : indexRoutingTable) {
-                        IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(shardTable.shardId());
-
-                        // Keep existing search replicas
-                        for (ShardRouting shardRouting : shardTable) {
-                            if (shardRouting.isSearchOnly()) {
-                                shardBuilder.addShard(shardRouting);
-                            }
-                        }
-
-                        // Create recovery source for primary
-                        RecoverySource.RemoteStoreRecoverySource remoteStoreRecoverySource = new RecoverySource.RemoteStoreRecoverySource(
-                            UUID.randomUUID().toString(),
-                            Version.CURRENT,
-                            new IndexId(shardTable.shardId().getIndex().getName(), shardTable.shardId().getIndex().getUUID())
-                        );
-
-                        // Add unassigned primary
-                        ShardRouting primaryShard = ShardRouting.newUnassigned(
-                            shardTable.shardId(),
-                            true,
-                            remoteStoreRecoverySource,
-                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "Restoring primary shard")
-                        );
-                        shardBuilder.addShard(primaryShard);
-
-                        // Add unassigned replica
-                        ShardRouting replicaShard = ShardRouting.newUnassigned(
-                            shardTable.shardId(),
-                            false,
-                            RecoverySource.PeerRecoverySource.INSTANCE,
-                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "Restoring replica shard")
-                        );
-                        shardBuilder.addShard(replicaShard);
-
-                        indexBuilder.addIndexShard(shardBuilder.build());
-                    }
-
-                    routingTableBuilder.add(indexBuilder.build());
-                }
-
-                ClusterState tempState = ClusterState.builder(currentState).routingTable(routingTableBuilder.build()).build();
-
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(tempState.blocks());
+                ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(tempState.blocks());
                 Metadata.Builder metadataBuilder = Metadata.builder(tempState.metadata());
                 for (String indexName : indices) {
-                    blocks.removeIndexBlockWithId(indexName, INDEX_SEARCHONLY_BLOCK_ID);
-
+                    blocksBuilder.removeIndexBlockWithId(indexName, INDEX_SEARCHONLY_BLOCK_ID);
                     IndexMetadata indexMetadata = tempState.metadata().index(indexName);
                     Settings updatedSettings = Settings.builder()
                         .put(indexMetadata.getSettings())
-                        .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)  // Remove the search-only setting
+                        .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)
                         .build();
-
                     metadataBuilder.put(
                         IndexMetadata.builder(indexMetadata)
                             .settings(updatedSettings)
                             .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                     );
                 }
-                // Perform reroute to allocate restored shards
+                // Reroute to allocate restored shards
+                ClusterState reroutedState = allocationService.reroute(tempState, "restore indexing shards");
                 return ClusterState.builder(tempState)
-                    .blocks(blocks)
+                    .blocks(blocksBuilder)
                     .metadata(metadataBuilder)
-                    .routingTable(allocationService.reroute(tempState, "restore indexing shards").routingTable())
+                    .routingTable(reroutedState.routingTable())
                     .build();
-
             }
 
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(new AcknowledgedResponse(true));
+            }
+
+            @Override
             public void onFailure(String source, Exception e) {
                 logger.error("Failed to execute cluster state update for scale up", e);
                 listener.onFailure(e);
             }
-
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new AcknowledgedResponse(true));
-            }
         });
     }
 
-    @Override
-    protected ClusterBlockException checkBlock(SearchOnlyRequest request, ClusterState state) {
-        return state.blocks()
-            .indicesBlockedException(
-                ClusterBlockLevel.METADATA_WRITE,
-                indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), request.indices())
-            );
+    /**
+     * Rebuilds the routing table for scale-up: for each shard, only search replicas are kept and new primaries/replicas are added.
+     */
+    private RoutingTable buildScaleUpRoutingTable(ClusterState currentState, String[] indices) {
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+        for (String index : indices) {
+            IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
+            if (indexRoutingTable == null) {
+                continue;
+            }
+            IndexRoutingTable.Builder indexBuilder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
+            for (IndexShardRoutingTable shardTable : indexRoutingTable) {
+                IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(shardTable.shardId());
+                // Retain existing search replicas
+                for (ShardRouting shardRouting : shardTable) {
+                    if (shardRouting.isSearchOnly()) {
+                        shardBuilder.addShard(shardRouting);
+                    }
+                }
+                // Create and add an unassigned primary with remote store recovery source
+                RecoverySource.RemoteStoreRecoverySource remoteStoreRecoverySource = new RecoverySource.RemoteStoreRecoverySource(
+                    UUID.randomUUID().toString(),
+                    Version.CURRENT,
+                    new IndexId(shardTable.shardId().getIndex().getName(), shardTable.shardId().getIndex().getUUID())
+                );
+                ShardRouting primaryShard = ShardRouting.newUnassigned(
+                    shardTable.shardId(),
+                    true,
+                    remoteStoreRecoverySource,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "Restoring primary shard")
+                );
+                shardBuilder.addShard(primaryShard);
+
+                // Add an unassigned replica
+                ShardRouting replicaShard = ShardRouting.newUnassigned(
+                    shardTable.shardId(),
+                    false,
+                    RecoverySource.PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "Restoring replica shard")
+                );
+                shardBuilder.addShard(replicaShard);
+                indexBuilder.addIndexShard(shardBuilder.build());
+            }
+            routingTableBuilder.add(indexBuilder.build());
+        }
+        return routingTableBuilder.build();
     }
 
+    /**
+     * Validates that the given index meets the prerequisites for the scale operation.
+     * For scale-down, checks that search replicas exist, remote store is enabled, and segment replication is used.
+     * For scale-up, checks that the index is currently in search-only mode.
+     */
     private boolean validateScalePrerequisites(
         IndexMetadata indexMetadata,
         String index,
         ActionListener<AcknowledgedResponse> listener,
-        boolean searchOnly
+        boolean isScaleDown
     ) {
         try {
             if (indexMetadata == null) {
                 throw new IllegalArgumentException("Index [" + index + "] not found");
             }
-
-            if (searchOnly) {
-                // Validate search replicas exist
+            if (isScaleDown) {
                 if (indexMetadata.getNumberOfSearchOnlyReplicas() == 0) {
                     throw new IllegalArgumentException("Cannot scale to zero without search replicas for index: " + index);
                 }
-
-                // Validate remote store is enabled
                 if (!indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)) {
                     throw new IllegalArgumentException(
                         "To scale to zero, " + IndexMetadata.SETTING_REMOTE_STORE_ENABLED + " must be enabled for index: " + index
                     );
                 }
-
-                // Validate segment replication
                 if (!ReplicationType.SEGMENT.toString().equals(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE))) {
                     throw new IllegalArgumentException("To scale to zero, segment replication must be enabled for index: " + index);
                 }
-            } else {
-                // For scale up, validate the index is in search-only mode
+            } else { // scale up
                 if (!indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)) {
                     throw new IllegalStateException("Index [" + index + "] is not in search-only mode");
                 }
@@ -562,16 +581,27 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         }
     }
 
-    private Map<ShardId, String> getPrimaryShardNodeAssignments(IndexMetadata indexMetadata, ClusterState state) {
+    /**
+     * Returns the primary shard node assignments for a given index.
+     */
+    private Map<ShardId, String> getPrimaryShardAssignments(IndexMetadata indexMetadata, ClusterState state) {
         Map<ShardId, String> assignments = new HashMap<>();
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
             ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
             ShardRouting primaryShard = state.routingTable().index(indexMetadata.getIndex().getName()).shard(i).primaryShard();
-
             if (primaryShard != null && primaryShard.assignedToNode()) {
                 assignments.put(shardId, primaryShard.currentNodeId());
             }
         }
         return assignments;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(SearchOnlyRequest request, ClusterState state) {
+        return state.blocks()
+            .indicesBlockedException(
+                ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), request.indices())
+            );
     }
 }

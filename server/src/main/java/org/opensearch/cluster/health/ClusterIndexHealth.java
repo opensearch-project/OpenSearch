@@ -156,7 +156,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         shards = new HashMap<>();
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
             int shardId = shardRoutingTable.shardId().id();
-            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
+            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable, indexMetadata));
         }
 
         // update the index status
@@ -218,7 +218,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         if (isShardLevelHealthRequired) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 int shardId = indexShardRoutingTable.shardId().id();
-                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, indexShardRoutingTable);
+                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, indexShardRoutingTable, indexMetadata);
                 if (shardHealth.isPrimaryActive()) {
                     computeActivePrimaryShards++;
                 }
@@ -268,7 +268,8 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
                     ClusterHealthStatus shardHealth = ClusterShardHealth.getShardHealth(
                         primaryShard,
                         activeShardsPerShardId,
-                        shardRoutingCountPerShardId
+                        shardRoutingCountPerShardId,
+                        indexMetadata
                     );
                     computeStatus = getIndexHealthStatus(shardHealth, computeStatus);
                 }
