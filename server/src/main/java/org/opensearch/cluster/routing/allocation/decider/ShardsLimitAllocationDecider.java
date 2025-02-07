@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -40,19 +41,22 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.function.BiPredicate;
 
 /**
  * This {@link AllocationDecider} limits the number of shards per node on a per
  * index or node-wide basis. The allocator prevents a single node to hold more
- * than {@code index.routing.allocation.total_shards_per_node} per index and
+ * than {@code index.routing.allocation.total_shards_per_node} per index, {@code index.routing.allocation.total_primary_shards_per_node} per index and
  * {@code cluster.routing.allocation.total_shards_per_node} globally during the allocation
  * process. The limits of this decider can be changed in real-time via a the
  * index settings API.
  * <p>
- * If {@code index.routing.allocation.total_shards_per_node} is reset to a negative value shards
- * per index are unlimited per node. Shards currently in the
+ * If {@code index.routing.allocation.total_shards_per_node} or {@code index.routing.allocation.total_primary_shards_per_node}is reset to a negative value shards
+ * per index are unlimited per node or primary shards per index are unlimited per node respectively. Shards currently in the
  * {@link ShardRoutingState#RELOCATING relocating} state are ignored by this
  * {@link AllocationDecider} until the shard changed its state to either
  * {@link ShardRoutingState#STARTED started},
@@ -77,6 +81,18 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
      */
     public static final Setting<Integer> INDEX_TOTAL_SHARDS_PER_NODE_SETTING = Setting.intSetting(
         "index.routing.allocation.total_shards_per_node",
+        -1,
+        -1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Controls the maximum number of primary shards per index on a single OpenSearch
+     * node for segment replication enabled indices. Negative values are interpreted as unlimited.
+     */
+    public static final Setting<Integer> INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING = Setting.intSetting(
+        "index.routing.allocation.total_primary_shards_per_node",
         -1,
         -1,
         Property.Dynamic,
@@ -115,7 +131,30 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return doDecide(shardRouting, node, allocation, (count, limit) -> count > limit);
+    }
 
+    /**
+     * Counts the number of primary shards on a given node for a given index
+     */
+    private int countIndexPrimaryShards(RoutingNode node, ShardRouting shardRouting) {
+        Index index = shardRouting.index();
+        int count = 0;
+        for (ShardRouting shard : node) {
+            if (shard.index().equals(index) &&
+                shard.primary() && !shard.relocating()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Checks whether the given shardRouting's index uses segment replication
+     */
+    private boolean isIndexSegmentReplicationUsed(RoutingAllocation allocation, ShardRouting shardRouting){
+        IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        Settings indexSettings = indexMetadata.getSettings();
+        return IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexSettings) == ReplicationType.SEGMENT;
     }
 
     private Decision doDecide(
@@ -125,11 +164,11 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         BiPredicate<Integer, Integer> decider
     ) {
         final int indexShardLimit = allocation.metadata().getIndexSafe(shardRouting.index()).getIndexTotalShardsPerNodeLimit();
+        final int indexPrimaryShardLimit = allocation.metadata().getIndexSafe(shardRouting.index()).getIndexTotalPrimaryShardsPerNodeLimit();
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = this.clusterShardLimit;
-
-        if (indexShardLimit <= 0 && clusterShardLimit <= 0) {
+        if (indexShardLimit <= 0 && indexPrimaryShardLimit <= 0 && clusterShardLimit <= 0) {
             return allocation.decision(
                 Decision.YES,
                 NAME,
@@ -162,6 +201,22 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
                     shardRouting.getIndexName(),
                     INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
                     indexShardLimit
+                );
+            }
+        }
+
+        final boolean isIndexSegmentReplicationUsed = isIndexSegmentReplicationUsed(allocation, shardRouting);
+        if (indexPrimaryShardLimit > 0 && isIndexSegmentReplicationUsed && shardRouting.primary()) {
+            final int indexPrimaryShardCount = countIndexPrimaryShards(node, shardRouting);
+            if (decider.test(indexPrimaryShardCount, indexPrimaryShardLimit)) {
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "too many primary shards [%d] allocated to this node for index [%s], index setting [%s=%d]",
+                    indexPrimaryShardCount,
+                    shardRouting.getIndexName(),
+                    INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(),
+                    indexPrimaryShardLimit
                 );
             }
         }
