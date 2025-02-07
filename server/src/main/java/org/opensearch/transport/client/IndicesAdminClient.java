@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.transport.client;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -265,7 +265,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request The create index request
      * @return The result future
-     * @see org.opensearch.client.Requests#createIndexRequest(String)
+     * @see Requests#createIndexRequest(String)
      */
     ActionFuture<CreateIndexResponse> create(CreateIndexRequest request);
 
@@ -274,7 +274,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The create index request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#createIndexRequest(String)
+     * @see Requests#createIndexRequest(String)
      */
     void create(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener);
 
@@ -290,7 +290,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request The delete index request
      * @return The result future
-     * @see org.opensearch.client.Requests#deleteIndexRequest(String)
+     * @see Requests#deleteIndexRequest(String)
      */
     ActionFuture<AcknowledgedResponse> delete(DeleteIndexRequest request);
 
@@ -299,7 +299,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The delete index request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#deleteIndexRequest(String)
+     * @see Requests#deleteIndexRequest(String)
      */
     void delete(DeleteIndexRequest request, ActionListener<AcknowledgedResponse> listener);
 
@@ -315,7 +315,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request The close index request
      * @return The result future
-     * @see org.opensearch.client.Requests#closeIndexRequest(String)
+     * @see Requests#closeIndexRequest(String)
      */
     ActionFuture<CloseIndexResponse> close(CloseIndexRequest request);
 
@@ -324,7 +324,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The close index request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#closeIndexRequest(String)
+     * @see Requests#closeIndexRequest(String)
      */
     void close(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener);
 
@@ -340,7 +340,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request The close index request
      * @return The result future
-     * @see org.opensearch.client.Requests#openIndexRequest(String)
+     * @see Requests#openIndexRequest(String)
      */
     ActionFuture<OpenIndexResponse> open(OpenIndexRequest request);
 
@@ -349,7 +349,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The close index request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#openIndexRequest(String)
+     * @see Requests#openIndexRequest(String)
      */
     void open(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener);
 
@@ -366,7 +366,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The add index block request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#openIndexRequest(String)
+     * @see Requests#openIndexRequest(String)
      */
     void addBlock(AddIndexBlockRequest request, ActionListener<AddIndexBlockResponse> listener);
 
@@ -382,7 +382,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request The refresh request
      * @return The result future
-     * @see org.opensearch.client.Requests#refreshRequest(String...)
+     * @see Requests#refreshRequest(String...)
      */
     ActionFuture<RefreshResponse> refresh(RefreshRequest request);
 
@@ -391,7 +391,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The refresh request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#refreshRequest(String...)
+     * @see Requests#refreshRequest(String...)
      */
     void refresh(RefreshRequest request, ActionListener<RefreshResponse> listener);
 
@@ -405,7 +405,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request The flush request
      * @return A result future
-     * @see org.opensearch.client.Requests#flushRequest(String...)
+     * @see Requests#flushRequest(String...)
      */
     ActionFuture<FlushResponse> flush(FlushRequest request);
 
@@ -414,7 +414,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The flush request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#flushRequest(String...)
+     * @see Requests#flushRequest(String...)
      */
     void flush(FlushRequest request, ActionListener<FlushResponse> listener);
 
@@ -428,7 +428,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request The optimize request
      * @return A result future
-     * @see org.opensearch.client.Requests#forceMergeRequest(String...)
+     * @see Requests#forceMergeRequest(String...)
      */
     ActionFuture<ForceMergeResponse> forceMerge(ForceMergeRequest request);
 
@@ -437,7 +437,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The force merge request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#forceMergeRequest(String...)
+     * @see Requests#forceMergeRequest(String...)
      */
     void forceMerge(ForceMergeRequest request, ActionListener<ForceMergeResponse> listener);
 
@@ -451,7 +451,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request The upgrade request
      * @return A result future
-     * @see org.opensearch.client.Requests#upgradeRequest(String...)
+     * @see Requests#upgradeRequest(String...)
      */
     ActionFuture<UpgradeResponse> upgrade(UpgradeRequest request);
 
@@ -460,7 +460,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The upgrade request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#upgradeRequest(String...)
+     * @see Requests#upgradeRequest(String...)
      */
     void upgrade(UpgradeRequest request, ActionListener<UpgradeResponse> listener);
 
@@ -474,7 +474,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request The upgrade request
      * @return A result future
-     * @see org.opensearch.client.Requests#upgradeRequest(String...)
+     * @see Requests#upgradeRequest(String...)
      */
     ActionFuture<UpgradeStatusResponse> upgradeStatus(UpgradeStatusRequest request);
 
@@ -483,7 +483,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The upgrade request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#upgradeRequest(String...)
+     * @see Requests#upgradeRequest(String...)
      */
     void upgradeStatus(UpgradeStatusRequest request, ActionListener<UpgradeStatusResponse> listener);
 
@@ -527,7 +527,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request The create mapping request
      * @return A result future
-     * @see org.opensearch.client.Requests#putMappingRequest(String...)
+     * @see Requests#putMappingRequest(String...)
      */
     ActionFuture<AcknowledgedResponse> putMapping(PutMappingRequest request);
 
@@ -536,7 +536,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
      *
      * @param request  The create mapping request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#putMappingRequest(String...)
+     * @see Requests#putMappingRequest(String...)
      */
     void putMapping(PutMappingRequest request, ActionListener<AcknowledgedResponse> listener);
 

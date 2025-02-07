@@ -36,7 +36,6 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.query.QueryBuilder;
@@ -45,6 +44,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;

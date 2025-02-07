@@ -21,7 +21,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cache.store.disk.EhcacheDiskCache;
 import org.opensearch.cache.store.disk.EhcacheThreadLeakFilter;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
@@ -37,6 +36,7 @@ import org.opensearch.plugins.PluginInfo;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
+import org.opensearch.transport.client.Client;
 import org.junit.Assert;
 
 import java.io.IOException;

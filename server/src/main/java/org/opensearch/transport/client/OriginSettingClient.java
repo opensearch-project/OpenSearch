@@ -24,54 +24,39 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.transport.client;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
-import org.opensearch.client.support.AbstractClient;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.action.support.ContextPreservingActionListener;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContextAccess;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
-import org.opensearch.threadpool.ThreadPool;
+
+import java.util.function.Supplier;
 
 /**
- * A {@link Client} that contains another {@link Client} which it
- * uses as its basic source, possibly transforming the requests / responses along the
- * way or providing additional functionality.
+ * A {@linkplain Client} that sends requests with the
+ * {@link ThreadContext#stashWithOrigin origin} set to a particular
+ * value and calls its {@linkplain ActionListener} in its original
+ * {@link ThreadContext}.
  *
  * @opensearch.internal
  */
-public abstract class FilterClient extends AbstractClient {
+public final class OriginSettingClient extends FilterClient {
 
-    protected final Client in;
+    private final String origin;
 
-    /**
-     * Creates a new FilterClient
-     *
-     * @param in the client to delegate to
-     * @see #in()
-     */
-    public FilterClient(Client in) {
-        this(in.settings(), in.threadPool(), in);
-    }
-
-    /**
-     * A Constructor that allows to pass settings and threadpool separately. This is useful if the
-     * client is a proxy and not yet fully constructed ie. both dependencies are not available yet.
-     */
-    protected FilterClient(Settings settings, ThreadPool threadPool, Client in) {
-        super(settings, threadPool);
-        this.in = in;
-    }
-
-    @Override
-    public void close() {
-        in().close();
+    public OriginSettingClient(Client in, String origin) {
+        super(in);
+        this.origin = origin;
     }
 
     @Override
@@ -80,18 +65,13 @@ public abstract class FilterClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        in().execute(action, request, listener);
-    }
-
-    /**
-     * Returns the delegate {@link Client}
-     */
-    protected Client in() {
-        return in;
-    }
-
-    @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
-        return in.getRemoteClusterClient(clusterAlias);
+        final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
+        try (
+            ThreadContext.StoredContext ignore = ThreadContextAccess.doPrivileged(
+                () -> in().threadPool().getThreadContext().stashWithOrigin(origin)
+            )
+        ) {
+            super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+        }
     }
 }

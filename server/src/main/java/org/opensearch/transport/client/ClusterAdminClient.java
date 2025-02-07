@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.transport.client;
 
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
@@ -261,7 +261,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request The nodes info request
      * @return The result future
-     * @see org.opensearch.client.Requests#nodesInfoRequest(String...)
+     * @see Requests#nodesInfoRequest(String...)
      */
     ActionFuture<NodesInfoResponse> nodesInfo(NodesInfoRequest request);
 
@@ -270,7 +270,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request  The nodes info request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#nodesInfoRequest(String...)
+     * @see Requests#nodesInfoRequest(String...)
      */
     void nodesInfo(NodesInfoRequest request, ActionListener<NodesInfoResponse> listener);
 
@@ -284,7 +284,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request The cluster stats request
      * @return The result future
-     * @see org.opensearch.client.Requests#clusterStatsRequest
+     * @see Requests#clusterStatsRequest
      */
     ActionFuture<ClusterStatsResponse> clusterStats(ClusterStatsRequest request);
 
@@ -293,7 +293,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request  The cluster stats request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#clusterStatsRequest()
+     * @see Requests#clusterStatsRequest()
      */
     void clusterStats(ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener);
 
@@ -304,7 +304,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request The nodes stats request
      * @return The result future
-     * @see org.opensearch.client.Requests#nodesStatsRequest(String...)
+     * @see Requests#nodesStatsRequest(String...)
      */
     ActionFuture<NodesStatsResponse> nodesStats(NodesStatsRequest request);
 
@@ -313,7 +313,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request  The nodes info request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#nodesStatsRequest(String...)
+     * @see Requests#nodesStatsRequest(String...)
      */
     void nodesStats(NodesStatsRequest request, ActionListener<NodesStatsResponse> listener);
 
@@ -341,7 +341,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * @param request
      *            The nodes usage request
      * @return The result future
-     * @see org.opensearch.client.Requests#nodesUsageRequest(String...)
+     * @see Requests#nodesUsageRequest(String...)
      */
     ActionFuture<NodesUsageResponse> nodesUsage(NodesUsageRequest request);
 
@@ -352,7 +352,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *            The nodes usage request
      * @param listener
      *            A listener to be notified with a result
-     * @see org.opensearch.client.Requests#nodesUsageRequest(String...)
+     * @see Requests#nodesUsageRequest(String...)
      */
     void nodesUsage(NodesUsageRequest request, ActionListener<NodesUsageResponse> listener);
 
@@ -385,7 +385,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request The nodes tasks request
      * @return The result future
-     * @see org.opensearch.client.Requests#listTasksRequest()
+     * @see Requests#listTasksRequest()
      */
     ActionFuture<ListTasksResponse> listTasks(ListTasksRequest request);
 
@@ -394,7 +394,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request  The nodes tasks request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#listTasksRequest()
+     * @see Requests#listTasksRequest()
      */
     void listTasks(ListTasksRequest request, ActionListener<ListTasksResponse> listener);
 
@@ -408,7 +408,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request the request
      * @return the result future
-     * @see org.opensearch.client.Requests#getTaskRequest()
+     * @see Requests#getTaskRequest()
      */
     ActionFuture<GetTaskResponse> getTask(GetTaskRequest request);
 
@@ -417,7 +417,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request the request
      * @param listener A listener to be notified with the result
-     * @see org.opensearch.client.Requests#getTaskRequest()
+     * @see Requests#getTaskRequest()
      */
     void getTask(GetTaskRequest request, ActionListener<GetTaskResponse> listener);
 
@@ -436,7 +436,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request The nodes tasks request
      * @return The result future
-     * @see org.opensearch.client.Requests#cancelTasksRequest()
+     * @see Requests#cancelTasksRequest()
      */
     ActionFuture<CancelTasksResponse> cancelTasks(CancelTasksRequest request);
 
@@ -445,7 +445,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      *
      * @param request  The nodes tasks request
      * @param listener A listener to be notified with a result
-     * @see org.opensearch.client.Requests#cancelTasksRequest()
+     * @see Requests#cancelTasksRequest()
      */
     void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener);
 

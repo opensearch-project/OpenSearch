@@ -30,35 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client.transport;
-
-import org.opensearch.OpenSearchException;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.rest.RestStatus;
-
-import java.io.IOException;
-
 /**
- * An exception indicating no node is available to perform the operation.
- *
- * @opensearch.internal
+ * The client module allowing to easily perform actions/operations.
  */
-public class NoNodeAvailableException extends OpenSearchException {
-
-    public NoNodeAvailableException(String message) {
-        super(message);
-    }
-
-    public NoNodeAvailableException(String message, Throwable t) {
-        super(message, t);
-    }
-
-    public NoNodeAvailableException(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.SERVICE_UNAVAILABLE;
-    }
-}
+package org.opensearch.transport.client;

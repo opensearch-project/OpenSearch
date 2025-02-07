@@ -40,7 +40,6 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
@@ -54,6 +53,7 @@ import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolInfo;
 import org.opensearch.threadpool.ThreadPoolStats;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.Collections;
 import java.util.HashMap;
