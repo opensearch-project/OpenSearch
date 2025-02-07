@@ -55,6 +55,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,7 +72,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * and allows to executes it in a single batch.
  * <p>
  * Note that we only support refresh on the bulk request not per item.
- * @see org.opensearch.client.Client#bulk(BulkRequest)
+ * @see Client#bulk(BulkRequest)
  *
  * @opensearch.api
  */
