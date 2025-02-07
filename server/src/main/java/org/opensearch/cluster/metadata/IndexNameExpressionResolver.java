@@ -491,7 +491,17 @@ public class IndexNameExpressionResolver {
             options.ignoreThrottled()
         );
 
-        Context context = new Context(state, combinedOptions, false, true, includeDataStreams, isSystemIndexAccessAllowed());
+        Context context = new Context(
+            state,
+            combinedOptions,
+            System.currentTimeMillis(),
+            false,
+            true,
+            includeDataStreams,
+            false,
+            isSystemIndexAccessAllowed(),
+            false
+        );
         Index[] indices = concreteIndices(context, index);
         if (allowNoIndices && indices.length == 0) {
             return null;
@@ -821,7 +831,7 @@ public class IndexNameExpressionResolver {
                 includeDataStreams,
                 false,
                 isSystemIndexAccessAllowed,
-                false
+                true
             );
         }
 
@@ -843,15 +853,15 @@ public class IndexNameExpressionResolver {
                 includeDataStreams,
                 preserveDataStreams,
                 isSystemIndexAccessAllowed,
-                false
+                true
             );
         }
 
         Context(ClusterState state, IndicesOptions options, long startTime, boolean isSystemIndexAccessAllowed) {
-            this(state, options, startTime, false, false, false, false, isSystemIndexAccessAllowed, false);
+            this(state, options, startTime, false, false, false, false, isSystemIndexAccessAllowed, true);
         }
 
-        protected Context(
+        Context(
             ClusterState state,
             IndicesOptions options,
             long startTime,
