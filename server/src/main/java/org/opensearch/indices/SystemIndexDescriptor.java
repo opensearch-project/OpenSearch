@@ -50,7 +50,7 @@ public class SystemIndexDescriptor {
     private final String indexPattern;
     private final String description;
     private final CharacterRunAutomaton indexPatternAutomaton;
-    private boolean searchable;
+    private boolean readable;
 
     /**
      *
@@ -106,23 +106,24 @@ public class SystemIndexDescriptor {
     }
 
     /**
-     * Set whether this system index is searchable. Defaults to false.
-     * @param searchable Whether this system index is searchable.
+     * Set whether this system index is readable. Defaults to false.
+     * @param readable Whether this system index is readable. A readable index is one where search and get
+     *                 actions are permitted.
      */
-    public void setSearchable(boolean searchable) {
-        this.searchable = searchable;
+    public void setReadable(boolean readable) {
+        this.readable = readable;
     }
 
     /**
-     * @return A boolean corresponding to whether this system index is searchable.
+     * @return A boolean corresponding to whether this system index is readable.
      */
-    public boolean isSearchable() {
-        return searchable;
+    public boolean isReadable() {
+        return readable;
     }
 
     @Override
     public String toString() {
-        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "], searchable=[" + searchable + "]]";
+        return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "], readable=[" + readable + "]]";
     }
 
     @Override

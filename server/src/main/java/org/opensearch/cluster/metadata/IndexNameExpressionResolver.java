@@ -226,7 +226,7 @@ public class IndexNameExpressionResolver {
             request.includeDataStreams(),
             false,
             isSystemIndexAccessAllowed(),
-            false
+            true
         );
         return concreteIndices(context, request.indices());
     }
@@ -373,7 +373,7 @@ public class IndexNameExpressionResolver {
                         .stream()
                         .findFirst()
                         .orElse(null);
-                    if (descriptor != null && descriptor.isSearchable() && context.isSearchRequest()) {
+                    if (descriptor != null && descriptor.isReadable() && context.isReadRequest()) {
                         continue;
                     }
                     deprecationLogger.deprecate(
@@ -798,7 +798,7 @@ public class IndexNameExpressionResolver {
         private final boolean includeDataStreams;
         private final boolean preserveDataStreams;
         private final boolean isSystemIndexAccessAllowed;
-        private final boolean isSearchRequest;
+        private final boolean isReadRequest;
 
         Context(ClusterState state, IndicesOptions options, boolean isSystemIndexAccessAllowed) {
             this(state, options, System.currentTimeMillis(), isSystemIndexAccessAllowed);
@@ -860,7 +860,7 @@ public class IndexNameExpressionResolver {
             boolean includeDataStreams,
             boolean preserveDataStreams,
             boolean isSystemIndexAccessAllowed,
-            boolean isSearchRequest
+            boolean isReadRequest
         ) {
             this.state = state;
             this.options = options;
@@ -870,7 +870,7 @@ public class IndexNameExpressionResolver {
             this.includeDataStreams = includeDataStreams;
             this.preserveDataStreams = preserveDataStreams;
             this.isSystemIndexAccessAllowed = isSystemIndexAccessAllowed;
-            this.isSearchRequest = isSearchRequest;
+            this.isReadRequest = isReadRequest;
         }
 
         public ClusterState getState() {
@@ -910,8 +910,8 @@ public class IndexNameExpressionResolver {
             return preserveDataStreams;
         }
 
-        public boolean isSearchRequest() {
-            return isSearchRequest;
+        public boolean isReadRequest() {
+            return isReadRequest;
         }
 
         /**
