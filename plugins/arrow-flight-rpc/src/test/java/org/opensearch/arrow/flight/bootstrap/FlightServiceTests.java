@@ -10,7 +10,6 @@ package org.opensearch.arrow.flight.bootstrap;
 import org.opensearch.Version;
 import org.opensearch.arrow.flight.bootstrap.tls.DisabledSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -25,6 +24,7 @@ import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.net.InetAddress;
 import java.util.Collections;
