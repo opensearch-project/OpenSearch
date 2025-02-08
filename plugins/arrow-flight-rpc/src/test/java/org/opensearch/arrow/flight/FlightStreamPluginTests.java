@@ -8,8 +8,8 @@
 
 package org.opensearch.arrow.flight;
 
-import org.opensearch.arrow.flight.api.FlightServerInfoAction;
-import org.opensearch.arrow.flight.api.NodesFlightInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.FlightServerInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
 import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
 import org.opensearch.arrow.spi.StreamManager;

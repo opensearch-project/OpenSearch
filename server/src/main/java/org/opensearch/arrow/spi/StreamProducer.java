@@ -9,6 +9,7 @@
 package org.opensearch.arrow.spi;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
 
 import java.io.Closeable;
@@ -96,6 +97,14 @@ public interface StreamProducer<VectorRoot, Allocator> extends Closeable {
     BatchedJob<VectorRoot> createJob(Allocator allocator);
 
     /**
+     * Returns the deadline for the job execution.
+     * After this deadline, the job should be considered expired.
+     *
+     * @return TimeValue representing the job's deadline
+     */
+    TimeValue getJobDeadline();
+
+    /**
      * Provides an estimate of the total number of rows that will be produced.
      *
      * @return Estimated number of rows, or -1 if unknown
@@ -152,6 +161,6 @@ public interface StreamProducer<VectorRoot, Allocator> extends Closeable {
          *
          * @param timeout Maximum milliseconds to wait
          */
-        void awaitConsumption(int timeout);
+        void awaitConsumption(TimeValue timeout);
     }
 }
