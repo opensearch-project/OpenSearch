@@ -36,7 +36,7 @@ import java.io.Closeable;
  * @see StreamProducer
  */
 @ExperimentalApi
-public interface StreamReader<Vector> extends Closeable {
+public interface StreamReader<VectorRoot> extends Closeable {
 
     /**
      * Blocking request to load next batch into root.
@@ -51,5 +51,5 @@ public interface StreamReader<Vector> extends Closeable {
      *
      * @return the VectorSchemaRoot
      */
-    Vector getRoot();
+    VectorRoot getRoot();
 }

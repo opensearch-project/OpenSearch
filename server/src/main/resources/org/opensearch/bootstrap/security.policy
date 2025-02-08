@@ -96,7 +96,6 @@ grant codeBase "${codebase.reactor-core}" {
 //// Everything else:
 
 grant {
-
   // needed by vendored Guice
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.vm.annotation";
 
