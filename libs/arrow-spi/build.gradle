@@ -18,11 +18,3 @@ dependencies {
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
-
-tasks.named('thirdPartyAudit').configure {
-  ignoreMissingClasses(
-    'org.slf4j.Logger',
-    'org.slf4j.LoggerFactory',
-    'org.apache.commons.codec.binary.Hex'
-  )
-}

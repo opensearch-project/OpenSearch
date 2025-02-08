@@ -20,19 +20,19 @@ dependencies {
   compileOnly project(':libs:opensearch-arrow-spi')
   compileOnly 'org.checkerframework:checker-qual:3.44.0'
 
-  implementation "org.apache.arrow:flight-core:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
-  implementation "io.netty:netty-buffer:${versions.netty}"
-  implementation "io.netty:netty-common:${versions.netty}"
   implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
   implementation "org.apache.arrow:arrow-format:${versions.arrow}"
-  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation "org.apache.arrow:flight-core:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
 
-  implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  implementation "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
+  runtimeOnly "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
+  runtimeOnly "io.netty:netty-buffer:${versions.netty}"
+  runtimeOnly "io.netty:netty-common:${versions.netty}"
+
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
 
   implementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
 
@@ -44,13 +44,12 @@ dependencies {
   compileOnly 'org.immutables:value:2.10.1'
   annotationProcessor 'org.immutables:value:2.10.1'
 
-
   runtimeOnly 'io.perfmark:perfmark-api:0.27.0'
   runtimeOnly 'org.apache.parquet:parquet-arrow:1.13.1'
   runtimeOnly "io.grpc:grpc-protobuf-lite:${versions.grpc}"
   runtimeOnly "io.grpc:grpc-protobuf:${versions.grpc}"
-  runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   runtimeOnly "com.google.guava:failureaccess:1.0.1"
   compileOnly "com.google.errorprone:error_prone_annotations:2.31.0"
