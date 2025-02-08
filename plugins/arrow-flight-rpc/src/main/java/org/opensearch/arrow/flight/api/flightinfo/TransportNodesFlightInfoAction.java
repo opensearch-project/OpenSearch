@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.flight.api;
+package org.opensearch.arrow.flight.api.flightinfo;
 
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-grant codeBase "${codebase.netty-common}" {
+grant codeBase "${codebase.grpc-netty-shaded}" {
    permission java.net.SocketPermission "*", "accept,connect,listen,resolve";
    permission java.lang.RuntimePermission "*", "setContextClassLoader";
 };
@@ -16,7 +16,7 @@ grant codeBase "${codebase.grpc-core}" {
    permission java.lang.RuntimePermission "*", "setContextClassLoader";
 };
 
-grant codeBase "${codebase.arrow-flight-rpc}" {
+grant {
   // arrow flight service permissions
   permission java.util.PropertyPermission "arrow.allocation.manager.type", "write";
   permission java.util.PropertyPermission "arrow.enable_null_check_for_get", "write";
