@@ -31,6 +31,7 @@
 
 package org.opensearch.index.engine;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
@@ -43,6 +44,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "1.0.0")
 public class VersionConflictEngineException extends EngineException {
 
     public VersionConflictEngineException(ShardId shardId, Engine.Operation op, long currentVersion, boolean deleted) {

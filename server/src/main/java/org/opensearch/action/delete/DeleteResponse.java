@@ -35,13 +35,16 @@ package org.opensearch.action.delete;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 
+import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -54,21 +57,53 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  */
 @PublicApi(since = "1.0.0")
 public class DeleteResponse extends DocWriteResponse {
+    private final InternalEngine.DeletionStrategy deletionStrategy;
 
     public DeleteResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
+        if (in.getVersion().onOrAfter(V_3_0_0) && in.readBoolean()) {
+            this.deletionStrategy = new InternalEngine.DeletionStrategy(in);
+        } else {
+            this.deletionStrategy = null;
+        }
     }
 
     public DeleteResponse(StreamInput in) throws IOException {
         super(in);
+        if (in.getVersion().onOrAfter(V_3_0_0) && in.readBoolean()) {
+            this.deletionStrategy = new InternalEngine.DeletionStrategy(in);
+        } else {
+            this.deletionStrategy = null;
+        }
     }
 
     public DeleteResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean found) {
-        this(shardId, id, seqNo, primaryTerm, version, found ? Result.DELETED : Result.NOT_FOUND);
+        this(shardId, id, seqNo, primaryTerm, version, found ? Result.DELETED : Result.NOT_FOUND, null);
     }
 
-    private DeleteResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+    public DeleteResponse(
+        ShardId shardId,
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        boolean found,
+        InternalEngine.DeletionStrategy deletionStrategy
+    ) {
+        this(shardId, id, seqNo, primaryTerm, version, found ? Result.DELETED : Result.NOT_FOUND, deletionStrategy);
+    }
+
+    private DeleteResponse(
+        ShardId shardId,
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        Result result,
+        InternalEngine.DeletionStrategy deletionStrategy
+    ) {
         super(shardId, id, seqNo, primaryTerm, version, assertDeletedOrNotFound(result));
+        this.deletionStrategy = deletionStrategy;
     }
 
     private static Result assertDeletedOrNotFound(Result result) {
@@ -91,6 +126,37 @@ public class DeleteResponse extends DocWriteResponse {
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        if (out.getVersion().onOrAfter(V_3_0_0)) {
+            if (deletionStrategy == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                deletionStrategy.writeTo(out);
+            }
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (out.getVersion().onOrAfter(V_3_0_0)) {
+            if (deletionStrategy == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                deletionStrategy.writeTo(out);
+            }
+        }
+    }
+
+    @Override
+    public InternalEngine.DeletionStrategy writeStrategy() {
+        return deletionStrategy;
     }
 
     public static DeleteResponse fromXContent(XContentParser parser) throws IOException {
@@ -122,7 +188,7 @@ public class DeleteResponse extends DocWriteResponse {
 
         @Override
         public DeleteResponse build() {
-            DeleteResponse deleteResponse = new DeleteResponse(shardId, id, seqNo, primaryTerm, version, result);
+            DeleteResponse deleteResponse = new DeleteResponse(shardId, id, seqNo, primaryTerm, version, result, null);
             deleteResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 deleteResponse.setShardInfo(shardInfo);

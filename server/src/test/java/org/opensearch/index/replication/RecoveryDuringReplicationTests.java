@@ -160,7 +160,8 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                 1,
                 randomNonNegativeLong(),
                 false,
-                new SourceToParse("index", "replica", new BytesArray("{}"), MediaTypeRegistry.JSON)
+                new SourceToParse("index", "replica", new BytesArray("{}"), MediaTypeRegistry.JSON),
+                null
             );
             shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean(), false);

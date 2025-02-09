@@ -45,7 +45,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.core.common.Strings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.core.rest.RestStatus;
@@ -462,6 +462,90 @@ public class IndexingIT extends OpenSearchRestTestCase {
             });
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        }
+    }
+
+    public void testReplicasUsePrimaryIndexingStrategy() throws Exception {
+        Nodes nodes = buildNodeAndVersions();
+        logger.info("cluster discovered:\n {}", nodes.toString());
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1m")
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+        final String index = "test-index";
+        createIndex(index, settings.build());
+        ensureNoInitializingShards(); // wait for all other shard activity to finish
+        ensureGreen(index);
+
+        int docCount = 200;
+        try (RestClient nodeClient = buildClient(restClientSettings(),
+            nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+            indexDocs(index, 0, docCount);
+
+            Thread[] indexThreads = new Thread[5];
+            for (int i = 0; i < indexThreads.length; i++) {
+                indexThreads[i] = new Thread(() -> {
+                    try {
+                        int idStart = randomInt(docCount / 2);
+                        indexDocs(index, idStart, idStart + docCount / 2);
+                        if (randomBoolean()) {
+                            // perform a refresh
+                            assertOK(client().performRequest(new Request("POST", index + "/_flush")));
+                        }
+                    } catch (IOException e) {
+                        throw new AssertionError("failed while indexing [" + e.getMessage() + "]");
+                    }
+                });
+                indexThreads[i].start();
+            }
+            for (Thread indexThread : indexThreads) {
+                indexThread.join();
+            }
+            if (randomBoolean()) {
+                // perform a refresh
+                assertOK(client().performRequest(new Request("POST", index + "/_flush")));
+            }
+            // verify replica catch up with primary
+            assertSeqNoOnShards(index, nodes, docCount, nodeClient);
+            assertSourceEqualWithPrimary(index, docCount);
+        }
+    }
+
+    private void assertSourceEqualWithPrimary(final String index, final int expectedCount) throws IOException {
+        Request primaryRequest = new Request("GET", index + "/_search");
+        primaryRequest.addParameter("preference", "_primary");
+        primaryRequest.addParameter("size", String.valueOf(expectedCount+100));
+        final Response primaryResponse = client().performRequest(primaryRequest);
+
+        Map<String, Object> primaryHits = ObjectPath.createFromResponse(primaryResponse).evaluate("hits");
+        Map<String, Object>  totals = ObjectPath.evaluate(primaryHits, "total");
+        assertEquals(expectedCount, totals.get("values"));
+
+        List<Object> primarySources = ObjectPath.evaluate(primaryHits, "hits");
+        assertEquals(expectedCount, primarySources.size());
+
+        Map<String, Object> primarys = new HashMap<>(expectedCount);
+        for (int i = 0; i < primarySources.size(); i++) {
+            primarys.put(ObjectPath.evaluate(primarySources.get(i), "_id"), primarySources.get(i));
+        }
+
+
+        // replicas source
+        Request replicaRequest = new Request("GET", index + "/_search");
+        replicaRequest.addParameter("preference", "_replica");
+        replicaRequest.addParameter("size", String.valueOf(expectedCount+100));
+        final Response replicaResponse = client().performRequest(replicaRequest);
+
+        Map<String, Object> replicaHits = ObjectPath.createFromResponse(replicaResponse).evaluate("hits");
+        Map<String, Object>  replicaTotals = ObjectPath.evaluate(primaryHits, "total");
+        assertEquals(expectedCount, replicaTotals.get("values"));
+
+        List<Object> replicaSources = ObjectPath.evaluate(replicaHits, "hits");
+        assertEquals(expectedCount, replicaSources.size());
+
+        for (Object replicaSource : replicaSources) {
+            String id = ObjectPath.evaluate(replicaSource, "_id").toString();
+            assertEquals(primarys.get(id), replicaSource);
         }
     }
 
