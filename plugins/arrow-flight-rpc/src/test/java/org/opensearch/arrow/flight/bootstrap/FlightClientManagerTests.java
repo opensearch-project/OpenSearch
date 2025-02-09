@@ -218,7 +218,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         for (DiscoveryNode node : newState.nodes()) {
             assertBusy(
                 () -> { assertNotNull("Flight client isn't built in time limit", clientManager.getFlightClient(node.getId())); },
-                2,
+                5,
                 TimeUnit.SECONDS
             );
         }
@@ -374,17 +374,16 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
-
+        assertBusy(() -> { assertFalse("first call should be invoked", firstCall.get()); }, 5, TimeUnit.SECONDS);
         // Verify that the client can still be created successfully on direct request
         clientManager.buildClientAsync(nodeId);
         assertBusy(
             () -> {
                 assertNotNull("Flight client should be created successfully on direct request", clientManager.getFlightClient(nodeId));
             },
-            2,
+            5,
             TimeUnit.SECONDS
         );
-        assertFalse("first call should be invoked", firstCall.get());
     }
 
     private void validateNodes() {

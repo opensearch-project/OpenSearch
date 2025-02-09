@@ -298,9 +298,6 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         grpcExecutor.shutdown();
     }
 
-    private record ClientHolder(Location location, OSFlightClient flightClient) {
-    }
-
     /**
      * Returns the ID of the local node in the cluster.
      *

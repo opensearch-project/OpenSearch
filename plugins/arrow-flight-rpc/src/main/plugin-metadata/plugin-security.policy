@@ -16,7 +16,7 @@ grant codeBase "${codebase.grpc-core}" {
    permission java.lang.RuntimePermission "*", "setContextClassLoader";
 };
 
-grant codeBase "${codebase.arrow-flight-rpc}" {
+grant {
   // arrow flight service permissions
   permission java.util.PropertyPermission "arrow.allocation.manager.type", "write";
   permission java.util.PropertyPermission "arrow.enable_null_check_for_get", "write";
