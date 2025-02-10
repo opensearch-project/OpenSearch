@@ -543,6 +543,7 @@ public class RemoteFsTranslog extends Translog {
                 return Releasables.releaseOnce(() -> {
                     syncPermit.close();
                     boolean wasSyncPaused = pauseSync.getAndSet(false);
+                    assert !syncPermit.isHeldByCurrentThread() : "Lock is still held by the current thread";
                     assert wasSyncPaused : "RemoteFsTranslog sync was not paused before re-enabling it";
                     logger.info("Resumed remote translog sync back on relocation failure");
                 });
