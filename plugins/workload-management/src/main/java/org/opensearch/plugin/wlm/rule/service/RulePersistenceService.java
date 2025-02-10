@@ -11,9 +11,13 @@ package org.opensearch.plugin.wlm.rule.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.delete.DeleteResponse;
+import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.plugin.wlm.rule.action.DeleteRuleResponse;
 import org.opensearch.wlm.Rule;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.client.Client;
@@ -136,5 +140,33 @@ public class RulePersistenceService {
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         listener.onResponse(new GetRuleResponse(ruleMap, RestStatus.OK));
+    }
+
+    public void deleteRule(String id, ActionListener<DeleteRuleResponse> listener) {
+        if (id == null) {
+            listener.onFailure(new IllegalArgumentException("Rule ID must not be null"));
+            return;
+        }
+
+        // Check if the document exists before deleting
+        GetRequest getRequest = new GetRequest(RULE_INDEX, id);
+        client.get(getRequest, ActionListener.wrap(
+            getResponse -> {
+                if (!getResponse.isExists()) {
+                    listener.onFailure(new ResourceNotFoundException("The rule with id " + id + " doesn't exist"));
+                } else {
+                    // Proceed with deletion
+                    DeleteRequest deleteRequest = new DeleteRequest(RULE_INDEX, id);
+                    client.delete(deleteRequest, ActionListener.wrap(
+                        deleteResponse -> {
+                            boolean acknowledged = deleteResponse.getResult() == DeleteResponse.Result.DELETED;
+                            listener.onResponse(new DeleteRuleResponse(acknowledged));
+                        },
+                        listener::onFailure
+                    ));
+                }
+            },
+            listener::onFailure
+        ));
     }
 }
