@@ -47,7 +47,6 @@ services:
     cgroup: host
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup
-      - ../../distribution/packages/src/common/systemd/opensearch.service:/etc/systemd/system/opensearch.service
     # tmpfs mounts for systemd
     tmpfs:
       - /run
