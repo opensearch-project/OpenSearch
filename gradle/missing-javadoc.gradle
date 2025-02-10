@@ -152,6 +152,7 @@ configure([
   project(":plugins:crypto-kms"),
   project(":qa:die-with-dignity"),
   project(":qa:wildfly"),
+  project(":sandbox:modules:system-index-protection"),
   project(":test:external-modules:test-delayed-aggs"),
   project(":test:fixtures:azure-fixture"),
   project(":test:fixtures:gcs-fixture"),
