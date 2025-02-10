@@ -17,7 +17,7 @@ opensearchplugin {
 }
 
 dependencies {
-  compileOnly project(':libs:opensearch-arrow-spi')
+  implementation project(':libs:opensearch-arrow-spi')
   compileOnly 'org.checkerframework:checker-qual:3.44.0'
 
   implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
