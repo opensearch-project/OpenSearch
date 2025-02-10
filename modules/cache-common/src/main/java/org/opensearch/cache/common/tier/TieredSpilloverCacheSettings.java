@@ -38,7 +38,14 @@ public class TieredSpilloverCacheSettings {
      */
     public static final long MIN_DISK_CACHE_SIZE_IN_BYTES = 10485760L;
 
+    /**
+     * The default took time threshold for a value to enter the heap tier of the cache, and therefore to enter the cache at all.
+     */
     public static final TimeValue DEFAULT_TOOK_TIME_HEAP_THRESHOLD = TimeValue.ZERO;
+
+    /**
+     * The default took time threshold for a value to enter the disk tier of the cache.
+     */
     public static final TimeValue DEFAULT_TOOK_TIME_DISK_THRESHOLD = new TimeValue(10, TimeUnit.MILLISECONDS);
 
     /**
@@ -140,11 +147,15 @@ public class TieredSpilloverCacheSettings {
     );
 
     /**
-     * Stores took time policy settings for various cache types as these are dynamic so that can be registered and
+     * Stores took time policy settings for the heap tiers of various cache types as these are dynamic so that can be registered and
      * retrieved accordingly.
      */
     public static final Map<CacheType, Setting<TimeValue>> TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP;
 
+    /**
+     * Stores took time policy settings for the disk tiers of various cache types as these are dynamic so that can be registered and
+     * retrieved accordingly.
+     */
     public static final Map<CacheType, Setting<TimeValue>> TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP;
 
     /**
