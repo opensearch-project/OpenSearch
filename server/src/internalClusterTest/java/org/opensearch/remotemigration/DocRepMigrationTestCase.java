@@ -9,9 +9,9 @@
 package org.opensearch.remotemigration;
 
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.util.List;
 
@@ -29,7 +29,7 @@ public class DocRepMigrationTestCase extends MigrationBaseTestCase {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-        addRemote = false;
+        setAddRemote(false);
         internalCluster().startNode();
         String[] allNodes = internalCluster().getNodeNames();
         assertBusy(() -> { assertEquals(client.admin().cluster().prepareClusterStats().get().getNodes().size(), allNodes.length); });

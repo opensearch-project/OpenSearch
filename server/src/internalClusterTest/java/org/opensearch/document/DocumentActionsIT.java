@@ -52,12 +52,12 @@ import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import java.io.IOException;
 
 import static org.opensearch.action.DocWriteRequest.OpType;
-import static org.opensearch.client.Requests.clearIndicesCacheRequest;
-import static org.opensearch.client.Requests.getRequest;
-import static org.opensearch.client.Requests.indexRequest;
-import static org.opensearch.client.Requests.refreshRequest;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.transport.client.Requests.clearIndicesCacheRequest;
+import static org.opensearch.transport.client.Requests.getRequest;
+import static org.opensearch.transport.client.Requests.indexRequest;
+import static org.opensearch.transport.client.Requests.refreshRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -180,7 +180,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
             // test successful
             SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
             assertNoFailures(countResponse);
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
@@ -191,7 +191,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
                 countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
                 equalTo(0)
             );
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }

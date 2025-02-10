@@ -42,12 +42,14 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -62,6 +64,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -81,7 +84,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
@@ -90,6 +95,7 @@ import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.fie
 import static org.opensearch.script.MockScriptPlugin.NAME;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFirstHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
@@ -341,7 +347,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
                 .addSort("dense_bytes", SortOrder.ASC)
                 .get();
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocs));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
             assertThat(searchResponse.getHits().getHits().length, equalTo(size));
             Set<Entry<BytesRef, String>> entrySet = denseBytes.entrySet();
             Iterator<Entry<BytesRef, String>> iterator = entrySet.iterator();
@@ -361,7 +367,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
                 .addSort("sparse_bytes", SortOrder.ASC)
                 .get();
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) sparseBytes.size()));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) sparseBytes.size()));
             assertThat(searchResponse.getHits().getHits().length, equalTo(size));
             Set<Entry<BytesRef, String>> entrySet = sparseBytes.entrySet();
             Iterator<Entry<BytesRef, String>> iterator = entrySet.iterator();
@@ -919,7 +925,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         client().prepareIndex("test")
             .setId("3")
             .setSource(
-                jsonBuilder().startObject().field("id", "3").field("i_value", 2).field("d_value", 2.2).field("u_value", 2).endObject()
+                jsonBuilder().startObject().field("id", "3").field("i_value", 2).field("d_value", 2.2).field("u_value", 3).endObject()
             )
             .get();
 
@@ -935,7 +941,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -947,7 +953,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -959,9 +965,21 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        logger.info("--> sort with custom missing value");
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC).missing(randomBoolean() ? 1 : "1"))
+            .get();
+        assertNoFailures(searchResponse);
+
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
         // FLOAT
@@ -972,7 +990,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -984,7 +1002,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -996,9 +1014,21 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        logger.info("--> sort with custom missing value");
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.fieldSort("d_value").order(SortOrder.ASC).missing(randomBoolean() ? 1.1 : "1.1"))
+            .get();
+        assertNoFailures(searchResponse);
+
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
         // UNSIGNED_LONG
@@ -1009,7 +1039,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -1021,7 +1051,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -1033,10 +1063,28 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        logger.info("--> sort with custom missing value");
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.fieldSort("u_value").order(SortOrder.ASC).missing(randomBoolean() ? 2 : "2"))
+            .get();
+        assertNoFailures(searchResponse);
+
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        logger.info("--> sort with negative missing value");
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.fieldSort("u_value").order(SortOrder.ASC).missing(randomBoolean() ? -1 : "-1"));
+        assertFailures(searchRequestBuilder, RestStatus.BAD_REQUEST, containsString("Value [-1] is out of range for an unsigned long"));
     }
 
     public void testSortMissingNumbersMinMax() throws Exception {
@@ -1097,7 +1145,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("3", "2")));
@@ -1110,7 +1158,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("3", "2")));
@@ -1123,7 +1171,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(0).getId(), is(oneOf("2", "1")));
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("1", "2")));
@@ -1137,7 +1185,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -1149,7 +1197,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -1161,7 +1209,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
@@ -1174,7 +1222,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("3", "2")));
@@ -1187,7 +1235,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("3", "2")));
@@ -1200,7 +1248,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(0).getId(), is(oneOf("2", "1")));
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("1", "2")));
@@ -1251,7 +1299,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -1263,7 +1311,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -1275,7 +1323,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
@@ -1287,7 +1335,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
@@ -1432,7 +1480,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .addSort("long_values", SortOrder.ASC)
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1446,7 +1494,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("long_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1464,7 +1512,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode(SortMode.SUM))
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1482,7 +1530,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode(SortMode.AVG))
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1500,7 +1548,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode(SortMode.MEDIAN))
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1514,7 +1562,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("int_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1528,7 +1576,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("int_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1542,7 +1590,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("short_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1556,7 +1604,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("short_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1570,7 +1618,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("byte_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1584,7 +1632,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("byte_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1598,7 +1646,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("float_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1612,7 +1660,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("float_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1626,7 +1674,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("half_float_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1640,7 +1688,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("half_float_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1654,7 +1702,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("double_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1668,7 +1716,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("double_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1682,7 +1730,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("string_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1696,7 +1744,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("string_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -2019,7 +2067,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         SearchResponse singleShardResponse = client().prepareSearch("test2").setFrom(from).setSize(size).addSort(sortField, order).get();
         assertNoFailures(singleShardResponse);
 
-        assertThat(multiShardResponse.getHits().getTotalHits().value, equalTo(singleShardResponse.getHits().getTotalHits().value));
+        assertThat(multiShardResponse.getHits().getTotalHits().value(), equalTo(singleShardResponse.getHits().getTotalHits().value()));
         assertThat(multiShardResponse.getHits().getHits().length, equalTo(singleShardResponse.getHits().getHits().length));
         for (int i = 0; i < multiShardResponse.getHits().getHits().length; i++) {
             assertThat(
@@ -2043,13 +2091,13 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         SearchResponse response = client().prepareSearch("test").addSort(SortBuilders.fieldSort("ip")).get();
         assertSearchResponse(response);
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals(2, response.getHits().getTotalHits().value());
         assertArrayEquals(new String[] { "192.168.1.7" }, response.getHits().getAt(0).getSortValues());
         assertArrayEquals(new String[] { "2001:db8::ff00:42:8329" }, response.getHits().getAt(1).getSortValues());
 
         response = client().prepareSearch("test").addSort(SortBuilders.fieldSort("ip")).searchAfter(new Object[] { "192.168.1.7" }).get();
         assertSearchResponse(response);
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals(2, response.getHits().getTotalHits().value());
         assertEquals(1, response.getHits().getHits().length);
         assertArrayEquals(new String[] { "2001:db8::ff00:42:8329" }, response.getHits().getAt(0).getSortValues());
     }
@@ -2565,4 +2613,99 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
 
         assertThat(searchResponse.toString(), not(containsString("error")));
     }
+
+    public void testSortMixedIntegerNumericFields() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        AtomicInteger counter = new AtomicInteger();
+        index("long", () -> Long.MAX_VALUE - counter.getAndIncrement());
+        index("integer", () -> Integer.MAX_VALUE - counter.getAndIncrement());
+        SearchResponse searchResponse = client().prepareSearch("long", "integer")
+            .setQuery(matchAllQuery())
+            .setSize(10)
+            .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC).sortMode(SortMode.MAX))
+            .get();
+        assertNoFailures(searchResponse);
+        long[] sortValues = new long[10];
+        for (int i = 0; i < 10; i++) {
+            sortValues[i] = ((Number) searchResponse.getHits().getAt(i).getSortValues()[0]).longValue();
+        }
+        for (int i = 1; i < 10; i++) {
+            assertThat(Arrays.toString(sortValues), sortValues[i - 1], lessThan(sortValues[i]));
+        }
+    }
+
+    public void testSortMixedFloatingNumericFields() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        AtomicInteger counter = new AtomicInteger();
+        index("double", () -> 100.5 - counter.getAndIncrement());
+        counter.set(0);
+        index("float", () -> 200.5 - counter.getAndIncrement());
+        counter.set(0);
+        index("half_float", () -> 300.5 - counter.getAndIncrement());
+        SearchResponse searchResponse = client().prepareSearch("double", "float", "half_float")
+            .setQuery(matchAllQuery())
+            .setSize(15)
+            .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC).sortMode(SortMode.MAX))
+            .get();
+        assertNoFailures(searchResponse);
+        double[] sortValues = new double[15];
+        for (int i = 0; i < 15; i++) {
+            sortValues[i] = ((Number) searchResponse.getHits().getAt(i).getSortValues()[0]).doubleValue();
+        }
+        for (int i = 1; i < 15; i++) {
+            assertThat(Arrays.toString(sortValues), sortValues[i - 1], lessThan(sortValues[i]));
+        }
+    }
+
+    public void testSortMixedFloatingAndIntegerNumericFields() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        index("long", () -> randomLongBetween(0, (long) 2E53 - 1));
+        index("integer", OpenSearchTestCase::randomInt);
+        index("double", OpenSearchTestCase::randomDouble);
+        index("float", () -> randomFloat());
+        boolean asc = randomBoolean();
+        SearchResponse searchResponse = client().prepareSearch("long", "integer", "double", "float")
+            .setQuery(matchAllQuery())
+            .setSize(20)
+            .addSort(SortBuilders.fieldSort("field").order(asc ? SortOrder.ASC : SortOrder.DESC).sortMode(SortMode.MAX))
+            .get();
+        assertNoFailures(searchResponse);
+        double[] sortValues = new double[20];
+        for (int i = 0; i < 20; i++) {
+            sortValues[i] = ((Number) searchResponse.getHits().getAt(i).getSortValues()[0]).doubleValue();
+        }
+        if (asc) {
+            for (int i = 1; i < 20; i++) {
+                assertThat(Arrays.toString(sortValues), sortValues[i - 1], lessThanOrEqualTo(sortValues[i]));
+            }
+        } else {
+            for (int i = 1; i < 20; i++) {
+                assertThat(Arrays.toString(sortValues), sortValues[i - 1], greaterThanOrEqualTo(sortValues[i]));
+            }
+        }
+    }
+
+    private void index(String type, Supplier<Number> valueSupplier) throws Exception {
+        assertAcked(
+            prepareCreate(type).setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", type)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0))
+        );
+        ensureGreen(type);
+        for (int i = 0; i < 5; i++) {
+            client().prepareIndex(type)
+                .setId(Integer.toString(i))
+                .setSource("{\"field\" : " + valueSupplier.get() + " }", XContentType.JSON)
+                .get();
+        }
+        client().admin().indices().prepareRefresh(type).get();
+    }
+
 }

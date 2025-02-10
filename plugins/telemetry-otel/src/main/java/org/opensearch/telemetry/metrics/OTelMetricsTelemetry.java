@@ -82,6 +82,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
      * @param unit        unit of the metric.
      * @return histogram
      */
+    @SuppressWarnings("removal")
     @Override
     public Histogram createHistogram(String name, String description, String unit) {
         DoubleHistogram doubleHistogram = AccessController.doPrivileged(
@@ -90,6 +91,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
         return new OTelHistogram(doubleHistogram);
     }
 
+    @SuppressWarnings("removal")
     @Override
     public Closeable createGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags) {
         ObservableDoubleGauge doubleObservableGauge = AccessController.doPrivileged(
@@ -97,6 +99,18 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
                 .setUnit(unit)
                 .setDescription(description)
                 .buildWithCallback(record -> record.record(valueProvider.get(), OTelAttributesConverter.convert(tags)))
+        );
+        return () -> doubleObservableGauge.close();
+    }
+
+    @SuppressWarnings("removal")
+    @Override
+    public Closeable createGauge(String name, String description, String unit, Supplier<TaggedMeasurement> value) {
+        ObservableDoubleGauge doubleObservableGauge = AccessController.doPrivileged(
+            (PrivilegedAction<ObservableDoubleGauge>) () -> otelMeter.gaugeBuilder(name)
+                .setUnit(unit)
+                .setDescription(description)
+                .buildWithCallback(record -> record.record(value.get().getValue(), OTelAttributesConverter.convert(value.get().getTags())))
         );
         return () -> doubleObservableGauge.close();
     }

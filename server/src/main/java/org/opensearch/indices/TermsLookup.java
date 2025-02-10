@@ -87,6 +87,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         path = in.readString();
         index = in.readString();
         routing = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            store = in.readBoolean();
+        }
     }
 
     @Override
@@ -98,6 +101,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         out.writeString(path);
         out.writeString(index);
         out.writeOptionalString(routing);
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeBoolean(store);
+        }
     }
 
     public String index() {
@@ -121,6 +127,17 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
+    private boolean store;
+
+    public boolean store() {
+        return store;
+    }
+
+    public TermsLookup store(boolean store) {
+        this.store = store;
+        return this;
+    }
+
     private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
         String index = (String) args[0];
         String id = (String) args[1];
@@ -132,6 +149,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("path"));
         PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
+        PARSER.declareBoolean(TermsLookup::store, new ParseField("store"));
     }
 
     public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
@@ -151,12 +169,15 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (routing != null) {
             builder.field("routing", routing);
         }
+        if (store) {
+            builder.field("store", true);
+        }
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, id, path, routing);
+        return Objects.hash(index, id, path, routing, store);
     }
 
     @Override
@@ -171,6 +192,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return Objects.equals(index, other.index)
             && Objects.equals(id, other.id)
             && Objects.equals(path, other.path)
-            && Objects.equals(routing, other.routing);
+            && Objects.equals(routing, other.routing)
+            && Objects.equals(store, other.store);
     }
 }

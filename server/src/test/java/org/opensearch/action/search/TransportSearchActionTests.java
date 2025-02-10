@@ -487,7 +487,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                 new SearchRequestContext(
                     new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                    searchRequest
+                    searchRequest,
+                    () -> null
                 )
             );
             if (localIndices == null) {
@@ -549,7 +550,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     new SearchRequestContext(
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                        searchRequest
+                        searchRequest,
+                        () -> null
                     )
                 );
                 if (localIndices == null) {
@@ -590,7 +592,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     new SearchRequestContext(
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                        searchRequest
+                        searchRequest,
+                        () -> null
                     )
                 );
                 if (localIndices == null) {
@@ -652,7 +655,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     new SearchRequestContext(
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                        searchRequest
+                        searchRequest,
+                        () -> null
                     )
                 );
                 if (localIndices == null) {
@@ -696,7 +700,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     new SearchRequestContext(
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                        searchRequest
+                        searchRequest,
+                        () -> null
                     )
                 );
                 if (localIndices == null) {
@@ -751,7 +756,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     new SearchRequestContext(
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                        searchRequest
+                        searchRequest,
+                        () -> null
                     )
                 );
                 if (localIndices == null) {
@@ -803,6 +809,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteIndicesByCluster,
                     remoteClusterService,
                     threadPool,
+                    null,
                     new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -829,6 +836,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteIndicesByCluster,
                     remoteClusterService,
                     threadPool,
+                    null,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -874,6 +882,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteIndicesByCluster,
                     remoteClusterService,
                     threadPool,
+                    null,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -901,6 +910,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteIndicesByCluster,
                     remoteClusterService,
                     threadPool,
+                    null,
                     new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -943,6 +953,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteIndicesByCluster,
                     remoteClusterService,
                     threadPool,
+                    null,
                     new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);

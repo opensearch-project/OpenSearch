@@ -76,7 +76,7 @@ public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
         // hashes not yet published
         assertThat(new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).areAllConsistent(), is(false));
         // publish
-        new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).newHashPublisher().onMaster();
+        new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).newHashPublisher().onClusterManager();
         ConsistentSettingsService consistentService = new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting));
         assertThat(consistentService.areAllConsistent(), is(true));
         // change value
@@ -84,7 +84,7 @@ public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
         assertThat(consistentService.areAllConsistent(), is(false));
         assertThat(new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).areAllConsistent(), is(false));
         // publish change
-        new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).newHashPublisher().onMaster();
+        new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).newHashPublisher().onClusterManager();
         assertThat(consistentService.areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).areAllConsistent(), is(true));
     }
@@ -109,7 +109,7 @@ public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
             is(false)
         );
         // publish
-        new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).newHashPublisher().onMaster();
+        new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).newHashPublisher().onClusterManager();
         ConsistentSettingsService consistentService = new ConsistentSettingsService(
             settings,
             clusterService,
@@ -124,7 +124,7 @@ public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
             is(false)
         );
         // publish change
-        new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).newHashPublisher().onMaster();
+        new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).newHashPublisher().onClusterManager();
         assertThat(consistentService.areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).areAllConsistent(), is(true));
         // add value
@@ -137,7 +137,7 @@ public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
             is(false)
         );
         // publish
-        new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).newHashPublisher().onMaster();
+        new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).newHashPublisher().onClusterManager();
         assertThat(new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).areAllConsistent(), is(true));
         // remove value
         secureSettings = new MockSecureSettings();
@@ -174,7 +174,7 @@ public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
             is(false)
         );
         // publish only the simple string setting
-        new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).newHashPublisher().onMaster();
+        new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).newHashPublisher().onClusterManager();
         assertThat(new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).areAllConsistent(), is(true));
         assertThat(
             new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).areAllConsistent(),
@@ -185,7 +185,7 @@ public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
             is(false)
         );
         // publish only the affix string setting
-        new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).newHashPublisher().onMaster();
+        new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).newHashPublisher().onClusterManager();
         assertThat(new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).areAllConsistent(), is(false));
         assertThat(new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).areAllConsistent(), is(true));
         assertThat(
@@ -194,7 +194,7 @@ public class ConsistentSettingsServiceTests extends OpenSearchTestCase {
         );
         // publish both settings
         new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting, affixStringSetting)).newHashPublisher()
-            .onMaster();
+            .onClusterManager();
         assertThat(new ConsistentSettingsService(settings, clusterService, Arrays.asList(stringSetting)).areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, Arrays.asList(affixStringSetting)).areAllConsistent(), is(true));
         assertThat(

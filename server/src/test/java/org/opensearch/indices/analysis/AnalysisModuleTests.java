@@ -56,6 +56,8 @@ import org.opensearch.index.analysis.CharFilterFactory;
 import org.opensearch.index.analysis.CustomAnalyzer;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.MyFilterTokenFilterFactory;
+import org.opensearch.index.analysis.NameOrDefinition;
+import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.PreConfiguredCharFilter;
 import org.opensearch.index.analysis.PreConfiguredTokenFilter;
 import org.opensearch.index.analysis.PreConfiguredTokenizer;
@@ -80,6 +82,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -521,4 +524,54 @@ public class AnalysisModuleTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Tests registration and functionality of token filters that require access to the AnalysisModule.
+     * This test verifies the token filter registration using the extended getTokenFilters(AnalysisModule) method
+     */
+    public void testTokenFilterRegistrationWithModuleReference() throws IOException {
+        class TestPlugin implements AnalysisPlugin {
+            @Override
+            public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters(AnalysisModule module) {
+                return Map.of(
+                    "test_filter",
+                    (indexSettings, env, name, settings) -> AppendTokenFilter.factoryForSuffix("_" + module.hashCode())
+                );
+            }
+        }
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .put("index.analysis.analyzer.my_analyzer.filter", "test_filter")
+            .build();
+        Environment environment = TestEnvironment.newEnvironment(settings);
+        AnalysisModule module = new AnalysisModule(environment, singletonList(new TestPlugin()));
+        AnalysisRegistry registry = module.getAnalysisRegistry();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder().put(settings).build());
+        Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
+        assertTrue("Token filter 'test_filter' should be registered", tokenFilterFactories.containsKey("test_filter"));
+        IndexAnalyzers analyzers = registry.build(indexSettings);
+        String testText = "test";
+        TokenStream tokenStream = analyzers.get("my_analyzer").tokenStream("", testText);
+        CharTermAttribute charTermAttribute = tokenStream.addAttribute(CharTermAttribute.class);
+        tokenStream.reset();
+        assertTrue("Should have found a token", tokenStream.incrementToken());
+        assertEquals("Token should have expected suffix", "test_" + module.hashCode(), charTermAttribute.toString());
+        assertFalse("Should not have additional tokens", tokenStream.incrementToken());
+        tokenStream.close();
+        NamedAnalyzer customAnalyzer = registry.buildCustomAnalyzer(
+            indexSettings,
+            false,
+            new NameOrDefinition("standard"),
+            Collections.emptyList(),
+            Collections.singletonList(new NameOrDefinition("test_filter"))
+        );
+        tokenStream = customAnalyzer.tokenStream("", testText);
+        charTermAttribute = tokenStream.addAttribute(CharTermAttribute.class);
+        tokenStream.reset();
+        assertTrue("Custom analyzer should produce a token", tokenStream.incrementToken());
+        assertEquals("Custom analyzer token should have expected suffix", "test_" + module.hashCode(), charTermAttribute.toString());
+        assertFalse("Custom analyzer should not produce additional tokens", tokenStream.incrementToken());
+        tokenStream.close();
+    }
 }

@@ -32,19 +32,32 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.ObjectMapper.Dynamic;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.script.Script;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 
+import org.mockito.Mockito;
+
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
+import static org.opensearch.index.mapper.ObjectMapper.Nested.isParent;
 import static org.hamcrest.Matchers.containsString;
 
 public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
@@ -438,6 +451,171 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping));
         });
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testDerivedFields() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("tweet")
+            .startObject("derived")
+            .startObject("derived_field_name1")
+            .field("type", "boolean")
+            .endObject()
+            .startObject("derived_field_name2")
+            .field("type", "keyword")
+            .startObject("script")
+            .field("source", "doc['test'].value")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("properties")
+            .startObject("field_name")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        DocumentMapper documentMapper = createIndex("test").mapperService()
+            .documentMapperParser()
+            .parse("tweet", new CompressedXContent(mapping));
+
+        Mapper mapper = documentMapper.root().getMapper("derived_field_name1");
+        assertTrue(mapper instanceof DerivedFieldMapper);
+        DerivedFieldMapper derivedFieldMapper = (DerivedFieldMapper) mapper;
+        assertEquals("boolean", derivedFieldMapper.getType());
+        assertNull(derivedFieldMapper.getScript());
+
+        mapper = documentMapper.root().getMapper("derived_field_name2");
+        assertTrue(mapper instanceof DerivedFieldMapper);
+        derivedFieldMapper = (DerivedFieldMapper) mapper;
+        assertEquals("keyword", derivedFieldMapper.getType());
+        assertEquals(Script.parse("doc['test'].value"), derivedFieldMapper.getScript());
+
+        // Check that field in properties was parsed correctly as well
+        mapper = documentMapper.root().getMapper("field_name");
+        assertNotNull(mapper);
+        assertEquals("date", mapper.typeName());
+    }
+
+    public void testCompositeFields() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("tweet")
+            .startObject("composite")
+            .startObject("startree")
+            .field("type", "star_tree")
+            .startObject("config")
+            .startObject("date_dimension")
+            .field("name", "@timestamp")
+            .endObject()
+            .startArray("ordered_dimensions")
+            .startObject()
+            .field("name", "status")
+            .endObject()
+            .endArray()
+            .startArray("metrics")
+            .startObject()
+            .field("name", "status")
+            .endObject()
+            .startObject()
+            .field("name", "metric_field")
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("properties")
+            .startObject("@timestamp")
+            .field("type", "date")
+            .endObject()
+            .startObject("status")
+            .field("type", "integer")
+            .endObject()
+            .startObject("metric_field")
+            .field("type", "integer")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        Settings settings = Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .build();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex("invalid", settings).mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping))
+        );
+        assertEquals(
+            "star tree index is under an experimental feature and can be activated only by enabling opensearch.experimental.feature.composite_index.star_tree.enabled feature flag in the JVM options",
+            ex.getMessage()
+        );
+
+        final Settings starTreeEnabledSettings = Settings.builder().put(STAR_TREE_INDEX, "true").build();
+        FeatureFlags.initializeFeatureFlags(starTreeEnabledSettings);
+
+        DocumentMapper documentMapper = createIndex("test", settings).mapperService()
+            .documentMapperParser()
+            .parse("tweet", new CompressedXContent(mapping));
+
+        Mapper mapper = documentMapper.root().getMapper("startree");
+        assertTrue(mapper instanceof StarTreeMapper);
+        StarTreeMapper starTreeMapper = (StarTreeMapper) mapper;
+        assertEquals("star_tree", starTreeMapper.fieldType().typeName());
+        // Check that field in properties was parsed correctly as well
+        mapper = documentMapper.root().getMapper("@timestamp");
+        assertNotNull(mapper);
+        assertEquals("date", mapper.typeName());
+
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+    }
+
+    public void testNestedIsParent() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("a")
+            .field("type", "nested")
+            .startObject("properties")
+            .field("b1", Collections.singletonMap("type", "keyword"))
+            .startObject("b2")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("c")
+            .field("type", "nested")
+            .startObject("properties")
+            .field("d", Collections.singletonMap("type", "keyword"))
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        DocumentMapper documentMapper = createIndex("test").mapperService()
+            .documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Mockito.when(mapperService.getObjectMapper(("a"))).thenReturn(documentMapper.objectMappers().get("a"));
+        Mockito.when(mapperService.getObjectMapper(("a.b2"))).thenReturn(documentMapper.objectMappers().get("a.b2"));
+        Mockito.when(mapperService.getObjectMapper(("a.b2.c"))).thenReturn(documentMapper.objectMappers().get("a.b2.c"));
+
+        assertTrue(isParent(documentMapper.objectMappers().get("a"), documentMapper.objectMappers().get("a.b2.c"), mapperService));
+        assertTrue(isParent(documentMapper.objectMappers().get("a"), documentMapper.objectMappers().get("a.b2"), mapperService));
+        assertTrue(isParent(documentMapper.objectMappers().get("a.b2"), documentMapper.objectMappers().get("a.b2.c"), mapperService));
+
+        assertFalse(isParent(documentMapper.objectMappers().get("a.b2.c"), documentMapper.objectMappers().get("a"), mapperService));
+        assertFalse(isParent(documentMapper.objectMappers().get("a.b2"), documentMapper.objectMappers().get("a"), mapperService));
+        assertFalse(isParent(documentMapper.objectMappers().get("a.b2.c"), documentMapper.objectMappers().get("a.b2"), mapperService));
     }
 
     @Override

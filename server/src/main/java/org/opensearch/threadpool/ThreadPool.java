@@ -38,6 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
@@ -53,15 +54,19 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.gateway.remote.ClusterStateChecksum;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -105,6 +110,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
+        public static final String SNAPSHOT_DELETION = "snapshot_deletion";
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
@@ -115,8 +121,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REMOTE_PURGE = "remote_purge";
         public static final String REMOTE_REFRESH_RETRY = "remote_refresh_retry";
         public static final String REMOTE_RECOVERY = "remote_recovery";
+        public static final String REMOTE_STATE_READ = "remote_state_read";
         public static final String INDEX_SEARCHER = "index_searcher";
+        public static final String REMOTE_STATE_CHECKSUM = "remote_state_checksum";
     }
+
+    static Set<String> scalingThreadPoolKeys = new HashSet<>(Arrays.asList("max", "core"));
+    static Set<String> fixedThreadPoolKeys = new HashSet<>(Arrays.asList("size"));
 
     /**
      * The threadpool type.
@@ -175,6 +186,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
         map.put(Names.WARMER, ThreadPoolType.SCALING);
         map.put(Names.SNAPSHOT, ThreadPoolType.SCALING);
+        map.put(Names.SNAPSHOT_DELETION, ThreadPoolType.SCALING);
         map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
@@ -186,7 +198,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_PURGE, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_REFRESH_RETRY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_RECOVERY, ThreadPoolType.SCALING);
+        map.put(Names.REMOTE_STATE_READ, ThreadPoolType.FIXED);
         map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
+        map.put(Names.REMOTE_STATE_CHECKSUM, ThreadPoolType.FIXED);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -215,6 +229,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Settings> CLUSTER_THREAD_POOL_SIZE_SETTING = Setting.groupSetting(
+        "cluster.thread_pool.",
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         this(settings, null, customBuilders);
     }
@@ -232,6 +252,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
+        final int snapshotDeletionPoolMax = boundedBy(4 * allocatedProcessors, 64, 256);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
@@ -249,6 +270,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
+        builders.put(
+            Names.SNAPSHOT_DELETION,
+            new ScalingExecutorBuilder(Names.SNAPSHOT_DELETION, 1, snapshotDeletionPoolMax, TimeValue.timeValueMinutes(5))
+        );
         builders.put(
             Names.FETCH_SHARD_STARTED,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5))
@@ -280,6 +305,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             )
         );
         builders.put(
+            Names.REMOTE_STATE_READ,
+            new FixedExecutorBuilder(settings, Names.REMOTE_STATE_READ, boundedBy(4 * allocatedProcessors, 4, 32), 120000)
+        );
+        builders.put(
             Names.INDEX_SEARCHER,
             new ResizableExecutorBuilder(
                 settings,
@@ -288,6 +317,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 1000,
                 runnableTaskListener
             )
+        );
+        builders.put(
+            Names.REMOTE_STATE_CHECKSUM,
+            new FixedExecutorBuilder(settings, Names.REMOTE_STATE_CHECKSUM, ClusterStateChecksum.COMPONENT_SIZE, 1000)
         );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
@@ -381,6 +414,94 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             return null;
         }
         return holder.info;
+    }
+
+    public void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_THREAD_POOL_SIZE_SETTING, this::setThreadPool, this::validateSetting);
+    }
+
+    /*
+    Scaling threadpool can provide only max and core
+    Fixed/ResizableQueue can provide only size
+
+    For example valid settings would be for scaling and fixed thead pool
+        cluster.threadpool.snapshot.max : "5",
+        cluster.threadpool.snapshot.core : "5",
+        cluster.threadpool.get.size : "2",
+     */
+    private void validateSetting(Settings tpSettings) {
+        Map<String, Settings> tpGroups = tpSettings.getAsGroups();
+        for (Map.Entry<String, Settings> entry : tpGroups.entrySet()) {
+            String tpName = entry.getKey();
+            if (THREAD_POOL_TYPES.containsKey(tpName) == false) {
+                throw new IllegalArgumentException("illegal thread_pool name : " + tpName);
+            }
+            Settings tpGroup = entry.getValue();
+            ExecutorHolder holder = executors.get(tpName);
+            assert holder.executor instanceof OpenSearchThreadPoolExecutor;
+            OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor;
+            if (holder.info.type == ThreadPoolType.SCALING) {
+                if (scalingThreadPoolKeys.containsAll(tpGroup.keySet()) == false) {
+                    throw new IllegalArgumentException(
+                        "illegal thread_pool config : " + tpGroup.keySet() + " should only have " + scalingThreadPoolKeys
+                    );
+                }
+                int max = tpGroup.getAsInt("max", threadPoolExecutor.getMaximumPoolSize());
+                int core = tpGroup.getAsInt("core", threadPoolExecutor.getCorePoolSize());
+                if (core < 1 || max < 1) {
+                    throw new IllegalArgumentException("illegal value for [cluster.thread_pool." + tpName + "], has to be positive value");
+                } else if (core > max) {
+                    throw new IllegalArgumentException("core threadpool size cannot be greater than max");
+                }
+            } else {
+                if (fixedThreadPoolKeys.containsAll(tpGroup.keySet()) == false) {
+                    throw new IllegalArgumentException(
+                        "illegal thread_pool config : " + tpGroup.keySet() + " should only have " + fixedThreadPoolKeys
+                    );
+                }
+                int size = tpGroup.getAsInt("size", threadPoolExecutor.getMaximumPoolSize());
+                if (size < 1) {
+                    throw new IllegalArgumentException("illegal value for [cluster.thread_pool." + tpName + "], has to be positive value");
+                }
+            }
+        }
+    }
+
+    public void setThreadPool(Settings tpSettings) {
+        Map<String, Settings> tpGroups = tpSettings.getAsGroups();
+        for (Map.Entry<String, Settings> entry : tpGroups.entrySet()) {
+            String tpName = entry.getKey();
+            Settings tpGroup = entry.getValue();
+            ExecutorHolder holder = executors.get(tpName);
+            assert holder.executor instanceof OpenSearchThreadPoolExecutor;
+            OpenSearchThreadPoolExecutor executor = (OpenSearchThreadPoolExecutor) holder.executor;
+            if (holder.info.type == ThreadPoolType.SCALING) {
+                int max = tpGroup.getAsInt("max", executor.getMaximumPoolSize());
+                int core = tpGroup.getAsInt("core", executor.getCorePoolSize());
+                /*
+                 If we are decreasing, core pool size has to be decreased first.
+                 If we are increasing ,max pool size has to be increased first
+                 This ensures that core pool is always smaller than max pool size .
+                 Other wise IllegalArgumentException will be thrown from ThreadPoolExecutor
+                 */
+                if (core < executor.getCorePoolSize()) {
+                    executor.setCorePoolSize(core);
+                    executor.setMaximumPoolSize(max);
+                } else {
+                    executor.setMaximumPoolSize(max);
+                    executor.setCorePoolSize(core);
+                }
+            } else {
+                int size = tpGroup.getAsInt("size", executor.getMaximumPoolSize());
+                if (size < executor.getCorePoolSize()) {
+                    executor.setCorePoolSize(size);
+                    executor.setMaximumPoolSize(size);
+                } else {
+                    executor.setMaximumPoolSize(size);
+                    executor.setCorePoolSize(size);
+                }
+            }
+        }
     }
 
     public ThreadPoolStats stats() {

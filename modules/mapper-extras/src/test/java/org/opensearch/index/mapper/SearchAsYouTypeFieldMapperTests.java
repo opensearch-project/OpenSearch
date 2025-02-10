@@ -45,6 +45,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -68,6 +69,7 @@ import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -294,6 +296,20 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             assertEquals(1, indexFields.length);
             assertEquals("new york city", indexFields[0].stringValue());
         }
+    }
+
+    public void testSubField() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "search_as_you_type")
+                    .startObject("fields")
+                    .startObject("subField")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+            )
+        );
+        assertThat(mapperService.fieldType("field.subField"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
     public void testIndexOptions() throws IOException {
@@ -539,6 +555,31 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                 () -> new MatchPhraseQueryBuilder("field._index_prefix", "one two three four").toQuery(queryShardContext)
             );
         }
+    }
+
+    public void testNestedExistsQuery() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("nested_field");
+                    {
+                        b.field("type", "search_as_you_type");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        Query actual = new QueryStringQueryBuilder("field:*").toQuery(queryShardContext);
+        Query expected = new ConstantScoreQuery(
+            new BooleanQuery.Builder().add(new FieldExistsQuery("field.nested_field"), BooleanClause.Occur.SHOULD).build()
+        );
+        assertEquals(expected, actual);
     }
 
     private static BooleanQuery buildBoolPrefixQuery(String shingleFieldName, String prefixFieldName, List<String> terms) {

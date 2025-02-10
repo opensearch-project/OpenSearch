@@ -33,25 +33,31 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -60,9 +66,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.opensearch.snapshots.SnapshotsService.MAX_SHARDS_ALLOWED_IN_STATUS_API;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -101,16 +110,12 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
 
-        final List<SnapshotStatus> snapshotStatus = clusterAdmin().snapshotsStatus(
-            new SnapshotsStatusRequest("test-repo", new String[] { "test-snap" })
-        ).actionGet().getSnapshots();
-        assertThat(snapshotStatus.size(), equalTo(1));
-        final SnapshotStatus snStatus = snapshotStatus.get(0);
-        assertEquals(snStatus.getStats().getStartTime(), snapshotInfo.startTime());
-        assertEquals(snStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
+        final SnapshotStatus snapshotStatus = getSnapshotStatus("test-repo", "test-snap");
+        assertEquals(snapshotStatus.getStats().getStartTime(), snapshotInfo.startTime());
+        assertEquals(snapshotStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
     }
 
-    public void testStatusAPICallForShallowCopySnapshot() {
+    public void testStatusAPICallForShallowCopySnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used for the test");
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -130,15 +135,24 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final String snapshot = "snapshot";
         createFullSnapshot(snapshotRepoName, snapshot);
 
-        final SnapshotStatus snapshotStatus = getSnapshotStatus(snapshotRepoName, snapshot);
-        assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
+        assertBusy(() -> {
+            final SnapshotStatus snapshotStatus = client().admin()
+                .cluster()
+                .prepareSnapshotStatus(snapshotRepoName)
+                .setSnapshots(snapshot)
+                .execute()
+                .actionGet()
+                .getSnapshots()
+                .get(0);
+            assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
 
-        final SnapshotIndexShardStatus snapshotShardState = stateFirstShard(snapshotStatus, indexName);
-        assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
-        assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
-        assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
-        assertThat(snapshotShardState.getStats().getIncrementalFileCount(), greaterThan(0));
-        assertThat(snapshotShardState.getStats().getIncrementalSize(), greaterThan(0L));
+            final SnapshotIndexShardStatus snapshotShardState = stateFirstShard(snapshotStatus, indexName);
+            assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
+            assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
+            assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
+            assertThat(snapshotShardState.getStats().getIncrementalFileCount(), greaterThan(0));
+            assertThat(snapshotShardState.getStats().getIncrementalSize(), greaterThan(0L));
+        }, 20, TimeUnit.SECONDS);
     }
 
     public void testStatusAPICallInProgressSnapshot() throws Exception {
@@ -187,7 +201,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    public void testExceptionOnMissingShardLevelSnapBlob() throws IOException {
+    public void testExceptionOnMissingShardLevelSnapBlob() throws Exception {
         disableRepoConsistencyCheck("This test intentionally corrupts the repository");
 
         final Path repoPath = randomRepoPath();
@@ -205,18 +219,17 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final SnapshotInfo snapshotInfo = createFullSnapshot("test-repo", "test-snap");
 
         logger.info("--> delete shard-level snap-${uuid}.dat file for one shard in this snapshot to simulate concurrent delete");
-        final String indexRepoId = getRepositoryData("test-repo").resolveIndexId(snapshotInfo.indices().get(0)).getId();
+        IndexId indexId = getRepositoryData("test-repo").resolveIndexId(snapshotInfo.indices().get(0));
         IOUtils.rm(
-            repoPath.resolve("indices")
-                .resolve(indexRepoId)
-                .resolve("0")
+            repoPath.resolve(resolvePath(indexId, "0"))
                 .resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat")
         );
-
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet()
-        );
+        assertBusy(() -> {
+            expectThrows(
+                SnapshotMissingException.class,
+                () -> client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet()
+            );
+        }, 20, TimeUnit.SECONDS);
     }
 
     public void testGetSnapshotsWithoutIndices() throws Exception {
@@ -355,6 +368,22 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
         assertEquals(SnapshotsInProgress.State.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
+    }
+
+    public void testSnapshotStatusOnPartialSnapshot() throws Exception {
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final String indexName = "test-idx";
+        createRepository(repoName, "fs");
+        // create an index with a single shard on the data node, that will be stopped
+        createIndex(indexName, singleShardOneNode(dataNode));
+        index(indexName, "_doc", "some_doc_id", "foo", "bar");
+        logger.info("--> stopping data node before creating snapshot");
+        stopNode(dataNode);
+        startFullSnapshot(repoName, snapshotName, true).get();
+        final SnapshotStatus snapshotStatus = getSnapshotStatus(repoName, snapshotName);
+        assertEquals(SnapshotsInProgress.State.PARTIAL, snapshotStatus.getState());
     }
 
     public void testStatusAPICallInProgressShallowSnapshot() throws Exception {
@@ -551,6 +580,466 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         unblockNode(repositoryName, blockedNode); // unblock node
         waitForCompletion(repositoryName, inProgressSnapshot, TimeValue.timeValueSeconds(60));
+    }
+
+    public void testSnapshotStatusApiFailureForTooManyShardsAcrossSnapshots() throws Exception {
+        String repositoryName = "test-repo";
+        String index1 = "test-idx-1";
+        String index2 = "test-idx-2";
+        String index3 = "test-idx-3";
+        createRepository(repositoryName, "fs");
+
+        logger.info("Create indices");
+        createIndex(index1, index2, index3);
+        ensureGreen();
+
+        logger.info("Indexing some data");
+        for (int i = 0; i < 10; i++) {
+            index(index1, "_doc", Integer.toString(i), "foo", "bar" + i);
+            index(index2, "_doc", Integer.toString(i), "foo", "baz" + i);
+            index(index3, "_doc", Integer.toString(i), "foo", "baz" + i);
+        }
+        refresh();
+        String snapshot1 = "test-snap-1";
+        String snapshot2 = "test-snap-2";
+        createSnapshot(repositoryName, snapshot1, List.of(index1, index2, index3));
+        createSnapshot(repositoryName, snapshot2, List.of(index1, index2));
+
+        logger.info("Set MAX_SHARDS_ALLOWED_IN_STATUS_API to a low value");
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey(), 2));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        // across a single snapshot
+        assertBusy(() -> {
+            CircuitBreakingException exception = expectThrows(
+                CircuitBreakingException.class,
+                () -> client().admin().cluster().prepareSnapshotStatus(repositoryName).setSnapshots(snapshot1).execute().actionGet()
+            );
+            assertEquals(exception.status(), RestStatus.TOO_MANY_REQUESTS);
+            assertTrue(
+                exception.getMessage().contains(" is more than the maximum allowed value of shard count [2] for snapshot status request")
+            );
+        });
+
+        // across multiple snapshots
+        assertBusy(() -> {
+            CircuitBreakingException exception = expectThrows(
+                CircuitBreakingException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(snapshot1, snapshot2)
+                    .execute()
+                    .actionGet()
+            );
+            assertEquals(exception.status(), RestStatus.TOO_MANY_REQUESTS);
+            assertTrue(
+                exception.getMessage().contains(" is more than the maximum allowed value of shard count [2] for snapshot status request")
+            );
+        });
+
+        logger.info("Reset MAX_SHARDS_ALLOWED_IN_STATUS_API to default value");
+        updateSettingsRequest.persistentSettings(Settings.builder().putNull(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey()));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    public void testSnapshotStatusForIndexFilter() throws Exception {
+        String repositoryName = "test-repo";
+        String index1 = "test-idx-1";
+        String index2 = "test-idx-2";
+        String index3 = "test-idx-3";
+        createRepository(repositoryName, "fs");
+
+        logger.info("Create indices");
+        createIndex(index1, index2, index3);
+        ensureGreen();
+
+        logger.info("Indexing some data");
+        for (int i = 0; i < 10; i++) {
+            index(index1, "_doc", Integer.toString(i), "foo", "bar" + i);
+            index(index2, "_doc", Integer.toString(i), "foo", "baz" + i);
+            index(index3, "_doc", Integer.toString(i), "foo", "baz" + i);
+        }
+        refresh();
+        String snapshot = "test-snap-1";
+        createSnapshot(repositoryName, snapshot, List.of(index1, index2, index3));
+
+        // for a completed snapshot
+        assertBusy(() -> {
+            SnapshotStatus snapshotsStatus = client().admin()
+                .cluster()
+                .prepareSnapshotStatus(repositoryName)
+                .setSnapshots(snapshot)
+                .setIndices(index1, index2)
+                .get()
+                .getSnapshots()
+                .get(0);
+            Map<String, SnapshotIndexStatus> snapshotIndexStatusMap = snapshotsStatus.getIndices();
+            // Although the snapshot contains 3 indices, the response of status api call only contains results for 2
+            assertEquals(snapshotIndexStatusMap.size(), 2);
+            assertEquals(snapshotIndexStatusMap.keySet(), Set.of(index1, index2));
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    public void testSnapshotStatusForIndexFilterForInProgressSnapshot() throws Exception {
+        String repositoryName = "test-repo";
+        createRepository(repositoryName, "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
+
+        logger.info("Create indices");
+        String index1 = "test-idx-1";
+        String index2 = "test-idx-2";
+        String index3 = "test-idx-3";
+        createIndex(index1, index2, index3);
+        ensureGreen();
+
+        logger.info("Indexing some data");
+        for (int i = 0; i < 10; i++) {
+            index(index1, "_doc", Integer.toString(i), "foo", "bar" + i);
+            index(index2, "_doc", Integer.toString(i), "foo", "baz" + i);
+            index(index3, "_doc", Integer.toString(i), "foo", "baz" + i);
+        }
+        refresh();
+        String inProgressSnapshot = "test-in-progress-snapshot";
+
+        logger.info("Create snapshot");
+        ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot(repositoryName, inProgressSnapshot);
+
+        logger.info("Block data node");
+        waitForBlockOnAnyDataNode(repositoryName, TimeValue.timeValueMinutes(1));
+        awaitNumberOfSnapshotsInProgress(1);
+
+        // test normal functioning of index filter for in progress snapshot
+        assertBusy(() -> {
+            SnapshotStatus snapshotsStatus = client().admin()
+                .cluster()
+                .prepareSnapshotStatus(repositoryName)
+                .setSnapshots(inProgressSnapshot)
+                .setIndices(index1, index2)
+                .get()
+                .getSnapshots()
+                .get(0);
+            Map<String, SnapshotIndexStatus> snapshotIndexStatusMap = snapshotsStatus.getIndices();
+            // Although the snapshot contains 3 indices, the response of status api call only contains results for 2
+            assertEquals(snapshotIndexStatusMap.size(), 2);
+            assertEquals(snapshotIndexStatusMap.keySet(), Set.of(index1, index2));
+        });
+
+        // when a non-existent index is requested in the index-filter
+        assertBusy(() -> {
+            // failure due to index not found in snapshot
+            final String nonExistentIndex1 = "non-existent-index-1";
+            final String nonExistentIndex2 = "non-existent-index-2";
+            Exception ex = expectThrows(
+                Exception.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(inProgressSnapshot)
+                    .setIndices(index1, index2, nonExistentIndex1, nonExistentIndex2)
+                    .execute()
+                    .actionGet()
+            );
+            String cause = String.format(
+                Locale.ROOT,
+                "indices [%s] missing in snapshot [%s] of repository [%s]",
+                String.join(", ", List.of(nonExistentIndex2, nonExistentIndex1)),
+                inProgressSnapshot,
+                repositoryName
+            );
+            assertEquals(cause, ex.getCause().getMessage());
+
+            // no error for ignore_unavailable = true and status response contains only the found indices
+            SnapshotStatus snapshotsStatus = client().admin()
+                .cluster()
+                .prepareSnapshotStatus(repositoryName)
+                .setSnapshots(inProgressSnapshot)
+                .setIndices(index1, index2, nonExistentIndex1, nonExistentIndex2)
+                .setIgnoreUnavailable(true)
+                .get()
+                .getSnapshots()
+                .get(0);
+
+            Map<String, SnapshotIndexStatus> snapshotIndexStatusMap = snapshotsStatus.getIndices();
+            assertEquals(snapshotIndexStatusMap.size(), 2);
+            assertEquals(snapshotIndexStatusMap.keySet(), Set.of(index1, index2));
+        });
+
+        logger.info("Unblock data node");
+        unblockAllDataNodes(repositoryName);
+
+        logger.info("Wait for snapshot to finish");
+        waitForCompletion(repositoryName, inProgressSnapshot, TimeValue.timeValueSeconds(60));
+    }
+
+    public void testSnapshotStatusFailuresWithIndexFilter() throws Exception {
+        String repositoryName = "test-repo";
+        String index1 = "test-idx-1";
+        String index2 = "test-idx-2";
+        String index3 = "test-idx-3";
+        createRepository(repositoryName, "fs");
+
+        logger.info("Create indices");
+        createIndex(index1, index2, index3);
+        ensureGreen();
+
+        logger.info("Indexing some data");
+        for (int i = 0; i < 10; i++) {
+            index(index1, "_doc", Integer.toString(i), "foo", "bar" + i);
+            index(index2, "_doc", Integer.toString(i), "foo", "baz" + i);
+            index(index3, "_doc", Integer.toString(i), "foo", "baz" + i);
+        }
+        refresh();
+        String snapshot1 = "test-snap-1";
+        String snapshot2 = "test-snap-2";
+        createSnapshot(repositoryName, snapshot1, List.of(index1, index2, index3));
+        createSnapshot(repositoryName, snapshot2, List.of(index1));
+
+        assertBusy(() -> {
+            // failure due to passing index filter for _all value of repository param
+            Exception ex = expectThrows(
+                Exception.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus("_all")
+                    .setSnapshots(snapshot1)
+                    .setIndices(index1, index2, index3)
+                    .execute()
+                    .actionGet()
+            );
+            String cause =
+                "index list filter is supported only when a single 'repository' is passed, but found 'repository' param = [_all]";
+            assertTrue(ex.getMessage().contains(cause));
+        });
+
+        assertBusy(() -> {
+            // failure due to passing index filter for _all value of snapshot param --> gets translated as a blank array
+            Exception ex = expectThrows(
+                Exception.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots()
+                    .setIndices(index1, index2, index3)
+                    .execute()
+                    .actionGet()
+            );
+            String cause = "index list filter is supported only when a single 'snapshot' is passed, but found 'snapshot' param = [_all]";
+            assertTrue(ex.getMessage().contains(cause));
+        });
+
+        assertBusy(() -> {
+            // failure due to passing index filter for multiple snapshots
+            ActionRequestValidationException ex = expectThrows(
+                ActionRequestValidationException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(snapshot1, snapshot2)
+                    .setIndices(index1, index2, index3)
+                    .execute()
+                    .actionGet()
+            );
+            String cause =
+                "index list filter is supported only when a single 'snapshot' is passed, but found 'snapshot' param = [[test-snap-1, test-snap-2]]";
+            assertTrue(ex.getMessage().contains(cause));
+        });
+
+        assertBusy(() -> {
+            // failure due to index not found in snapshot
+            IndexNotFoundException ex = expectThrows(
+                IndexNotFoundException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(snapshot2)
+                    .setIndices(index1, index2, index3)
+                    .execute()
+                    .actionGet()
+            );
+            assertEquals(ex.status(), RestStatus.NOT_FOUND);
+            String cause = String.format(
+                Locale.ROOT,
+                "indices [%s] missing in snapshot [%s] of repository [%s]",
+                String.join(", ", List.of(index2, index3)),
+                snapshot2,
+                repositoryName
+            );
+            assertEquals(cause, ex.getCause().getMessage());
+
+            // no error for ignore_unavailable = true and status response contains only the found indices
+            SnapshotStatus snapshotsStatus = client().admin()
+                .cluster()
+                .prepareSnapshotStatus(repositoryName)
+                .setSnapshots(snapshot2)
+                .setIndices(index1, index2, index3)
+                .setIgnoreUnavailable(true)
+                .get()
+                .getSnapshots()
+                .get(0);
+            assertEquals(1, snapshotsStatus.getIndices().size());
+        });
+
+        assertBusy(() -> {
+            // failure due to too many shards requested
+            logger.info("Set MAX_SHARDS_ALLOWED_IN_STATUS_API to a low value");
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.persistentSettings(Settings.builder().put(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey(), 2));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+            CircuitBreakingException ex = expectThrows(
+                CircuitBreakingException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(snapshot1)
+                    .setIndices(index1, index2, index3)
+                    .execute()
+                    .actionGet()
+            );
+            assertEquals(ex.status(), RestStatus.TOO_MANY_REQUESTS);
+            assertTrue(ex.getMessage().contains(" is more than the maximum allowed value of shard count [2] for snapshot status request"));
+
+            logger.info("Reset MAX_SHARDS_ALLOWED_IN_STATUS_API to default value");
+            updateSettingsRequest.persistentSettings(Settings.builder().putNull(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey()));
+            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        });
+    }
+
+    public void testSnapshotStatusShardLimitOfResponseForInProgressSnapshot() throws Exception {
+        logger.info("Create repository");
+        String repositoryName = "test-repo";
+        createRepository(
+            repositoryName,
+            "mock",
+            Settings.builder()
+                .put("location", randomRepoPath())
+                .put("compress", false)
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                .put("wait_after_unblock", 200)
+        );
+
+        logger.info("Create indices");
+        String index1 = "test-idx-1";
+        String index2 = "test-idx-2";
+        String index3 = "test-idx-3";
+        assertAcked(prepareCreate(index1, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(index2, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(index3, 1, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0)));
+        ensureGreen();
+
+        logger.info("Index some data");
+        indexRandomDocs(index1, 10);
+        indexRandomDocs(index2, 10);
+        indexRandomDocs(index3, 10);
+
+        logger.info("Create completed snapshot");
+        String completedSnapshot = "test-completed-snapshot";
+        String blockedNode = blockNodeWithIndex(repositoryName, index1);
+        client().admin().cluster().prepareCreateSnapshot(repositoryName, completedSnapshot).setWaitForCompletion(false).get();
+        waitForBlock(blockedNode, repositoryName, TimeValue.timeValueSeconds(60));
+        unblockNode(repositoryName, blockedNode);
+        waitForCompletion(repositoryName, completedSnapshot, TimeValue.timeValueSeconds(60));
+
+        logger.info("Index some more data");
+        indexRandomDocs(index1, 10);
+        indexRandomDocs(index2, 10);
+        indexRandomDocs(index3, 10);
+        refresh();
+
+        logger.info("Create in-progress snapshot");
+        String inProgressSnapshot = "test-in-progress-snapshot";
+        blockedNode = blockNodeWithIndex(repositoryName, index1);
+        client().admin().cluster().prepareCreateSnapshot(repositoryName, inProgressSnapshot).setWaitForCompletion(false).get();
+        waitForBlock(blockedNode, repositoryName, TimeValue.timeValueSeconds(60));
+        List<SnapshotStatus> snapshotStatuses = client().admin()
+            .cluster()
+            .prepareSnapshotStatus(repositoryName)
+            .setSnapshots(inProgressSnapshot, completedSnapshot)
+            .get()
+            .getSnapshots();
+
+        assertEquals(2, snapshotStatuses.size());
+        assertEquals(SnapshotsInProgress.State.STARTED, snapshotStatuses.get(0).getState());
+        assertEquals(SnapshotsInProgress.State.SUCCESS, snapshotStatuses.get(1).getState());
+
+        logger.info("Set MAX_SHARDS_ALLOWED_IN_STATUS_API to a low value");
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey(), 1));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        // shard limit exceeded due to inProgress snapshot alone @ without index-filter
+        assertBusy(() -> {
+            CircuitBreakingException exception = expectThrows(
+                CircuitBreakingException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(inProgressSnapshot)
+                    .execute()
+                    .actionGet()
+            );
+            assertEquals(exception.status(), RestStatus.TOO_MANY_REQUESTS);
+            assertTrue(
+                exception.getMessage().contains(" is more than the maximum allowed value of shard count [1] for snapshot status request")
+            );
+        });
+
+        // shard limit exceeded due to inProgress snapshot alone @ with index-filter
+        assertBusy(() -> {
+            CircuitBreakingException exception = expectThrows(
+                CircuitBreakingException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(inProgressSnapshot)
+                    .setIndices(index1, index2)
+                    .execute()
+                    .actionGet()
+            );
+            assertEquals(exception.status(), RestStatus.TOO_MANY_REQUESTS);
+            assertTrue(
+                exception.getMessage().contains(" is more than the maximum allowed value of shard count [1] for snapshot status request")
+            );
+        });
+
+        logger.info("Set MAX_SHARDS_ALLOWED_IN_STATUS_API to a slightly higher value");
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey(), 5));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        // shard limit exceeded due to passing for inProgress but failing for current + completed
+
+        assertBusy(() -> {
+            SnapshotStatus inProgressSnapshotStatus = client().admin()
+                .cluster()
+                .prepareSnapshotStatus(repositoryName)
+                .setSnapshots(inProgressSnapshot)
+                .get()
+                .getSnapshots()
+                .get(0);
+            assertEquals(3, inProgressSnapshotStatus.getShards().size());
+
+            CircuitBreakingException exception = expectThrows(
+                CircuitBreakingException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareSnapshotStatus(repositoryName)
+                    .setSnapshots(inProgressSnapshot, completedSnapshot)
+                    .execute()
+                    .actionGet()
+            );
+            assertEquals(exception.status(), RestStatus.TOO_MANY_REQUESTS);
+            assertTrue(
+                exception.getMessage().contains(" is more than the maximum allowed value of shard count [5] for snapshot status request")
+            );
+        });
+
+        unblockNode(repositoryName, blockedNode);
+        waitForCompletion(repositoryName, inProgressSnapshot, TimeValue.timeValueSeconds(60));
+
+        logger.info("Reset MAX_SHARDS_ALLOWED_IN_STATUS_API to default value");
+        updateSettingsRequest.persistentSettings(Settings.builder().putNull(MAX_SHARDS_ALLOWED_IN_STATUS_API.getKey()));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 
     private static SnapshotIndexShardStatus stateFirstShard(SnapshotStatus snapshotStatus, String indexName) {

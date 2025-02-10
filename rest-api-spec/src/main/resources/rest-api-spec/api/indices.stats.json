@@ -1,7 +1,7 @@
 {
   "indices.stats":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-stats.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/index-apis/stats/",
       "description":"Provides statistics on operations happening in an index."
     },
     "stability":"stable",

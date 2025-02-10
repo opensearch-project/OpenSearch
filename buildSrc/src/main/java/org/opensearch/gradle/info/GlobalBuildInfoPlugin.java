@@ -199,7 +199,28 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private JvmInstallationMetadata getJavaInstallation(File javaHome) {
-        final InstallationLocation location = new InstallationLocation(javaHome, "Java home");
+        InstallationLocation location = null;
+
+        try {
+            try {
+                // The InstallationLocation(File, String) is used by Gradle pre-8.8
+                location = (InstallationLocation) MethodHandles.publicLookup()
+                    .findConstructor(InstallationLocation.class, MethodType.methodType(void.class, File.class, String.class))
+                    .invokeExact(javaHome, "Java home");
+            } catch (Throwable ex) {
+                // The InstallationLocation::userDefined is used by Gradle post-8.7
+                location = (InstallationLocation) MethodHandles.publicLookup()
+                    .findStatic(
+                        InstallationLocation.class,
+                        "userDefined",
+                        MethodType.methodType(InstallationLocation.class, File.class, String.class)
+                    )
+                    .invokeExact(javaHome, "Java home");
+
+            }
+        } catch (Throwable ex) {
+            throw new IllegalStateException("Unable to find suitable InstallationLocation constructor / factory method", ex);
+        }
 
         try {
             try {

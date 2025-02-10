@@ -35,12 +35,16 @@ package org.opensearch.index.get;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.IdFieldMapper;
@@ -218,6 +222,22 @@ public class GetResultTests extends OpenSearchTestCase {
             GetResultTests::copyGetResult,
             GetResultTests::mutateGetResult
         );
+    }
+
+    public void testFromXContentEmbeddedFoundParsingException() throws IOException {
+        String json = "{\"_index\":\"foo\",\"_id\":\"bar\"}";
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                json
+            )
+        ) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ParsingException parsingException = assertThrows(ParsingException.class, () -> GetResult.fromXContentEmbedded(parser));
+            assertEquals("Missing required field [found]", parsingException.getMessage());
+        }
+
     }
 
     public static GetResult copyGetResult(GetResult getResult) {

@@ -35,7 +35,6 @@ package org.opensearch.index.query;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
@@ -46,12 +45,12 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -71,11 +70,15 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.QueryStringQueryParser;
+import org.opensearch.lucene.queries.BlendedTermQuery;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -98,6 +101,9 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.apache.lucene.document.LongPoint.pack;
+import static org.junit.Assume.assumeThat;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
@@ -593,13 +599,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Automaton a = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
         expectedQuery = new ConstantScoreQuery(
             new BooleanQuery.Builder().add(
-                new AutomatonQuery(
-                    new Term("prefix_field._index_prefix", "g*"),
-                    a,
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    false,
-                    MultiTermQuery.CONSTANT_SCORE_REWRITE
-                ),
+                new AutomatonQuery(new Term("prefix_field._index_prefix", "g*"), a, false, MultiTermQuery.CONSTANT_SCORE_REWRITE),
                 Occur.SHOULD
             ).add(new TermQuery(new Term("prefix_field", "g")), Occur.SHOULD).build()
         );
@@ -786,7 +786,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createShardContext())
         );
-        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("Determinizing automaton"));
         assertThat(e.getMessage(), containsString("would require more than 10000 effort"));
     }
 
@@ -812,7 +812,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createShardContext())
         );
-        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("Determinizing automaton"));
         assertThat(e.getMessage(), containsString("would require more than 10 effort"));
     }
 
@@ -853,7 +853,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder qsq = queryStringQuery(DATE_FIELD_NAME + ":1970-01-01");
         QueryShardContext context = createShardContext();
         Query query = qsq.toQuery(context);
-        assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
+        assumeThat(
+            "Using Approximate Range Query as default",
+            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
+            is(true)
+        );
+        assertThat(query, instanceOf(ApproximateScoreQuery.class));
         long lower = 0; // 1970-01-01T00:00:00.999 UTC
         long upper = 86399999;  // 1970-01-01T23:59:59.999 UTC
         assertEquals(calculateExpectedDateQuery(lower, upper), query);
@@ -862,10 +867,24 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(calculateExpectedDateQuery(lower + msPerHour, upper + msPerHour), qsq.timeZone("-01:00").toQuery(context));
     }
 
-    private IndexOrDocValuesQuery calculateExpectedDateQuery(long lower, long upper) {
-        Query query = LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper);
-        Query dv = SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper);
-        return new IndexOrDocValuesQuery(query, dv);
+    private ApproximateScoreQuery calculateExpectedDateQuery(long lower, long upper) {
+        return new ApproximateScoreQuery(
+            new IndexOrDocValuesQuery(
+                LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+                SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+            ),
+            new ApproximatePointRangeQuery(
+                DATE_FIELD_NAME,
+                pack(new long[] { lower }).bytes,
+                pack(new long[] { upper }).bytes,
+                new long[] { lower }.length
+            ) {
+                @Override
+                protected String toString(int dimension, byte[] value) {
+                    return Long.toString(LongPoint.decodeDimension(value, 0));
+                }
+            }
+        );
     }
 
     public void testFuzzyNumeric() throws Exception {
@@ -964,10 +983,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) query;
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(2));
-        assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "foo"))));
-        assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanQuery.clauses().get(1).getQuery(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "bar"))));
+        assertThat(booleanQuery.clauses().get(0).occur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(booleanQuery.clauses().get(0).query(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "foo"))));
+        assertThat(booleanQuery.clauses().get(1).occur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(booleanQuery.clauses().get(1).query(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "bar"))));
     }
 
     public void testToQueryPhraseQueryBoostAndSlop() throws IOException {
@@ -1077,7 +1096,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
         if ((context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms())) {
-            assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
+            assertThat(query, equalTo(new ConstantScoreQuery(new FieldExistsQuery(TEXT_FIELD_NAME))));
         } else {
             assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
         }
@@ -1087,7 +1106,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
             query = queryBuilder.toQuery(context);
             if ((context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms())) {
-                assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
+                assertThat(query, equalTo(new ConstantScoreQuery(new FieldExistsQuery(TEXT_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
             }
@@ -1166,9 +1185,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testExpandedTerms() throws Exception {
         // Prefix
         Query query = new QueryStringQueryBuilder("aBc*").field(TEXT_FIELD_NAME).analyzer("whitespace").toQuery(createShardContext());
-        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "aBc"), MultiTermQuery.CONSTANT_SCORE_REWRITE), query);
+        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "aBc"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE), query);
         query = new QueryStringQueryBuilder("aBc*").field(TEXT_FIELD_NAME).analyzer("standard").toQuery(createShardContext());
-        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "abc"), MultiTermQuery.CONSTANT_SCORE_REWRITE), query);
+        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "abc"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE), query);
 
         // Wildcard
         query = new QueryStringQueryBuilder("aBc*D").field(TEXT_FIELD_NAME).analyzer("whitespace").toQuery(createShardContext());
@@ -1176,7 +1195,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             new WildcardQuery(
                 new Term(TEXT_FIELD_NAME, "aBc*D"),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                MultiTermQuery.CONSTANT_SCORE_REWRITE
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
             ),
             query
         );
@@ -1185,7 +1204,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             new WildcardQuery(
                 new Term(TEXT_FIELD_NAME, "abc*d"),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                MultiTermQuery.CONSTANT_SCORE_REWRITE
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
             ),
             query
         );
@@ -1431,7 +1450,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testWithPrefixStopWords() throws Exception {
         Query query = new QueryStringQueryBuilder("the* quick fox").field(TEXT_FIELD_NAME).analyzer("stop").toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder().add(
-            new PrefixQuery(new Term(TEXT_FIELD_NAME, "the"), MultiTermQuery.CONSTANT_SCORE_REWRITE),
+            new PrefixQuery(new Term(TEXT_FIELD_NAME, "the"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE),
             Occur.SHOULD
         )
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), Occur.SHOULD)
@@ -1514,7 +1533,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .analyzer("standard")
             .analyzeWildcard(true)
             .toQuery(createShardContext());
-        Query expected = new PrefixQuery(new Term(TEXT_FIELD_NAME, "quick"), MultiTermQuery.CONSTANT_SCORE_REWRITE);
+        Query expected = new PrefixQuery(new Term(TEXT_FIELD_NAME, "quick"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
         assertEquals(expected, query);
     }
 

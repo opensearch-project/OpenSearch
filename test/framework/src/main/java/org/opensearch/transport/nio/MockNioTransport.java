@@ -467,7 +467,7 @@ public class MockNioTransport extends TcpTransport {
                     final Thread thread = entry.getKey();
                     final String stackTrace = Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n"));
                     final Thread.State threadState = thread.getState();
-                    if (blockedSinceInNanos == registry.get(thread)) {
+                    if (blockedSinceInNanos.equals(registry.get(thread))) {
                         logger.warn(
                             "Potentially blocked execution on network thread [{}] [{}] [{} milliseconds]: \n{}",
                             thread.getName(),

@@ -34,9 +34,9 @@ package org.opensearch.action.support.clustermanager.info;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport request builder for cluster information

@@ -13,6 +13,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -28,7 +29,7 @@ public class CPUBasedAdmissionControllerSettingsTests extends OpenSearchTestCase
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("admission_controller_settings_test");
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
@@ -49,7 +50,8 @@ public class CPUBasedAdmissionControllerSettingsTests extends OpenSearchTestCase
                 Arrays.asList(
                     CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                     CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
-                    CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT
+                    CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
+                    CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT
                 )
             )
         );
@@ -148,5 +150,34 @@ public class CPUBasedAdmissionControllerSettingsTests extends OpenSearchTestCase
 
         assertEquals(cpuBasedAdmissionControllerSettings.getSearchCPULimit().longValue(), searchPercent);
         assertEquals(cpuBasedAdmissionControllerSettings.getIndexingCPULimit().longValue(), indexingPercent);
+    }
+
+    public void testConfiguredSettingsForAdmin() {
+        Settings settings = Settings.builder()
+            .put(
+                CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                AdmissionControlMode.ENFORCED.getMode()
+            )
+            .put(CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT.getKey(), 50)
+            .build();
+
+        CpuBasedAdmissionControllerSettings cpuBasedAdmissionControllerSettings = new CpuBasedAdmissionControllerSettings(
+            clusterService.getClusterSettings(),
+            settings
+        );
+        assertEquals(cpuBasedAdmissionControllerSettings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
+        assertEquals(cpuBasedAdmissionControllerSettings.getClusterAdminCPULimit().longValue(), 50);
+
+        Settings updatedSettings = Settings.builder()
+            .put(
+                CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                AdmissionControlMode.MONITOR.getMode()
+            )
+            .put(CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT.getKey(), 90)
+            .build();
+        clusterService.getClusterSettings().applySettings(updatedSettings);
+        assertEquals(cpuBasedAdmissionControllerSettings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.MONITOR);
+        assertEquals(cpuBasedAdmissionControllerSettings.getClusterAdminCPULimit().longValue(), 90);
+
     }
 }

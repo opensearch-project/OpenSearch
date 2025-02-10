@@ -33,7 +33,6 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -54,6 +53,7 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.query.MultiMatchQueryBuilder.Type;
 import org.opensearch.index.search.MatchQuery;
+import org.opensearch.lucene.queries.ExtendedCommonTermsQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

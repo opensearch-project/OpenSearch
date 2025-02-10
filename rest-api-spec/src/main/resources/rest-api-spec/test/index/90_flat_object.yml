@@ -16,7 +16,10 @@ setup:
                 type : "flat_object"
               required_matches:
                 type : "long"
-
+              infos:
+                properties:
+                  info:
+                    type: "flat_object"
   - do:
       index:
         index: test
@@ -60,9 +63,13 @@ setup:
             "review": [["bad",30.41],["ok",80.0]],
             "publishDate": "2016-01-01"
           },
-          "required_matches": 1
+          "required_matches": 1,
+          "infos": {
+            "info":{
+              "name": "name1"
+            }
+          }
         }
-
   # Do index refresh
   - do:
       indices.refresh:
@@ -75,6 +82,85 @@ teardown:
       indices.delete:
         index: test
 
+---
+"Exist query in root field":
+  - skip:
+      version: "- 2.99.99"
+      reason: "the query would throw exception prior to 2.99.99"
+
+  - do:
+      search:
+        body: {
+          _source: true,
+          size: 10,
+          query: {
+            exists: {
+              field: "catalog"
+            }
+          }
+        }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      search:
+        body: {
+          _source: true,
+          size: 10,
+          query: {
+            exists: {
+              field: "infos"
+            }
+          }
+        }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.infos.info.name: "name1" }
+
+---
+"Invalid docs":
+  - skip:
+      version: "- 2.17.99"
+      reason: "parsing of these objects would infinite loop prior to 2.18"
+  # The following documents are invalid.
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": [ "Arrays in Action" ],
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": "Strings in Action",
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": 12345,
+          "required_matches": 1
+        }
+  - do:
+      catch: /parsing_exception/
+      index:
+        index: test
+        id: 3
+        body: {
+          "ISBN13": "V12154942123242",
+          "catalog": [ 12345 ],
+          "required_matches": 1
+        }
 ---
 # Verify that mappings under the catalog field did not expand
 # and no dynamic fields were created.
@@ -91,14 +177,14 @@ teardown:
   - match: { test.mappings.properties.catalog.type: flat_object }
   - match: { test.mappings.properties.required_matches.type: long }
   # https://github.com/opensearch-project/OpenSearch/tree/main/rest-api-spec/src/main/resources/rest-api-spec/test#length
-  - length: { test.mappings.properties: 3 }
+  - length: { test.mappings.properties: 4 }
   - length: { test.mappings.properties.catalog: 1 }
 
 ---
 "Supported queries":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7"
 
   # Verify Document Count
   - do:
@@ -607,8 +693,8 @@ teardown:
 ---
 "Unsupported":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7"
 
   # Mapping parameters (such as index/search analyzers) are currently not supported
   # The plan is to support them in the next version
@@ -625,38 +711,6 @@ teardown:
 
   - match: { error.root_cause.0.type: "mapper_parsing_exception" }
   - match: { error.root_cause.0.reason: "Mapping definition for [data] has unsupported parameters:  [analyzer : standard]"}
-  - match: { status: 400 }
-
-  # Wildcard Query with dot path.
-  - do:
-      catch: bad_request
-      search:
-        body: {
-          _source: true,
-          query: {
-            "wildcard": {
-              "catalog.title": "Mock*"
-            }
-          }
-        }
-  - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "Can only use wildcard queries on keyword and text fields - not on [catalog.title] which is of type [flat_object]"}
-  - match: { status: 400 }
-
-  # Wildcard Query without dot path.
-  - do:
-      catch: bad_request
-      search:
-        body: {
-          _source: true,
-          query: {
-            "wildcard": {
-              "catalog": "Mock*"
-            }
-          }
-        }
-  - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "Can only use wildcard queries on keyword and text fields - not on [catalog] which is of type [flat_object]" }
   - match: { status: 400 }
 
   # Aggregation and Match Query with dot path.

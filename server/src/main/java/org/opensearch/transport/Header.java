@@ -33,6 +33,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -47,12 +48,14 @@ import java.util.TreeSet;
 /**
  * Transport Header
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Header {
 
     private static final String RESPONSE_NAME = "NO_ACTION_NAME_FOR_RESPONSES";
 
+    private final TransportProtocol protocol;
     private final int networkMessageSize;
     private final Version version;
     private final long requestId;
@@ -62,22 +65,27 @@ public class Header {
     Tuple<Map<String, String>, Map<String, Set<String>>> headers;
     Set<String> features;
 
-    Header(int networkMessageSize, long requestId, byte status, Version version) {
+    Header(TransportProtocol protocol, int networkMessageSize, long requestId, byte status, Version version) {
+        this.protocol = protocol;
         this.networkMessageSize = networkMessageSize;
         this.version = version;
         this.requestId = requestId;
         this.status = status;
     }
 
+    TransportProtocol getTransportProtocol() {
+        return protocol;
+    }
+
     public int getNetworkMessageSize() {
         return networkMessageSize;
     }
 
-    Version getVersion() {
+    public Version getVersion() {
         return version;
     }
 
-    long getRequestId() {
+    public long getRequestId() {
         return requestId;
     }
 
@@ -85,7 +93,7 @@ public class Header {
         return status;
     }
 
-    boolean isRequest() {
+    public boolean isRequest() {
         return TransportStatus.isRequest(status);
     }
 
@@ -97,7 +105,7 @@ public class Header {
         return TransportStatus.isError(status);
     }
 
-    boolean isHandshake() {
+    public boolean isHandshake() {
         return TransportStatus.isHandshake(status);
     }
 
@@ -140,6 +148,8 @@ public class Header {
     @Override
     public String toString() {
         return "Header{"
+            + protocol
+            + "}{"
             + networkMessageSize
             + "}{"
             + version

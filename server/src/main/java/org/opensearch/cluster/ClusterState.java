@@ -156,7 +156,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     }
 
-    private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
+    public static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
 
     public static final String UNKNOWN_UUID = "_na_";
 
@@ -781,7 +781,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         out.writeString(stateUUID);
         metadata.writeTo(out);
         routingTable.writeTo(out);
-        nodes.writeTo(out);
+        nodes.writeToWithAttribute(out);
         blocks.writeTo(out);
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
@@ -839,6 +839,34 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             minimumClusterManagerNodesOnPublishingClusterManager = after.minimumClusterManagerNodesOnPublishingClusterManager;
         }
 
+        @Override
+        public String toString() {
+            return new StringBuilder().append("ClusterStateDiff{toVersion=")
+                .append(toVersion)
+                .append(", fromUuid='")
+                .append(fromUuid)
+                .append('\'')
+                .append(", toUuid='")
+                .append(toUuid)
+                .append('\'')
+                .append(", clusterName=")
+                .append(clusterName)
+                .append(", routingTable=")
+                .append(routingTable)
+                .append(", nodes=")
+                .append(nodes)
+                .append(", metadata=")
+                .append(metadata)
+                .append(", blocks=")
+                .append(blocks)
+                .append(", customs=")
+                .append(customs)
+                .append(", minimumClusterManagerNodesOnPublishingClusterManager=")
+                .append(minimumClusterManagerNodesOnPublishingClusterManager)
+                .append("}")
+                .toString();
+        }
+
         ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {
             clusterName = new ClusterName(in);
             fromUuid = in.readString();
@@ -859,11 +887,21 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             out.writeString(toUuid);
             out.writeLong(toVersion);
             routingTable.writeTo(out);
-            nodes.writeTo(out);
+            nodesWriteToWithAttributes(nodes, out);
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
             out.writeVInt(minimumClusterManagerNodesOnPublishingClusterManager);
+        }
+
+        private void nodesWriteToWithAttributes(Diff<DiscoveryNodes> nodes, StreamOutput out) throws IOException {
+            DiscoveryNodes part = nodes.apply(null);
+            if (part != null) {
+                out.writeBoolean(true);
+                part.writeToWithAttribute(out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         @Override

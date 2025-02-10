@@ -15,7 +15,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -56,6 +55,7 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.nio.MockNioTransport;
 import org.opensearch.usage.UsageService;
 import org.junit.After;
@@ -153,8 +153,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             null,
             new NodeClient(Settings.EMPTY, threadPool),
             new NoneCircuitBreakerService(),
-            new UsageService(),
-            new IdentityService(Settings.EMPTY, List.of())
+            new UsageService()
         );
         when(actionModule.getDynamicActionRegistry()).thenReturn(mock(DynamicActionRegistry.class));
         when(actionModule.getRestController()).thenReturn(restController);
@@ -171,7 +170,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
-        identityService = new IdentityService(Settings.EMPTY, List.of());
+        identityService = new IdentityService(Settings.EMPTY, threadPool, List.of());
     }
 
     @Override

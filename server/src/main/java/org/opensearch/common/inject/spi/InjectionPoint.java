@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject.spi;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.ConfigurationException;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Key;
@@ -66,8 +67,9 @@ import static org.opensearch.common.inject.internal.MoreTypes.getRawType;
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class InjectionPoint {
 
     private final boolean optional;

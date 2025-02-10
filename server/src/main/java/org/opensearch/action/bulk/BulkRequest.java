@@ -34,6 +34,7 @@ package org.opensearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
@@ -54,6 +55,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +72,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * and allows to executes it in a single batch.
  * <p>
  * Note that we only support refresh on the bulk request not per item.
- * @see org.opensearch.client.Client#bulk(BulkRequest)
+ * @see Client#bulk(BulkRequest)
  *
  * @opensearch.api
  */
@@ -80,7 +82,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     private static final int REQUEST_OVERHEAD = 50;
-
     /**
      * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
      * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
@@ -96,6 +97,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
+    private int batchSize = Integer.MAX_VALUE;
 
     private long sizeInBytes = 0;
 
@@ -107,6 +109,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
+            batchSize = in.readInt();
+        }
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -347,6 +352,27 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     }
 
     /**
+     * Set batch size
+     * @param size batch size from input
+     * @return {@link BulkRequest}
+     */
+    public BulkRequest batchSize(int size) {
+        if (size < 1) {
+            throw new IllegalArgumentException("batch_size must be greater than 0");
+        }
+        this.batchSize = size;
+        return this;
+    }
+
+    /**
+     * Get batch size
+     * @return batch size
+     */
+    public int batchSize() {
+        return this.batchSize;
+    }
+
+    /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
      * <p>
@@ -453,6 +479,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
+        if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
+            out.writeInt(batchSize);
+        }
     }
 
     @Override

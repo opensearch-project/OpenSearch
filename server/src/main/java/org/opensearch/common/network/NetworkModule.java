@@ -55,6 +55,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
+import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.RawTaskStatus;
@@ -74,7 +76,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
+import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
 
 /**
  * A module to handle registering and binding all network related classes.
@@ -153,6 +160,8 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
+    private final Map<String, Supplier<NetworkPlugin.AuxTransport>> transportAuxFactories = new HashMap<>();
+
     private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
     /**
@@ -173,13 +182,31 @@ public final class NetworkModule {
         ClusterSettings clusterSettings,
         Tracer tracer,
         List<TransportInterceptor> transportInterceptors,
-        Collection<SecureTransportSettingsProvider> secureTransportSettingsProvider
+        Collection<SecureSettingsFactory> secureSettingsFactories
     ) {
         this.settings = settings;
 
-        if (secureTransportSettingsProvider.size() > 1) {
+        final Collection<SecureTransportSettingsProvider> secureTransportSettingsProviders = secureSettingsFactories.stream()
+            .map(p -> p.getSecureTransportSettingsProvider(settings))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+
+        if (secureTransportSettingsProviders.size() > 1) {
             throw new IllegalArgumentException(
-                "there is more than one secure transport settings provider: " + secureTransportSettingsProvider
+                "there is more than one secure transport settings provider: " + secureTransportSettingsProviders
+            );
+        }
+
+        final Collection<SecureHttpTransportSettingsProvider> secureHttpTransportSettingsProviders = secureSettingsFactories.stream()
+            .map(p -> p.getSecureHttpTransportSettingsProvider(settings))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+
+        if (secureHttpTransportSettingsProviders.size() > 1) {
+            throw new IllegalArgumentException(
+                "there is more than one secure HTTP transport settings provider: " + secureHttpTransportSettingsProviders
             );
         }
 
@@ -200,6 +227,18 @@ public final class NetworkModule {
                 registerHttpTransport(entry.getKey(), entry.getValue());
             }
 
+            Map<String, Supplier<NetworkPlugin.AuxTransport>> auxTransportFactory = plugin.getAuxTransports(
+                settings,
+                threadPool,
+                circuitBreakerService,
+                networkService,
+                clusterSettings,
+                tracer
+            );
+            for (Map.Entry<String, Supplier<NetworkPlugin.AuxTransport>> entry : auxTransportFactory.entrySet()) {
+                registerAuxTransport(entry.getKey(), entry.getValue());
+            }
+
             Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(
                 settings,
                 threadPool,
@@ -213,9 +252,9 @@ public final class NetworkModule {
                 registerTransport(entry.getKey(), entry.getValue());
             }
 
-            // Register any secure transports if available
-            if (secureTransportSettingsProvider.isEmpty() == false) {
-                final SecureTransportSettingsProvider secureSettingProvider = secureTransportSettingsProvider.iterator().next();
+            // Register any HTTP secure transports if available
+            if (secureHttpTransportSettingsProviders.isEmpty() == false) {
+                final SecureHttpTransportSettingsProvider secureSettingProvider = secureHttpTransportSettingsProviders.iterator().next();
 
                 final Map<String, Supplier<HttpServerTransport>> secureHttpTransportFactory = plugin.getSecureHttpTransports(
                     settings,
@@ -233,6 +272,11 @@ public final class NetworkModule {
                 for (Map.Entry<String, Supplier<HttpServerTransport>> entry : secureHttpTransportFactory.entrySet()) {
                     registerHttpTransport(entry.getKey(), entry.getValue());
                 }
+            }
+
+            // Register any secure transports if available
+            if (secureTransportSettingsProviders.isEmpty() == false) {
+                final SecureTransportSettingsProvider secureSettingProvider = secureTransportSettingsProviders.iterator().next();
 
                 final Map<String, Supplier<Transport>> secureTransportFactory = plugin.getSecureTransports(
                     settings,
@@ -278,6 +322,12 @@ public final class NetworkModule {
         }
     }
 
+    private void registerAuxTransport(String key, Supplier<NetworkPlugin.AuxTransport> factory) {
+        if (transportAuxFactories.putIfAbsent(key, factory) != null) {
+            throw new IllegalArgumentException("transport for name: " + key + " is already registered");
+        }
+    }
+
     /**
      * Register an allocation command.
      * <p>
@@ -317,6 +367,25 @@ public final class NetworkModule {
             throw new IllegalStateException("Unsupported http.type [" + name + "]");
         }
         return factory;
+    }
+
+    /**
+     * Optional client/server transports that run in parallel to HttpServerTransport.
+     * Multiple transport types can be registered and enabled via AUX_TRANSPORT_TYPES_SETTING.
+     * An IllegalStateException is thrown if a transport type is enabled not registered.
+     */
+    public List<NetworkPlugin.AuxTransport> getAuxServerTransportList() {
+        List<NetworkPlugin.AuxTransport> serverTransportSuppliers = new ArrayList<>();
+
+        for (String transportType : AUX_TRANSPORT_TYPES_SETTING.get(settings)) {
+            final Supplier<NetworkPlugin.AuxTransport> factory = transportAuxFactories.get(transportType);
+            if (factory == null) {
+                throw new IllegalStateException("Unsupported " + AUX_TRANSPORT_TYPES_KEY + " [" + transportType + "]");
+            }
+            serverTransportSuppliers.add(factory.get());
+        }
+
+        return serverTransportSuppliers;
     }
 
     public Supplier<Transport> getTransportSupplier() {

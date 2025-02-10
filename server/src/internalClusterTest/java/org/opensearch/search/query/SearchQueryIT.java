@@ -35,7 +35,7 @@ package org.opensearch.search.query;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.analysis.MockTokenizer;
@@ -52,6 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -66,6 +67,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.index.query.WrapperQueryBuilder;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -84,6 +86,7 @@ import org.opensearch.test.junit.annotations.TestIssueLogging;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -97,6 +100,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
+
+import org.roaringbitmap.RoaringBitmap;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -304,7 +309,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         for (int i = 0; i < queryRounds; i++) {
             MatchQueryBuilder matchQuery = matchQuery("f", English.intToEnglish(between(0, num)));
             searchResponse = client().prepareSearch("test_1").setQuery(constantScoreQuery(matchQuery)).setSize(num).get();
-            long totalHits = searchResponse.getHits().getTotalHits().value;
+            long totalHits = searchResponse.getHits().getTotalHits().value();
             SearchHits hits = searchResponse.getHits();
             for (SearchHit searchHit : hits) {
                 assertThat(searchHit, hasScore(1.0f));
@@ -317,7 +322,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                 .setSize(num)
                 .get();
             hits = searchResponse.getHits();
-            assertThat(hits.getTotalHits().value, equalTo(totalHits));
+            assertThat(hits.getTotalHits().value(), equalTo(totalHits));
             if (totalHits > 1) {
                 float expected = hits.getAt(0).getScore();
                 for (SearchHit searchHit : hits) {
@@ -378,7 +383,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         searchResponse = client().prepareSearch()
             .setQuery(commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.AND))
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
 
@@ -1157,6 +1162,41 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         assertHitCount(searchResponse, 0L);
     }
 
+    public void testTermsQueryWithBitmapDocValuesQuery() throws Exception {
+        assertAcked(
+            prepareCreate("products").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("product")
+                    .field("type", "integer")
+                    .field("index", false)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        indexRandom(
+            true,
+            client().prepareIndex("products").setId("1").setSource("product", 1),
+            client().prepareIndex("products").setId("2").setSource("product", 2),
+            client().prepareIndex("products").setId("3").setSource("product", new int[] { 1, 3 }),
+            client().prepareIndex("products").setId("4").setSource("product", 4)
+        );
+
+        RoaringBitmap r = new RoaringBitmap();
+        r.add(1);
+        r.add(4);
+        byte[] array = new byte[r.serializedSizeInBytes()];
+        r.serialize(ByteBuffer.wrap(array));
+        BytesArray bitmap = new BytesArray(array);
+        // directly building the terms query builder, so pass in the bitmap value as BytesArray
+        SearchResponse searchResponse = client().prepareSearch("products")
+            .setQuery(constantScoreQuery(termsQuery("product", bitmap).valueType(TermsQueryBuilder.ValueType.BITMAP)))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "3", "4");
+    }
+
     public void testTermsLookupFilter() throws Exception {
         assertAcked(prepareCreate("lookup").setMapping("terms", "type=text", "other", "type=text"));
         indexRandomForConcurrentSearch("lookup");
@@ -1914,14 +1954,8 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
      * Test range with a custom locale, e.g. "de" in this case. Documents here mention the day of week
      * as "Mi" for "Mittwoch (Wednesday" and "Do" for "Donnerstag (Thursday)" and the month in the query
      * as "Dez" for "Dezember (December)".
-     * Note: this test currently needs the JVM arg `-Djava.locale.providers=SPI,COMPAT` to be set.
-     * When running with gradle this is done implicitly through the BuildPlugin, but when running from
-     * an IDE this might need to be set manually in the run configuration. See also CONTRIBUTING.md section
-     * on "Configuring IDEs And Running Tests".
      */
     public void testRangeQueryWithLocaleMapping() throws Exception {
-        assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
-
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -1938,17 +1972,21 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
 
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800"),
-            client().prepareIndex("test").setId("2").setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800")
+            client().prepareIndex("test").setId("1").setSource("date_field", "Mi., 06 Dez. 2000 02:55:00 -0800"),
+            client().prepareIndex("test").setId("2").setSource("date_field", "Do., 07 Dez. 2000 02:55:00 -0800")
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Do, 07 Dez 2000 00:00:00 -0800"))
+            .setQuery(
+                QueryBuilders.rangeQuery("date_field").gte("Di., 05 Dez. 2000 02:55:00 -0800").lte("Do., 07 Dez. 2000 00:00:00 -0800")
+            )
             .get();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Fr, 08 Dez 2000 00:00:00 -0800"))
+            .setQuery(
+                QueryBuilders.rangeQuery("date_field").gte("Di., 05 Dez. 2000 02:55:00 -0800").lte("Fr., 08 Dez. 2000 00:00:00 -0800")
+            )
             .get();
         assertHitCount(searchResponse, 2L);
     }
@@ -1992,7 +2030,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
             .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100))
             .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
 
         float first = response.getHits().getAt(0).getScore();
@@ -2002,7 +2040,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                 .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100))
                 .get();
 
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
             float actual = response.getHits().getAt(0).getScore();
             assertThat(i + " expected: " + first + " actual: " + actual, Float.compare(first, actual), equalTo(0));
@@ -2255,7 +2293,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
     }
 
     /**
-     * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexReader, MultiTermQuery)}. That rewrite method is e.g.
+     * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexSearcher, MultiTermQuery)}. That rewrite method is e.g.
      * set for fuzzy queries with "constant_score" rewrite nested inside a `span_multi` query and would cause NPEs due to an unset
      * {@link AttributeSource}.
      */
@@ -2275,7 +2313,7 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
      * asserts the search response hits include the expected ids
      */
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

@@ -74,6 +74,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_source";
     private final Function<Map<String, ?>, Map<String, Object>> filter;
+    private final Function<Map<String, ?>, Map<String, Object>> recoverySourceFilter;
 
     /**
      * Default parameters for source fields
@@ -119,13 +120,64 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             Collections.emptyList()
         );
 
+        /**
+         * A mapping parameter which define whether the recovery_source should be added or not. Default value is true.
+         * <p>
+         * Recovery source gets added if source is disabled or there are filters that are applied on _source using
+         * {@link #includes}/{@link #excludes}, which has the possibility to change the original document provided by
+         * customer. Recovery source is not a permanent field and gets removed during merges. Refer this merge
+         * policy: org.opensearch.index.engine.RecoverySourcePruneMergePolicy
+         * <p>
+         * The main reason for adding the _recovery_source was to ensure Peer to Peer recovery if segments
+         * are not flushed to the disk. If you are disabling the recovery source, then ensure that you are calling
+         * flush operation of Opensearch periodically to ensure that segments are flushed to the disk and if required
+         * Peer to Peer recovery can happen using segment files rather than replaying traffic by querying Lucene
+         * snapshot.
+         *
+         * <p>
+         * This is an expert mapping parameter.
+         *
+         */
+        private final Parameter<Boolean> recoverySourceEnabled = Parameter.boolParam(
+            "recovery_source_enabled",
+            false,
+            m -> toType(m).recoverySourceEnabled,
+            Defaults.ENABLED
+        );
+
+        /**
+         * Provides capability to add specific fields in the recovery_source.
+         * <p>
+         * Refer {@link #recoverySourceEnabled} for more details
+         * This is an expert parameter.
+         */
+        private final Parameter<List<String>> recoverySourceIncludes = Parameter.stringArrayParam(
+            "recovery_source_includes",
+            false,
+            m -> Arrays.asList(toType(m).recoverySourceIncludes),
+            Collections.emptyList()
+        );
+
+        /**
+         * Provides capability to remove specific fields in the recovery_source.
+         *
+         * Refer {@link #recoverySourceEnabled} for more details
+         * This is an expert parameter.
+         */
+        private final Parameter<List<String>> recoverySourceExcludes = Parameter.stringArrayParam(
+            "recovery_source_excludes",
+            false,
+            m -> Arrays.asList(toType(m).recoverySourceExcludes),
+            Collections.emptyList()
+        );
+
         public Builder() {
             super(Defaults.NAME);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(enabled, includes, excludes);
+            return Arrays.asList(enabled, includes, excludes, recoverySourceEnabled, recoverySourceIncludes, recoverySourceExcludes);
         }
 
         @Override
@@ -133,7 +185,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return new SourceFieldMapper(
                 enabled.getValue(),
                 includes.getValue().toArray(new String[0]),
-                excludes.getValue().toArray(new String[0])
+                excludes.getValue().toArray(new String[0]),
+                recoverySourceEnabled.getValue(),
+                recoverySourceIncludes.getValue().toArray(new String[0]),
+                recoverySourceExcludes.getValue().toArray(new String[0])
             );
         }
     }
@@ -173,17 +228,27 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     private final boolean enabled;
+    private final boolean recoverySourceEnabled;
     /** indicates whether the source will always exist and be complete, for use by features like the update API */
     private final boolean complete;
 
     private final String[] includes;
     private final String[] excludes;
+    private final String[] recoverySourceIncludes;
+    private final String[] recoverySourceExcludes;
 
     private SourceFieldMapper() {
-        this(Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+        this(Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
     }
 
-    private SourceFieldMapper(boolean enabled, String[] includes, String[] excludes) {
+    private SourceFieldMapper(
+        boolean enabled,
+        String[] includes,
+        String[] excludes,
+        boolean recoverySourceEnabled,
+        String[] recoverySourceIncludes,
+        String[] recoverySourceExcludes
+    ) {
         super(new SourceFieldType(enabled));
         this.enabled = enabled;
         this.includes = includes;
@@ -191,6 +256,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
         this.filter = enabled && filtered ? XContentMapValues.filter(includes, excludes) : null;
         this.complete = enabled && CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes);
+
+        // Set parameters for recovery source
+        this.recoverySourceEnabled = recoverySourceEnabled;
+        this.recoverySourceIncludes = recoverySourceIncludes;
+        this.recoverySourceExcludes = recoverySourceExcludes;
+        final boolean recoverySourcefiltered = CollectionUtils.isEmpty(recoverySourceIncludes) == false
+            || CollectionUtils.isEmpty(recoverySourceExcludes) == false;
+        this.recoverySourceFilter = this.recoverySourceEnabled && recoverySourcefiltered
+            ? XContentMapValues.filter(recoverySourceIncludes, recoverySourceExcludes)
+            : null;
     }
 
     public boolean enabled() {
@@ -212,22 +287,40 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
-        if (originalSource != null && adaptedSource != originalSource) {
-            // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
-            BytesRef ref = originalSource.toBytesRef();
-            context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
-            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+        if (recoverySourceEnabled) {
+            if (originalSource != null && adaptedSource != originalSource) {
+                final BytesReference adaptedRecoverySource = applyFilters(
+                    originalSource,
+                    contentType,
+                    recoverySourceEnabled,
+                    recoverySourceFilter
+                );
+                // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
+                BytesRef ref = adaptedRecoverySource.toBytesRef();
+                context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+            }
         }
     }
 
     @Nullable
     public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable MediaType contentType) throws IOException {
-        if (enabled && originalSource != null) {
+        return applyFilters(originalSource, contentType, enabled, filter);
+    }
+
+    @Nullable
+    private BytesReference applyFilters(
+        @Nullable BytesReference originalSource,
+        @Nullable MediaType contentType,
+        boolean isProvidedSourceEnabled,
+        @Nullable final Function<Map<String, ?>, Map<String, Object>> filters
+    ) throws IOException {
+        if (isProvidedSourceEnabled && originalSource != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-            if (filter != null) {
+            if (filters != null) {
                 // we don't update the context source if we filter, we want to keep it as is...
                 Tuple<? extends MediaType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(originalSource, true, contentType);
-                Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
+                Map<String, Object> filteredSource = filters.apply(mapTuple.v2());
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 MediaType actualContentType = mapTuple.v1();
                 XContentBuilder builder = MediaTypeRegistry.contentBuilder(actualContentType, bStream).map(filteredSource);

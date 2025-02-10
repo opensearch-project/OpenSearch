@@ -50,8 +50,8 @@ import java.util.function.Consumer;
  */
 public class InboundDecoder implements Releasable {
 
-    static final Object PING = new Object();
-    static final Object END_CONTENT = new Object();
+    public static final Object PING = new Object();
+    public static final Object END_CONTENT = new Object();
 
     private final Version version;
     private final PageCacheRecycler recycler;
@@ -187,11 +187,12 @@ public class InboundDecoder implements Releasable {
     // exposed for use in tests
     static Header readHeader(Version version, int networkMessageSize, BytesReference bytesReference) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
-            streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+            TransportProtocol protocol = TransportProtocol.fromBytes(streamInput.readByte(), streamInput.readByte());
+            streamInput.skip(TcpHeader.MESSAGE_LENGTH_SIZE);
             long requestId = streamInput.readLong();
             byte status = streamInput.readByte();
             Version remoteVersion = Version.fromId(streamInput.readInt());
-            Header header = new Header(networkMessageSize, requestId, status, remoteVersion);
+            Header header = new Header(protocol, networkMessageSize, requestId, status, remoteVersion);
             final IllegalStateException invalidVersion = ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
             if (invalidVersion != null) {
                 throw invalidVersion;

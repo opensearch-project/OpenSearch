@@ -39,7 +39,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.Version;
-import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
@@ -58,6 +57,9 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.DerivedFieldResolver;
+import org.opensearch.index.mapper.DerivedFieldResolverFactory;
+import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper;
@@ -73,10 +75,13 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.transport.RemoteClusterAware;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -86,6 +91,8 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -94,7 +101,7 @@ import static java.util.Collections.unmodifiableMap;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class QueryShardContext extends QueryRewriteContext {
+public class QueryShardContext extends BaseQueryRewriteContext {
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
@@ -118,6 +125,11 @@ public class QueryShardContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private BitSetProducer parentFilter;
+    private DerivedFieldResolver derivedFieldResolver;
+    private boolean keywordIndexOrDocValuesEnabled;
+    private boolean isInnerHitQuery;
+
+    private StarTreeQueryContext starTreeQueryContext;
 
     public QueryShardContext(
         int shardId,
@@ -201,7 +213,55 @@ public class QueryShardContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            validate
+            validate,
+            false
+        );
+    }
+
+    public QueryShardContext(
+        int shardId,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        boolean validate,
+        boolean keywordIndexOrDocValuesEnabled
+    ) {
+        this(
+            shardId,
+            indexSettings,
+            bigArrays,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            similarityService,
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            indexNameMatcher,
+            new Index(
+                RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
+                indexSettings.getIndex().getUUID()
+            ),
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            validate,
+            keywordIndexOrDocValuesEnabled
         );
     }
 
@@ -224,7 +284,8 @@ public class QueryShardContext extends QueryRewriteContext {
             source.fullyQualifiedIndex,
             source.allowExpensiveQueries,
             source.valuesSourceRegistry,
-            source.validate()
+            source.validate(),
+            source.keywordIndexOrDocValuesEnabled
         );
     }
 
@@ -246,7 +307,8 @@ public class QueryShardContext extends QueryRewriteContext {
         Index fullyQualifiedIndex,
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
-        boolean validate
+        boolean validate,
+        boolean keywordIndexOrDocValuesEnabled
     ) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
         this.shardId = shardId;
@@ -264,6 +326,13 @@ public class QueryShardContext extends QueryRewriteContext {
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
+        this.derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+            this,
+            emptyMap(),
+            emptyList(),
+            indexSettings.isDerivedFieldAllowed()
+        );
+        this.keywordIndexOrDocValuesEnabled = keywordIndexOrDocValuesEnabled;
     }
 
     private void reset() {
@@ -313,6 +382,14 @@ public class QueryShardContext extends QueryRewriteContext {
         );
     }
 
+    public StarTreeQueryContext getStarTreeQueryContext() {
+        return starTreeQueryContext;
+    }
+
+    public void setStarTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
+        this.starTreeQueryContext = starTreeQueryContext;
+    }
+
     public void addNamedQuery(String name, Query query) {
         if (query != null) {
             namedQueries.put(name, query);
@@ -329,7 +406,9 @@ public class QueryShardContext extends QueryRewriteContext {
      * type then the fields will be returned with a type prefix.
      */
     public Set<String> simpleMatchToIndexNames(String pattern) {
-        return mapperService.simpleMatchToFullName(pattern);
+        Set<String> allMatchingFields = new HashSet<>(mapperService.simpleMatchToFullName(pattern));
+        allMatchingFields.addAll(derivedFieldResolver.resolvePattern(pattern));
+        return allMatchingFields;
     }
 
     /**
@@ -395,6 +474,18 @@ public class QueryShardContext extends QueryRewriteContext {
         return valuesSourceRegistry;
     }
 
+    public void setDerivedFieldResolver(DerivedFieldResolver derivedFieldResolver) {
+        this.derivedFieldResolver = derivedFieldResolver;
+    }
+
+    public boolean keywordFieldIndexOrDocValuesEnabled() {
+        return keywordIndexOrDocValuesEnabled;
+    }
+
+    public void setKeywordFieldIndexOrDocValuesEnabled(boolean keywordIndexOrDocValuesEnabled) {
+        this.keywordIndexOrDocValuesEnabled = keywordIndexOrDocValuesEnabled;
+    }
+
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
         this.allowUnmappedFields = allowUnmappedFields;
     }
@@ -404,7 +495,16 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
-        if (fieldMapping != null || allowUnmappedFields) {
+        if (fieldMapping != null) {
+            if (fieldMapping instanceof DerivedFieldType) {
+                // resolveDerivedFieldType() will give precedence to search time definitions over index mapping, thus
+                // calling it instead of directly returning. It also ensures the feature flags are honoured.
+                return resolveDerivedFieldType(name);
+            }
+            return fieldMapping;
+        } else if ((fieldMapping = resolveDerivedFieldType(name)) != null) {
+            return fieldMapping;
+        } else if (allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
@@ -412,6 +512,10 @@ public class QueryShardContext extends QueryRewriteContext {
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
+    }
+
+    public MappedFieldType resolveDerivedFieldType(String name) {
+        return derivedFieldResolver.resolve(name);
     }
 
     private SearchLookup lookup = null;
@@ -634,5 +738,13 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public void setParentFilter(BitSetProducer parentFilter) {
         this.parentFilter = parentFilter;
+    }
+
+    public boolean isInnerHitQuery() {
+        return isInnerHitQuery;
+    }
+
+    public void setInnerHitQuery(boolean isInnerHitQuery) {
+        this.isInnerHitQuery = isInnerHitQuery;
     }
 }

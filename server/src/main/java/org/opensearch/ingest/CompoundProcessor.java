@@ -39,10 +39,13 @@ import org.opensearch.common.metrics.OperationMetrics;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -148,6 +151,108 @@ public class CompoundProcessor implements Processor {
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         innerExecute(0, ingestDocument, handler);
+    }
+
+    @Override
+    public void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
+        innerBatchExecute(0, ingestDocumentWrappers, handler);
+    }
+
+    /**
+     * Internal logic to process documents with current processor.
+     *
+     * @param currentProcessor index of processor to process batched documents
+     * @param ingestDocumentWrappers batched documents to be processed
+     * @param handler callback function
+     */
+    void innerBatchExecute(
+        int currentProcessor,
+        List<IngestDocumentWrapper> ingestDocumentWrappers,
+        Consumer<List<IngestDocumentWrapper>> handler
+    ) {
+        if (currentProcessor == processorsWithMetrics.size()) {
+            handler.accept(ingestDocumentWrappers);
+            return;
+        }
+        Tuple<Processor, OperationMetrics> processorWithMetric = processorsWithMetrics.get(currentProcessor);
+        final Processor processor = processorWithMetric.v1();
+        final OperationMetrics metric = processorWithMetric.v2();
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        int size = ingestDocumentWrappers.size();
+        metric.beforeN(size);
+        // Use synchronization to ensure batches are processed by processors in sequential order
+        AtomicInteger counter = new AtomicInteger(size);
+        List<IngestDocumentWrapper> allResults = Collections.synchronizedList(new ArrayList<>());
+        Map<Integer, IngestDocumentWrapper> slotToWrapperMap = createSlotIngestDocumentWrapperMap(ingestDocumentWrappers);
+        processor.batchExecute(ingestDocumentWrappers, results -> {
+            if (results.isEmpty()) return;
+            allResults.addAll(results);
+            // counter equals to 0 means all documents are processed and called back.
+            if (counter.addAndGet(-results.size()) == 0) {
+                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
+                metric.afterN(allResults.size(), ingestTimeInMillis);
+
+                List<IngestDocumentWrapper> documentsDropped = new ArrayList<>();
+                List<IngestDocumentWrapper> documentsWithException = new ArrayList<>();
+                List<IngestDocumentWrapper> documentsToContinue = new ArrayList<>();
+                int totalFailed = 0;
+                // iterate all results to categorize them to: to continue, to drop, with exception
+                for (IngestDocumentWrapper resultDocumentWrapper : allResults) {
+                    IngestDocumentWrapper originalDocumentWrapper = slotToWrapperMap.get(resultDocumentWrapper.getSlot());
+                    if (resultDocumentWrapper.getException() != null) {
+                        ++totalFailed;
+                        if (ignoreFailure) {
+                            documentsToContinue.add(originalDocumentWrapper);
+                        } else {
+                            IngestProcessorException compoundProcessorException = newCompoundProcessorException(
+                                resultDocumentWrapper.getException(),
+                                processor,
+                                originalDocumentWrapper.getIngestDocument()
+                            );
+                            documentsWithException.add(
+                                new IngestDocumentWrapper(
+                                    resultDocumentWrapper.getSlot(),
+                                    originalDocumentWrapper.getIngestDocument(),
+                                    compoundProcessorException
+                                )
+                            );
+                        }
+                    } else {
+                        if (resultDocumentWrapper.getIngestDocument() == null) {
+                            documentsDropped.add(resultDocumentWrapper);
+                        } else {
+                            documentsToContinue.add(resultDocumentWrapper);
+                        }
+                    }
+                }
+                if (totalFailed > 0) {
+                    metric.failedN(totalFailed);
+                }
+                if (!documentsDropped.isEmpty()) {
+                    handler.accept(documentsDropped);
+                }
+                if (!documentsToContinue.isEmpty()) {
+                    innerBatchExecute(currentProcessor + 1, documentsToContinue, handler);
+                }
+                if (!documentsWithException.isEmpty()) {
+                    if (onFailureProcessors.isEmpty()) {
+                        handler.accept(documentsWithException);
+                    } else {
+                        documentsWithException.forEach(
+                            doc -> executeOnFailureAsync(
+                                0,
+                                doc.getIngestDocument(),
+                                (IngestProcessorException) doc.getException(),
+                                (result, ex) -> {
+                                    handler.accept(Collections.singletonList(new IngestDocumentWrapper(doc.getSlot(), result, ex)));
+                                }
+                            )
+                        );
+                    }
+                }
+            }
+            assert counter.get() >= 0;
+        });
     }
 
     void innerExecute(int currentProcessor, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
@@ -264,6 +369,14 @@ public class CompoundProcessor implements Processor {
         }
 
         return exception;
+    }
+
+    private Map<Integer, IngestDocumentWrapper> createSlotIngestDocumentWrapperMap(List<IngestDocumentWrapper> ingestDocumentWrappers) {
+        Map<Integer, IngestDocumentWrapper> slotIngestDocumentWrapperMap = new HashMap<>();
+        for (IngestDocumentWrapper ingestDocumentWrapper : ingestDocumentWrappers) {
+            slotIngestDocumentWrapperMap.put(ingestDocumentWrapper.getSlot(), ingestDocumentWrapper);
+        }
+        return slotIngestDocumentWrapperMap;
     }
 
 }

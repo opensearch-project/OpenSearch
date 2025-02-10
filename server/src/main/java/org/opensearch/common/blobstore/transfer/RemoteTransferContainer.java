@@ -27,6 +27,7 @@ import org.opensearch.common.util.ByteUtils;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -51,10 +52,11 @@ public class RemoteTransferContainer implements Closeable {
     private final String remoteFileName;
     private final boolean failTransferIfFileExists;
     private final WritePriority writePriority;
-    private final long expectedChecksum;
+    private final Long expectedChecksum;
     private final OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
     private final boolean isRemoteDataIntegritySupported;
     private final AtomicBoolean readBlock = new AtomicBoolean();
+    private final Map<String, String> metadata;
 
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
@@ -77,8 +79,45 @@ public class RemoteTransferContainer implements Closeable {
         boolean failTransferIfFileExists,
         WritePriority writePriority,
         OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier,
-        long expectedChecksum,
+        Long expectedChecksum,
         boolean isRemoteDataIntegritySupported
+    ) {
+        this(
+            fileName,
+            remoteFileName,
+            contentLength,
+            failTransferIfFileExists,
+            writePriority,
+            offsetRangeInputStreamSupplier,
+            expectedChecksum,
+            isRemoteDataIntegritySupported,
+            null
+        );
+    }
+
+    /**
+     * Construct a new RemoteTransferContainer object with metadata.
+     *
+     * @param fileName                       Name of the local file
+     * @param remoteFileName                 Name of the remote file
+     * @param contentLength                  Total content length of the file to be uploaded
+     * @param failTransferIfFileExists       A boolean to determine if upload has to be failed if file exists
+     * @param writePriority                  The {@link WritePriority} of current upload
+     * @param offsetRangeInputStreamSupplier A supplier to create OffsetRangeInputStreams
+     * @param expectedChecksum               The expected checksum value for the file being uploaded. This checksum will be used for local or remote data integrity checks
+     * @param isRemoteDataIntegritySupported A boolean to signify whether the remote repository supports server side data integrity verification
+     * @param metadata                       Object metadata to be store with the file.
+     */
+    public RemoteTransferContainer(
+        String fileName,
+        String remoteFileName,
+        long contentLength,
+        boolean failTransferIfFileExists,
+        WritePriority writePriority,
+        OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier,
+        Long expectedChecksum,
+        boolean isRemoteDataIntegritySupported,
+        Map<String, String> metadata
     ) {
         this.fileName = fileName;
         this.remoteFileName = remoteFileName;
@@ -88,22 +127,23 @@ public class RemoteTransferContainer implements Closeable {
         this.offsetRangeInputStreamSupplier = offsetRangeInputStreamSupplier;
         this.expectedChecksum = expectedChecksum;
         this.isRemoteDataIntegritySupported = isRemoteDataIntegritySupported;
+        this.metadata = metadata;
     }
 
     /**
      * @return The {@link  WriteContext} for the current upload
      */
     public WriteContext createWriteContext() {
-        return new WriteContext(
-            remoteFileName,
-            this::supplyStreamContext,
-            contentLength,
-            failTransferIfFileExists,
-            writePriority,
-            this::finalizeUpload,
-            isRemoteDataIntegrityCheckPossible(),
-            isRemoteDataIntegrityCheckPossible() ? expectedChecksum : null
-        );
+        return new WriteContext.Builder().fileName(remoteFileName)
+            .streamContextSupplier(this::supplyStreamContext)
+            .fileSize(contentLength)
+            .failIfAlreadyExists(failTransferIfFileExists)
+            .writePriority(writePriority)
+            .uploadFinalizer(this::finalizeUpload)
+            .doRemoteDataIntegrityCheck(isRemoteDataIntegrityCheckPossible())
+            .expectedChecksum(isRemoteDataIntegrityCheckPossible() ? expectedChecksum : null)
+            .metadata(metadata)
+            .build();
     }
 
     // package-private for testing
@@ -190,7 +230,7 @@ public class RemoteTransferContainer implements Closeable {
     }
 
     private boolean isRemoteDataIntegrityCheckPossible() {
-        return isRemoteDataIntegritySupported;
+        return isRemoteDataIntegritySupported && Objects.nonNull(expectedChecksum);
     }
 
     private void finalizeUpload(boolean uploadSuccessful) throws IOException {
@@ -198,7 +238,7 @@ public class RemoteTransferContainer implements Closeable {
             return;
         }
 
-        if (uploadSuccessful) {
+        if (uploadSuccessful && Objects.nonNull(expectedChecksum)) {
             long actualChecksum = getActualChecksum();
             if (actualChecksum != expectedChecksum) {
                 throw new CorruptIndexException(

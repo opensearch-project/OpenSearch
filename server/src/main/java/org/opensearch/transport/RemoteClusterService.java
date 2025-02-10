@@ -37,9 +37,9 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -50,6 +50,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -73,8 +74,9 @@ import static org.opensearch.common.settings.Setting.timeSetting;
 /**
  * Basic service for accessing remote clusters via gateway nodes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
 
     private final Logger logger = LogManager.getLogger(RemoteClusterService.class);

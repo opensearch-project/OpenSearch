@@ -63,6 +63,8 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.opensearch.index.mapper.DerivedFieldResolver;
+import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -116,6 +118,18 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(TextFieldMapper.TextFieldType.class));
         assertThat(result.name(), equalTo("name"));
+    }
+
+    public void testDerivedFieldMapping() {
+        QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
+        assertNull(context.failIfFieldMappingNotFound("derived_field_search_req", null));
+        DerivedFieldResolver derivedFieldResolver = mock(DerivedFieldResolver.class);
+        context.setDerivedFieldResolver(derivedFieldResolver);
+        DerivedFieldType mockDerivedFieldType = mock(DerivedFieldType.class);
+        when(derivedFieldResolver.resolve("derived_field_search_req")).thenReturn(mockDerivedFieldType);
+        assertEquals(mockDerivedFieldType, context.failIfFieldMappingNotFound("derived_field_search_req", null));
+        when(derivedFieldResolver.resolve("field_missing")).thenReturn(null);
+        assertNull(context.failIfFieldMappingNotFound("field_missing", null));
     }
 
     public void testToQueryFails() {

@@ -42,6 +42,7 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -213,10 +214,12 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                         Collections.emptyList(),
                         true,
                         Collections.emptyMap(),
-                        false
+                        false,
+                        0
                     ),
                     Version.CURRENT,
                     Function.identity(),
+                    Priority.NORMAL,
                     f
                 )
             );

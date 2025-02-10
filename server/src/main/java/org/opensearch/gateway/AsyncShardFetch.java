@@ -35,6 +35,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -82,10 +83,10 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     protected final String type;
     protected final Map<ShardId, ShardAttributes> shardAttributesMap;
     private final Lister<BaseNodesResponse<T>, T> action;
-    private final AsyncShardFetchCache<T> cache;
+    protected final AsyncShardFetchCache<T> cache;
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
-    private final String reroutingKey;
+    final String reroutingKey;
     private final Map<ShardId, Set<String>> shardToIgnoreNodes = new HashMap<>();
 
     @SuppressWarnings("unchecked")
@@ -94,15 +95,16 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         String type,
         ShardId shardId,
         String customDataPath,
-        Lister<? extends BaseNodesResponse<T>, T> action
+        Lister<? extends BaseNodesResponse<T>, T> action,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.logger = logger;
         this.type = type;
         shardAttributesMap = new HashMap<>();
-        shardAttributesMap.put(shardId, new ShardAttributes(shardId, customDataPath));
+        shardAttributesMap.put(shardId, new ShardAttributes(customDataPath));
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
         this.reroutingKey = "ShardId=[" + shardId.toString() + "]";
-        cache = new ShardCache<>(logger, reroutingKey, type);
+        cache = new ShardCache<>(logger, reroutingKey, type, clusterManagerMetrics);
     }
 
     /**
@@ -120,14 +122,15 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         String type,
         Map<ShardId, ShardAttributes> shardAttributesMap,
         Lister<? extends BaseNodesResponse<T>, T> action,
-        String batchId
+        String batchId,
+        AsyncShardFetchCache<T> cache
     ) {
         this.logger = logger;
         this.type = type;
         this.shardAttributesMap = shardAttributesMap;
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
         this.reroutingKey = "BatchID=[" + batchId + "]";
-        cache = new ShardCache<>(logger, reroutingKey, type);
+        this.cache = cache;
     }
 
     @Override
@@ -283,8 +286,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
         private final Map<String, NodeEntry<K>> cache;
 
-        public ShardCache(Logger logger, String logKey, String type) {
-            super(Loggers.getLogger(logger, "_" + logKey), type);
+        public ShardCache(Logger logger, String logKey, String type, ClusterManagerMetrics clusterManagerMetrics) {
+            super(Loggers.getLogger(logger, "_" + logKey), type, clusterManagerMetrics);
             cache = new HashMap<>();
         }
 

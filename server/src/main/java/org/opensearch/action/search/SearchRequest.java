@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -39,6 +40,7 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -49,6 +51,8 @@ import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,14 +64,14 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
- * {@link org.opensearch.client.Requests#searchRequest(String...)}.
+ * {@link Requests#searchRequest(String...)}.
  * <p>
  * Note, the search {@link #source(org.opensearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
  * </p>
  *
- * @see org.opensearch.client.Requests#searchRequest(String...)
- * @see org.opensearch.client.Client#search(SearchRequest)
+ * @see Requests#searchRequest(String...)
+ * @see Client#search(SearchRequest)
  * @see SearchResponse
  *
  * @opensearch.api
@@ -158,6 +162,18 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         indices(indices);
         this.source = source;
+    }
+
+    /**
+     * Deep clone a SearchRequest
+     *
+     * @return a copy of the current SearchRequest
+     */
+    public SearchRequest deepCopy() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        this.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        return new SearchRequest(in);
     }
 
     /**
@@ -496,7 +512,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
-     * The tye of search to execute.
+     * The type of search to execute.
      */
     public SearchType searchType() {
         return searchType;
@@ -712,7 +728,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             sb.append("scroll[").append(scroll.keepAlive()).append("], ");
         }
         if (source != null) {
-            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+            sb.append("source[");
+            try {
+                sb.append(source.toString(FORMAT_PARAMS));
+            } catch (final OpenSearchException ex) {
+                sb.append("<error: ").append(ex.getMessage()).append(">");
+            }
+            sb.append("]");
         } else {
             sb.append("source[]");
         }

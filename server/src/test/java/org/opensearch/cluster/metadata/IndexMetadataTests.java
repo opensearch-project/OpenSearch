@@ -32,10 +32,13 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
+import org.opensearch.cluster.Diff;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -43,10 +46,12 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -87,6 +92,26 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         return new NamedXContentRegistry(IndicesModule.getNamedXContents());
     }
 
+    // Create the index metadata for a given index, with the specified version.
+    private static IndexMetadata createIndexMetadata(final Index index, final long version) {
+        return createIndexMetadata(index, version, false);
+    }
+
+    private static IndexMetadata createIndexMetadata(final Index index, final long version, final boolean isSystem) {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        return IndexMetadata.builder(index.getName())
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .creationDate(System.currentTimeMillis())
+            .version(version)
+            .system(isSystem)
+            .build();
+    }
+
     public void testIndexMetadataSerialization() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);
@@ -118,6 +143,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
                     randomNonNegativeLong()
                 )
             )
+            .context(new Context(randomAlphaOfLength(5)))
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -145,6 +171,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
         assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
+        assertEquals(metadata.context(), fromXContentMeta.context());
         final Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
         assertEquals(metadata.getCustomData(), expectedCustom);
         assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
@@ -167,7 +194,114 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
+            assertEquals(metadata.context(), deserialized.context());
         }
+    }
+
+    public void testWriteVerifiableTo() throws IOException {
+        int numberOfReplicas = randomIntBetween(0, 10);
+        final boolean system = randomBoolean();
+        Map<String, String> customMap = new HashMap<>();
+        customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+        customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
+
+        RolloverInfo info1 = new RolloverInfo(
+            randomAlphaOfLength(5),
+            Arrays.asList(
+                new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
+                new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                new MaxDocsCondition(randomNonNegativeLong())
+            ),
+            randomNonNegativeLong()
+        );
+        RolloverInfo info2 = new RolloverInfo(
+            randomAlphaOfLength(5),
+            Arrays.asList(
+                new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
+                new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                new MaxDocsCondition(randomNonNegativeLong())
+            ),
+            randomNonNegativeLong()
+        );
+        String mappings = "    {\n"
+            + "        \"_doc\": {\n"
+            + "            \"properties\": {\n"
+            + "                \"actiongroups\": {\n"
+            + "                    \"type\": \"text\",\n"
+            + "                    \"fields\": {\n"
+            + "                        \"keyword\": {\n"
+            + "                            \"type\": \"keyword\",\n"
+            + "                            \"ignore_above\": 256\n"
+            + "                        }\n"
+            + "                    }\n"
+            + "                },\n"
+            + "                \"allowlist\": {\n"
+            + "                    \"type\": \"text\",\n"
+            + "                    \"fields\": {\n"
+            + "                        \"keyword\": {\n"
+            + "                            \"type\": \"keyword\",\n"
+            + "                            \"ignore_above\": 256\n"
+            + "                        }\n"
+            + "                    }\n"
+            + "                }\n"
+            + "            }\n"
+            + "        }\n"
+            + "    }";
+        IndexMetadata metadata1 = IndexMetadata.builder("foo")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1)
+                    .put("index.number_of_shards", 4)
+                    .put("index.number_of_replicas", numberOfReplicas)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .primaryTerm(0, 2)
+            .primaryTerm(1, 3)
+            .setRoutingNumShards(32)
+            .system(system)
+            .putCustom("my_custom", customMap)
+            .putCustom("my_custom2", customMap)
+            .putAlias(AliasMetadata.builder("alias-1").routing("routing-1").build())
+            .putAlias(AliasMetadata.builder("alias-2").routing("routing-2").build())
+            .putRolloverInfo(info1)
+            .putRolloverInfo(info2)
+            .putInSyncAllocationIds(0, Set.of("1", "2", "3"))
+            .putMapping(mappings)
+            .build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
+        metadata1.writeVerifiableTo(checksumOut);
+        assertNotNull(metadata1.toString());
+
+        IndexMetadata metadata2 = IndexMetadata.builder(metadata1.getIndex().getName())
+            .settings(
+                Settings.builder()
+                    .put("index.number_of_replicas", numberOfReplicas)
+                    .put("index.number_of_shards", 4)
+                    .put("index.version.created", 1)
+                    .build()
+            )
+            .creationDate(metadata1.getCreationDate())
+            .primaryTerm(1, 3)
+            .primaryTerm(0, 2)
+            .setRoutingNumShards(32)
+            .system(system)
+            .putCustom("my_custom2", customMap)
+            .putCustom("my_custom", customMap)
+            .putAlias(AliasMetadata.builder("alias-2").routing("routing-2").build())
+            .putAlias(AliasMetadata.builder("alias-1").routing("routing-1").build())
+            .putRolloverInfo(info2)
+            .putRolloverInfo(info1)
+            .putInSyncAllocationIds(0, Set.of("3", "1", "2"))
+            .putMapping(mappings)
+            .build();
+
+        BytesStreamOutput out2 = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut2 = new BufferedChecksumStreamOutput(out2);
+        metadata2.writeVerifiableTo(checksumOut2);
+        assertEquals(checksumOut.getChecksum(), checksumOut2.getChecksum());
     }
 
     public void testGetRoutingFactor() {
@@ -456,6 +590,20 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("unable to parse the index name [testIndexName-000a2] to extract the counter"));
         }
+    }
+
+    /**
+     * Test that changes to indices metadata are applied
+     */
+    public void testIndicesMetadataDiffSystemFlagFlipped() {
+        String indexUuid = UUIDs.randomBase64UUID();
+        Index index = new Index("test-index", indexUuid);
+        IndexMetadata previousIndexMetadata = createIndexMetadata(index, 1);
+        IndexMetadata nextIndexMetadata = createIndexMetadata(index, 2, true);
+        Diff<IndexMetadata> diff = new IndexMetadata.IndexMetadataDiff(previousIndexMetadata, nextIndexMetadata);
+        IndexMetadata indexMetadataAfterDiffApplied = diff.apply(previousIndexMetadata);
+        assertTrue(indexMetadataAfterDiffApplied.isSystem());
+        assertThat(indexMetadataAfterDiffApplied.getVersion(), equalTo(nextIndexMetadata.getVersion()));
     }
 
 }

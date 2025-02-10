@@ -11,7 +11,7 @@ package org.opensearch.extensions.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
-import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
@@ -32,6 +32,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -52,7 +53,10 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * An action that forwards REST requests to an extension
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class RestSendToExtensionAction extends BaseRestHandler {
 
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
@@ -245,7 +249,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);
 
             TokenManager tokenManager = identityService.getTokenManager();
-            Subject subject = this.identityService.getSubject();
+            Subject subject = this.identityService.getCurrentSubject();
             OnBehalfOfClaims claims = new OnBehalfOfClaims(discoveryExtensionNode.getId(), subject.getPrincipal().getName());
 
             transportService.sendRequest(

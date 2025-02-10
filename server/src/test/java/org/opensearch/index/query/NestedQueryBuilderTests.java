@@ -59,8 +59,10 @@ import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -311,6 +313,47 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertThat(innerHitBuilders.get(leafInnerHits.getName()), Matchers.notNullValue());
     }
 
+    public void testParentFilterFromInlineLeafInnerHitsNestedQuery() throws Exception {
+        QueryShardContext queryShardContext = createShardContext();
+        SearchContext searchContext = mock(SearchContext.class);
+        when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
+
+        MapperService mapperService = mock(MapperService.class);
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+        when(mapperService.getIndexSettings()).thenReturn(settings);
+        when(searchContext.mapperService()).thenReturn(mapperService);
+
+        InnerHitBuilder leafInnerHits = randomNestedInnerHits();
+        // Set null for values not related with this test case
+        leafInnerHits.setScriptFields(null);
+        leafInnerHits.setHighlightBuilder(null);
+        leafInnerHits.setSorts(null);
+
+        QueryBuilder innerQueryBuilder = spy(new MatchAllQueryBuilder());
+        when(innerQueryBuilder.toQuery(queryShardContext)).thenAnswer(invoke -> {
+            QueryShardContext context = invoke.getArgument(0);
+            if (context.getParentFilter() == null) {
+                throw new Exception("Expect parent filter to be non-null");
+            }
+            if (context.isInnerHitQuery() == false) {
+                throw new Exception("Expect it to be inner hit query");
+            }
+            return invoke.callRealMethod();
+        });
+        NestedQueryBuilder query = new NestedQueryBuilder("nested1", innerQueryBuilder, ScoreMode.None);
+        query.innerHit(leafInnerHits);
+        final Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
+        final InnerHitsContext innerHitsContext = new InnerHitsContext();
+        query.extractInnerHitBuilders(innerHitBuilders);
+        assertThat(innerHitBuilders.size(), Matchers.equalTo(1));
+        assertTrue(innerHitBuilders.containsKey(leafInnerHits.getName()));
+        assertNull(queryShardContext.getParentFilter());
+        assertFalse(queryShardContext.isInnerHitQuery());
+        innerHitBuilders.get(leafInnerHits.getName()).build(searchContext, innerHitsContext);
+        assertNull(queryShardContext.getParentFilter());
+        verify(innerQueryBuilder).toQuery(queryShardContext);
+    }
+
     public void testInlineLeafInnerHitsNestedQueryViaBoolQuery() {
         InnerHitBuilder leafInnerHits = randomNestedInnerHits();
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None).innerHit(
@@ -447,10 +490,10 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             OpenSearchToParentBlockJoinQuery blockJoinQuery = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
             Optional<BooleanClause> childLeg = ((BooleanQuery) blockJoinQuery.getChildQuery()).clauses()
                 .stream()
-                .filter(c -> c.getOccur() == BooleanClause.Occur.MUST)
+                .filter(c -> c.occur() == BooleanClause.Occur.MUST)
                 .findFirst();
             assertTrue(childLeg.isPresent());
-            assertEquals(new MatchAllDocsQuery(), childLeg.get().getQuery());
+            assertEquals(new MatchAllDocsQuery(), childLeg.get().query());
         };
         check.accept(createShardContext());
         doWithDepth(randomIntBetween(1, 20), check);
@@ -485,7 +528,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             assertEquals(
                 "Can parse joins one by one without breaching depth limit",
                 2,
-                bool.clauses().stream().filter(c -> c.getQuery() instanceof OpenSearchToParentBlockJoinQuery).count()
+                bool.clauses().stream().filter(c -> c.query() instanceof OpenSearchToParentBlockJoinQuery).count()
             );
         }
     }
@@ -527,5 +570,14 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                         .build()
                 );
         }
+    }
+
+    public void testVisit() {
+        NestedQueryBuilder builder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        builder.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(2, visitedQueries.size());
     }
 }

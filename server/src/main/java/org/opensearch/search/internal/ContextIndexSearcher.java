@@ -54,6 +54,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -62,13 +63,14 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
@@ -218,6 +220,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);
+        } else if (query instanceof ApproximateScoreQuery) {
+            ((ApproximateScoreQuery) query).setContext(searchContext);
+            return super.createWeight(query, scoreMode, boost);
         } else {
             return super.createWeight(query, scoreMode, boost);
         }
@@ -234,9 +239,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final List<Collector> collectors = new ArrayList<>(leaves.size());
         for (LeafReaderContext ctx : leaves) {
             final Collector collector = manager.newCollector();
-            searchLeaf(ctx, weight, collector);
+            searchLeaf(ctx, 0, DocIdSetIterator.NO_MORE_DOCS, weight, collector);
             collectors.add(collector);
         }
+
         TopFieldDocs mergedTopDocs = (TopFieldDocs) manager.reduce(collectors);
         // Lucene sets shards indexes during merging of topDocs from different collectors
         // We need to reset shard index; OpenSearch will set shard index later during reduce stage
@@ -247,6 +253,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
         }
         result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
+    }
+
+    @Override
+    public void search(Query query, Collector collector) throws IOException {
+        super.search(query, collector);
+        searchContext.bucketCollectorProcessor().processPostCollection(collector);
     }
 
     public void search(
@@ -269,21 +281,28 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
-        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
-        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
-        // reader order here.
-        if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
-            for (int i = leaves.size() - 1; i >= 0; i--) {
-                searchLeaf(leaves.get(i), weight, collector);
+    protected void search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector) throws IOException {
+        searchContext.indexShard().getSearchOperationListener().onPreSliceExecution(searchContext);
+        try {
+            // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
+            // This is actually beneficial for search queries to start search on latest segments first for time series workload.
+            // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
+            // reader order here.
+            if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
+                for (int i = partitions.length - 1; i >= 0; i--) {
+                    searchLeaf(partitions[i].ctx, partitions[i].minDocId, partitions[i].maxDocId, weight, collector);
+                }
+            } else {
+                for (LeafReaderContextPartition partition : partitions) {
+                    searchLeaf(partition.ctx, partition.minDocId, partition.maxDocId, weight, collector);
+                }
             }
-        } else {
-            for (int i = 0; i < leaves.size(); i++) {
-                searchLeaf(leaves.get(i), weight, collector);
-            }
+            searchContext.bucketCollectorProcessor().processPostCollection(collector);
+        } catch (Throwable t) {
+            searchContext.indexShard().getSearchOperationListener().onFailedSliceExecution(searchContext);
+            throw t;
         }
-        searchContext.bucketCollectorProcessor().processPostCollection(collector);
+        searchContext.indexShard().getSearchOperationListener().onSliceExecution(searchContext);
     }
 
     /**
@@ -292,7 +311,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * {@link LeafCollector#collect(int)} is called for every matching document in
      * the provided <code>ctx</code>.
      */
-    private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    @Override
+    protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
 
         // Check if at all we need to call this leaf for collecting results.
         if (canMatch(ctx) == false) {
@@ -324,7 +344,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             BulkScorer bulkScorer = weight.bulkScorer(ctx);
             if (bulkScorer != null) {
                 try {
-                    bulkScorer.score(leafCollector, liveDocs);
+                    bulkScorer.score(leafCollector, liveDocs, minDocId, maxDocId);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -342,6 +362,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                         scorer,
                         liveDocsBitSet,
                         leafCollector,
+                        minDocId,
+                        maxDocId,
                         this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
                     );
                 } catch (CollectionTerminatedException e) {
@@ -374,18 +396,43 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    return weight.scorer(context);
-                }
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    return new ScorerSupplier() {
+                        private Scorer scorer;
+                        private BulkScorer bulkScorer;
 
-                @Override
-                public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                    BulkScorer in = weight.bulkScorer(context);
-                    if (in != null) {
-                        return new CancellableBulkScorer(in, cancellable::checkCancelled);
-                    } else {
-                        return null;
-                    }
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            scorer = weight.scorer(context);
+                            return scorer;
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() throws IOException {
+                            final BulkScorer in = weight.bulkScorer(context);
+
+                            if (in != null) {
+                                bulkScorer = new CancellableBulkScorer(in, cancellable::checkCancelled);
+                            } else {
+                                bulkScorer = null;
+                            }
+
+                            return bulkScorer;
+                        }
+
+                        @Override
+                        public long cost() {
+                            if (scorer != null) {
+                                return scorer.iterator().cost();
+                            } else if (bulkScorer != null) {
+                                return bulkScorer.cost();
+                            } else {
+                                // We have no prior knowledge of how many docs might match for any given query term,
+                                // so we assume that all docs could be a match.
+                                return Integer.MAX_VALUE;
+                            }
+                        }
+                    };
                 }
 
                 @Override
@@ -413,6 +460,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, Runnable checkCancelled)
         throws IOException {
+        intersectScorerAndBitSet(scorer, acceptDocs, collector, 0, DocIdSetIterator.NO_MORE_DOCS, checkCancelled);
+    }
+
+    private static void intersectScorerAndBitSet(
+        Scorer scorer,
+        BitSet acceptDocs,
+        LeafCollector collector,
+        int minDocId,
+        int maxDocId,
+        Runnable checkCancelled
+    ) throws IOException {
         collector.setScorer(scorer);
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
         // be used first:
@@ -421,7 +479,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         );
         int seen = 0;
         checkCancelled.run();
-        for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
+        iterator.advance(minDocId);
+        for (int docId = iterator.docID(); docId < maxDocId; docId = iterator.nextDoc()) {
             if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                 checkCancelled.run();
             }

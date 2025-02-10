@@ -54,15 +54,19 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.client.core.CountRequest;
 import org.opensearch.client.core.CountResponse;
+import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.geometry.Rectangle;
+import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.ScriptQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.join.aggregations.Children;
@@ -102,6 +106,8 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -116,6 +122,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.both;
@@ -240,7 +247,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertNull(searchResponse.getAggregations());
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertEquals(5, searchResponse.getHits().getTotalHits().value);
+        assertEquals(5, searchResponse.getHits().getTotalHits().value());
         assertEquals(5, searchResponse.getHits().getHits().length);
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
             assertEquals("index", searchHit.getIndex());
@@ -262,7 +269,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertNull(searchResponse.getAggregations());
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        assertEquals(1, searchResponse.getHits().getTotalHits().value());
         assertEquals(1, searchResponse.getHits().getHits().length);
         assertThat(searchResponse.getHits().getMaxScore(), greaterThan(0f));
         SearchHit searchHit = searchResponse.getHits().getHits()[0];
@@ -436,7 +443,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertEquals(5, searchResponse.getHits().getTotalHits().value);
+        assertEquals(5, searchResponse.getHits().getTotalHits().value());
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         Range rangeAgg = searchResponse.getAggregations().get("agg1");
@@ -553,7 +560,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertEquals(5, searchResponse.getHits().getTotalHits().value);
+        assertEquals(5, searchResponse.getHits().getTotalHits().value());
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(1, searchResponse.getAggregations().asList().size());
@@ -657,7 +664,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertEquals(3, searchResponse.getHits().getTotalHits().value);
+        assertEquals(3, searchResponse.getHits().getTotalHits().value());
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(1, searchResponse.getAggregations().asList().size());
@@ -698,7 +705,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertSearchHeader(searchResponse);
         assertNull(searchResponse.getAggregations());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
-        assertEquals(0, searchResponse.getHits().getTotalHits().value);
+        assertEquals(0, searchResponse.getHits().getTotalHits().value());
         assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(1, searchResponse.getSuggest().size());
@@ -720,7 +727,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     }
 
     public void testSearchWithWeirdScriptFields() throws Exception {
-        Request doc = new Request("PUT", "test/_doc/1");
+        Request doc = new Request("PUT", "/test/_doc/1");
         doc.setJsonEntity("{\"field\":\"value\"}");
         client().performRequest(doc);
         client().performRequest(new Request("POST", "/test/_refresh"));
@@ -764,6 +771,228 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         }
     }
 
+    public void testSearchWithDerivedFields() throws Exception {
+        // Just testing DerivedField definition from SearchSourceBuilder derivedField()
+        // We are not testing the full functionality here
+        Request doc = new Request("PUT", "/test/_doc/1");
+        doc.setJsonEntity("{\"field\":\"value\"}");
+        client().performRequest(doc);
+        client().performRequest(new Request("POST", "/test/_refresh"));
+        // Keyword field
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "keyword", new Script("emit(params._source[\"field\"])"))
+                    .fetchField("result")
+                    .query(new TermsQueryBuilder("result", "value"))
+            );
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals("value", values.get(0));
+
+            // multi valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField(
+                        "result",
+                        "keyword",
+                        new Script("emit(params._source[\"field\"]);emit(params._source[\"field\"] + \"_2\")")
+                    )
+                    .query(new TermsQueryBuilder("result", "value_2"))
+                    .fetchField("result")
+            );
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals("value", values.get(0));
+            assertEquals("value_2", values.get(1));
+        }
+        // Boolean field
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "boolean", new Script("emit(((String)params._source[\"field\"]).equals(\"value\"))"))
+                    .query(new TermsQueryBuilder("result", "true"))
+                    .fetchField("result")
+            );
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals(true, values.get(0));
+        }
+        // Long field
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "long", new Script("emit(Long.MAX_VALUE)"))
+                    .query(new RangeQueryBuilder("result").from(Long.MAX_VALUE - 1).to(Long.MAX_VALUE))
+                    .fetchField("result")
+            );
+
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals(Long.MAX_VALUE, values.get(0));
+
+            // multi-valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "long", new Script("emit(Long.MAX_VALUE); emit(Long.MIN_VALUE);"))
+                    .query(new RangeQueryBuilder("result").from(Long.MIN_VALUE).to(Long.MIN_VALUE + 1))
+                    .fetchField("result")
+            );
+
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals(Long.MAX_VALUE, values.get(0));
+            assertEquals(Long.MIN_VALUE, values.get(1));
+        }
+        // Double field
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "double", new Script("emit(Double.MAX_VALUE)"))
+                    .query(new RangeQueryBuilder("result").from(Double.MAX_VALUE - 1).to(Double.MAX_VALUE))
+                    .fetchField("result")
+            );
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals(Double.MAX_VALUE, values.get(0));
+
+            // multi-valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "double", new Script("emit(Double.MAX_VALUE); emit(Double.MIN_VALUE);"))
+                    .query(new RangeQueryBuilder("result").from(Double.MIN_VALUE).to(Double.MIN_VALUE + 1))
+                    .fetchField("result")
+            );
+
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals(Double.MAX_VALUE, values.get(0));
+            assertEquals(Double.MIN_VALUE, values.get(1));
+        }
+        // Date field
+        {
+            DateTime date1 = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
+            DateTime date2 = new DateTime(1990, 12, 30, 0, 0, DateTimeZone.UTC);
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "date", new Script("emit(" + date1.getMillis() + "L)"))
+                    .query(new RangeQueryBuilder("result").from(date1.toString()).to(date2.toString()))
+                    .fetchField("result")
+            );
+
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals(date1.toString(), values.get(0));
+
+            // multi-valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "date", new Script("emit(" + date1.getMillis() + "L); " + "emit(" + date2.getMillis() + "L)"))
+                    .query(new RangeQueryBuilder("result").from(date1.toString()).to(date2.toString()))
+                    .fetchField("result")
+            );
+
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals(date1.toString(), values.get(0));
+            assertEquals(date2.toString(), values.get(1));
+        }
+        // Geo field
+        {
+            GeoShapeQueryBuilder qb = geoShapeQuery("result", new Rectangle(-35, 35, 35, -35));
+            qb.relation(ShapeRelation.INTERSECTS);
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "geo_point", new Script("emit(10.0, 20.0)"))
+                    .query(qb)
+                    .fetchField("result")
+            );
+
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals(10.0, ((HashMap) values.get(0)).get("lat"));
+            assertEquals(20.0, ((HashMap) values.get(0)).get("lon"));
+
+            // multi-valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "geo_point", new Script("emit(10.0, 20.0); emit(20.0, 30.0);"))
+                    .query(qb)
+                    .fetchField("result")
+            );
+
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals(10.0, ((HashMap) values.get(0)).get("lat"));
+            assertEquals(20.0, ((HashMap) values.get(0)).get("lon"));
+            assertEquals(20.0, ((HashMap) values.get(1)).get("lat"));
+            assertEquals(30.0, ((HashMap) values.get(1)).get("lon"));
+        }
+        // IP field
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource().derivedField("result", "ip", new Script("emit(\"10.0.0.1\")")).fetchField("result")
+            );
+
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals("10.0.0.1", values.get(0));
+
+            // multi-valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "ip", new Script("emit(\"10.0.0.1\"); emit(\"10.0.0.2\");"))
+                    .fetchField("result")
+            );
+
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals("10.0.0.1", values.get(0));
+            assertEquals("10.0.0.2", values.get(1));
+
+        }
+
+    }
+
     public void testSearchScroll() throws Exception {
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
@@ -780,7 +1009,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         try {
             long counter = 0;
             assertSearchHeader(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -792,7 +1021,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
                 highLevelClient()::scrollAsync
             );
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertEquals(counter++, ((Number) hit.getSortValues()[0]).longValue());
@@ -804,7 +1033,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
                 highLevelClient()::scrollAsync
             );
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(30));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertEquals(counter++, ((Number) hit.getSortValues()[0]).longValue());
@@ -853,7 +1082,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         try {
             long counter = 0;
             assertSearchHeader(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -891,21 +1120,21 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
-        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(2L));
         assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("1"));
         assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getAt(1).getId(), Matchers.equalTo("2"));
 
         assertThat(multiSearchResponse.getResponses()[1].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[1].getResponse());
-        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits().value, Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(2L));
         assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("3"));
         assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(1).getId(), Matchers.equalTo("4"));
 
         assertThat(multiSearchResponse.getResponses()[2].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[2].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[2].getResponse());
-        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value, Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(2L));
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("5"));
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(1).getId(), Matchers.equalTo("6"));
     }
@@ -947,7 +1176,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
 
         assertThat(searchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
-        assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), Matchers.equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), Matchers.equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).getId(), Matchers.equalTo("3"));
@@ -991,7 +1220,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
-        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(2L));
         assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getHits().length, Matchers.equalTo(0));
         Terms terms = multiSearchResponse.getResponses()[0].getResponse().getAggregations().get("name");
         assertThat(terms.getBuckets().size(), Matchers.equalTo(2));
@@ -1001,7 +1230,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[1].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
-        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits().value, Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(2L));
         assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getHits().length, Matchers.equalTo(0));
         terms = multiSearchResponse.getResponses()[1].getResponse().getAggregations().get("name");
         assertThat(terms.getBuckets().size(), Matchers.equalTo(2));
@@ -1011,7 +1240,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[2].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[2].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
-        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value, Matchers.equalTo(2L));
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(2L));
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getHits().length, Matchers.equalTo(0));
         terms = multiSearchResponse.getResponses()[2].getResponse().getAggregations().get("name");
         assertThat(terms.getBuckets().size(), Matchers.equalTo(2));
@@ -1038,19 +1267,19 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
-        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(1L));
         assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("2"));
 
         assertThat(multiSearchResponse.getResponses()[1].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[1].getResponse());
-        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits().value, Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(1L));
         assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("4"));
 
         assertThat(multiSearchResponse.getResponses()[2].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[2].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[2].getResponse());
-        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value, Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(1L));
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("6"));
 
         searchRequest1.source().highlighter(new HighlightBuilder().field("field"));
@@ -1063,7 +1292,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[0].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[0].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[0].getResponse());
-        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(1L));
         assertThat(
             multiSearchResponse.getResponses()[0].getResponse().getHits().getAt(0).getHighlightFields().get("field").fragments()[0]
                 .string(),
@@ -1073,7 +1302,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[1].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[1].getResponse());
-        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits().value, Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(1L));
         assertThat(multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("4"));
         assertThat(
             multiSearchResponse.getResponses()[1].getResponse().getHits().getAt(0).getHighlightFields().get("field").fragments()[0]
@@ -1084,7 +1313,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[2].getFailure(), Matchers.nullValue());
         assertThat(multiSearchResponse.getResponses()[2].isFailure(), Matchers.is(false));
         SearchIT.assertSearchHeader(multiSearchResponse.getResponses()[2].getResponse());
-        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value, Matchers.equalTo(1L));
+        assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value(), Matchers.equalTo(1L));
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("6"));
         assertThat(
             multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getHighlightFields().get("field").fragments()[0]
@@ -1140,7 +1369,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         SearchResponse searchResponse = searchTemplateResponse.getResponse();
         assertNotNull(searchResponse);
 
-        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        assertEquals(1, searchResponse.getHits().getTotalHits().value());
         assertEquals(1, searchResponse.getHits().getHits().length);
         assertThat(searchResponse.getHits().getMaxScore(), greaterThan(0f));
 
@@ -1241,7 +1470,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         SearchResponse goodResponse = responses[0].getResponse().getResponse();
         assertNotNull(goodResponse);
         assertThat(responses[0].isFailure(), Matchers.is(false));
-        assertEquals(1, goodResponse.getHits().getTotalHits().value);
+        assertEquals(1, goodResponse.getHits().getTotalHits().value());
         assertEquals(1, goodResponse.getHits().getHits().length);
         assertThat(goodResponse.getHits().getMaxScore(), greaterThan(0f));
         SearchHit hit = goodResponse.getHits().getHits()[0];

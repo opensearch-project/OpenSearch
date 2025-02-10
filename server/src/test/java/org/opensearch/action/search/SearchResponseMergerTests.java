@@ -137,7 +137,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
         assertEquals(TimeUnit.NANOSECONDS.toMillis(currentRelativeTime), searchResponse.getTook().millis());
@@ -195,7 +196,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             clusters,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
         assertSame(clusters, mergedResponse.getClusters());
@@ -252,7 +254,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             clusters,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
         assertSame(clusters, mergedResponse.getClusters());
@@ -304,7 +307,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         ).getShardFailures();
         assertThat(Arrays.asList(shardFailures), containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
@@ -344,7 +348,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             clusters,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
         assertSame(clusters, mergedResponse.getClusters());
@@ -412,7 +417,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             clusters,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
         assertSame(clusters, mergedResponse.getClusters());
@@ -490,7 +496,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             clusters,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
         assertSame(clusters, mergedResponse.getClusters());
@@ -570,7 +577,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             clusters,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
         assertSame(clusters, mergedResponse.getClusters());
@@ -657,11 +665,11 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             TotalHits totalHits = null;
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits = new TotalHits(randomLongBetween(0, 1000), totalHitsRelation);
-                long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value;
-                expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value, trackTotalHitsUpTo), totalHitsRelation);
+                long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value();
+                expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value(), trackTotalHitsUpTo), totalHitsRelation);
             }
 
-            final int numDocs = totalHits == null || totalHits.value >= requestedSize ? requestedSize : (int) totalHits.value;
+            final int numDocs = totalHits == null || totalHits.value() >= requestedSize ? requestedSize : (int) totalHits.value();
             int scoreFactor = randomIntBetween(1, numResponses);
             float maxScore = scoreSort ? numDocs * scoreFactor : Float.NaN;
             SearchHit[] hits = randomSearchHitArray(
@@ -733,7 +741,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             clusters,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
 
@@ -762,8 +771,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             assertNull(searchHits.getTotalHits());
         } else {
             assertNotNull(searchHits.getTotalHits());
-            assertEquals(expectedTotalHits.value, searchHits.getTotalHits().value);
-            assertSame(expectedTotalHits.relation, searchHits.getTotalHits().relation);
+            assertEquals(expectedTotalHits.value(), searchHits.getTotalHits().value());
+            assertSame(expectedTotalHits.relation(), searchHits.getTotalHits().relation());
         }
         if (expectedMaxScore == Float.NEGATIVE_INFINITY) {
             assertTrue(Float.isNaN(searchHits.getMaxScore()));
@@ -799,7 +808,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             clusters,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
         assertSame(clusters, response.getClusters());
@@ -811,9 +821,9 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
         assertEquals(0, response.getNumReducePhases());
         assertFalse(response.isTimedOut());
         assertNotNull(response.getHits().getTotalHits());
-        assertEquals(0, response.getHits().getTotalHits().value);
+        assertEquals(0, response.getHits().getTotalHits().value());
         assertEquals(0, response.getHits().getHits().length);
-        assertEquals(TotalHits.Relation.EQUAL_TO, response.getHits().getTotalHits().relation);
+        assertEquals(TotalHits.Relation.EQUAL_TO, response.getHits().getTotalHits().relation());
         assertNull(response.getScrollId());
         assertSame(InternalAggregations.EMPTY, response.getAggregations());
         assertNull(response.getSuggest());
@@ -878,10 +888,11 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             clusters,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
-        assertEquals(10, mergedResponse.getHits().getTotalHits().value);
+        assertEquals(10, mergedResponse.getHits().getTotalHits().value());
         assertEquals(10, mergedResponse.getHits().getHits().length);
         assertEquals(2, mergedResponse.getTotalShards());
         assertEquals(2, mergedResponse.getSuccessfulShards());
@@ -905,8 +916,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             TotalHits totalHits = null;
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits = new TotalHits(randomLongBetween(0, 1000), totalHitsRelation);
-                long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value;
-                expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value, trackTotalHitsUpTo), totalHitsRelation);
+                long previousValue = expectedTotalHits == null ? 0 : expectedTotalHits.value();
+                expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value(), trackTotalHitsUpTo), totalHitsRelation);
             }
             SearchHits empty = new SearchHits(new SearchHit[0], totalHits, Float.NaN, null, null, null);
             InternalSearchResponse response = new InternalSearchResponse(empty, null, null, null, false, false, 1);
@@ -926,7 +937,8 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
             clusters,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
         assertEquals(expectedTotalHits, mergedResponse.getHits().getTotalHits());

@@ -46,7 +46,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.action.ActionFuture;
@@ -73,6 +72,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -327,7 +327,7 @@ public class CancellableTasksIT extends ParameterizedStaticSettingsOpenSearchInt
         mainAction.startSubTask(taskId, subRequest, future);
         TransportException te = expectThrows(TransportException.class, future::actionGet);
         assertThat(te.getCause(), instanceOf(TaskCancelledException.class));
-        assertThat(te.getCause().getMessage(), equalTo("The parent task was cancelled, shouldn't start any child tasks"));
+        assertThat(te.getCause().getMessage(), equalTo("The parent task was cancelled, shouldn't start any child tasks, by user request"));
         allowEntireRequest(rootRequest);
         waitForRootTask(rootTaskFuture);
         ensureAllBansRemoved();
@@ -386,7 +386,7 @@ public class CancellableTasksIT extends ParameterizedStaticSettingsOpenSearchInt
             assertThat(
                 cause.getMessage(),
                 anyOf(
-                    equalTo("The parent task was cancelled, shouldn't start any child tasks"),
+                    equalTo("The parent task was cancelled, shouldn't start any child tasks, by user request"),
                     containsString("Task cancelled before it started:"),
                     equalTo("Task was cancelled while executing")
                 )

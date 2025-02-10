@@ -32,13 +32,15 @@
 package org.opensearch.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.transport.TransportResponse;
 
 /**
  * Listens for transport messages
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TransportMessageListener {
 
     TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {

@@ -12,26 +12,32 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.TriFunction;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.CONTENT_TYPE;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_AND_PATH_SUFFIX;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_SUFFIX;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.hamcrest.core.StringContains.containsString;
 
 public class FlatObjectFieldMapperTests extends MapperTestCase {
-    private static final String FIELD_TYPE = "flat_object";
-    private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
-    private static final String VALUE_SUFFIX = "._value";
-
     protected boolean supportsMeta() {
         return false;
     }
@@ -42,7 +48,7 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
 
     public void testMapperServiceHasParser() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> { minimalMapping(b); }));
-        Mapper.TypeParser parser = mapperService.mapperRegistry.getMapperParsers().get(FIELD_TYPE);
+        Mapper.TypeParser parser = mapperService.mapperRegistry.getMapperParsers().get(CONTENT_TYPE);
         assertNotNull(parser);
         assertTrue(parser instanceof FlatObjectFieldMapper.TypeParser);
     }
@@ -50,28 +56,39 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
         ParseContext.Document fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        FlatObjectFieldMapper.FlatObjectFieldType fieldType = (FlatObjectFieldMapper.FlatObjectFieldType) mapperService.fieldType("field");
         Query query = fieldType.existsQuery(queryShardContext);
         assertExistsQuery(fieldType, query, fields);
-
     }
 
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
-        // we always perform a term query against _field_names, even when the field
-        // is not added to _field_names because it is not indexed nor stored
-        assertThat(query, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) query;
-        assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
-        assertEquals("field", termQuery.getTerm().text());
-        if (fieldType.isSearchable() || fieldType.isStored()) {
-            assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
+    protected void assertExistsQuery(FlatObjectFieldMapper.FlatObjectFieldType fieldType, Query query, ParseContext.Document fields) {
+
+        if (fieldType.hasDocValues() && fieldType.isSubField() == false) {
+            assertThat(query, instanceOf(FieldExistsQuery.class));
+            FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
+            assertEquals(fieldType.name(), fieldExistsQuery.getField());
         } else {
+            assertThat(query, instanceOf(TermQuery.class));
+            TermQuery termQuery = (TermQuery) query;
+            assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
+            assertEquals("field", termQuery.getTerm().text());
+        }
+
+        if (fieldType.hasDocValues()) {
+            assertDocValuesField(fields, "field");
             assertNoFieldNamesField(fields);
+        } else {
+            assertNoDocValuesField(fields, "field");
+            if (fieldType.isSearchable()) {
+                assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
+            } else {
+                assertNoFieldNamesField(fields);
+            }
         }
     }
 
     public void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", FIELD_TYPE);
+        b.field("type", CONTENT_TYPE);
     }
 
     /**
@@ -122,20 +139,277 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         // Test internal substring fields as well
         IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
         assertEquals(2, fieldValues.length);
-        assertTrue(fieldValues[0] instanceof KeywordFieldMapper.KeywordField);
+        assertEquals(IndexOptions.DOCS, fieldValues[0].fieldType().indexOptions());
         assertEquals(new BytesRef("bar"), fieldValues[0].binaryValue());
 
         IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
         assertEquals(2, fieldValues.length);
-        assertTrue(fieldValueAndPaths[0] instanceof KeywordFieldMapper.KeywordField);
+        assertEquals(IndexOptions.DOCS, fieldValues[0].fieldType().indexOptions());
         assertEquals(new BytesRef("field.foo=bar"), fieldValueAndPaths[0].binaryValue());
     }
 
     public void testNullValue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
-        assertThat(e.getMessage(), containsString("object mapping for [_doc] tried to parse field [field] as object"));
+        ParsedDocument parsedDocument = mapper.parse(source(b -> b.nullField("field")));
+        assertEquals(1, parsedDocument.docs().size());
+        IndexableField[] fields = parsedDocument.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+        ParsedDocument doc;
+        String json;
+        IndexableField[] fieldValues;
+        IndexableField[] fieldValueAndPaths;
 
+        {
+            // test1: {"field":null}
+            doc = mapper.parse(source(b -> b.nullField("field")));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_SUFFIX));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX));
+
+            // test2: {"field":{"age":3, "name": null}}
+            json = "{\"field\":{\"age\":3, \"name\": null}}";
+            doc = mapper.parse(source(json));
+            fields = doc.rootDoc().getFields("field");
+            assertEquals(2, fields.length);
+            assertEquals(new BytesRef("field.age"), fields[0].binaryValue());
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(2, fieldValues.length);
+            assertEquals(new BytesRef("3"), fieldValues[0].binaryValue());
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(2, fieldValueAndPaths.length);
+            assertEquals(new BytesRef("field.age=3"), fieldValueAndPaths[0].binaryValue());
+
+            // test3: {"field":{"name":null, "age":"5", "name1":null}}
+            json = "{\"field\":{\"name\":null, \"age\":\"5\", \"name1\":null}}";
+            doc = mapper.parse(source(json));
+            fields = doc.rootDoc().getFields("field");
+            assertEquals(2, fields.length);
+            assertEquals(new BytesRef("field.age"), fields[0].binaryValue());
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(2, fieldValues.length);
+            assertEquals(new BytesRef("5"), fieldValues[0].binaryValue());
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(2, fieldValueAndPaths.length);
+            assertEquals(new BytesRef("field.age=5"), fieldValueAndPaths[0].binaryValue());
+
+            // test4: {"field":{"name": {"name1": {"name2":null}}}}
+            json = "{\"field\":{\"name\": {\"name1\": {\"name2\":null}}}}";
+            doc = mapper.parse(source(json));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_SUFFIX));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX));
+
+        }
+
+        {
+            // test5: {"field":[null]}
+            doc = mapper.parse(source(b -> b.array("field", (String[]) null)));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_SUFFIX));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX));
+
+            // test6: {"field":{"labels": [null]}}
+            json = "{\"field\":{\"labels\": [null]}}";
+            doc = mapper.parse(source(json));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_SUFFIX));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX));
+
+            // test7: {"field":{"r1": {"labels": [null]}}}
+            json = "{\"field\":{\"r1\": {\"labels\": [null]}}}";
+            doc = mapper.parse(source(json));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_SUFFIX));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX));
+
+            // test8: {"field":{"r1": {"name": null,"labels": [null]}}}
+            json = "{\"field\":{\"r1\": {\"name\": null,\"labels\": [null]}}}";
+            doc = mapper.parse(source(json));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_SUFFIX));
+            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX));
+
+            TriFunction<String, String, IndexableField[], Void> makeFieldsAssertion = (v1, v2, fs) -> {
+                MatcherAssert.assertThat(
+                    List.of(new BytesRef(v1), new BytesRef(v2)),
+                    containsInAnyOrder(fs[0].binaryValue(), fs[2].binaryValue())
+                );
+                return null;
+            };
+
+            // test9: {"field":{"name": [null,3],"age":4}}
+            json = "{\"field\":{\"name\": [null,3],\"age\":4}}";
+            doc = mapper.parse(source(json));
+            fields = doc.rootDoc().getFields("field");
+            assertEquals(4, fields.length);
+            makeFieldsAssertion.apply("field.name", "field.age", fields);
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(4, fieldValues.length);
+            makeFieldsAssertion.apply("3", "4", fieldValues);
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(4, fieldValueAndPaths.length);
+            makeFieldsAssertion.apply("field.name=3", "field.age=4", fieldValueAndPaths);
+
+            // test10: {"field":{"age": 4,"name": [null,"3"]}}
+            json = "{\"field\":{\"age\": 4,\"name\": [null,\"3\"]}}";
+            doc = mapper.parse(source(json));
+            fields = doc.rootDoc().getFields("field");
+            assertEquals(4, fields.length);
+            makeFieldsAssertion.apply("field.name", "field.age", fields);
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(4, fieldValues.length);
+            makeFieldsAssertion.apply("3", "4", fieldValues);
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(4, fieldValueAndPaths.length);
+            makeFieldsAssertion.apply("field.name=3", "field.age=4", fieldValueAndPaths);
+
+            // test11: {"field":{"age":"4","labels": [null]}}
+            json = "{\"field\":{\"age\":\"4\",\"labels\": [null]}}";
+            doc = mapper.parse(source(json));
+            fields = doc.rootDoc().getFields("field");
+            assertEquals(2, fields.length);
+            assertEquals(new BytesRef("field.age"), fields[0].binaryValue());
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(2, fieldValues.length);
+            assertEquals(new BytesRef("4"), fieldValues[0].binaryValue());
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(2, fieldValueAndPaths.length);
+            assertEquals(new BytesRef("field.age=4"), fieldValueAndPaths[0].binaryValue());
+
+            // test12: {"field":{"labels": [null], "age":"4"}}
+            json = "{\"field\":{\"labels\": [null], \"age\":\"4\"}}";
+            doc = mapper.parse(source(json));
+            fields = doc.rootDoc().getFields("field");
+            assertEquals(2, fields.length);
+            assertEquals(new BytesRef("field.age"), fields[0].binaryValue());
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(2, fieldValues.length);
+            assertEquals(new BytesRef("4"), fieldValues[0].binaryValue());
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(2, fieldValueAndPaths.length);
+            assertEquals(new BytesRef("field.age=4"), fieldValueAndPaths[0].binaryValue());
+
+            // test13: {"field":{"name": [null, {"d":{"name":"dsds"}}]}}
+            json = "{\"field\":{\"name\": [null, {\"d\":{\"name\":\"dsds\"}}]}}";
+            doc = mapper.parse(source(json));
+            fields = doc.rootDoc().getFields("field");
+            assertEquals(4, fields.length);
+            assertEquals(new BytesRef("field.d"), fields[0].binaryValue());
+            assertEquals(new BytesRef("field.name"), fields[2].binaryValue());
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(2, fieldValues.length);
+            assertEquals(new BytesRef("dsds"), fieldValues[0].binaryValue());
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(2, fieldValueAndPaths.length);
+            assertEquals(new BytesRef("field.name.d.name=dsds"), fieldValueAndPaths[0].binaryValue());
+
+            // test14: {"field":{"name": [{"d":{"name":"dsds"}}, null]}}
+            json = "{\"field\":{\"name\": [{\"d\":{\"name\":\"dsds\"}}, null]}}";
+            doc = mapper.parse(source(json));
+            IndexableField[] fields1 = doc.rootDoc().getFields("field");
+            assertEquals(fields1.length, fields.length);
+            for (int i = 0; i < fields1.length; i++) {
+                assertEquals(fields[i].toString(), fields1[i].toString());
+            }
+            assertEquals(4, fields.length);
+            assertEquals(new BytesRef("field.d"), fields[0].binaryValue());
+            assertEquals(new BytesRef("field.name"), fields[2].binaryValue());
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(2, fieldValues.length);
+            assertEquals(new BytesRef("dsds"), fieldValues[0].binaryValue());
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(2, fieldValueAndPaths.length);
+            assertEquals(new BytesRef("field.name.d.name=dsds"), fieldValueAndPaths[0].binaryValue());
+
+            // test15: {"field":{"name": [{"name":"age1"}, null, {"d":{"name":"dsds"}}]}}
+            json = "{\"field\":{\"name\": [{\"name\":\"age1\"}, null, {\"d\":{\"name\":\"dsds\"}}]}}";
+            doc = mapper.parse(source(json));
+            fields = doc.rootDoc().getFields("field");
+            assertEquals(4, fields.length);
+            makeFieldsAssertion.apply("field.d", "field.name", fields);
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(4, fieldValues.length);
+            makeFieldsAssertion.apply("dsds", "age1", fieldValues);
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(4, fieldValueAndPaths.length);
+            assertEquals(new BytesRef("field.name.name=age1"), fieldValueAndPaths[0].binaryValue());
+            assertEquals(new BytesRef("field.name.d.name=dsds"), fieldValueAndPaths[2].binaryValue());
+
+            // test16: {"field":{"name": {"name1": [null,"dsdsdsd"]}}}
+            json = "{\"field\":{\"name\": {\"name1\": [null,\"dsdsdsd\"]}}}";
+            doc = mapper.parse(source(json));
+            fields = doc.rootDoc().getFields("field");
+            assertEquals(4, fields.length);
+            assertEquals(new BytesRef("field.name"), fields[0].binaryValue());
+            assertEquals(new BytesRef("field.name1"), fields[2].binaryValue());
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(2, fieldValues.length);
+            assertEquals(new BytesRef("dsdsdsd"), fieldValues[0].binaryValue());
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(2, fieldValueAndPaths.length);
+            assertEquals(new BytesRef("field.name.name1=dsdsdsd"), fieldValueAndPaths[0].binaryValue());
+
+            // test17: {"field":{"name": {"name1": [[],["dsdsdsd", null]]}}}
+            json = "{\"field\":{\"name\": {\"name1\": [[],[\"dsdsdsd\", null]]}}}";
+            doc = mapper.parse(source(json));
+            fields = doc.rootDoc().getFields("field");
+            assertEquals(4, fields.length);
+            assertEquals(new BytesRef("field.name"), fields[0].binaryValue());
+            assertEquals(new BytesRef("field.name1"), fields[2].binaryValue());
+            fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+            assertEquals(2, fieldValues.length);
+            assertEquals(new BytesRef("dsdsdsd"), fieldValues[0].binaryValue());
+            fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+            assertEquals(2, fieldValueAndPaths.length);
+            assertEquals(new BytesRef("field.name.name1=dsdsdsd"), fieldValueAndPaths[0].binaryValue());
+        }
+    }
+
+    public void testInfiniteLoopWithNullValue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        // test2: {"field":{"name": null,"age":3}}
+        String json = "{\"field\":{\"name\": null,\"age\":3}}";
+        ParsedDocument doc = mapper.parse(source(json));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(new BytesRef("field.age"), fields[0].binaryValue());
+        IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+        assertEquals(2, fieldValues.length);
+        assertEquals(new BytesRef("3"), fieldValues[0].binaryValue());
+        IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+        assertEquals(2, fieldValueAndPaths.length);
+        assertEquals(new BytesRef("field.age=3"), fieldValueAndPaths[0].binaryValue());
+    }
+
+    public void testFetchDocValues() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flat_object")));
+        {
+            // test valueWithPathField
+            MappedFieldType ft = mapperService.fieldType("field.name");
+            DocValueFormat format = ft.docValueFormat(null, null);
+            String storedValue = "field.field.name=1234";
+
+            Object object = format.format(new BytesRef(storedValue));
+            assertEquals("1234", object);
+        }
+
+        {
+            // test valueField
+            MappedFieldType ft = mapperService.fieldType("field");
+            Throwable throwable = assertThrows(IllegalArgumentException.class, () -> ft.docValueFormat(null, null));
+            assertEquals("Field [field] of type [flat_object] does not support doc_value in root field", throwable.getMessage());
+        }
+    }
+
+    public void testPatternMatch() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.startObject("properties").startObject("foo").field("type", "flat_object").endObject().endObject())
+        );
+
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        Set<String> fields = queryShardContext.simpleMatchToIndexNames("field.*");
+        assertEquals(1, fields.size());
+        assertEquals(Sets.newHashSet("field.foo"), fields);
     }
 
     @Override

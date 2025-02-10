@@ -34,6 +34,7 @@ package org.opensearch.gradle.testfixtures;
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
 import com.avast.gradle.dockercompose.ServiceInfo;
+import com.avast.gradle.dockercompose.tasks.ComposeBuild;
 import com.avast.gradle.dockercompose.tasks.ComposeDown;
 import com.avast.gradle.dockercompose.tasks.ComposePull;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
@@ -42,6 +43,7 @@ import org.apache.tools.ant.taskdefs.condition.Os;
 import org.opensearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.opensearch.gradle.docker.DockerSupportPlugin;
 import org.opensearch.gradle.docker.DockerSupportService;
+import org.opensearch.gradle.docker.DockerSupportService.DockerComposeV2Availability;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.precommit.TestingConventionsTasks;
 import org.opensearch.gradle.util.GradleUtils;
@@ -170,7 +172,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 .findFirst();
 
             composeExtension.getExecutable().set(dockerCompose.isPresent() ? dockerCompose.get() : "/usr/bin/docker");
-            composeExtension.getUseDockerComposeV2().set(false);
+            composeExtension.getUseDockerComposeV2()
+                .set(dockerSupport.get().getDockerAvailability().dockerComposeAvailability instanceof DockerComposeV2Availability);
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
@@ -200,6 +203,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.opensearch.gradle.test.RestIntegTestTask"));
         maybeSkipTasks(tasks, dockerSupport, TestingConventionsTasks.class);
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.opensearch.gradle.test.AntFixture"));
+        maybeSkipTasks(tasks, dockerSupport, ComposeBuild.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeUp.class);
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);
@@ -226,7 +230,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, Task task) {
         task.onlyIf(spec -> {
-            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeAvailable;
+            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isDockerComposeAvailable();
             if (isComposeAvailable == false) {
                 LOGGER.info("Task {} requires docker-compose but it is unavailable. Task will be skipped.", task.getPath());
             }
@@ -245,7 +249,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         task.doFirst(new Action<Task>() {
             @Override
             public void execute(Task theTask) {
-                TestFixtureExtension extension = theTask.getProject().getExtensions().getByType(TestFixtureExtension.class);
+                TestFixtureExtension extension = fixtureProject.getExtensions().getByType(TestFixtureExtension.class);
 
                 fixtureProject.getExtensions()
                     .getByType(ComposeExtension.class)

@@ -41,7 +41,8 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -59,6 +60,8 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.transport.client.IndicesAdminClient;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -73,12 +76,12 @@ import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 
 /**
- * A request to create an index. Best created with {@link org.opensearch.client.Requests#createIndexRequest(String)}.
+ * A request to create an index. Best created with {@link Requests#createIndexRequest(String)}.
  * <p>
  * The index created can optionally be created with {@link #settings(org.opensearch.common.settings.Settings)}.
  *
- * @see org.opensearch.client.IndicesAdminClient#create(CreateIndexRequest)
- * @see org.opensearch.client.Requests#createIndexRequest(String)
+ * @see IndicesAdminClient#create(CreateIndexRequest)
+ * @see Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  *
  * @opensearch.api
@@ -89,6 +92,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     public static final ParseField MAPPINGS = new ParseField("mappings");
     public static final ParseField SETTINGS = new ParseField("settings");
     public static final ParseField ALIASES = new ParseField("aliases");
+    public static final ParseField CONTEXT = new ParseField("context");
 
     private String cause = "";
 
@@ -99,6 +103,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private String mappings = "{}";
 
     private final Set<Alias> aliases = new HashSet<>();
+
+    private Context context;
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
@@ -128,6 +134,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            context = in.readOptionalWriteable(Context::new);
+        }
     }
 
     public CreateIndexRequest() {}
@@ -524,6 +533,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 }
             } else if (ALIASES.match(name, deprecationHandler)) {
                 aliases((Map<String, Object>) entry.getValue());
+            } else if (CONTEXT.match(name, deprecationHandler)) {
+                context((Map<String, Object>) entry.getValue());
             } else {
                 throw new OpenSearchParseException("unknown key [{}] for create index", name);
             }
@@ -571,6 +582,36 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
+    public CreateIndexRequest context(Map<String, ?> source) {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.map(source);
+            return context(BytesReference.bytes(builder));
+        } catch (IOException e) {
+            throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+    }
+
+    public CreateIndexRequest context(BytesReference source) {
+        // EMPTY is safe here because we never call namedObject
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+            // move to the first alias
+            context(Context.fromXContent(parser));
+            return this;
+        } catch (IOException e) {
+            throw new OpenSearchParseException("Failed to parse context", e);
+        }
+    }
+
+    public CreateIndexRequest context(Context context) {
+        this.context = context;
+        return this;
+    }
+
+    public Context context() {
+        return context;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -593,6 +634,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.writeTo(out);
         }
         waitForActiveShards.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeOptionalWriteable(context);
+        }
     }
 
     @Override
@@ -611,6 +655,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             + '\''
             + ", aliases="
             + aliases
+            + '\''
+            + ", context="
+            + context
             + ", waitForActiveShards="
             + waitForActiveShards
             + '}';

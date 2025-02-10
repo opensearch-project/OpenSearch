@@ -59,6 +59,7 @@ import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.opensearch.test.BackgroundIndexer;
@@ -73,7 +74,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.StreamSupport;
 
 import fixture.s3.S3HttpHandler;
@@ -165,7 +165,6 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         return builder.build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10735")
     @Override
     public void testRequestStats() throws Exception {
         final String repository = createRepository(randomName());
@@ -207,7 +206,12 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             } catch (RepositoryMissingException e) {
                 return null;
             }
-        }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
+        }).filter(b -> {
+            if (b instanceof BlobStoreRepository) {
+                return ((BlobStoreRepository) b).blobStore() != null;
+            }
+            return false;
+        }).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
         Map<BlobStore.Metric, Map<String, Long>> extendedStats = repositoryStats.extendedStats;
         Map<String, Long> aggregatedStats = new HashMap<>();
@@ -249,7 +253,29 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, null, false) {
+            AsyncTransferManager asyncUploadUtils = new AsyncTransferManager(
+                S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.get(clusterService.getSettings()).getBytes(),
+                normalExecutorBuilder.getStreamReader(),
+                priorityExecutorBuilder.getStreamReader(),
+                urgentExecutorBuilder.getStreamReader(),
+                transferSemaphoresHolder
+            );
+            return new S3Repository(
+                metadata,
+                registry,
+                service,
+                clusterService,
+                recoverySettings,
+                asyncUploadUtils,
+                urgentExecutorBuilder,
+                priorityExecutorBuilder,
+                normalExecutorBuilder,
+                s3AsyncService,
+                S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING.get(clusterService.getSettings()),
+                normalPrioritySizeBasedBlockingQ,
+                lowPrioritySizeBasedBlockingQ,
+                genericStatsMetricPublisher
+            ) {
 
                 @Override
                 public BlobStore blobStore() {

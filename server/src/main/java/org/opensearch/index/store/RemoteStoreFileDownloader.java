@@ -149,6 +149,7 @@ public final class RemoteStoreFileDownloader {
                 try {
                     cancellableThreads.executeIO(() -> {
                         destination.copyFrom(source, file, file, IOContext.DEFAULT);
+                        logger.trace("Downloaded file {} of size {}", file, destination.fileLength(file));
                         onFileCompletion.run();
                         if (secondDestination != null) {
                             secondDestination.copyFrom(destination, file, file, IOContext.DEFAULT);

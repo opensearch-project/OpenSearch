@@ -53,7 +53,6 @@ import org.opensearch.action.support.replication.TransportWriteAction.WritePrima
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -95,6 +94,7 @@ import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TestTransportChannel;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -107,6 +107,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
@@ -1237,14 +1238,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     public void testGetReplicationModeWithRemoteTranslog() {
         TransportShardBulkAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
         assertEquals(ReplicationMode.PRIMARY_TERM_VALIDATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
         TransportShardBulkAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 

@@ -46,7 +46,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TotalHits;
@@ -353,33 +353,40 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
                 )
             ) {
+                List<Document> documents = new ArrayList<>();
                 Document document = new Document();
                 addFieldConsumer.apply(document, "string", "a");
                 addFieldConsumer.apply(document, "string", "b");
-                indexWriter.addDocument(document);
+                documents.add(document);
+
                 document = new Document();
                 addFieldConsumer.apply(document, "string", "");
                 addFieldConsumer.apply(document, "string", "c");
                 addFieldConsumer.apply(document, "string", "a");
-                indexWriter.addDocument(document);
+                documents.add(document);
+
                 document = new Document();
                 addFieldConsumer.apply(document, "string", "b");
                 addFieldConsumer.apply(document, "string", "d");
-                indexWriter.addDocument(document);
+                documents.add(document);
+
                 document = new Document();
                 addFieldConsumer.apply(document, "string", "");
                 if (includeDocCountField) {
                     // Adding _doc_count to one document
                     document.add(new NumericDocValuesField("_doc_count", 10));
                 }
-                indexWriter.addDocument(document);
+                documents.add(document);
 
                 if (includeDeletedDocumentsInSegment) {
                     document = new Document();
                     ADD_SORTED_SET_FIELD_INDEXED.apply(document, "string", "e");
-                    indexWriter.addDocument(document);
+                    documents.add(document);
+                    indexWriter.addDocuments(documents);
                     indexWriter.deleteDocuments(new Term("string", "e"));
                     assertEquals(5, indexWriter.getDocStats().maxDoc);  // deleted document still in segment
+                } else {
+                    indexWriter.addDocuments(documents);
                 }
 
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
@@ -1378,7 +1385,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 InternalNested result = searchAndReduce(
                                     newSearcher(indexReader, false, true),
                                     // match root document only
-                                    new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
+                                    new FieldExistsQuery(PRIMARY_TERM_NAME),
                                     nested,
                                     fieldType
                                 );
@@ -1392,7 +1399,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 InternalFilter result = searchAndReduce(
                                     newSearcher(indexReader, false, true),
                                     // match root document only
-                                    new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME),
+                                    new FieldExistsQuery(PRIMARY_TERM_NAME),
                                     filter,
                                     fieldType
                                 );
@@ -1532,8 +1539,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         int ptr = 9;
         for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
             InternalTopHits topHits = bucket.getAggregations().get("top_hits");
-            assertThat(topHits.getHits().getTotalHits().value, equalTo((long) ptr));
-            assertEquals(TotalHits.Relation.EQUAL_TO, topHits.getHits().getTotalHits().relation);
+            assertThat(topHits.getHits().getTotalHits().value(), equalTo((long) ptr));
+            assertEquals(TotalHits.Relation.EQUAL_TO, topHits.getHits().getTotalHits().relation());
             if (withScore) {
                 assertThat(topHits.getHits().getMaxScore(), equalTo(1f));
             } else {

@@ -51,6 +51,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -82,7 +83,11 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         }
 
         public void search(Weight weight, Collector collector) throws IOException {
-            search(ctx, weight, collector);
+            LeafReaderContextPartition[] partitions = new LeafReaderContextPartition[ctx.size()];
+            for (int i = 0; i < partitions.length; i++) {
+                partitions[i] = LeafReaderContextPartition.createForEntireSegment(ctx.get(i));
+            }
+            search(partitions, weight, collector);
         }
 
         @Override
@@ -146,7 +151,7 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
             collapsingCollector = CollapsingTopDocsCollector.createKeyword(collapseField.getField(), fieldType, sort, expectedNumGroups);
         }
 
-        TopFieldCollector topFieldCollector = TopFieldCollector.create(sort, totalHits, Integer.MAX_VALUE);
+        TopFieldCollector topFieldCollector = new TopFieldCollectorManager(sort, totalHits, null, Integer.MAX_VALUE, false).newCollector();
         Query query = new MatchAllDocsQuery();
         searcher.search(query, collapsingCollector);
         searcher.search(query, topFieldCollector);
@@ -154,10 +159,10 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         TopFieldDocs topDocs = topFieldCollector.topDocs();
         assertEquals(collapseField.getField(), collapseTopFieldDocs.field);
         assertEquals(expectedNumGroups, collapseTopFieldDocs.scoreDocs.length);
-        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value);
-        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation);
+        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value());
+        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation());
         assertEquals(totalHits, topDocs.scoreDocs.length);
-        assertEquals(totalHits, topDocs.totalHits.value);
+        assertEquals(totalHits, topDocs.totalHits.value());
 
         Set<Object> seen = new HashSet<>();
         // collapse field is the last sort

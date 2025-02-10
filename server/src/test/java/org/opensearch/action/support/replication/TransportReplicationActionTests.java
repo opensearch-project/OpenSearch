@@ -43,7 +43,6 @@ import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
-import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.action.shard.ShardStateAction;
@@ -78,6 +77,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.remote.RemoteStoreTestsHelper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexShardState;
@@ -99,6 +99,7 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.transport.NoNodeAvailableException;
 import org.opensearch.transport.nio.MockNioTransport;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -1589,9 +1590,15 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService) {
+        return mockIndexShard(shardId, clusterService, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService, boolean remote) {
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.state()).thenReturn(IndexShardState.STARTED);
+        when(indexShard.indexSettings()).thenReturn(RemoteStoreTestsHelper.createIndexSettings(remote));
         doAnswer(invocation -> {
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
             if (isPrimaryMode.get()) {

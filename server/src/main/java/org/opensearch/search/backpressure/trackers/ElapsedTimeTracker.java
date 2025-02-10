@@ -12,6 +12,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 
@@ -34,34 +35,40 @@ public class ElapsedTimeTracker extends TaskResourceUsageTracker {
     private final LongSupplier timeNanosSupplier;
 
     public ElapsedTimeTracker(LongSupplier thresholdSupplier, LongSupplier timeNanosSupplier) {
+        this(thresholdSupplier, timeNanosSupplier, (Task task) -> {
+            long usage = timeNanosSupplier.getAsLong() - task.getStartTimeNanos();
+            long threshold = thresholdSupplier.getAsLong();
+
+            if (usage < threshold) {
+                return Optional.empty();
+            }
+
+            return Optional.of(
+                new TaskCancellation.Reason(
+                    "elapsed time exceeded ["
+                        + new TimeValue(usage, TimeUnit.NANOSECONDS)
+                        + " >= "
+                        + new TimeValue(threshold, TimeUnit.NANOSECONDS)
+                        + "]",
+                    1  // TODO: fine-tune the cancellation score/weight
+                )
+            );
+        });
+    }
+
+    public ElapsedTimeTracker(
+        LongSupplier thresholdSupplier,
+        LongSupplier timeNanosSupplier,
+        ResourceUsageBreachEvaluator resourceUsageBreachEvaluator
+    ) {
         this.thresholdSupplier = thresholdSupplier;
         this.timeNanosSupplier = timeNanosSupplier;
+        this.resourceUsageBreachEvaluator = resourceUsageBreachEvaluator;
     }
 
     @Override
     public String name() {
         return ELAPSED_TIME_TRACKER.getName();
-    }
-
-    @Override
-    public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
-        long usage = timeNanosSupplier.getAsLong() - task.getStartTimeNanos();
-        long threshold = thresholdSupplier.getAsLong();
-
-        if (usage < threshold) {
-            return Optional.empty();
-        }
-
-        return Optional.of(
-            new TaskCancellation.Reason(
-                "elapsed time exceeded ["
-                    + new TimeValue(usage, TimeUnit.NANOSECONDS)
-                    + " >= "
-                    + new TimeValue(threshold, TimeUnit.NANOSECONDS)
-                    + "]",
-                1  // TODO: fine-tune the cancellation score/weight
-            )
-        );
     }
 
     @Override

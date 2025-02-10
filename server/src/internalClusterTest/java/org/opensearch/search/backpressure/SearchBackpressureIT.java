@@ -39,6 +39,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.wlm.QueryGroupTask;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -313,7 +314,7 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
         assertNull("SearchShardTask shouldn't have cancelled for monitor_only mode", caughtException);
     }
 
-    private static class ExceptionCatchingListener implements ActionListener<TestResponse> {
+    public static class ExceptionCatchingListener implements ActionListener<TestResponse> {
         private final CountDownLatch latch;
         private Exception exception = null;
 
@@ -332,7 +333,11 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
             latch.countDown();
         }
 
-        private Exception getException() {
+        public CountDownLatch getLatch() {
+            return latch;
+        }
+
+        public Exception getException() {
             return exception;
         }
     }
@@ -348,7 +353,7 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
         return () -> description;
     }
 
-    interface TaskFactory<T extends Task> {
+    public interface TaskFactory<T extends Task> {
         T createTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers);
     }
 
@@ -411,6 +416,7 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
             threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
                 try {
                     CancellableTask cancellableTask = (CancellableTask) task;
+                    ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
                     long startTime = System.nanoTime();
 
                     // Doing a busy-wait until task cancellation or timeout.

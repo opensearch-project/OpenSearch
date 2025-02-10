@@ -46,11 +46,11 @@ dependencies {
 }
 
 tasks.register("empty", ThirdPartyAuditTask) {
-  targetCompatibility = JavaVersion.VERSION_11
+  targetCompatibility = JavaVersion.VERSION_21
   signatureFile = file('third-party-audit-empty.txt')
 }
 
 tasks.register("absurd", ThirdPartyAuditTask) {
-  targetCompatibility = JavaVersion.VERSION_11
+  targetCompatibility = JavaVersion.VERSION_21
   signatureFile = file('third-party-audit-absurd.txt')
 }

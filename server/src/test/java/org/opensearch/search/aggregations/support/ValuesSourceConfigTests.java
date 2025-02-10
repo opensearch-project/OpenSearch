@@ -37,9 +37,12 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -332,6 +335,42 @@ public class ValuesSourceConfigTests extends OpenSearchSingleNodeTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("value"), values.nextValue());
+        }
+    }
+
+    public void testDerivedField() throws Exception {
+        String script = "derived_field_script";
+        String derived_field = "derived_keyword";
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("derived")
+            .startObject(derived_field)
+            .field("type", "keyword")
+            .startObject("script")
+            .field("source", script)
+            .field("lang", "mockscript")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
+            ValuesSourceConfig config = ValuesSourceConfig.resolve(
+                context,
+                null,
+                derived_field,
+                null,
+                null,
+                null,
+                null,
+                CoreValuesSourceType.BYTES
+            );
+            assertNotNull(script);
+            assertEquals(ValuesSource.Bytes.Script.class, config.getValuesSource().getClass());
         }
     }
 }

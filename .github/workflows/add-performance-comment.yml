@@ -1,0 +1,28 @@
+name: Performance Label Action
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+jobs:
+  add-comment:
+    if: |
+      github.event.label.name == 'Performance' ||
+      github.event.label.name == 'Search:Performance' ||
+      github.event.label.name == 'Indexing:Performance'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Add comment to PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "Hello!\nWe have added a performance benchmark workflow that runs by adding a comment on the PR.\n Please refer https://github.com/opensearch-project/OpenSearch/blob/main/PERFORMANCE_BENCHMARKS.md on how to run benchmarks on pull requests."
+            })

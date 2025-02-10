@@ -913,19 +913,19 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         SearchResponse response = client().prepareSearch("test_distance")
             .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.WITHIN))
             .get();
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals(2, response.getHits().getTotalHits().value());
         response = client().prepareSearch("test_distance")
             .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
             .get();
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals(2, response.getHits().getTotalHits().value());
         response = client().prepareSearch("test_distance")
             .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.DISJOINT))
             .get();
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals(2, response.getHits().getTotalHits().value());
         response = client().prepareSearch("test_distance")
             .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.CONTAINS))
             .get();
-        assertEquals(0, response.getHits().getTotalHits().value);
+        assertEquals(0, response.getHits().getTotalHits().value());
     }
 
     public void testIndexRectangleSpanningDateLine() throws Exception {

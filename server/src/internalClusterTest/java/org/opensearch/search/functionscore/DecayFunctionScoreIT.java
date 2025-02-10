@@ -67,8 +67,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.opensearch.client.Requests.indexRequest;
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
@@ -82,6 +80,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
+import static org.opensearch.transport.client.Requests.indexRequest;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.closeTo;
@@ -187,7 +187,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -195,7 +195,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
@@ -204,7 +204,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(searchSource().query(baseQuery)));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -212,7 +212,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
@@ -221,7 +221,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(searchSource().query(baseQuery)));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -229,7 +229,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
@@ -294,7 +294,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
         assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
@@ -317,7 +317,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
         assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
@@ -338,7 +338,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
         assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
@@ -411,7 +411,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
 
@@ -421,7 +421,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
 
@@ -437,7 +437,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("2"));
         assertThat(sh.getAt(1).getId(), equalTo("1"));
 
@@ -489,7 +489,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(1.0, 1.e-5));
         // this is equivalent to new GeoPoint(20, 11); just flipped so scores must be same
@@ -504,7 +504,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(1.0f, 1.e-5));
     }
@@ -547,7 +547,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(1.0, 1.e-5));
 
@@ -561,7 +561,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(0.5, 1.e-5));
 
@@ -575,7 +575,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(2.0 + 0.5, 1.e-5));
         logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).getId(), sr.getHits().getAt(0).getExplanation());
@@ -590,7 +590,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo((2.0 + 0.5) / 2, 1.e-5));
 
@@ -604,7 +604,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(0.5, 1.e-5));
 
@@ -618,7 +618,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(2.0, 1.e-5));
 
@@ -666,7 +666,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(0).getExplanation().getDetails(), arrayWithSize(2));
         assertThat(sh.getAt(0).getExplanation().getDetails()[0].getDetails(), arrayWithSize(2));
@@ -1180,7 +1180,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         SearchResponse sr = response.actionGet();
         assertSearchHits(sr, "1", "2");
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
 
         List<Float> lonlat = new ArrayList<>();
         lonlat.add(20f);
@@ -1319,7 +1319,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo(2L));
+        assertThat(sh.getTotalHits().value(), equalTo(2L));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
         assertExplain(queryName, functionName, sr);
@@ -1336,7 +1336,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
 
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo(2L));
+        assertThat(sh.getTotalHits().value(), equalTo(2L));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
         assertExplain(queryName, functionName, sr);
@@ -1356,7 +1356,7 @@ public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchI
 
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo(2L));
+        assertThat(sh.getTotalHits().value(), equalTo(2L));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
         assertExplain(queryName, functionName, sr);

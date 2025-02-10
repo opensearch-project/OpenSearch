@@ -34,7 +34,6 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
@@ -52,6 +51,7 @@ import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.Arrays;
 import java.util.List;
@@ -360,6 +360,21 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder addScriptField(String name, Script script) {
         sourceBuilder().scriptField(name, script);
+        return this;
+    }
+
+    /**
+     * Adds a derived field of a given type. The script provided will be used to derive the value
+     * of a given type. Thereafter, it can be treated as regular field of a given type to perform
+     * query on them.
+     *
+     * @param name   The name of the field to be used in various parts of the query. The name will also represent
+     *               the field value in the return hit.
+     * @param type   The type of derived field. All values emitted by script must be of this type
+     * @param script The script to use
+     */
+    public SearchRequestBuilder addDerivedField(String name, String type, Script script) {
+        sourceBuilder().derivedField(name, type, script);
         return this;
     }
 

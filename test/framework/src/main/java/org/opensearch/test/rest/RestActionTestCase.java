@@ -34,25 +34,23 @@ package org.opensearch.test.rest;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.identity.IdentityService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
+import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
@@ -67,15 +65,7 @@ public abstract class RestActionTestCase extends OpenSearchTestCase {
     @Before
     public void setUpController() {
         verifyingClient = new VerifyingClient(this.getTestName());
-        final IdentityService identityService = new IdentityService(Settings.EMPTY, List.of());
-        controller = new RestController(
-            Collections.emptySet(),
-            null,
-            verifyingClient,
-            new NoneCircuitBreakerService(),
-            new UsageService(),
-            identityService
-        );
+        controller = new RestController(Collections.emptySet(), null, verifyingClient, new NoneCircuitBreakerService(), new UsageService());
     }
 
     @After

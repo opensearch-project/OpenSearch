@@ -1,3 +1,4 @@
+
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -12,6 +13,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
@@ -131,7 +133,7 @@ public class MockFsAsyncBlobContainer extends FsBlobContainer implements AsyncMu
                     InputStreamContainer blobPartStream = new InputStreamContainer(readBlob(blobName, offset, partSize), partSize, offset);
                     blobPartStreams.add(() -> CompletableFuture.completedFuture(blobPartStream));
                 }
-                ReadContext blobReadContext = new ReadContext(contentLength, blobPartStreams, null);
+                ReadContext blobReadContext = new ReadContext.Builder(contentLength, blobPartStreams).build();
                 listener.onResponse(blobReadContext);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -145,5 +147,15 @@ public class MockFsAsyncBlobContainer extends FsBlobContainer implements AsyncMu
 
     private boolean isSegmentFile(String filename) {
         return !filename.endsWith(".tlog") && !filename.endsWith(".ckp");
+    }
+
+    @Override
+    public void deleteAsync(ActionListener<DeleteResult> completionListener) {
+        throw new UnsupportedOperationException("deleteAsync");
+    }
+
+    @Override
+    public void deleteBlobsAsyncIgnoringIfNotExists(List<String> blobNames, ActionListener<Void> completionListener) {
+        throw new UnsupportedOperationException("deleteBlobsAsyncIgnoringIfNotExists");
     }
 }

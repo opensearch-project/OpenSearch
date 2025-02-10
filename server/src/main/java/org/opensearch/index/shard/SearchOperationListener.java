@@ -33,6 +33,7 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.ReaderContext;
@@ -70,6 +71,33 @@ public interface SearchOperationListener {
      * @see #onFailedQueryPhase(SearchContext)
      */
     default void onQueryPhase(SearchContext searchContext, long tookInNanos) {}
+
+    /**
+     * Executed before the slice execution in
+     * {@link org.opensearch.search.internal.ContextIndexSearcher#search(IndexSearcher.LeafReaderContextPartition[], org.apache.lucene.search.Weight, org.apache.lucene.search.Collector)}.
+     * This will be called once per slice in concurrent search and only once in non-concurrent search.
+     * @param searchContext the current search context
+     */
+    default void onPreSliceExecution(SearchContext searchContext) {}
+
+    /**
+     * Executed if the slice execution in
+     * {@link org.opensearch.search.internal.ContextIndexSearcher#search(IndexSearcher.LeafReaderContextPartition[], org.apache.lucene.search.Weight, org.apache.lucene.search.Collector)} failed.
+     * This will be called once per slice in concurrent search and only once in non-concurrent search.
+     * @param searchContext the current search context
+     */
+    default void onFailedSliceExecution(SearchContext searchContext) {}
+
+    /**
+     * Executed after the slice execution in
+     * {@link org.opensearch.search.internal.ContextIndexSearcher#search(IndexSearcher.LeafReaderContextPartition[], org.apache.lucene.search.Weight, org.apache.lucene.search.Collector)} successfully finished.
+     * This will be called once per slice in concurrent search and only once in non-concurrent search.
+     * Note: this is not invoked if the slice execution failed.*
+     * @param searchContext the current search context
+     *
+     * @see #onFailedSliceExecution(org.opensearch.search.internal.SearchContext)
+     */
+    default void onSliceExecution(SearchContext searchContext) {}
 
     /**
      * Executed before the fetch phase is executed
@@ -146,6 +174,11 @@ public interface SearchOperationListener {
     default void onFreePitContext(ReaderContext readerContext) {}
 
     /**
+     * Executed when a shard goes from idle to non-idle state
+     */
+    default void onSearchIdleReactivation() {}
+
+    /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
      */
     final class CompositeListener implements SearchOperationListener {
@@ -186,6 +219,39 @@ public interface SearchOperationListener {
                     listener.onQueryPhase(searchContext, tookInNanos);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onQueryPhase listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onPreSliceExecution(SearchContext searchContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onPreSliceExecution(searchContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onPreSliceExecution listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onFailedSliceExecution(SearchContext searchContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onFailedSliceExecution(searchContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onFailedSliceExecution listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onSliceExecution(SearchContext searchContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onSliceExecution(searchContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onSliceExecution listener [{}] failed", listener), e);
                 }
             }
         }
@@ -307,6 +373,17 @@ public interface SearchOperationListener {
                     listener.onFreePitContext(readerContext);
                 } catch (Exception e) {
                     logger.warn("onFreePitContext listener failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onSearchIdleReactivation() {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onSearchIdleReactivation();
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onNewSearchIdleReactivation listener [{}] failed", listener), e);
                 }
             }
         }

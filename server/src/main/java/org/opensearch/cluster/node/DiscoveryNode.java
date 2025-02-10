@@ -37,13 +37,15 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -62,6 +64,8 @@ import java.util.stream.Stream;
 
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isClusterStateRepoConfigured;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRoutingTableRepoConfigured;
 
 /**
  * A discovery node represents a node that is part of the cluster.
@@ -69,7 +73,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class DiscoveryNode implements Writeable, ToXContentFragment {
+public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
 
@@ -101,12 +105,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) || hasRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerNode(Settings)} */
-    @Deprecated
-    public static boolean isMasterNode(Settings settings) {
-        return isClusterManagerNode(settings);
-    }
-
     /**
      * Due to the way that plugins may not be available when settings are being initialized,
      * not all roles may be available from a static/initializing context such as a {@link Setting}
@@ -126,6 +124,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static boolean isSearchNode(Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    public static boolean isDedicatedSearchNode(Settings settings) {
+        return getRolesFromSettings(settings).stream().allMatch(DiscoveryNodeRole.SEARCH_ROLE::equals);
     }
 
     private final String nodeName;
@@ -323,6 +325,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         for (int i = 0; i < size; i++) {
             this.attributes.put(in.readString(), in.readString());
         }
+
         int rolesSize = in.readVInt();
         final Set<DiscoveryNodeRole> roles = new HashSet<>(rolesSize);
         for (int i = 0; i < rolesSize; i++) {
@@ -352,17 +355,51 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            writeToUtil(out, false);
+        } else {
+            writeToUtil(out, true);
+        }
+
+    }
+
+    public void writeToWithAttribute(StreamOutput out) throws IOException {
+        writeToUtil(out, true);
+    }
+
+    public void writeToUtil(StreamOutput out, boolean includeAllAttributes) throws IOException {
+        writeNodeDetails(out);
+
+        if (includeAllAttributes) {
+            out.writeVInt(attributes.size());
+            for (Map.Entry<String, String> entry : attributes.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
+            }
+        } else {
+            out.writeVInt(0);
+        }
+
+        writeRolesAndVersion(out);
+    }
+
+    @Override
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        writeNodeDetails(out);
+        out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+        writeRolesAndVersion(out);
+    }
+
+    private void writeNodeDetails(StreamOutput out) throws IOException {
         out.writeString(nodeName);
         out.writeString(nodeId);
         out.writeString(ephemeralId);
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
-        }
+    }
+
+    private void writeRolesAndVersion(StreamOutput out) throws IOException {
         out.writeVInt(roles.size());
         for (final DiscoveryNodeRole role : roles) {
             final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
@@ -427,16 +464,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Can this node become cluster-manager or not.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerNode()}
-     */
-    @Deprecated
-    public boolean isMasterNode() {
-        return isClusterManagerNode();
-    }
-
-    /**
      * Returns a boolean that tells whether this an ingest node or not
      */
     public boolean isIngestNode() {
@@ -467,7 +494,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @return true if the node contains remote store node attributes, false otherwise
      */
     public boolean isRemoteStoreNode() {
-        return this.getAttributes().keySet().stream().anyMatch(key -> key.startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX));
+        return isClusterStateRepoConfigured(this.getAttributes()) && RemoteStoreNodeAttribute.isSegmentRepoConfigured(this.getAttributes());
+    }
+
+    /**
+     * Returns whether settings required for remote cluster state publication is configured
+     * @return true if the node contains remote cluster state node attribute and remote routing table node attribute
+     */
+    public boolean isRemoteStatePublicationEnabled() {
+        return isClusterStateRepoConfigured(this.getAttributes()) && isRoutingTableRepoConfigured(this.getAttributes());
     }
 
     /**
@@ -531,13 +566,16 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             sb.append('}');
         }
         if (!attributes.isEmpty()) {
-            sb.append(
-                attributes.entrySet()
-                    .stream()
-                    .filter(entry -> !entry.getKey().startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)) // filter remote_store attributes
-                                                                                                         // from logging to reduce noise.
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-            );
+            sb.append(attributes.entrySet().stream().filter(entry -> {
+                for (String prefix : REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX) {
+                    if (entry.getKey().startsWith(prefix)) {
+                        return false;
+                    }
+                }
+                return true;
+            }) // filter remote_store attributes
+               // from logging to reduce noise.
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
         }
         return sb.toString();
     }

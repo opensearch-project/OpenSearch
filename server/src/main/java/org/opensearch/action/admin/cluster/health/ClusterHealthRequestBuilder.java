@@ -35,11 +35,11 @@ package org.opensearch.action.admin.cluster.health;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Builder for requesting cluster health
@@ -169,6 +169,11 @@ public class ClusterHealthRequestBuilder extends ClusterManagerNodeReadOperation
      */
     public final ClusterHealthRequestBuilder setEnsureNodeWeighedIn(boolean ensureNodeCommissioned) {
         request.ensureNodeWeighedIn(ensureNodeCommissioned);
+        return this;
+    }
+
+    public ClusterHealthRequestBuilder setApplyLevelAtTransportLayer(boolean applyLevelAtTransportLayer) {
+        request.setApplyLevelAtTransportLayer(applyLevelAtTransportLayer);
         return this;
     }
 }

@@ -77,7 +77,8 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
                     shardFailures,
                     randomBoolean(),
                     SnapshotInfoTests.randomUserMetadata(),
-                    false
+                    false,
+                    0
                 )
             );
         }

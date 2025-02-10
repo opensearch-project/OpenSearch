@@ -28,7 +28,9 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
 
 import java.io.FileNotFoundException;
@@ -63,6 +65,8 @@ public class RemoteDirectory extends Directory {
 
     private final UnaryOperator<OffsetRangeInputStream> uploadRateLimiter;
 
+    private final UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter;
+
     private final UnaryOperator<InputStream> downloadRateLimiter;
 
     /**
@@ -75,15 +79,17 @@ public class RemoteDirectory extends Directory {
     }
 
     public RemoteDirectory(BlobContainer blobContainer) {
-        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity());
+        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity());
     }
 
     public RemoteDirectory(
         BlobContainer blobContainer,
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,
+        UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter,
         UnaryOperator<InputStream> downloadRateLimiter
     ) {
         this.blobContainer = blobContainer;
+        this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.uploadRateLimiter = uploadRateLimiter;
         this.downloadRateLimiter = downloadRateLimiter;
     }
@@ -195,13 +201,44 @@ public class RemoteDirectory extends Directory {
         return openInput(name, fileLength(name), context);
     }
 
+    /**
+     * Opens a stream for reading one block from the existing file and returns {@link RemoteIndexInput} enclosing
+     * the block stream.
+     * @param name the name of an existing file.
+     * @param position block start position
+     * @param length block length
+     * @param fileLength file length
+     * @param context desired {@link IOContext} context
+     * @return the {@link RemoteIndexInput} enclosing the block stream
+     * @throws IOException in case of I/O error
+     * @throws NoSuchFileException if the file does not exist
+     */
+    public IndexInput openBlockInput(String name, long position, long length, long fileLength, IOContext context) throws IOException {
+        try {
+            return getBlockInput(name, position, length, fileLength);
+        } catch (Exception e) {
+            logger.error("Exception while reading blob for file: " + name + " for path " + blobContainer.path());
+            throw e;
+        }
+    }
+
+    /**
+     * Opens a stream for reading the existing file and returns {@link RemoteIndexInput} enclosing
+     * the stream.
+     * @param name the name of an existing file.
+     * @param fileLength file length
+     * @param context desired {@link IOContext} context
+     * @return the {@link RemoteIndexInput} enclosing the block stream
+     * @throws IOException in case of I/O error
+     * @throws NoSuchFileException if the file does not exist
+     */
     public IndexInput openInput(String name, long fileLength, IOContext context) throws IOException {
         InputStream inputStream = null;
         try {
             inputStream = blobContainer.readBlob(name);
             return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
         } catch (Exception e) {
-            // Incase the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
+            // In case the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) {
                 try {
                     inputStream.close();
@@ -323,11 +360,12 @@ public class RemoteDirectory extends Directory {
         String remoteFileName,
         IOContext context,
         Runnable postUploadRunner,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload
     ) {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
             try {
-                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener);
+                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -342,7 +380,8 @@ public class RemoteDirectory extends Directory {
         String remoteFileName,
         IOContext ioContext,
         Runnable postUploadRunner,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload
     ) throws Exception {
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
         long contentLength;
@@ -353,13 +392,24 @@ public class RemoteDirectory extends Directory {
         if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
             remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
         }
+        lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
+        RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
+        if (lowPriorityUpload) {
+            offsetRangeInputStreamSupplier = (size, position) -> lowPriorityUploadRateLimiter.apply(
+                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
+            );
+        } else {
+            offsetRangeInputStreamSupplier = (size, position) -> uploadRateLimiter.apply(
+                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
+            );
+        }
         RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
             src,
             remoteFileName,
             contentLength,
             true,
-            WritePriority.NORMAL,
-            (size, position) -> uploadRateLimiter.apply(new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)),
+            lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
+            offsetRangeInputStreamSupplier,
             expectedChecksum,
             remoteIntegrityEnabled
         );
@@ -400,7 +450,7 @@ public class RemoteDirectory extends Directory {
     }
 
     private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
-        try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
+        try (IndexInput indexInput = directory.openInput(file, IOContext.READONCE)) {
             try {
                 return checksumOfChecksum(indexInput, SEGMENT_CHECKSUM_BYTES);
             } catch (Exception e) {
@@ -415,5 +465,17 @@ public class RemoteDirectory extends Directory {
                 );
             }
         }
+    }
+
+    private IndexInput getBlockInput(String name, long position, long length, long fileLength) throws IOException {
+        if (position < 0 || length <= 0 || (position + length > fileLength)) {
+            throw new IllegalArgumentException("Invalid values of block start and size");
+        }
+        byte[] bytes;
+        try (InputStream inputStream = blobContainer.readBlob(name, position, length)) {
+            // TODO - Explore how we can buffer small chunks of data instead of having the whole 8MB block in memory
+            bytes = downloadRateLimiter.apply(inputStream).readAllBytes();
+        }
+        return new ByteArrayIndexInput(name, bytes);
     }
 }

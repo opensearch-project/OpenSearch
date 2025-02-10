@@ -8,6 +8,7 @@
 
 package org.opensearch.http.reactor.netty4;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -17,27 +18,44 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.net.NetUtils;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpReadTimeoutException;
 import org.opensearch.http.HttpServerChannel;
+import org.opensearch.http.reactor.netty4.ssl.SslUtils;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.reactor.SharedGroupFactory;
 import org.opensearch.transport.reactor.netty4.Netty4Utils;
 
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSessionContext;
+
 import java.net.InetSocketAddress;
 import java.net.SocketOption;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.ssl.ApplicationProtocolNegotiator;
+import io.netty.handler.ssl.SslContext;
 import io.netty.handler.timeout.ReadTimeoutException;
+import io.netty.util.ReferenceCountUtil;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -69,6 +87,19 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BU
 public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTransport {
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
     private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("opensearch.net.mtu", "1500")));
+
+    /**
+     * Configure the maximum length of the content of the HTTP/2.0 clear-text upgrade request.
+     * By default the server will reject an upgrade request with non-empty content,
+     * because the upgrade request is most likely a GET request. If the client sends
+     * a non-GET upgrade request, {@link #h2cMaxContentLength} specifies the maximum
+     * length of the content of the upgrade request.
+     */
+    public static final Setting<ByteSizeValue> SETTING_H2C_MAX_CONTENT_LENGTH = Setting.byteSizeSetting(
+        "h2c.max_content_length",
+        new ByteSizeValue(65536, ByteSizeUnit.KB),
+        Property.NodeScope
+    );
 
     /**
      * The number of Reactor Netty HTTP workers
@@ -116,6 +147,8 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     private final ByteSizeValue maxInitialLineLength;
     private final ByteSizeValue maxHeaderSize;
     private final ByteSizeValue maxChunkSize;
+    private final ByteSizeValue h2cMaxContentLength;
+    private final SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     private volatile DisposableServer disposableServer;
     private volatile Scheduler scheduler;
@@ -143,6 +176,45 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         SharedGroupFactory sharedGroupFactory,
         Tracer tracer
     ) {
+        this(
+            settings,
+            networkService,
+            bigArrays,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            null,
+            tracer
+        );
+    }
+
+    /**
+     * Creates new HTTP transport implementations based on Reactor Netty (see please {@link HttpServer}).
+     * @param settings settings
+     * @param networkService network service
+     * @param bigArrays big array allocator
+     * @param threadPool thread pool instance
+     * @param xContentRegistry XContent registry instance
+     * @param dispatcher dispatcher instance
+     * @param clusterSettings cluster settings
+     * @param sharedGroupFactory shared group factory
+     * @param secureHttpTransportSettingsProvider secure HTTP transport settings provider
+     * @param tracer tracer instance
+     */
+    public ReactorNetty4HttpServerTransport(
+        Settings settings,
+        NetworkService networkService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SharedGroupFactory sharedGroupFactory,
+        @Nullable SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
+        Tracer tracer
+    ) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, tracer);
         Netty4Utils.setAvailableProcessors(OpenSearchExecutors.NODE_PROCESSORS_SETTING.get(settings));
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
@@ -151,7 +223,9 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.h2cMaxContentLength = SETTING_H2C_MAX_CONTENT_LENGTH.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
+        this.secureHttpTransportSettingsProvider = secureHttpTransportSettingsProvider;
     }
 
     /**
@@ -160,7 +234,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
      */
     @Override
     protected HttpServerChannel bind(InetSocketAddress socketAddress) throws Exception {
-        final HttpServer server = configureChannelOptions(
+        final HttpServer server = configure(
             HttpServer.create()
                 .httpFormDecoder(builder -> builder.scheduler(scheduler))
                 .idleTimeout(Duration.ofMillis(connectTimeoutMillis))
@@ -170,10 +244,11 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .compress(true)
                 .httpRequestDecoder(
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
+                        .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
                         .maxHeaderSize(maxHeaderSize.bytesAsInt())
                         .maxInitialLineLength(maxInitialLineLength.bytesAsInt())
+                        .allowPartialChunks(false)
                 )
-                .protocol(HttpProtocol.HTTP11, HttpProtocol.H2C)
                 .handle((req, res) -> incomingRequest(req, res))
         );
 
@@ -181,8 +256,8 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         return new ReactorNetty4HttpServerChannel(disposableServer.channel());
     }
 
-    private HttpServer configureChannelOptions(final HttpServer server1) {
-        HttpServer configured = server1.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings))
+    private HttpServer configure(final HttpServer server) throws Exception {
+        HttpServer configured = server.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings))
             .childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
 
         if (SETTING_HTTP_TCP_KEEP_ALIVE.get(settings)) {
@@ -229,6 +304,65 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         configured = configured.option(ChannelOption.SO_REUSEADDR, reuseAddress);
         configured = configured.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
 
+        // Configure SSL context if available
+        if (secureHttpTransportSettingsProvider != null) {
+            final SSLEngine engine = secureHttpTransportSettingsProvider.buildSecureHttpServerEngine(settings, this)
+                .orElseGet(SslUtils::createDefaultServerSSLEngine);
+
+            try {
+                final List<String> cipherSuites = Arrays.asList(engine.getEnabledCipherSuites());
+                final List<String> applicationProtocols = Arrays.asList(engine.getSSLParameters().getApplicationProtocols());
+
+                configured = configured.secure(spec -> spec.sslContext(new SslContext() {
+                    @Override
+                    public SSLSessionContext sessionContext() {
+                        throw new UnsupportedOperationException(); /* server only, should never be called */
+                    }
+
+                    @Override
+                    public SSLEngine newEngine(ByteBufAllocator alloc, String peerHost, int peerPort) {
+                        throw new UnsupportedOperationException(); /* server only, should never be called */
+                    }
+
+                    @Override
+                    public SSLEngine newEngine(ByteBufAllocator alloc) {
+                        try {
+                            return secureHttpTransportSettingsProvider.buildSecureHttpServerEngine(
+                                settings,
+                                ReactorNetty4HttpServerTransport.this
+                            ).orElseGet(SslUtils::createDefaultServerSSLEngine);
+                        } catch (final SSLException ex) {
+                            throw new UnsupportedOperationException("Unable to create SSLEngine", ex);
+                        }
+                    }
+
+                    @Override
+                    public boolean isClient() {
+                        return false; /* server only */
+                    }
+
+                    @Override
+                    public List<String> cipherSuites() {
+                        return cipherSuites;
+                    }
+
+                    @Override
+                    public ApplicationProtocolNegotiator applicationProtocolNegotiator() {
+                        return new ApplicationProtocolNegotiator() {
+                            @Override
+                            public List<String> protocols() {
+                                return applicationProtocols;
+                            }
+                        };
+                    }
+                }).build()).protocol(HttpProtocol.HTTP11, HttpProtocol.H2);
+            } finally {
+                ReferenceCountUtil.release(engine);
+            }
+        } else {
+            configured = configured.protocol(HttpProtocol.HTTP11, HttpProtocol.H2C);
+        }
+
         return configured;
     }
 
@@ -239,24 +373,47 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
      * @return response publisher
      */
     protected Publisher<Void> incomingRequest(HttpServerRequest request, HttpServerResponse response) {
-        final NonStreamingRequestConsumer<HttpContent> consumer = new NonStreamingRequestConsumer<>(
-            this,
-            request,
-            response,
-            maxCompositeBufferComponents
+        final Method method = HttpConversionUtil.convertMethod(request.method());
+        final Optional<RestHandler> dispatchHandlerOpt = dispatcher.dispatchHandler(
+            request.uri(),
+            request.fullPath(),
+            method,
+            request.params()
         );
+        if (dispatchHandlerOpt.map(RestHandler::supportsStreaming).orElse(false)) {
+            final ReactorNetty4StreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4StreamingRequestConsumer<>(
+                request,
+                response
+            );
 
-        request.receiveContent().switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT)).subscribe(consumer);
+            request.receiveContent()
+                .switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT))
+                .subscribe(consumer, error -> {}, () -> consumer.accept(DefaultLastHttpContent.EMPTY_LAST_CONTENT));
 
-        return Mono.from(consumer).flatMap(hc -> {
-            final FullHttpResponse r = (FullHttpResponse) hc;
-            response.status(r.status());
-            response.trailerHeaders(c -> r.trailingHeaders().forEach(h -> c.add(h.getKey(), h.getValue())));
-            response.chunkedTransfer(false);
-            response.compression(true);
-            r.headers().forEach(h -> response.addHeader(h.getKey(), h.getValue()));
-            return Mono.from(response.sendObject(r.content()));
-        });
+            incomingStream(new ReactorNetty4HttpRequest(request), consumer.httpChannel());
+            return response.sendObject(consumer);
+        } else {
+            final ReactorNetty4NonStreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4NonStreamingRequestConsumer<>(
+                this,
+                request,
+                response,
+                maxCompositeBufferComponents
+            );
+
+            request.receiveContent().switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT)).subscribe(consumer);
+
+            return Mono.from(consumer).flatMap(hc -> {
+                final FullHttpResponse r = (FullHttpResponse) hc;
+                response.status(r.status());
+                response.trailerHeaders(c -> r.trailingHeaders().forEach(h -> c.add(h.getKey(), h.getValue())));
+                response.chunkedTransfer(false);
+                response.compression(true);
+                r.headers().forEach(h -> response.addHeader(h.getKey(), h.getValue()));
+
+                final ByteBuf content = r.content().copy();
+                return Mono.from(response.sendObject(content));
+            });
+        }
     }
 
     /**
@@ -302,6 +459,11 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         }
     }
 
+    /**
+     * Exception handler
+     * @param channel HTTP channel
+     * @param cause exception occurred
+     */
     @Override
     public void onException(HttpChannel channel, Exception cause) {
         if (cause instanceof ReadTimeoutException) {

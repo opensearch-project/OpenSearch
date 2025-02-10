@@ -66,7 +66,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
         return map.isEmpty() ? EMPTY : new DiffableStringMap(map);
     }
 
-    DiffableStringMap(final Map<String, String> map) {
+    public DiffableStringMap(final Map<String, String> map) {
         this.innerMap = Collections.unmodifiableMap(map);
     }
 

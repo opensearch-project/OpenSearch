@@ -8,6 +8,7 @@
 
 package org.opensearch.common.cache.policy;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -62,7 +63,10 @@ public class CachedQueryResult {
     /**
      * A class containing information needed for all cache policies
      *  to decide whether to admit a given value.
+     *
+     *  @opensearch.experimental
      */
+    @ExperimentalApi
     public static class PolicyValues implements Writeable {
         final long tookTimeNanos;
         // More values can be added here as they're needed for future policies

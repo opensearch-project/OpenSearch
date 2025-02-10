@@ -45,8 +45,6 @@ import org.opensearch.action.admin.indices.view.ViewNotFoundException;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.replication.ReplicationOperation;
-import org.opensearch.client.AbstractClientHeadersTestCase;
-import org.opensearch.cluster.NotMasterException;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.IndexCreateBlockException;
@@ -65,6 +63,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.breaker.ResponseLimitBreachedException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -87,7 +86,6 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.crypto.CryptoRegistryException;
-import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.query.QueryShardException;
@@ -99,6 +97,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndexTemplateMissingException;
+import org.opensearch.indices.InvalidIndexContextException;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.recovery.PeerRecoveryNotFound;
 import org.opensearch.indices.recovery.RecoverFilesRecoveryException;
@@ -126,6 +125,8 @@ import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.NoSeedNodeLeftException;
 import org.opensearch.transport.NoSuchRemoteClusterException;
 import org.opensearch.transport.TcpTransport;
+import org.opensearch.transport.client.node.AbstractClientHeadersTestCase;
+import org.opensearch.transport.client.transport.NoNodeAvailableException;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -257,9 +258,6 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));
-        // Remove the deprecated exception classes from the unregistered list.
-        assertTrue(notRegistered.remove(NotMasterException.class));
-        assertTrue(notRegistered.remove(MasterNotDiscoveredException.class));
         assertTrue(
             "Classes subclassing OpenSearchException must be registered in OpenSearchException.OpenSearchExceptionHandle \n"
                 + notRegistered,
@@ -816,7 +814,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(90, org.opensearch.index.engine.RefreshFailedEngineException.class);
         ids.put(91, org.opensearch.search.aggregations.AggregationInitializationException.class);
         ids.put(92, org.opensearch.indices.recovery.DelayRecoveryException.class);
-        ids.put(94, org.opensearch.client.transport.NoNodeAvailableException.class);
+        ids.put(94, NoNodeAvailableException.class);
         ids.put(95, null);
         ids.put(96, org.opensearch.snapshots.InvalidSnapshotNameException.class);
         ids.put(97, org.opensearch.index.shard.IllegalIndexShardStateException.class);
@@ -896,6 +894,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(171, CryptoRegistryException.class);
         ids.put(172, ViewNotFoundException.class);
         ids.put(173, ViewAlreadyExistsException.class);
+        ids.put(174, InvalidIndexContextException.class);
+        ids.put(175, ResponseLimitBreachedException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();

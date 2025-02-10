@@ -35,7 +35,6 @@ package org.opensearch.index.reindex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -59,6 +58,7 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
@@ -130,7 +130,6 @@ public class ReindexModulePlugin extends Plugin implements ActionPlugin, Extensi
     @Override
     public List<Setting<?>> getSettings() {
         final List<Setting<?>> settings = new ArrayList<>();
-        settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
         settings.add(TransportReindexAction.REMOTE_CLUSTER_ALLOWLIST);
         settings.add(TransportReindexAction.REMOTE_REINDEX_RETRY_INITIAL_BACKOFF);
         settings.add(TransportReindexAction.REMOTE_REINDEX_RETRY_MAX_COUNT);

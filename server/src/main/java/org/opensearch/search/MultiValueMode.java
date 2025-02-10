@@ -42,6 +42,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -50,9 +51,11 @@ import org.opensearch.index.fielddata.AbstractBinaryDocValues;
 import org.opensearch.index.fielddata.AbstractNumericDocValues;
 import org.opensearch.index.fielddata.AbstractSortedDocValues;
 import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.LongToSortedNumericUnsignedLongValues;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.fielddata.SortedNumericUnsignedLongValues;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -143,6 +146,44 @@ public enum MultiValueMode implements Writeable {
 
             return totalCount > 0 ? totalValue : missingValue;
         }
+
+        @Override
+        protected long pick(SortedNumericUnsignedLongValues values) throws IOException {
+            final int count = values.docValueCount();
+            long total = 0;
+            for (int index = 0; index < count; ++index) {
+                total += values.nextValue();
+            }
+            return total;
+        }
+
+        @Override
+        protected long pick(
+            SortedNumericUnsignedLongValues values,
+            long missingValue,
+            DocIdSetIterator docItr,
+            int startDoc,
+            int endDoc,
+            int maxChildren
+        ) throws IOException {
+            int totalCount = 0;
+            long totalValue = 0;
+            int count = 0;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    if (++count > maxChildren) {
+                        break;
+                    }
+
+                    final int docCount = values.docValueCount();
+                    for (int index = 0; index < docCount; ++index) {
+                        totalValue += values.nextValue();
+                    }
+                    totalCount += docCount;
+                }
+            }
+            return totalCount > 0 ? totalValue : missingValue;
+        }
     },
 
     /**
@@ -228,6 +269,46 @@ public enum MultiValueMode implements Writeable {
             }
             return totalValue / totalCount;
         }
+
+        @Override
+        protected long pick(SortedNumericUnsignedLongValues values) throws IOException {
+            final int count = values.docValueCount();
+            long total = 0;
+            for (int index = 0; index < count; ++index) {
+                total += values.nextValue();
+            }
+            return count > 1 ? divideUnsignedAndRoundUp(total, count) : total;
+        }
+
+        @Override
+        protected long pick(
+            SortedNumericUnsignedLongValues values,
+            long missingValue,
+            DocIdSetIterator docItr,
+            int startDoc,
+            int endDoc,
+            int maxChildren
+        ) throws IOException {
+            int totalCount = 0;
+            long totalValue = 0;
+            int count = 0;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    if (++count > maxChildren) {
+                        break;
+                    }
+                    final int docCount = values.docValueCount();
+                    for (int index = 0; index < docCount; ++index) {
+                        totalValue += values.nextValue();
+                    }
+                    totalCount += docCount;
+                }
+            }
+            if (totalCount < 1) {
+                return missingValue;
+            }
+            return totalCount > 1 ? divideUnsignedAndRoundUp(totalValue, totalCount) : totalValue;
+        }
     },
 
     /**
@@ -257,6 +338,45 @@ public enum MultiValueMode implements Writeable {
                 return (values.nextValue() + values.nextValue()) / 2;
             } else {
                 return values.nextValue();
+            }
+        }
+
+        @Override
+        protected long pick(SortedNumericUnsignedLongValues values) throws IOException {
+            int count = values.docValueCount();
+            long firstValue = values.nextValue();
+            if (count == 1) {
+                return firstValue;
+            } else if (count == 2) {
+                long total = firstValue + values.nextValue();
+                return (total >>> 1) + (total & 1);
+            } else if (firstValue >= 0) {
+                for (int i = 1; i < (count - 1) / 2; ++i) {
+                    values.nextValue();
+                }
+                if (count % 2 == 0) {
+                    long total = values.nextValue() + values.nextValue();
+                    return (total >>> 1) + (total & 1);
+                } else {
+                    return values.nextValue();
+                }
+            }
+
+            final long[] docValues = new long[count];
+            docValues[0] = firstValue;
+            int firstPositiveIndex = 0;
+            for (int i = 1; i < count; ++i) {
+                docValues[i] = values.nextValue();
+                if (docValues[i] >= 0 && firstPositiveIndex == 0) {
+                    firstPositiveIndex = i;
+                }
+            }
+            final int mid = ((count - 1) / 2 + firstPositiveIndex) % count;
+            if (count % 2 == 0) {
+                long total = docValues[mid] + docValues[(mid + 1) % count];
+                return (total >>> 1) + (total & 1);
+            } else {
+                return docValues[mid];
             }
         }
     },
@@ -382,6 +502,47 @@ public enum MultiValueMode implements Writeable {
 
             return hasValue ? ord : -1;
         }
+
+        @Override
+        protected long pick(SortedNumericUnsignedLongValues values) throws IOException {
+            final int count = values.docValueCount();
+            final long min = values.nextValue();
+            if (count == 1 || min > 0) {
+                return min;
+            }
+            for (int i = 1; i < count; ++i) {
+                long val = values.nextValue();
+                if (val >= 0) {
+                    return val;
+                }
+            }
+            return min;
+        }
+
+        @Override
+        protected long pick(
+            SortedNumericUnsignedLongValues values,
+            long missingValue,
+            DocIdSetIterator docItr,
+            int startDoc,
+            int endDoc,
+            int maxChildren
+        ) throws IOException {
+            boolean hasValue = false;
+            long minValue = Numbers.MAX_UNSIGNED_LONG_VALUE_AS_LONG;
+            int count = 0;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    if (++count > maxChildren) {
+                        break;
+                    }
+                    final long docMin = pick(values);
+                    minValue = Long.compareUnsigned(docMin, minValue) < 0 ? docMin : minValue;
+                    hasValue = true;
+                }
+            }
+            return hasValue ? minValue : missingValue;
+        }
     },
 
     /**
@@ -505,7 +666,9 @@ public enum MultiValueMode implements Writeable {
         @Override
         protected int pick(SortedSetDocValues values) throws IOException {
             long maxOrd = -1;
-            for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+            int count = values.docValueCount();
+            long ord;
+            while ((count-- > 0) && (ord = values.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                 maxOrd = ord;
             }
             return Math.toIntExact(maxOrd);
@@ -524,6 +687,46 @@ public enum MultiValueMode implements Writeable {
                 }
             }
             return ord;
+        }
+
+        @Override
+        protected long pick(SortedNumericUnsignedLongValues values) throws IOException {
+            final int count = values.docValueCount();
+            long max = values.nextValue();
+            long val;
+            for (int i = 1; i < count; ++i) {
+                val = values.nextValue();
+                if (max < 0 && val >= 0) {
+                    return max;
+                }
+                max = val;
+            }
+            return max;
+        }
+
+        @Override
+        protected long pick(
+            SortedNumericUnsignedLongValues values,
+            long missingValue,
+            DocIdSetIterator docItr,
+            int startDoc,
+            int endDoc,
+            int maxChildren
+        ) throws IOException {
+            boolean hasValue = false;
+            long maxValue = Numbers.MIN_UNSIGNED_LONG_VALUE_AS_LONG;
+            int count = 0;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    if (++count > maxChildren) {
+                        break;
+                    }
+                    final long docMax = pick(values);
+                    maxValue = Long.compareUnsigned(maxValue, docMax) < 0 ? docMax : maxValue;
+                    hasValue = true;
+                }
+            }
+            return hasValue ? maxValue : missingValue;
         }
     };
 
@@ -1032,6 +1235,126 @@ public enum MultiValueMode implements Writeable {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
+    /**
+     * Return a {@link NumericDoubleValues} instance that can be used to sort documents
+     * with this mode and the provided values. When a document has no value,
+     * <code>missingValue</code> is returned.
+     * <p>
+     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
+     */
+    public NumericDocValues select(final SortedNumericUnsignedLongValues values) {
+        SortedNumericDocValues sortedNumericDocValues = null;
+        if (values instanceof LongToSortedNumericUnsignedLongValues) {
+            sortedNumericDocValues = ((LongToSortedNumericUnsignedLongValues) values).getNumericUnsignedLongValues();
+        }
+
+        final NumericDocValues singleton = DocValues.unwrapSingleton(sortedNumericDocValues);
+        if (singleton != null) {
+            return singleton;
+        } else {
+            return new AbstractNumericDocValues() {
+
+                private long value;
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    if (values.advanceExact(target)) {
+                        value = pick(values);
+                        return true;
+                    }
+                    return false;
+                }
+
+                @Override
+                public int docID() {
+                    return values.docID();
+                }
+
+                @Override
+                public long longValue() throws IOException {
+                    return value;
+                }
+            };
+        }
+    }
+
+    protected long pick(SortedNumericUnsignedLongValues values) throws IOException {
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
+    }
+
+    /**
+     * Return a {@link SortedDocValues} instance that can be used to sort root documents
+     * with this mode, the provided values and filters for root/inner documents.
+     * <p>
+     * For every root document, the values of its inner documents will be aggregated.
+     * <p>
+     * Allowed Modes: MIN, MAX
+     * <p>
+     * NOTE: Calling the returned instance on docs that are not root docs is illegal
+     *       The returned instance can only be evaluate the current and upcoming docs
+     */
+    public NumericDocValues select(
+        final SortedNumericUnsignedLongValues values,
+        final long missingValue,
+        final BitSet parentDocs,
+        final DocIdSetIterator childDocs,
+        int maxDoc,
+        int maxChildren
+    ) throws IOException {
+        if (parentDocs == null || childDocs == null) {
+            return FieldData.replaceMissing(DocValues.emptyNumeric(), missingValue);
+        }
+
+        return new AbstractNumericDocValues() {
+
+            int lastSeenParentDoc = -1;
+            long lastEmittedValue = missingValue;
+
+            @Override
+            public boolean advanceExact(int parentDoc) throws IOException {
+                assert parentDoc >= lastSeenParentDoc : "can only evaluate current and upcoming parent docs";
+                if (parentDoc == lastSeenParentDoc) {
+                    return true;
+                } else if (parentDoc == 0) {
+                    lastEmittedValue = missingValue;
+                    return true;
+                }
+                final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+                final int firstChildDoc;
+                if (childDocs.docID() > prevParentDoc) {
+                    firstChildDoc = childDocs.docID();
+                } else {
+                    firstChildDoc = childDocs.advance(prevParentDoc + 1);
+                }
+
+                lastSeenParentDoc = parentDoc;
+                lastEmittedValue = pick(values, missingValue, childDocs, firstChildDoc, parentDoc, maxChildren);
+                return true;
+            }
+
+            @Override
+            public int docID() {
+                return lastSeenParentDoc;
+            }
+
+            @Override
+            public long longValue() {
+                return lastEmittedValue;
+            }
+        };
+    }
+
+    protected long pick(
+        SortedNumericUnsignedLongValues values,
+        long missingValue,
+        DocIdSetIterator docItr,
+        int startDoc,
+        int endDoc,
+        int maxChildren
+    ) throws IOException {
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(this);
@@ -1039,5 +1362,17 @@ public enum MultiValueMode implements Writeable {
 
     public static MultiValueMode readMultiValueModeFrom(StreamInput in) throws IOException {
         return in.readEnum(MultiValueMode.class);
+    }
+
+    /**
+     * Copied from {@link Long#divideUnsigned(long, long)} and {@link Long#remainderUnsigned(long, long)}
+     */
+    private static long divideUnsignedAndRoundUp(long dividend, long divisor) {
+        assert divisor > 0;
+        final long q = (dividend >>> 1) / divisor << 1;
+        final long r = dividend - q * divisor;
+        final long quotient = q + ((r | ~(r - divisor)) >>> (Long.SIZE - 1));
+        final long rem = r - ((~(r - divisor) >> (Long.SIZE - 1)) & divisor);
+        return quotient + Math.round((double) rem / divisor);
     }
 }

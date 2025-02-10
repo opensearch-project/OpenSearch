@@ -46,7 +46,6 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
-import org.opensearch.node.RecoverySettingsChunkSizePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
@@ -59,9 +58,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.opensearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
+import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -81,7 +81,7 @@ public class TruncatedRecoveryIT extends ParameterizedStaticSettingsOpenSearchIn
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, RecoverySettingsChunkSizePlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     /**
@@ -96,7 +96,8 @@ public class TruncatedRecoveryIT extends ParameterizedStaticSettingsOpenSearchIn
                 .cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(
-                    Settings.builder().put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES))
+                    Settings.builder()
+                        .put(INDICES_RECOVERY_CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES))
                 )
                 .get()
                 .isAcknowledged()
@@ -184,7 +185,7 @@ public class TruncatedRecoveryIT extends ParameterizedStaticSettingsOpenSearchIn
             )
             .get();
 
-        latch.await();
+        latch.await(5, TimeUnit.MINUTES);
 
         // at this point we got some truncated left overs on the replica on the unlucky node
         // now we are allowing the recovery to allocate again and finish to see if we wipe the truncated files

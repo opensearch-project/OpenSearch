@@ -91,6 +91,31 @@ public class MessageDigestsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testSha3256() throws Exception {
+        assertHash("a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a", "", MessageDigests.sha3256());
+        assertHash("3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532", "abc", MessageDigests.sha3256());
+        assertHash(
+            "41c0dba2a9d6240849100376a8235e2c82e1b9998a999e21db32dd97496d3376",
+            "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+            MessageDigests.sha3256()
+        );
+        assertHash(
+            "5c8875ae474a3634ba4fd55ec85bffd661f32aca75c6d699d0cdcb6c115891c1",
+            new String(new char[1000000]).replace("\0", "a"),
+            MessageDigests.sha3256()
+        );
+        assertHash(
+            "69070dda01975c8c120c3aada1b282394e7f032fa9cf32f4cb2259a0897dfc04",
+            "The quick brown fox jumps over the lazy dog",
+            MessageDigests.sha3256()
+        );
+        assertHash(
+            "cc80b0b13ba89613d93f02ee7ccbe72ee26c6edfe577f22e63a1380221caedbc",
+            "The quick brown fox jumps over the lazy cog",
+            MessageDigests.sha3256()
+        );
+    }
+
     public void testToHexString() throws Exception {
         BigInteger expected = BigInteger.probablePrime(256, random());
         byte[] bytes = expected.toByteArray();

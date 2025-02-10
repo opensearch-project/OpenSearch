@@ -65,7 +65,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     private volatile long remoteRefreshSeqNo;
 
     /**
-     * The refresh time of most recent remote refresh.
+     * The refresh time of the most recent remote refresh.
      */
     private volatile long remoteRefreshTimeMs;
 
@@ -76,7 +76,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     private volatile long remoteRefreshStartTimeMs = -1;
 
     /**
-     * The refresh time(clock) of most recent remote refresh.
+     * The refresh time(clock) of the most recent remote refresh.
      */
     private volatile long remoteRefreshClockTimeMs;
 

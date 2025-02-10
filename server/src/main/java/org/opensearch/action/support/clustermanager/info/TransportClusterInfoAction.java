@@ -62,6 +62,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        this.localExecuteSupported = true;
     }
 
     @Override
@@ -76,34 +77,16 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
             .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterInfoRequest, ClusterState, ActionListener)} */
-    @Deprecated
-    protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
-        clusterManagerOperation(request, state, listener);
-    }
-
     @Override
     protected final void clusterManagerOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         doClusterManagerOperation(request, concreteIndices, state, listener);
     }
 
-    // TODO: Add abstract keyword after removing the deprecated doMasterOperation()
-    protected void doClusterManagerOperation(
+    protected abstract void doClusterManagerOperation(
         Request request,
         String[] concreteIndices,
         ClusterState state,
         ActionListener<Response> listener
-    ) {
-        doMasterOperation(request, concreteIndices, state, listener);
-    }
-
-    /**
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #doClusterManagerOperation(ClusterInfoRequest, String[], ClusterState, ActionListener)}
-     */
-    @Deprecated
-    protected void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("Must be overridden");
-    }
-
+    );
 }

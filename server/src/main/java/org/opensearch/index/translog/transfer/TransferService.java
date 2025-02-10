@@ -8,8 +8,10 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
@@ -63,6 +65,23 @@ public interface TransferService {
      * @throws IOException the exception while transferring the data
      */
     void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath, WritePriority writePriority) throws IOException;
+
+    /**
+     * Reads the input stream and uploads as a blob
+     * @param inputStream the stream to read from
+     * @param remotePath the remote path where upload should be made
+     * @param blobName the name of blob file
+     * @param writePriority Priority by which content needs to be written.
+     * @param listener the callback to be invoked once uploads complete successfully/fail
+     * @throws IOException the exception thrown while uploading
+     */
+    void uploadBlob(
+        InputStream inputStream,
+        Iterable<String> remotePath,
+        String blobName,
+        WritePriority writePriority,
+        ActionListener<Void> listener
+    ) throws IOException;
 
     void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException;
 
@@ -124,6 +143,16 @@ public interface TransferService {
      * @throws IOException the exception while reading the data
      */
     InputStream downloadBlob(Iterable<String> path, String fileName) throws IOException;
+
+    /**
+     *
+     * @param path  the remote path from where download should be made
+     * @param fileName the name of the file
+     * @return {@link InputStreamWithMetadata} of the remote file
+     * @throws IOException the exception while reading the data
+     */
+    @ExperimentalApi
+    InputStreamWithMetadata downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException;
 
     void listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit, ActionListener<List<BlobMetadata>> listener);
 

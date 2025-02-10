@@ -8,11 +8,15 @@
 
 package org.opensearch;
 
+import org.opensearch.transport.client.transport.NoNodeAvailableException;
+
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
 import static org.opensearch.Version.V_2_10_0;
 import static org.opensearch.Version.V_2_13_0;
+import static org.opensearch.Version.V_2_17_0;
+import static org.opensearch.Version.V_2_18_0;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_2_5_0;
@@ -652,12 +656,7 @@ public final class OpenSearchServerException {
         );
         // 93 used to be for IndexWarmerMissingException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
-                org.opensearch.client.transport.NoNodeAvailableException.class,
-                org.opensearch.client.transport.NoNodeAvailableException::new,
-                94,
-                UNKNOWN_VERSION_ADDED
-            )
+            new OpenSearchExceptionHandle(NoNodeAvailableException.class, NoNodeAvailableException::new, 94, UNKNOWN_VERSION_ADDED)
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
@@ -1199,6 +1198,22 @@ public final class OpenSearchServerException {
                 org.opensearch.action.admin.indices.view.ViewAlreadyExistsException::new,
                 173,
                 V_2_13_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.indices.InvalidIndexContextException.class,
+                org.opensearch.indices.InvalidIndexContextException::new,
+                174,
+                V_2_17_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.common.breaker.ResponseLimitBreachedException.class,
+                org.opensearch.common.breaker.ResponseLimitBreachedException::new,
+                175,
+                V_2_18_0
             )
         );
         registerExceptionHandle(

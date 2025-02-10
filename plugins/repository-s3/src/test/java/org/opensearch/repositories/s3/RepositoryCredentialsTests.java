@@ -39,7 +39,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
@@ -55,8 +54,10 @@ import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -68,7 +69,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.repositories.s3.S3ClientSettings.ACCESS_KEY_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.SECRET_KEY_SETTING;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -277,14 +277,8 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(name)
-                .setType(S3Repository.TYPE)
-                .setVerify(false)
-                .setSettings(repositorySettings)
-        );
+        Settings.Builder settings = Settings.builder().put(repositorySettings);
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), name, S3Repository.TYPE, false, settings);
     }
 
     /**
@@ -303,7 +297,22 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, null, false) {
+            return new S3Repository(
+                metadata,
+                registry,
+                service,
+                clusterService,
+                recoverySettings,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads

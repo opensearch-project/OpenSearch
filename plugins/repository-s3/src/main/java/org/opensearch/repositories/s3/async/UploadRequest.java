@@ -9,9 +9,11 @@
 package org.opensearch.repositories.s3.async;
 
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * A model encapsulating all details for an upload to S3
@@ -24,8 +26,8 @@ public class UploadRequest {
     private final CheckedConsumer<Boolean, IOException> uploadFinalizer;
     private final boolean doRemoteDataIntegrityCheck;
     private final Long expectedChecksum;
-
-    private boolean uploadRetryEnabled;
+    private final Map<String, String> metadata;
+    private final boolean uploadRetryEnabled;
 
     /**
      * Construct a new UploadRequest object
@@ -37,6 +39,7 @@ public class UploadRequest {
      * @param uploadFinalizer            An upload finalizer to call once all parts are uploaded
      * @param doRemoteDataIntegrityCheck A boolean to inform vendor plugins whether remote data integrity checks need to be done
      * @param expectedChecksum           Checksum of the file being uploaded for remote data integrity check
+     * @param metadata                   Metadata of the file being uploaded
      */
     public UploadRequest(
         String bucket,
@@ -46,7 +49,8 @@ public class UploadRequest {
         CheckedConsumer<Boolean, IOException> uploadFinalizer,
         boolean doRemoteDataIntegrityCheck,
         Long expectedChecksum,
-        boolean uploadRetryEnabled
+        boolean uploadRetryEnabled,
+        @Nullable Map<String, String> metadata
     ) {
         this.bucket = bucket;
         this.key = key;
@@ -56,6 +60,7 @@ public class UploadRequest {
         this.doRemoteDataIntegrityCheck = doRemoteDataIntegrityCheck;
         this.expectedChecksum = expectedChecksum;
         this.uploadRetryEnabled = uploadRetryEnabled;
+        this.metadata = metadata;
     }
 
     public String getBucket() {
@@ -88,5 +93,12 @@ public class UploadRequest {
 
     public boolean isUploadRetryEnabled() {
         return uploadRetryEnabled;
+    }
+
+    /**
+     * @return metadata of the blob to be uploaded
+     */
+    public Map<String, String> getMetadata() {
+        return metadata;
     }
 }

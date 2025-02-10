@@ -67,14 +67,17 @@ public class ReplicationGroup {
         this.inSyncAllocationIds = inSyncAllocationIds;
         this.trackedAllocationIds = trackedAllocationIds;
         this.version = version;
-
         this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
         this.replicationTargets = new ArrayList<>();
         this.skippedShards = new ArrayList<>();
         for (final ShardRouting shard : routingTable) {
-            if (shard.unassigned()) {
+            if (shard.unassigned() || shard.isSearchOnly()) {
                 assert shard.primary() == false : "primary shard should not be unassigned in a replication group: " + shard;
                 skippedShards.add(shard);
+                if (shard.isSearchOnly()) {
+                    assert shard.allocationId() == null || inSyncAllocationIds.contains(shard.allocationId().getId()) == false
+                        : " Search replicas should not be part of the inSync id set";
+                }
             } else {
                 if (trackedAllocationIds.contains(shard.allocationId().getId())) {
                     replicationTargets.add(shard);

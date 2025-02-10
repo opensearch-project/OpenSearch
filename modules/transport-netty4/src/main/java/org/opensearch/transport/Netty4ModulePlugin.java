@@ -49,6 +49,7 @@ import org.opensearch.http.netty4.Netty4HttpServerTransport;
 import org.opensearch.http.netty4.ssl.SecureNetty4HttpServerTransport;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
@@ -160,7 +161,7 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        SecureTransportSettingsProvider secureTransportSettingsProvider,
+        SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
         Tracer tracer
     ) {
         return Collections.singletonMap(
@@ -174,7 +175,7 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
                 dispatcher,
                 clusterSettings,
                 getSharedGroupFactory(settings),
-                secureTransportSettingsProvider,
+                secureHttpTransportSettingsProvider,
                 tracer
             )
         );

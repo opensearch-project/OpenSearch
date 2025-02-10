@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject.spi;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Key;
 
 import java.util.HashSet;
@@ -47,8 +48,9 @@ import static java.util.Collections.unmodifiableSet;
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class Dependency<T> {
     private final InjectionPoint injectionPoint;
     private final Key<T> key;

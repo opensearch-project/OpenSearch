@@ -550,4 +550,29 @@ public class ConvertProcessorTests extends OpenSearchTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(String.valueOf(randomInt)));
         assertThat(ingestDocument.getFieldValue(targetField, Integer.class), equalTo(randomInt));
     }
+
+    public void testConvertIP() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String validIPString;
+        if (randomBoolean()) {
+            validIPString = "1.2.3.4";
+        } else {
+            validIPString = "::1";
+        }
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, validIPString);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.IP, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(validIPString));
+
+        String invalidIPString = randomAlphaOfLength(10);
+        fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, invalidIPString);
+        Processor processorWithInvalidIP = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.IP, false);
+        try {
+            processorWithInvalidIP.execute(ingestDocument);
+            fail("processor execute should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("[" + invalidIPString + "] is not a valid ipv4/ipv6 address"));
+        }
+    }
 }

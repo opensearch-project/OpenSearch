@@ -33,10 +33,10 @@ package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.admin.cluster.state.term.GetTermVersionResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.ThreadedActionListener;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionResponse;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -223,7 +223,7 @@ public class TransportClusterManagerTermCheckTests extends OpenSearchTestCase {
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
         assertTrue(capturedRequest.node.isClusterManagerNode());
-        assertThat(capturedRequest.action, equalTo("cluster:monitor/term"));
+        assertThat(capturedRequest.action, equalTo("internal:monitor/term"));
         GetTermVersionResponse response = new GetTermVersionResponse(
             new ClusterStateTermVersion(
                 clusterService.state().getClusterName(),
@@ -249,7 +249,7 @@ public class TransportClusterManagerTermCheckTests extends OpenSearchTestCase {
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest termCheckRequest = transport.capturedRequests()[0];
         assertTrue(termCheckRequest.node.isClusterManagerNode());
-        assertThat(termCheckRequest.action, equalTo("cluster:monitor/term"));
+        assertThat(termCheckRequest.action, equalTo("internal:monitor/term"));
         GetTermVersionResponse noMatchResponse = new GetTermVersionResponse(
             new ClusterStateTermVersion(
                 clusterService.state().getClusterName(),

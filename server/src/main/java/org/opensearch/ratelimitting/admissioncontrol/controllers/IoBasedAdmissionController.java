@@ -68,7 +68,8 @@ public class IoBasedAdmissionController extends AdmissionController {
                 throw new OpenSearchRejectedExecutionException(
                     String.format(
                         Locale.ROOT,
-                        "Io usage admission controller rejected the request for action [%s] as IO limit reached",
+                        "IO usage admission controller rejected the request for action [%s] as IO limit reached for action-type [%s]",
+                        actionName,
                         admissionControlActionType.name()
                     )
                 );
@@ -113,6 +114,8 @@ public class IoBasedAdmissionController extends AdmissionController {
                 return this.settings.getSearchIOUsageLimit();
             case INDEXING:
                 return this.settings.getIndexingIOUsageLimit();
+            case CLUSTER_ADMIN:
+                return this.settings.getClusterAdminIOUsageLimit();
             default:
                 throw new IllegalArgumentException(
                     String.format(

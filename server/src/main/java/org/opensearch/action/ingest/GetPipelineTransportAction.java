@@ -70,7 +70,8 @@ public class GetPipelineTransportAction extends TransportClusterManagerNodeReadA
             threadPool,
             actionFilters,
             GetPipelineRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            true
         );
     }
 

@@ -38,7 +38,6 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Booleans;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -50,6 +49,7 @@ import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 import org.opensearch.search.Scroll;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.StoredFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -57,6 +57,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -209,7 +210,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-        searchRequest.pipeline(request.param("search_pipeline"));
+        searchRequest.pipeline(request.param("search_pipeline", searchRequest.source().pipeline()));
 
         checkRestTotalHits(request, searchRequest);
         request.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
@@ -235,13 +236,12 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.query(queryBuilder);
         }
 
-        int from = request.paramAsInt("from", -1);
-        if (from != -1) {
-            searchSourceBuilder.from(from);
+        if (request.hasParam("from")) {
+            searchSourceBuilder.from(request.paramAsInt("from", SearchService.DEFAULT_FROM));
         }
-        int size = request.paramAsInt("size", -1);
-        if (size != -1) {
-            setSize.accept(size);
+
+        if (request.hasParam("size")) {
+            setSize.accept(request.paramAsInt("size", SearchService.DEFAULT_SIZE));
         }
 
         if (request.hasParam("explain")) {
@@ -255,6 +255,9 @@ public class RestSearchAction extends BaseRestHandler {
         }
         if (request.hasParam("timeout")) {
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
+        }
+        if (request.hasParam("verbose_pipeline")) {
+            searchSourceBuilder.verbosePipeline(request.paramAsBoolean("verbose_pipeline", false));
         }
         if (request.hasParam("terminate_after")) {
             int terminateAfter = request.paramAsInt("terminate_after", SearchContext.DEFAULT_TERMINATE_AFTER);

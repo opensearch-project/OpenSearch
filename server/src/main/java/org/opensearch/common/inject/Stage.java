@@ -29,13 +29,16 @@
 
 package org.opensearch.common.inject;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * The stage we're running in.
  *
  * @author crazybob@google.com (Bob Lee)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum Stage {
 
     /**

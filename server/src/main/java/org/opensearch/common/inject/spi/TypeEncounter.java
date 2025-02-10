@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject.spi;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.MembersInjector;
 import org.opensearch.common.inject.Provider;
@@ -43,8 +44,9 @@ import org.opensearch.common.inject.TypeLiteral;
  * @param <I> the injectable type encountered
  * @since 2.0
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 @SuppressWarnings("overloads")
 public interface TypeEncounter<I> {
 

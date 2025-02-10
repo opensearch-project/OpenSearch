@@ -13,6 +13,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -129,6 +130,12 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
             );
             scheduled = true;
             getLogger().info("Scheduled retry with didRefresh={}", didRefresh);
+        } catch (OpenSearchRejectedExecutionException e) {
+            if (e.isExecutorShutdown()) {
+                getLogger().info("Scheduling retry with didRefresh={} failed due to executor shut down", didRefresh);
+            } else {
+                throw e;
+            }
         } finally {
             if (scheduled == false) {
                 retryScheduled.set(false);

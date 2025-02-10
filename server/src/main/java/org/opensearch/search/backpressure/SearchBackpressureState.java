@@ -43,12 +43,15 @@ public class SearchBackpressureState implements CancellationSettingsListener {
         LongSupplier timeNanosSupplier,
         double cancellationRateNanos,
         double cancellationBurst,
-        double cancellationRatio
+        double cancellationRatio,
+        double cancellationRate
     ) {
         rateLimiter = new AtomicReference<>(new TokenBucket(timeNanosSupplier, cancellationRateNanos, cancellationBurst));
         ratioLimiter = new AtomicReference<>(new TokenBucket(this::getCompletionCount, cancellationRatio, cancellationBurst));
         this.timeNanosSupplier = timeNanosSupplier;
         this.cancellationBurst = cancellationBurst;
+        this.cancellationRatio = cancellationRatio;
+        this.cancellationRate = cancellationRate;
     }
 
     public long getCompletionCount() {

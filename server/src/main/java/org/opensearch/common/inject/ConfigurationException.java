@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.spi.Message;
 
@@ -46,8 +47,9 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ConfigurationException extends RuntimeException {
     private final Set<Message> messages;
     private Object partialValue = null;

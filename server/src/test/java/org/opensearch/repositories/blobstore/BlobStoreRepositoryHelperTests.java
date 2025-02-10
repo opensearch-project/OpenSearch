@@ -9,8 +9,6 @@
 package org.opensearch.repositories.blobstore;
 
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -24,6 +22,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
@@ -35,6 +34,7 @@ import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,6 +43,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -56,14 +58,19 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
     }
 
     protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepository) throws IOException {
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(remoteStoreIndex)
-            .get()
-            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
         final BlobStoreRepository remoteStorerepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepository);
-        BlobPath shardLevelBlobPath = remoteStorerepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(clusterService.getSettings());
+        BlobPath shardLevelBlobPath = getShardLevelBlobPath(
+            client(),
+            remoteStoreIndex,
+            remoteStorerepository.basePath(),
+            "0",
+            SEGMENTS,
+            LOCK_FILES,
+            segmentsPathFixedPrefix
+        );
         BlobContainer blobContainer = remoteStorerepository.blobStore().blobContainer(shardLevelBlobPath);
         try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
             return Arrays.stream(lockDirectory.listAll())
@@ -95,25 +102,15 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
     }
 
     protected void createRepository(Client client, String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository(repoName)
-            .setType(REPO_TYPE)
-            .setSettings(
-                Settings.builder().put(node().settings()).put("location", OpenSearchIntegTestCase.randomRepoPath(node().settings()))
-            )
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        Settings.Builder settings = Settings.builder()
+            .put(node().settings())
+            .put("location", OpenSearchIntegTestCase.randomRepoPath(node().settings()));
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), repoName, REPO_TYPE, settings);
     }
 
     protected void createRepository(Client client, String repoName, Settings repoSettings) {
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository(repoName)
-            .setType(REPO_TYPE)
-            .setSettings(repoSettings)
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        Settings.Builder settingsBuilder = Settings.builder().put(repoSettings);
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), repoName, REPO_TYPE, settingsBuilder);
     }
 
     protected void updateRepository(Client client, String repoName, Settings repoSettings) {

@@ -752,7 +752,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(discoveryNode);
+            out.writeOptionalWriteable((stream, node) -> node.writeToWithAttribute(stream), discoveryNode);
             clusterName.writeTo(out);
             out.writeVersion(version);
         }
@@ -771,6 +771,18 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         }
         connectionManager.disconnectFromNode(node);
+    }
+
+    public void setPendingDisconnection(DiscoveryNode node) {
+        connectionManager.setPendingDisconnection(node);
+    }
+
+    /**
+     * Wipes out all pending disconnections.
+     * This is called on cluster-manager failover to remove stale entries
+     */
+    public void clearPendingDisconnections() {
+        connectionManager.clearPendingDisconnections();
     }
 
     public void addMessageListener(TransportMessageListener listener) {
@@ -1214,7 +1226,11 @@ public class TransportService extends AbstractLifecycleComponent
         TransportRequestHandler<Request> handler
     ) {
         validateActionName(action);
-        handler = interceptor.interceptHandler(action, executor, forceExecution, handler, admissionControlActionType);
+        if (admissionControlActionType != null) {
+            handler = interceptor.interceptHandler(action, executor, forceExecution, handler, admissionControlActionType);
+        } else {
+            handler = interceptor.interceptHandler(action, executor, forceExecution, handler);
+        }
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action,
             requestReader,

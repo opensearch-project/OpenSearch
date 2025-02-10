@@ -39,7 +39,7 @@ class LongArrayBackedBitSet implements Accountable, Closeable {
     /**
      * Constructor which uses Lucene's IndexInput to read the bitset into a read-only buffer.
      * @param in IndexInput containing the serialized bitset.
-     * @throws IOException
+     * @throws IOException I/O exception
      */
     LongArrayBackedBitSet(IndexInput in) throws IOException {
         underlyingArrayLength = in.readLong();

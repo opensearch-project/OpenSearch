@@ -77,19 +77,25 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
+import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -107,25 +113,25 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
+import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
-import static org.opensearch.index.store.remote.filecache.FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
-import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
 
 /**
  * Service responsible for restoring snapshots
@@ -153,20 +159,21 @@ public class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
 
-    private static final Set<String> UNMODIFIABLE_SETTINGS = unmodifiableSet(
-        newHashSet(SETTING_NUMBER_OF_SHARDS, SETTING_VERSION_CREATED, SETTING_INDEX_UUID, SETTING_CREATION_DATE, SETTING_HISTORY_UUID)
+    private static final Set<String> USER_UNMODIFIABLE_SETTINGS = unmodifiableSet(
+        newHashSet(SETTING_REMOTE_STORE_ENABLED, SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY)
     );
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
-    private static final Set<String> UNREMOVABLE_SETTINGS;
+    private static final Set<String> USER_UNREMOVABLE_SETTINGS;
+    private static final String REMOTE_STORE_INDEX_SETTINGS_REGEX = "index.remote_store.*";
 
     static {
-        Set<String> unremovable = new HashSet<>(UNMODIFIABLE_SETTINGS.size() + 4);
-        unremovable.addAll(UNMODIFIABLE_SETTINGS);
+        Set<String> unremovable = new HashSet<>(USER_UNMODIFIABLE_SETTINGS.size() + 3);
+        unremovable.addAll(USER_UNMODIFIABLE_SETTINGS);
         unremovable.add(SETTING_NUMBER_OF_REPLICAS);
         unremovable.add(SETTING_AUTO_EXPAND_REPLICAS);
         unremovable.add(SETTING_VERSION_UPGRADED);
-        UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
+        USER_UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
     }
 
     private final ClusterService clusterService;
@@ -183,11 +190,15 @@ public class RestoreService implements ClusterStateApplier {
 
     private final ClusterSettings clusterSettings;
 
+    private final IndexScopedSettings indexScopedSettings;
+
     private final IndicesService indicesService;
 
     private final Supplier<ClusterInfo> clusterInfoSupplier;
 
     private final ClusterManagerTaskThrottler.ThrottlingKey restoreSnapshotTaskKey;
+
+    private final Supplier<Double> dataToFileCacheSizeRatioSupplier;
 
     private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
 
@@ -199,7 +210,8 @@ public class RestoreService implements ClusterStateApplier {
         MetadataIndexUpgradeService metadataIndexUpgradeService,
         ShardLimitValidator shardLimitValidator,
         IndicesService indicesService,
-        Supplier<ClusterInfo> clusterInfoSupplier
+        Supplier<ClusterInfo> clusterInfoSupplier,
+        Supplier<Double> dataToFileCacheSizeRatioSupplier
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -212,7 +224,9 @@ public class RestoreService implements ClusterStateApplier {
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
         this.indicesService = indicesService;
+        this.indexScopedSettings = createIndexService.getIndexScopedSettings();
         this.clusterInfoSupplier = clusterInfoSupplier;
+        this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.RESTORE_SNAPSHOT_KEY, true);
@@ -370,17 +384,28 @@ public class RestoreService implements ClusterStateApplier {
                                 boolean partial = checkPartial(index);
 
                                 IndexId snapshotIndexId = repositoryData.resolveIndexId(index);
+
+                                final Settings overrideSettingsInternal = getOverrideSettingsInternal();
+                                final String[] ignoreSettingsInternal = getIgnoreSettingsInternal();
+
                                 IndexMetadata snapshotIndexMetadata = updateIndexSettings(
                                     metadata.index(index),
                                     request.indexSettings(),
-                                    request.ignoreIndexSettings()
+                                    request.ignoreIndexSettings(),
+                                    overrideSettingsInternal,
+                                    ignoreSettingsInternal
                                 );
+
+                                validateReplicationTypeRestoreSettings(
+                                    snapshot,
+                                    metadata.index(index).getSettings().get(SETTING_REPLICATION_TYPE),
+                                    snapshotIndexMetadata
+                                );
+
                                 if (isRemoteSnapshot) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(snapshotIndexMetadata, snapshot, snapshotIndexId);
                                 }
-                                final boolean isSearchableSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(
-                                    snapshotIndexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-                                );
+                                final boolean isSearchableSnapshot = snapshotIndexMetadata.isRemoteSnapshot();
                                 final boolean isRemoteStoreShallowCopy = Boolean.TRUE.equals(
                                     snapshotInfo.isRemoteStoreIndexShallowCopyEnabled()
                                 ) && metadata.index(index).getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
@@ -405,7 +430,9 @@ public class RestoreService implements ClusterStateApplier {
                                     snapshotIndexId,
                                     isSearchableSnapshot,
                                     isRemoteStoreShallowCopy,
-                                    request.getSourceRemoteStoreRepository()
+                                    request.getSourceRemoteStoreRepository(),
+                                    request.getSourceRemoteTranslogRepository(),
+                                    snapshotInfo.getPinnedTimestamp()
                                 );
                                 final Version minIndexCompatibilityVersion;
                                 if (isSearchableSnapshot && isSearchableSnapshotsExtendedCompatibilityEnabled()) {
@@ -434,7 +461,7 @@ public class RestoreService implements ClusterStateApplier {
                                 final Index renamedIndex;
                                 if (currentIndexMetadata == null) {
                                     // Index doesn't exist - create it and start recovery
-                                    // Make sure that the index we are about to create has a validate name
+                                    // Make sure that the index we are about to create has valid name
                                     boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(snapshotIndexMetadata.getSettings());
                                     createIndexService.validateIndexName(renamedIndexName, currentState);
                                     createIndexService.validateDotIndex(renamedIndexName, isHidden);
@@ -451,7 +478,7 @@ public class RestoreService implements ClusterStateApplier {
                                             .put(snapshotIndexMetadata.getSettings())
                                             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                                     );
-                                    createIndexService.addRemoteCustomData(indexMdBuilder);
+                                    createIndexService.addRemoteStoreCustomMetadata(indexMdBuilder, false);
                                     shardLimitValidator.validateShardLimit(
                                         renamedIndexName,
                                         snapshotIndexMetadata.getSettings(),
@@ -461,9 +488,7 @@ public class RestoreService implements ClusterStateApplier {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();
                                     } else {
-                                        for (final String alias : snapshotIndexMetadata.getAliases().keySet()) {
-                                            aliases.add(alias);
-                                        }
+                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
                                     }
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.build();
                                     if (partial) {
@@ -508,9 +533,7 @@ public class RestoreService implements ClusterStateApplier {
                                             indexMdBuilder.putAlias(alias);
                                         }
                                     } else {
-                                        for (final String alias : snapshotIndexMetadata.getAliases().keySet()) {
-                                            aliases.add(alias);
-                                        }
+                                        applyAliasesWithRename(snapshotIndexMetadata, indexMdBuilder, aliases);
                                     }
                                     final Settings.Builder indexSettingsBuilder = Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
@@ -528,7 +551,7 @@ public class RestoreService implements ClusterStateApplier {
                                 for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
                                     if (isRemoteSnapshot) {
                                         IndexShardSnapshotStatus.Copy shardStatus = repository.getShardSnapshotStatus(
-                                            snapshotInfo.snapshotId(),
+                                            snapshotInfo,
                                             snapshotIndexId,
                                             new ShardId(metadata.index(index).getIndex(), shard)
                                         ).asCopy();
@@ -640,6 +663,69 @@ public class RestoreService implements ClusterStateApplier {
                         }
                     }
 
+                    private void applyAliasesWithRename(
+                        IndexMetadata snapshotIndexMetadata,
+                        IndexMetadata.Builder indexMdBuilder,
+                        Set<String> aliases
+                    ) {
+                        if (request.renameAliasPattern() == null || request.renameAliasReplacement() == null) {
+                            aliases.addAll(snapshotIndexMetadata.getAliases().keySet());
+                        } else {
+                            Pattern renameAliasPattern = Pattern.compile(request.renameAliasPattern());
+                            for (final Map.Entry<String, AliasMetadata> alias : snapshotIndexMetadata.getAliases().entrySet()) {
+                                String currentAliasName = alias.getKey();
+                                indexMdBuilder.removeAlias(currentAliasName);
+                                String newAliasName = renameAliasPattern.matcher(currentAliasName)
+                                    .replaceAll(request.renameAliasReplacement());
+                                AliasMetadata newAlias = AliasMetadata.newAliasMetadata(alias.getValue(), newAliasName);
+                                indexMdBuilder.putAlias(newAlias);
+                                aliases.add(newAliasName);
+                            }
+                        }
+                    }
+
+                    private String[] getIgnoreSettingsInternal() {
+                        // for non-remote store enabled domain, we will remove all the remote store
+                        // related index settings present in the snapshot.
+                        String[] indexSettingsToBeIgnored = new String[] {};
+                        if (false == RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())) {
+                            indexSettingsToBeIgnored = ArrayUtils.concat(
+                                indexSettingsToBeIgnored,
+                                new String[] { REMOTE_STORE_INDEX_SETTINGS_REGEX }
+                            );
+                        }
+                        return indexSettingsToBeIgnored;
+                    }
+
+                    private Settings getOverrideSettingsInternal() {
+                        final Settings.Builder settingsBuilder = Settings.builder();
+
+                        // We will use whatever replication strategy provided by user or from snapshot metadata unless
+                        // cluster is remote store enabled or user have restricted a specific replication type in the
+                        // cluster. If cluster is undergoing remote store migration, replication strategy is strictly SEGMENT type
+                        if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())
+                            || clusterSettings.get(IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING)
+                            || RemoteStoreNodeService.isMigratingToRemoteStore(clusterSettings)) {
+                            MetadataCreateIndexService.updateReplicationStrategy(
+                                settingsBuilder,
+                                request.indexSettings(),
+                                clusterService.getSettings(),
+                                null,
+                                clusterSettings
+                            );
+                        }
+                        // remote store settings needs to be overridden if the remote store feature is enabled in the
+                        // cluster where snapshot is being restored.
+                        MetadataCreateIndexService.updateRemoteStoreSettings(
+                            settingsBuilder,
+                            clusterService.state(),
+                            clusterSettings,
+                            clusterService.getSettings(),
+                            String.join(",", request.indices())
+                        );
+                        return settingsBuilder.build();
+                    }
+
                     private void populateIgnoredShards(String index, final Set<Integer> ignoreShards) {
                         for (SnapshotShardFailure failure : snapshotInfo.shardFailures()) {
                             if (index.equals(failure.index())) {
@@ -712,16 +798,18 @@ public class RestoreService implements ClusterStateApplier {
                      */
                     private IndexMetadata updateIndexSettings(
                         IndexMetadata indexMetadata,
-                        Settings changeSettings,
-                        String[] ignoreSettings
+                        Settings overrideSettings,
+                        String[] ignoreSettings,
+                        Settings overrideSettingsInternal,
+                        String[] ignoreSettingsInternal
                     ) {
                         Settings normalizedChangeSettings = Settings.builder()
-                            .put(changeSettings)
+                            .put(overrideSettings)
                             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
                             .build();
                         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings())
-                            && IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(changeSettings)
-                            && IndexSettings.INDEX_SOFT_DELETES_SETTING.get(changeSettings) == false) {
+                            && IndexSettings.INDEX_SOFT_DELETES_SETTING.exists(overrideSettings)
+                            && IndexSettings.INDEX_SOFT_DELETES_SETTING.get(overrideSettings) == false) {
                             throw new SnapshotRestoreException(
                                 snapshot,
                                 "cannot disable setting [" + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey() + "] on restore"
@@ -733,10 +821,15 @@ public class RestoreService implements ClusterStateApplier {
                         List<String> simpleMatchPatterns = new ArrayList<>();
                         for (String ignoredSetting : ignoreSettings) {
                             if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
-                                if (UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
+                                if (USER_UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
                                     throw new SnapshotRestoreException(
                                         snapshot,
                                         "cannot remove setting [" + ignoredSetting + "] on restore"
+                                    );
+                                } else if (indexScopedSettings.isUnmodifiableOnRestoreSetting(ignoredSetting)) {
+                                    throw new SnapshotRestoreException(
+                                        snapshot,
+                                        "cannot remove UnmodifiableOnRestore setting [" + ignoredSetting + "] on restore"
                                     );
                                 } else {
                                     keyFilters.add(ignoredSetting);
@@ -745,8 +838,18 @@ public class RestoreService implements ClusterStateApplier {
                                 simpleMatchPatterns.add(ignoredSetting);
                             }
                         }
+
+                        // add internal settings to ignore settings list
+                        for (String ignoredSetting : ignoreSettingsInternal) {
+                            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                                keyFilters.add(ignoredSetting);
+                            } else {
+                                simpleMatchPatterns.add(ignoredSetting);
+                            }
+                        }
+
                         Predicate<String> settingsFilter = k -> {
-                            if (UNREMOVABLE_SETTINGS.contains(k) == false) {
+                            if (USER_UNREMOVABLE_SETTINGS.contains(k) == false && !indexScopedSettings.isUnmodifiableOnRestoreSetting(k)) {
                                 for (String filterKey : keyFilters) {
                                     if (k.equals(filterKey)) {
                                         return false;
@@ -763,19 +866,29 @@ public class RestoreService implements ClusterStateApplier {
                         Settings.Builder settingsBuilder = Settings.builder()
                             .put(settings.filter(settingsFilter))
                             .put(normalizedChangeSettings.filter(k -> {
-                                if (UNMODIFIABLE_SETTINGS.contains(k)) {
+                                if (USER_UNMODIFIABLE_SETTINGS.contains(k)) {
                                     throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
+                                } else if (indexScopedSettings.isUnmodifiableOnRestoreSetting(k)) {
+                                    throw new SnapshotRestoreException(
+                                        snapshot,
+                                        "cannot modify UnmodifiableOnRestore setting [" + k + "] on restore"
+                                    );
                                 } else {
                                     return true;
                                 }
                             }));
+
+                        // override internal settings
+                        if (overrideSettingsInternal != null) {
+                            settingsBuilder.put(overrideSettingsInternal).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
+                        }
                         settingsBuilder.remove(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey());
                         return builder.settings(settingsBuilder).build();
                     }
 
                     private void validateSearchableSnapshotRestorable(long totalRestorableRemoteIndexesSize) {
                         ClusterInfo clusterInfo = clusterInfoSupplier.get();
-                        double remoteDataToFileCacheRatio = DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.get(clusterService.getSettings());
+                        final double remoteDataToFileCacheRatio = dataToFileCacheSizeRatioSupplier.get();
                         Map<String, FileCacheStats> nodeFileCacheStats = clusterInfo.getNodeFileCacheStats();
                         if (nodeFileCacheStats.isEmpty() || remoteDataToFileCacheRatio <= 0.01f) {
                             return;
@@ -789,7 +902,7 @@ public class RestoreService implements ClusterStateApplier {
                             .sum();
 
                         Predicate<ShardRouting> isRemoteSnapshotShard = shardRouting -> shardRouting.primary()
-                            && indicesService.indexService(shardRouting.index()).getIndexSettings().isRemoteSnapshot();
+                            && clusterService.state().getMetadata().getIndexSafe(shardRouting.index()).isRemoteSnapshot();
 
                         ShardsIterator shardsIterator = clusterService.state()
                             .routingTable()
@@ -1201,6 +1314,32 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
+    // Visible for testing
+    static void validateReplicationTypeRestoreSettings(Snapshot snapshot, String snapshotReplicationType, IndexMetadata updatedMetadata) {
+        int restoreNumberOfSearchReplicas = updatedMetadata.getSettings().getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
+
+        if (restoreNumberOfSearchReplicas > 0
+            && ReplicationType.DOCUMENT.toString().equals(updatedMetadata.getSettings().get(SETTING_REPLICATION_TYPE))) {
+            throw new SnapshotRestoreException(
+                snapshot,
+                "snapshot was created with ["
+                    + SETTING_REPLICATION_TYPE
+                    + "]"
+                    + " as ["
+                    + snapshotReplicationType
+                    + "]."
+                    + " To restore with ["
+                    + SETTING_REPLICATION_TYPE
+                    + "]"
+                    + " as ["
+                    + ReplicationType.DOCUMENT
+                    + "], ["
+                    + SETTING_NUMBER_OF_SEARCH_REPLICAS
+                    + "] must be set to [0]"
+            );
+        }
+    }
+
     public static boolean failed(SnapshotInfo snapshot, String index) {
         for (SnapshotShardFailure failure : snapshot.shardFailures()) {
             if (index.equals(failure.index())) {
@@ -1247,6 +1386,7 @@ public class RestoreService implements ClusterStateApplier {
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey(), snapshot.getSnapshotId().getUUID())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME.getKey(), snapshot.getSnapshotId().getName())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.getKey(), indexId.getId())
+            .put(IndexSettings.SEARCHABLE_SNAPSHOT_SHARD_PATH_TYPE.getKey(), PathType.fromCode(indexId.getShardPathType()))
             .build();
         return IndexMetadata.builder(metadata).settings(newSettings).build();
     }

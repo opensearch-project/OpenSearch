@@ -72,7 +72,10 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
 import static org.opensearch.search.aggregations.AggregationBuilders.extendedStats;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
@@ -102,8 +105,12 @@ public class EquivalenceIT extends ParameterizedStaticSettingsOpenSearchIntegTes
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+            new Object[] {
+                Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_ALL).build() },
+            new Object[] {
+                Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_AUTO).build() },
+            new Object[] {
+                Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_NONE).build() }
         );
     }
 
@@ -339,7 +346,7 @@ public class EquivalenceIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             )
             .get();
         assertAllSuccessful(resp);
-        assertEquals(numDocs, resp.getHits().getTotalHits().value);
+        assertEquals(numDocs, resp.getHits().getTotalHits().value());
 
         final Terms longTerms = resp.getAggregations().get("long");
         final Terms doubleTerms = resp.getAggregations().get("double");
@@ -457,7 +464,7 @@ public class EquivalenceIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             )
             .get();
         assertAllSuccessful(response);
-        assertEquals(numDocs, response.getHits().getTotalHits().value);
+        assertEquals(numDocs, response.getHits().getTotalHits().value());
     }
 
     // https://github.com/elastic/elasticsearch/issues/6435

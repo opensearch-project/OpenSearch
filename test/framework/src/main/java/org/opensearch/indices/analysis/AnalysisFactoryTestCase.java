@@ -139,6 +139,7 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .put("patterncapturegroup", MovedToAnalysisCommon.class)
         .put("patternreplace", MovedToAnalysisCommon.class)
         .put("persiannormalization", MovedToAnalysisCommon.class)
+        .put("persianstem", MovedToAnalysisCommon.class)
         .put("porterstem", MovedToAnalysisCommon.class)
         .put("portuguesestem", MovedToAnalysisCommon.class)
         .put("portugueselightstem", MovedToAnalysisCommon.class)
@@ -219,9 +220,12 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .put("spanishpluralstem", Void.class)
         // LUCENE-10352
         .put("daitchmokotoffsoundex", Void.class)
-        .put("persianstem", Void.class)
         // https://github.com/apache/lucene/pull/12169
         .put("word2vecsynonym", Void.class)
+        // https://github.com/apache/lucene/pull/12915
+        .put("japanesehiraganauppercase", Void.class)
+        .put("japanesekatakanauppercase", Void.class)
+        .put("romaniannormalization", Void.class)
         .immutableMap();
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String, Class<?>>()
@@ -243,6 +247,17 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
 
     public AnalysisFactoryTestCase(AnalysisPlugin plugin) {
         this.plugin = Objects.requireNonNull(plugin, "plugin is required. use an empty plugin for core");
+    }
+
+    /**
+     * Returns the AnalysisPlugin instance that was passed to this test case.
+     * This protected method allows subclasses to access the plugin for testing
+     * specific analysis components.
+     *
+     * @return The AnalysisPlugin instance used by this test case
+     */
+    protected AnalysisPlugin getAnalysisPlugin() {
+        return plugin;
     }
 
     protected Map<String, Class<?>> getCharFilters() {

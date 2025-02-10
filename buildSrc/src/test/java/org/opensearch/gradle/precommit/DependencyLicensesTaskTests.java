@@ -344,7 +344,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
             .register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
                 @Override
                 public void execute(DependencyLicensesTask dependencyLicensesTask) {
-                    dependencyLicensesTask.setDependencies(getDependencies(project));
+                    dependencyLicensesTask.getDependencies().set(getDependencies(project));
 
                     final Map<String, String> mappings = new HashMap<>();
                     mappings.put("from", "groovy-.*");

@@ -10,6 +10,7 @@ package org.opensearch.index.remote;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
@@ -36,5 +37,23 @@ public class RemoteStoreTestsHelper {
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.store()).thenReturn(store);
         return indexShard;
+    }
+
+    public static IndexSettings createIndexSettings(boolean remote) {
+        return createIndexSettings(remote, Settings.EMPTY);
+    }
+
+    public static IndexSettings createIndexSettings(boolean remote, Settings settings) {
+        IndexSettings indexSettings;
+        if (remote) {
+            Settings nodeSettings = Settings.builder()
+                .put("node.name", "xyz")
+                .put("node.attr.remote_store.translog.repository", "seg_repo")
+                .build();
+            indexSettings = IndexSettingsModule.newIndexSettings(new Index("test_index", "_na_"), settings, nodeSettings);
+        } else {
+            indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
+        }
+        return indexSettings;
     }
 }

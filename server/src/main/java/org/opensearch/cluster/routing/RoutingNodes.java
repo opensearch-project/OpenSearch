@@ -67,6 +67,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.isMigratingToRemoteStore;
+
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
  * It can be either initialized as mutable or immutable (see {@link #RoutingNodes(ClusterState, boolean)}), allowing
@@ -383,7 +385,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // be accessible. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
         return assignedShards(shardId).stream()
-            .filter(shr -> !shr.primary() && shr.active())
+            .filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly())
             .filter(shr -> node(shr.currentNodeId()) != null)
             .max(
                 Comparator.comparing(
@@ -407,7 +409,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // It's possible for replicaNodeVersion to be null. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
         return assignedShards(shardId).stream()
-            .filter(shr -> !shr.primary() && shr.active())
+            .filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly())
             .filter(shr -> node(shr.currentNodeId()) != null)
             .min(
                 Comparator.comparing(
@@ -416,6 +418,20 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 )
             )
             .orElse(null);
+    }
+
+    /**
+     * Returns one active replica shard on a remote node for the given shard id or <code>null</code> if
+     * no such replica is found.
+     * <p>
+     * Since we aim to continue moving forward during remote store migration, replicas already migrated to remote nodes
+     * are preferred for primary promotion
+     */
+    public ShardRouting activeReplicaOnRemoteNode(ShardId shardId) {
+        return assignedShards(shardId).stream().filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly()).filter((shr) -> {
+            RoutingNode nd = node(shr.currentNodeId());
+            return (nd != null && nd.node().isRemoteStoreNode());
+        }).findFirst().orElse(null);
     }
 
     /**
@@ -735,11 +751,17 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         RoutingChangesObserver routingChangesObserver
     ) {
         assert failedShard.primary();
-        ShardRouting activeReplica;
-        if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
-            activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
-        } else {
-            activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+        ShardRouting activeReplica = null;
+        if (isMigratingToRemoteStore(metadata)) {
+            // we might not find any replica on remote node
+            activeReplica = activeReplicaOnRemoteNode(failedShard.shardId());
+        }
+        if (activeReplica == null) {
+            if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
+                activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
+            } else {
+                activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+            }
         }
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);
@@ -798,6 +820,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private ShardRouting promoteActiveReplicaShardToPrimary(ShardRouting replicaShard) {
         assert replicaShard.active() : "non-active shard cannot be promoted to primary: " + replicaShard;
         assert replicaShard.primary() == false : "primary shard cannot be promoted to primary: " + replicaShard;
+        assert replicaShard.isSearchOnly() == false : "search only replica cannot be promoted to primary: " + replicaShard;
         ShardRouting primaryShard = replicaShard.moveActiveReplicaToPrimary();
         updateAssigned(replicaShard, primaryShard);
         return primaryShard;
@@ -1417,7 +1440,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      */
     public Iterator<ShardRouting> nodeInterleavedShardIterator(ShardMovementStrategy shardMovementStrategy) {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
-        for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
+        List<Map.Entry<String, RoutingNode>> nodesToShardsEntrySet = new ArrayList<>(nodesToShards.entrySet());
+        Randomness.shuffle(nodesToShardsEntrySet);
+        for (Map.Entry<String, RoutingNode> entry : nodesToShardsEntrySet) {
             queue.add(entry.getValue().copyShards().iterator());
         }
         if (shardMovementStrategy == ShardMovementStrategy.PRIMARY_FIRST) {

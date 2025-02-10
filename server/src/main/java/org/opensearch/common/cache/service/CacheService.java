@@ -8,10 +8,12 @@
 
 package org.opensearch.common.cache.service;
 
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.settings.CacheSettings;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
@@ -20,6 +22,8 @@ import org.opensearch.common.util.FeatureFlags;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Service responsible to create caches.
@@ -42,11 +46,8 @@ public class CacheService {
     }
 
     public <K, V> ICache<K, V> createCache(CacheConfig<K, V> config, CacheType cacheType) {
-        Setting<String> cacheSettingForCacheType = CacheSettings.CACHE_TYPE_STORE_NAME.getConcreteSettingForNamespace(
-            cacheType.getSettingPrefix()
-        );
-        String storeName = cacheSettingForCacheType.get(settings);
-        if (!FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) || (storeName == null || storeName.isBlank())) {
+        String storeName = getStoreNameFromSetting(cacheType, settings);
+        if (!pluggableCachingEnabled(cacheType, settings)) {
             // Condition 1: In case feature flag is off, we default to onHeap.
             // Condition 2: In case storeName is not explicitly mentioned, we assume user is looking to use older
             // settings, so we again fallback to onHeap to maintain backward compatibility.
@@ -61,5 +62,28 @@ public class CacheService {
         ICache<K, V> iCache = factory.create(config, cacheType, cacheStoreTypeFactories);
         cacheTypeMap.put(cacheType, iCache);
         return iCache;
+    }
+
+    public NodeCacheStats stats(CommonStatsFlags flags) {
+        final SortedMap<CacheType, ImmutableCacheStatsHolder> statsMap = new TreeMap<>();
+        for (CacheType type : cacheTypeMap.keySet()) {
+            statsMap.put(type, cacheTypeMap.get(type).stats(flags.getLevels()));
+        }
+        return new NodeCacheStats(statsMap, flags);
+    }
+
+    /**
+     * Check if pluggable caching is on, and if a store type is present for this cache type.
+     */
+    public static boolean pluggableCachingEnabled(CacheType cacheType, Settings settings) {
+        String storeName = getStoreNameFromSetting(cacheType, settings);
+        return FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) && storeName != null && !storeName.isBlank();
+    }
+
+    private static String getStoreNameFromSetting(CacheType cacheType, Settings settings) {
+        Setting<String> cacheSettingForCacheType = CacheSettings.CACHE_TYPE_STORE_NAME.getConcreteSettingForNamespace(
+            cacheType.getSettingPrefix()
+        );
+        return cacheSettingForCacheType.get(settings);
     }
 }

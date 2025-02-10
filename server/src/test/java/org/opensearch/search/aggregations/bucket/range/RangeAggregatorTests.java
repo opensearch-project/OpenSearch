@@ -32,34 +32,58 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
+import org.opensearch.index.mapper.ParseContext.Document;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RangeAggregatorTests extends AggregatorTestCase {
@@ -199,7 +223,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(-2d, 5d)
             .missing("1979-01-01T00:00:00");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldType(NUMBER_FIELD_NAME, NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -212,7 +236,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(-2d, 5d)
             .missing(0L);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldType(NUMBER_FIELD_NAME, NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -230,7 +254,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(-2d, 5d)
             .missing("2020-02-13T10:11:12");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldType(NUMBER_FIELD_NAME, NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -257,7 +281,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(-2d, 5d)
             .missing("bogus");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldType(NUMBER_FIELD_NAME, NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -270,7 +294,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(-2d, 5d)
             .missing("bogus");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldType(NUMBER_FIELD_NAME, NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -305,12 +329,278 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testOverlappingRanges() throws IOException {
+        testRewriteOptimizationCase(
+            new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE),
+            new double[][] { { 1, 2 }, { 1, 1.5 }, { 0, 0.5 } },
+            new MatchAllDocsQuery(),
+            new Number[] { 0.1, 1.1, 2.1 },
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(3, ranges.size());
+                assertEquals("0.0-0.5", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("1.0-1.5", ranges.get(1).getKeyAsString());
+                assertEquals(1, ranges.get(1).getDocCount());
+                assertEquals("1.0-2.0", ranges.get(2).getKeyAsString());
+                assertEquals(1, ranges.get(2).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            false
+        );
+    }
+
+    /**
+     * @return Map [lower, upper) TO data points
+     */
+    private Map<double[], double[]> buildRandomRanges(double[][] possibleRanges) {
+        Map<double[], double[]> dataSet = new LinkedHashMap<>();
+        for (double[] range : possibleRanges) {
+            double lower = randomDoubleBetween(range[0], range[1], true);
+            double upper = randomDoubleBetween(range[0], range[1], true);
+            if (lower > upper) {
+                double d = lower;
+                lower = upper;
+                upper = d;
+            }
+
+            int dataNumber = randomInt(200);
+            double[] data = new double[dataNumber];
+            for (int i = 0; i < dataNumber; i++) {
+                data[i] = randomDoubleBetween(lower, upper, true);
+            }
+            dataSet.put(new double[] { lower, upper }, data);
+        }
+
+        return dataSet;
+    }
+
+    public void testRandomRanges() throws IOException {
+        Map<double[], double[]> dataSet = buildRandomRanges(new double[][] { { 0, 100 }, { 200, 1000 }, { 1000, 3000 } });
+
+        int size = dataSet.size();
+        double[][] ranges = new double[size][];
+        int[] expected = new int[size];
+        List<Number> dataPoints = new LinkedList<>();
+
+        int i = 0;
+        for (Map.Entry<double[], double[]> entry : dataSet.entrySet()) {
+            ranges[i] = entry.getKey();
+            expected[i] = entry.getValue().length;
+            for (double dataPoint : entry.getValue()) {
+                dataPoints.add(dataPoint);
+            }
+            i++;
+        }
+
+        testRewriteOptimizationCase(
+            new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE),
+            ranges,
+            new MatchAllDocsQuery(),
+            dataPoints.toArray(new Number[0]),
+            range -> {
+                List<? extends InternalRange.Bucket> rangeBuckets = range.getBuckets();
+                assertEquals(size, rangeBuckets.size());
+                for (int j = 0; j < rangeBuckets.size(); j++) {
+                    assertEquals(expected[j], rangeBuckets.get(j).getDocCount());
+                }
+            },
+            true
+        );
+    }
+
+    public void testDoubleType() throws IOException {
+        testRewriteOptimizationCase(
+            new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE),
+            new double[][] { { 1, 2 }, { 2, 3 } },
+            new MatchAllDocsQuery(),
+            new Number[] { 0.1, 1.1, 2.1 },
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("1.0-2.0", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("2.0-3.0", ranges.get(1).getKeyAsString());
+                assertEquals(1, ranges.get(1).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            true
+        );
+    }
+
+    public void testHalfFloatType() throws IOException {
+        testRewriteOptimizationCase(
+            new NumberFieldType(NumberType.HALF_FLOAT.typeName(), NumberType.HALF_FLOAT),
+            new double[][] { { 1, 2 }, { 2, 3 } },
+            new MatchAllDocsQuery(),
+            new Number[] { 0.1, 1.1, 2.1 },
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("1.0-2.0", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("2.0-3.0", ranges.get(1).getKeyAsString());
+                assertEquals(1, ranges.get(1).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            true
+        );
+    }
+
+    public void testFloatType() throws IOException {
+        testRewriteOptimizationCase(
+            new NumberFieldType(NumberType.FLOAT.typeName(), NumberType.FLOAT),
+            new double[][] { { 1, 2 }, { 2, 3 } },
+            new MatchAllDocsQuery(),
+            new Number[] { 0.1, 1.1, 2.1 },
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("1.0-2.0", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("2.0-3.0", ranges.get(1).getKeyAsString());
+                assertEquals(1, ranges.get(1).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            true
+        );
+    }
+
+    public void testTopLevelRangeQuery() throws IOException {
+        NumberFieldType fieldType = new NumberFieldType(NumberType.INTEGER.typeName(), NumberType.INTEGER);
+        String fieldName = fieldType.numberType().typeName();
+        Query query = IntPoint.newRangeQuery(fieldName, 5, 20);
+
+        testRewriteOptimizationCase(
+            fieldType,
+            new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } },
+            query,
+            new Number[] { 0.1, 4.0, 9, 11, 12, 19 },
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
+                assertEquals(3, ranges.get(1).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            false
+        );
+    }
+
+    public void testUnsignedLongType() throws IOException {
+        testRewriteOptimizationCase(
+            new NumberFieldType(NumberType.UNSIGNED_LONG.typeName(), NumberType.UNSIGNED_LONG),
+            new double[][] { { 1, 2 }, { 2, 3 } },
+            new MatchAllDocsQuery(),
+            new Number[] { 0, 1, 2 },
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("1.0-2.0", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("2.0-3.0", ranges.get(1).getKeyAsString());
+                assertEquals(1, ranges.get(1).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            true
+        );
+
+        testRewriteOptimizationCase(
+            new NumberFieldType(NumberType.UNSIGNED_LONG.typeName(), NumberType.UNSIGNED_LONG),
+            new double[][] { { Double.NEGATIVE_INFINITY, 1 }, { 2, Double.POSITIVE_INFINITY } },
+            new MatchAllDocsQuery(),
+            new Number[] { 0, 1, 2 },
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("*-1.0", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("2.0-*", ranges.get(1).getKeyAsString());
+                assertEquals(1, ranges.get(1).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            true
+        );
+    }
+
+    /**
+     * Expect no optimization as top level query excludes documents.
+     */
+    public void testTopLevelFilterTermQuery() throws IOException {
+        final String KEYWORD_FIELD_NAME = "route";
+        final NumberFieldType NUM_FIELD_TYPE = new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE);
+        final NumberType numType = NUM_FIELD_TYPE.numberType();
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setMinimumNumberShouldMatch(0);
+        builder.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "route1")), BooleanClause.Occur.MUST);
+        Query boolQuery = builder.build();
+
+        List<Document> docList = new ArrayList<>();
+        for (int i = 0; i < 3; i++)
+            docList.add(new Document());
+
+        docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false));
+        docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false));
+        docList.get(2).addAll(numType.createFields(numType.typeName(), 15.0, true, true, false));
+        docList.get(0).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(1).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(2).add(new KeywordField(KEYWORD_FIELD_NAME, "route2", Field.Store.NO));
+
+        testRewriteOptimizationCase(NUM_FIELD_TYPE, new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } }, boolQuery, docList, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(2, ranges.size());
+            assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
+            assertEquals(1, ranges.get(0).getDocCount());
+            assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
+            assertEquals(1, ranges.get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, false);
+    }
+
+    /**
+     * Expect optimization as top level query is effective match all.
+     */
+    public void testTopLevelEffectiveMatchAll() throws IOException {
+        final String KEYWORD_FIELD_NAME = "route";
+        final NumberFieldType NUM_FIELD_TYPE = new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE);
+        final NumberType numType = NUM_FIELD_TYPE.numberType();
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setMinimumNumberShouldMatch(0);
+        builder.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "route1")), BooleanClause.Occur.MUST);
+        Query boolQuery = builder.build();
+
+        List<Document> docList = new ArrayList<>();
+        for (int i = 0; i < 3; i++)
+            docList.add(new Document());
+
+        docList.get(0).addAll(numType.createFields(numType.typeName(), 3.0, true, true, false));
+        docList.get(1).addAll(numType.createFields(numType.typeName(), 11.0, true, true, false));
+        docList.get(2).addAll(numType.createFields(numType.typeName(), 15.0, true, true, false));
+        docList.get(0).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(1).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        docList.get(2).add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+
+        testRewriteOptimizationCase(NUM_FIELD_TYPE, new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } }, boolQuery, docList, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(2, ranges.size());
+            assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
+            assertEquals(1, ranges.get(0).getDocCount());
+            assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
+            assertEquals(2, ranges.get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, true);
+    }
+
     private void testCase(
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify
     ) throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldType(NUMBER_FIELD_NAME, NumberType.INTEGER);
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");
         aggregationBuilder.field(NUMBER_FIELD_NAME);
         aggregationBuilder.addRange(0d, 5d);
@@ -323,9 +613,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         Query query,
         Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify
     ) throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType = new NumberFieldType(NUMBER_FIELD_NAME, NumberType.INTEGER);
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, query, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3)));
@@ -354,8 +644,107 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     fieldType
                 );
                 verify.accept(agg);
-
             }
         }
+    }
+
+    private void testRewriteOptimizationCase(
+        NumberFieldType fieldType,
+        double[][] ranges,
+        Query query,
+        Number[] dataPoints,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
+        boolean optimized
+    ) throws IOException {
+        NumberType numberType = fieldType.numberType();
+        String fieldName = numberType.typeName();
+        List<Document> docs = new ArrayList<>();
+
+        for (Number dataPoint : dataPoints) {
+            Document doc = new Document();
+            List<Field> fieldList = numberType.createFields(fieldName, dataPoint, true, true, false);
+            for (Field fld : fieldList)
+                doc.add(fld);
+            docs.add(doc);
+        }
+
+        testRewriteOptimizationCase(fieldType, ranges, query, docs, verify, optimized);
+    }
+
+    private void testRewriteOptimizationCase(
+        NumberFieldType fieldType,
+        double[][] ranges,
+        Query query,
+        List<Document> documents,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
+        boolean optimized
+    ) throws IOException {
+        NumberType numberType = fieldType.numberType();
+        String fieldName = numberType.typeName();
+
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
+                for (Document doc : documents) {
+                    indexWriter.addDocument(doc);
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(fieldName);
+                for (double[] range : ranges) {
+                    aggregationBuilder.addRange(range[0], range[1]);
+                }
+
+                CountingAggregator aggregator = createCountingAggregator(query, aggregationBuilder, indexSearcher, fieldType);
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+
+                MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                    Integer.MAX_VALUE,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                );
+                InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                    aggregator.context().bigArrays(),
+                    getMockScriptService(),
+                    reduceBucketConsumer,
+                    PipelineAggregator.PipelineTree.EMPTY
+                );
+                InternalRange topLevel = (InternalRange) aggregator.buildTopLevel();
+                InternalRange agg = (InternalRange) topLevel.reduce(Collections.singletonList(topLevel), context);
+                doAssertReducedMultiBucketConsumer(agg, reduceBucketConsumer);
+
+                verify.accept(agg);
+
+                if (optimized) {
+                    assertEquals(0, aggregator.getCollectCount().get());
+                } else {
+                    assertTrue(aggregator.getCollectCount().get() > 0);
+                }
+            }
+        }
+    }
+
+    protected CountingAggregator createCountingAggregator(
+        Query query,
+        AggregationBuilder builder,
+        IndexSearcher searcher,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return new CountingAggregator(
+            new AtomicInteger(),
+            createAggregator(
+                query,
+                builder,
+                searcher,
+                new MultiBucketConsumerService.MultiBucketConsumer(
+                    DEFAULT_MAX_BUCKETS,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                ),
+                fieldTypes
+            )
+        );
     }
 }
