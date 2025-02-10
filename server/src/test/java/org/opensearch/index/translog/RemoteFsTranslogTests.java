@@ -876,11 +876,11 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             }
         });
         thread1.start();
-        assertBusy(() -> assertEquals(0, translog.availablePermits()));
+        assertBusy(() -> assertFalse(translog.isLockAvailable()));
         // Case 2 - During an upload, if drainSync is called, it will wait for it to acquire and available permits are 0.
         Releasable releasable = translog.drainSync();
         assertBusy(() -> assertEquals(0, latch.getCount()));
-        assertEquals(0, translog.availablePermits());
+        assertFalse(translog.isLockAvailable());
         slowDown.setSleepSeconds(0);
         assertEquals(6, translog.allUploaded().size());
         assertEquals(2, translog.readers.size());

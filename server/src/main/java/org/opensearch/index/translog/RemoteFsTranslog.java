@@ -91,7 +91,7 @@ public class RemoteFsTranslog extends Translog {
     // Semaphore used to allow only single remote generation to happen at a time
     protected final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
 
-    // These permits exist to allow any inflight background triggered upload.
+    // This permit exists to allow any inflight background triggered upload.
     private static final ReentrantLock reentrantLock = new ReentrantLock();
     private static final ReleasableLock syncPermit = new ReleasableLock(reentrantLock);
     protected final AtomicBoolean pauseSync = new AtomicBoolean(false);
@@ -377,7 +377,7 @@ public class RemoteFsTranslog extends Translog {
         // 1. Using startedPrimarySupplier, we prevent the new primary to do pre-emptive syncs
         // 2. Using syncPermit, we prevent syncs at the desired time during primary relocation.
         if (startedPrimarySupplier.getAsBoolean() == false || syncPermit.isHeldByCurrentThread() || syncPermit.tryAcquire() == null) {
-            logger.debug("skipped uploading translog for {} {} syncPermit={}", primaryTerm, generation, availablePermits());
+            logger.debug("skipped uploading translog for {} {} isLockAvailable={}", primaryTerm, generation, isLockAvailable());
             // NO-OP
             return false;
         }
@@ -748,8 +748,8 @@ public class RemoteFsTranslog extends Translog {
     }
 
     // Visible for testing
-    int availablePermits() {
-        return reentrantLock.isLocked() ? 0 : 1;
+    boolean isLockAvailable() {
+        return !reentrantLock.isLocked();
     }
 
     /**
