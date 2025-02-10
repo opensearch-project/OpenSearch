@@ -169,7 +169,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
          * @param nodeId The ID of the node this holder belongs to
          * @param reason The reason for closing
          */
-        public void close(String nodeId, String reason) {
+        void close(String nodeId, String reason) {
             try {
                 if (flightClient != null) {
                     flightClient.close();
