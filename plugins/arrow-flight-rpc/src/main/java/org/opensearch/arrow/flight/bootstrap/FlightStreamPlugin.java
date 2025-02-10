@@ -8,7 +8,6 @@
 
 package org.opensearch.arrow.flight.bootstrap;
 
-import org.opensearch.arrow.flight.BaseFlightStreamPlugin;
 import org.opensearch.arrow.flight.api.FlightServerInfoAction;
 import org.opensearch.arrow.flight.api.NodesFlightInfoAction;
 import org.opensearch.arrow.flight.api.TransportNodesFlightInfoAction;
@@ -29,7 +28,12 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.ClusterPlugin;
+import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
+import org.opensearch.plugins.StreamManagerPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -52,7 +56,7 @@ import java.util.function.Supplier;
 /**
  * FlightStreamPlugin class extends BaseFlightStreamPlugin and provides implementation for FlightStream plugin.
  */
-public class FlightStreamPluginImpl extends BaseFlightStreamPlugin {
+public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, NetworkPlugin, ActionPlugin, ClusterPlugin {
 
     private final FlightService flightService;
 
@@ -60,7 +64,7 @@ public class FlightStreamPluginImpl extends BaseFlightStreamPlugin {
      * Constructor for FlightStreamPluginImpl.
      * @param settings The settings for the FlightStreamPlugin.
      */
-    public FlightStreamPluginImpl(Settings settings) {
+    public FlightStreamPlugin(Settings settings) {
         this.flightService = new FlightService(settings);
     }
 

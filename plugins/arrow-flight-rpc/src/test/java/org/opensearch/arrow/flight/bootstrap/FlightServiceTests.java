@@ -8,7 +8,6 @@
 package org.opensearch.arrow.flight.bootstrap;
 
 import org.opensearch.Version;
-import org.opensearch.arrow.flight.bootstrap.tls.DisabledSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -20,7 +19,6 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -43,7 +41,6 @@ public class FlightServiceTests extends OpenSearchTestCase {
     private ClusterService clusterService;
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private SecureTransportSettingsProvider secureTransportSettingsProvider;
     private final AtomicInteger port = new AtomicInteger(0);
     private DiscoveryNode localNode;
 
@@ -67,7 +64,6 @@ public class FlightServiceTests extends OpenSearchTestCase {
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ServerConfig.FLIGHT_SERVER_THREAD_POOL_NAME)).thenReturn(mock(ExecutorService.class));
         when(threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME)).thenReturn(mock(ExecutorService.class));
-        secureTransportSettingsProvider = mock(SecureTransportSettingsProvider.class);
         networkService = new NetworkService(Collections.emptyList());
     }
 
@@ -81,14 +77,8 @@ public class FlightServiceTests extends OpenSearchTestCase {
             noSslService.setClient(mock(Client.class));
             noSslService.setNetworkService(networkService);
             noSslService.start();
-            // Verify SSL is properly disabled
             SslContextProvider sslContextProvider = noSslService.getSslContextProvider();
-            assertNotNull("SSL context provider should not be null", sslContextProvider);
-            assertTrue(
-                "SSL context provider should be DisabledSslContextProvider",
-                sslContextProvider instanceof DisabledSslContextProvider
-            );
-            assertFalse("SSL should be disabled", sslContextProvider.isSslEnabled());
+            assertNull("SSL context provider should be null", sslContextProvider);
             assertNotNull(noSslService.getFlightClientManager());
             assertNotNull(noSslService.getBoundAddress());
         }

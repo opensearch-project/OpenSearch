@@ -52,8 +52,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
-import io.grpc.netty.shaded.io.netty.util.NettyRuntime;
+import io.netty.channel.EventLoopGroup;
+import io.netty.util.NettyRuntime;
 
 import static org.opensearch.arrow.flight.bootstrap.FlightClientManager.LOCATION_TIMEOUT_MS;
 import static org.mockito.ArgumentMatchers.any;
@@ -98,8 +98,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
         mockFlightInfoResponse(state.nodes(), 0);
 
-        SslContextProvider sslContextProvider = mock(SslContextProvider.class);
-        when(sslContextProvider.isSslEnabled()).thenReturn(false);
+        SslContextProvider sslContextProvider = null;
 
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME)).thenReturn(executorService);

@@ -11,6 +11,7 @@ package org.opensearch.arrow.flight;
 import org.opensearch.arrow.flight.api.FlightServerInfoAction;
 import org.opensearch.arrow.flight.api.NodesFlightInfoAction;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
+import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -51,38 +52,7 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
         when(nodes.getLocalNodeId()).thenReturn("test-node");
     }
 
-    public void testPluginEnableAndDisable() throws IOException {
-
-        Settings disabledSettings = Settings.builder().put(ARROW_STREAMS_SETTING.getKey(), false).build();
-        FeatureFlags.initializeFeatureFlags(disabledSettings);
-        FlightStreamPlugin disabledPlugin = new FlightStreamPlugin(disabledSettings);
-
-        Collection<Object> disabledPluginComponents = disabledPlugin.createComponents(
-            null,
-            clusterService,
-            mock(ThreadPool.class),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-
-        assertTrue(disabledPluginComponents.isEmpty());
-        assertNull(disabledPlugin.getStreamManager().get());
-        assertTrue(disabledPlugin.getExecutorBuilders(disabledSettings).isEmpty());
-        assertNotNull(disabledPlugin.getSettings());
-        assertTrue(disabledPlugin.getSettings().isEmpty());
-        assertNotNull(disabledPlugin.getSecureTransports(null, null, null, null, null, null, null, null));
-        assertTrue(disabledPlugin.getAuxTransports(null, null, null, null, null, null).isEmpty());
-        assertEquals(0, disabledPlugin.getRestHandlers(null, null, null, null, null, null, null).size());
-        assertEquals(0, disabledPlugin.getActions().size());
-
-        disabledPlugin.close();
-
+    public void testPluginEnabled() throws IOException {
         FeatureFlags.initializeFeatureFlags(settings);
         FeatureFlagSetter.set(ARROW_STREAMS_SETTING.getKey());
         FlightStreamPlugin plugin = new FlightStreamPlugin(settings);
