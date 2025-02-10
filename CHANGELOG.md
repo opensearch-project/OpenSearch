@@ -64,7 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-identity` from 1.13.2 to 1.14.2 ([#16778](https://github.com/opensearch-project/OpenSearch/pull/16778))
 - Bump Apache Lucene from 9.12.0 to 9.12.1 ([#16846](https://github.com/opensearch-project/OpenSearch/pull/16846))
 - Bump `com.gradle.develocity` from 3.18.2 to 3.19.1 ([#16855](https://github.com/opensearch-project/OpenSearch/pull/16855), [#17132](https://github.com/opensearch-project/OpenSearch/pull/17132))
-- Bump `org.jline:jline` from 3.27.1 to 3.28.0 ([#16857](https://github.com/opensearch-project/OpenSearch/pull/16857))
+- Bump `org.jline:jline` from 3.27.1 to 3.29.0 ([#16857](https://github.com/opensearch-project/OpenSearch/pull/16857), [#17309](https://github.com/opensearch-project/OpenSearch/pull/17309))
 - Bump `com.azure:azure-core` from 1.51.0 to 1.54.1 ([#16856](https://github.com/opensearch-project/OpenSearch/pull/16856))
 - Bump `com.nimbusds:oauth2-oidc-sdk` from 11.19.1 to 11.21 ([#16895](https://github.com/opensearch-project/OpenSearch/pull/16895), [#17010](https://github.com/opensearch-project/OpenSearch/pull/17010))
 - Bump `com.netflix.nebula.ospackage-base` from 11.10.0 to 11.10.1 ([#16896](https://github.com/opensearch-project/OpenSearch/pull/16896))
