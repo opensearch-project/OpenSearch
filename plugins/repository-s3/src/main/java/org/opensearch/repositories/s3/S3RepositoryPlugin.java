@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -63,6 +62,7 @@ import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
@@ -93,19 +93,19 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     private static final String NORMAL_TRANSFER_QUEUE_CONSUMER = "normal_transfer_queue_consumer";
 
     protected final S3Service service;
-    private final S3AsyncService s3AsyncService;
+    protected final S3AsyncService s3AsyncService;
 
     private final Path configPath;
 
-    private AsyncExecutorContainer urgentExecutorBuilder;
-    private AsyncExecutorContainer priorityExecutorBuilder;
-    private AsyncExecutorContainer normalExecutorBuilder;
+    protected AsyncExecutorContainer urgentExecutorBuilder;
+    protected AsyncExecutorContainer priorityExecutorBuilder;
+    protected AsyncExecutorContainer normalExecutorBuilder;
     private ExecutorService lowTransferQConsumerService;
     private ExecutorService normalTransferQConsumerService;
-    private SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
-    private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
-    private TransferSemaphoresHolder transferSemaphoresHolder;
-    private GenericStatsMetricPublisher genericStatsMetricPublisher;
+    protected SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
+    protected SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
+    protected TransferSemaphoresHolder transferSemaphoresHolder;
+    protected GenericStatsMetricPublisher genericStatsMetricPublisher;
 
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
@@ -188,7 +188,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private static int urgentPoolCount(Settings settings) {
-        return boundedBy((allocatedProcessors(settings) + 7) / 8, 1, 2);
+        return boundedBy((allocatedProcessors(settings) + 1) / 2, 1, 2);
     }
 
     private static int priorityPoolCount(Settings settings) {
@@ -387,5 +387,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public void close() throws IOException {
         service.close();
         s3AsyncService.close();
+        urgentExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+        priorityExecutorBuilder.getAsyncTransferEventLoopGroup().close();
+        normalExecutorBuilder.getAsyncTransferEventLoopGroup().close();
     }
 }

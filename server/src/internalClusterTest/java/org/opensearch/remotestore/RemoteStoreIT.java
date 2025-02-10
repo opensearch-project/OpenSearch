@@ -38,10 +38,14 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Requests;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -202,7 +206,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
         String dataNode = internalCluster().startNode();
-        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000L, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
         String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
@@ -1010,5 +1014,146 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
                 .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async"))
                 .get()
         );
+    }
+
+    public void testCloseIndexWithNoOpSyncAndFlushForSyncTranslog() throws InterruptedException {
+        internalCluster().startNodes(3);
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "5s"))
+            .get();
+        Settings.Builder settings = Settings.builder()
+            .put(remoteStoreIndexSettings(0, 10000L, -1))
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s");
+        createIndex(INDEX_NAME, settings.build());
+        CountDownLatch latch = new CountDownLatch(1);
+        new Thread(() -> {
+            if (randomBoolean()) {
+                for (int i = 0; i < randomIntBetween(1, 5); i++) {
+                    indexSingleDoc(INDEX_NAME);
+                }
+                flushAndRefresh(INDEX_NAME);
+            }
+            // Index single doc to start the asyn io processor to run which will lead to 10s wait time before the next sync.
+            indexSingleDoc(INDEX_NAME);
+            // Reduce the latch for the main thread to flush after some sleep.
+            latch.countDown();
+            // Index another doc and in this case the flush would have happened before the sync.
+            indexSingleDoc(INDEX_NAME);
+        }).start();
+        // Wait for atleast one doc to be ingested.
+        latch.await();
+        // Sleep for some time for the next doc to be present in lucene buffer. If flush happens first before the doc #2
+        // gets indexed, then it goes into the happy case where the close index happens succefully.
+        Thread.sleep(1000);
+        // Flush so that the subsequent sync or flushes are no-op.
+        flush(INDEX_NAME);
+        // Closing the index involves translog.sync and shard.flush which are now no-op.
+        client().admin().indices().close(Requests.closeIndexRequest(INDEX_NAME)).actionGet();
+        Thread.sleep(10000);
+        ensureGreen(INDEX_NAME);
+    }
+
+    public void testCloseIndexWithNoOpSyncAndFlushForAsyncTranslog() throws InterruptedException {
+        internalCluster().startNodes(3);
+        Settings.Builder settings = Settings.builder()
+            .put(remoteStoreIndexSettings(0, 10000L, -1))
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s")
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Durability.ASYNC)
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "10s");
+        createIndex(INDEX_NAME, settings.build());
+        CountDownLatch latch = new CountDownLatch(1);
+        new Thread(() -> {
+            // Index some docs to start the asyn io processor to run which will lead to 10s wait time before the next sync.
+            indexSingleDoc(INDEX_NAME);
+            indexSingleDoc(INDEX_NAME);
+            indexSingleDoc(INDEX_NAME);
+            // Reduce the latch for the main thread to flush after some sleep.
+            latch.countDown();
+        }).start();
+        // Wait for atleast one doc to be ingested.
+        latch.await();
+        // Flush so that the subsequent sync or flushes are no-op.
+        flush(INDEX_NAME);
+        // Closing the index involves translog.sync and shard.flush which are now no-op.
+        client().admin().indices().close(Requests.closeIndexRequest(INDEX_NAME)).actionGet();
+        Thread.sleep(10000);
+        ensureGreen(INDEX_NAME);
+    }
+
+    public void testSuccessfulShallowV1SnapshotPostIndexClose() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNodes(1).get(0);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));
+        ensureGreen(INDEX_NAME);
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "0ms"));
+
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        logger.info("Create shallow snapshot setting enabled repo");
+        String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
+        Path shallowSnapshotRepoPath = randomRepoPath();
+        Settings.Builder settings = Settings.builder()
+            .put("location", shallowSnapshotRepoPath)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE);
+        createRepository(shallowSnapshotRepoName, "fs", settings);
+
+        for (int i = 0; i < 10; i++) {
+            indexBulk(INDEX_NAME, 1);
+        }
+        flushAndRefresh(INDEX_NAME);
+
+        logger.info("Verify shallow snapshot created before close");
+        final String snapshot1 = "snapshot1";
+        SnapshotInfo snapshotInfo1 = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareCreateSnapshot(shallowSnapshotRepoName, snapshot1)
+            .setIndices(INDEX_NAME)
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
+
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo1.state());
+        assertTrue(snapshotInfo1.successfulShards() > 0);
+        assertEquals(0, snapshotInfo1.failedShards());
+
+        for (int i = 0; i < 10; i++) {
+            indexBulk(INDEX_NAME, 1);
+        }
+
+        // close index
+        client().admin().indices().close(Requests.closeIndexRequest(INDEX_NAME)).actionGet();
+        Thread.sleep(1000);
+        logger.info("Verify shallow snapshot created after close");
+        final String snapshot2 = "snapshot2";
+
+        SnapshotInfo snapshotInfo2 = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareCreateSnapshot(shallowSnapshotRepoName, snapshot2)
+            .setIndices(INDEX_NAME)
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
+
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo2.state());
+        assertTrue(snapshotInfo2.successfulShards() > 0);
+        assertEquals(0, snapshotInfo2.failedShards());
+
+        // delete the index
+        cluster().wipeIndices(INDEX_NAME);
+        // try restoring the snapshot
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(shallowSnapshotRepoName, snapshot2)
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        ensureGreen(INDEX_NAME);
+        flushAndRefresh(INDEX_NAME);
+        assertBusy(() -> { assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), 20); });
     }
 }

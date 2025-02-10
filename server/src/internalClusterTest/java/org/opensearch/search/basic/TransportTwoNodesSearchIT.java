@@ -38,7 +38,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -54,6 +53,7 @@ import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,8 +64,6 @@ import java.util.TreeSet;
 
 import static org.opensearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.opensearch.action.search.SearchType.QUERY_THEN_FETCH;
-import static org.opensearch.client.Requests.createIndexRequest;
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -73,6 +71,8 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.transport.client.Requests.createIndexRequest;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -170,7 +170,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSe
             .get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -212,7 +212,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSe
             .get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -250,7 +250,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSe
             .get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -277,7 +277,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSe
         SearchResponse searchResponse = client().search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH))
             .actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(60));
         for (int i = 0; i < 60; i++) {
             SearchHit hit = searchResponse.getHits().getHits()[i];
@@ -285,7 +285,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSe
         }
         searchResponse = client().search(searchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(40));
         for (int i = 0; i < 40; i++) {
             SearchHit hit = searchResponse.getHits().getHits()[i];
@@ -307,7 +307,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSe
             .get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -336,7 +336,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSe
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(sourceBuilder)).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
 
         Global global = searchResponse.getAggregations().get("global");
         Filter all = global.getAggregations().get("all");

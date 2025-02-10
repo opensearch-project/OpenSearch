@@ -48,8 +48,7 @@ import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.ActionTestUtils;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.Requests;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.ElectionSchedulerFactory;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -88,6 +87,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.store.MockFSIndexStore;
+import org.opensearch.transport.client.Requests;
 
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -1366,7 +1366,8 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         DiscoveryNode[] nodes = getDiscoveryNodes();
         TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response = prepareAndSendRequest(
             new String[] { indexName },
-            nodes
+            nodes,
+            false
         );
         Index index = resolveIndex(indexName);
         ShardId shardId = new ShardId(index, 0);
@@ -1379,12 +1380,14 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
     public void testShardStoreFetchMultiNodeMultiIndexesUsingBatchAction() throws Exception {
         internalCluster().startNodes(2);
+        ensureStableCluster(2);
         String indexName1 = "test1";
         String indexName2 = "test2";
         DiscoveryNode[] nodes = getDiscoveryNodes();
         TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response = prepareAndSendRequest(
             new String[] { indexName1, indexName2 },
-            nodes
+            nodes,
+            true
         );
         ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName1, indexName2).get();
         for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
@@ -1406,7 +1409,8 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         String indexName = "test";
         TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response = prepareAndSendRequest(
             new String[] { indexName },
-            new DiscoveryNode[] { nonExistingNode }
+            new DiscoveryNode[] { nonExistingNode },
+            false
         );
         assertTrue(response.hasFailures());
         assertEquals(1, response.failures().size());
@@ -1513,10 +1517,14 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
     private TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch prepareAndSendRequest(
         String[] indices,
-        DiscoveryNode[] nodes
+        DiscoveryNode[] nodes,
+        boolean ensureGreen
     ) {
         Map<ShardId, ShardAttributes> shardAttributesMap = null;
         prepareIndices(indices, 1, 1);
+        if (ensureGreen) {
+            ensureGreen(indices);
+        }
         shardAttributesMap = prepareRequestMap(indices, 1);
         TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response;
         return ActionTestUtils.executeBlocking(

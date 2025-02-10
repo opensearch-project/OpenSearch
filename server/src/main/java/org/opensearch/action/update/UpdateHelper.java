@@ -38,7 +38,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -58,8 +57,10 @@ import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
 import org.opensearch.script.UpdateScript;
 import org.opensearch.search.lookup.SourceLookup;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -128,7 +129,11 @@ public class UpdateHelper {
 
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
-            logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
+            if (logger.isDebugEnabled() || ScriptType.STORED.equals(script.getType())) {
+                logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
+            } else {
+                logger.warn("Invalid upsert operation [{}] for given script", operation);
+            }
             operation = UpdateOpType.NONE;
         }
 

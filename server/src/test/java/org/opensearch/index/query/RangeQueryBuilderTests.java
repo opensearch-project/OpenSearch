@@ -37,10 +37,9 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -55,9 +54,9 @@ import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
@@ -172,9 +171,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
             if (context.getMapperService().fieldType(queryBuilder.fieldName()).hasDocValues()) {
-                expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
+                expectedQuery = new ConstantScoreQuery(new FieldExistsQuery(expectedFieldName));
             } else if (context.getMapperService().fieldType(queryBuilder.fieldName()).getTextSearchInfo().hasNorms()) {
-                expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
+                expectedQuery = new ConstantScoreQuery(new FieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
             }
@@ -196,10 +195,10 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
                     is(true)
                 );
-                assertThat(query, instanceOf(ApproximateIndexOrDocValuesQuery.class));
-                Query approximationQuery = ((ApproximateIndexOrDocValuesQuery) query).getApproximationQuery();
+                assertThat(query, instanceOf(ApproximateScoreQuery.class));
+                Query approximationQuery = ((ApproximateScoreQuery) query).getApproximationQuery();
                 assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
-                Query originalQuery = ((ApproximateIndexOrDocValuesQuery) query).getOriginalQuery();
+                Query originalQuery = ((ApproximateScoreQuery) query).getOriginalQuery();
                 assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
                 MapperService mapperService = context.getMapperService();
                 MappedFieldType mappedFieldType = mapperService.fieldType(expectedFieldName);
@@ -250,8 +249,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     }
                 }
                 assertEquals(
-                    new ApproximateIndexOrDocValuesQuery(
-                        LongPoint.newRangeQuery(DATE_FIELD_NAME, minLong, maxLong),
+                    new ApproximateScoreQuery(
+                        new IndexOrDocValuesQuery(
+                            LongPoint.newRangeQuery(DATE_FIELD_NAME, minLong, maxLong),
+                            SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, minLong, maxLong)
+                        ),
                         new ApproximatePointRangeQuery(
                             DATE_FIELD_NAME,
                             pack(new long[] { minLong }).bytes,
@@ -262,8 +264,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
-                        },
-                        SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, minLong, maxLong)
+                        }
                     ),
                     query
                 );
@@ -336,16 +337,19 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
             is(true)
         );
-        assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
-        Query approximationQuery = ((ApproximateIndexOrDocValuesQuery) parsedQuery).getApproximationQuery();
+        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
+        Query approximationQuery = ((ApproximateScoreQuery) parsedQuery).getApproximationQuery();
         assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
-        Query originalQuery = ((ApproximateIndexOrDocValuesQuery) parsedQuery).getOriginalQuery();
+        Query originalQuery = ((ApproximateScoreQuery) parsedQuery).getOriginalQuery();
         assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
         long lower = DateTime.parse("2012-01-01T00:00:00.000+00").getMillis();
         long upper = DateTime.parse("2030-01-01T00:00:00.000+00").getMillis() - 1;
         assertEquals(
-            new ApproximateIndexOrDocValuesQuery(
-                LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+            new ApproximateScoreQuery(
+                new IndexOrDocValuesQuery(
+                    LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+                    SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+                ),
                 new ApproximatePointRangeQuery(
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
@@ -356,8 +360,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
-                },
-                SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+                }
             ),
             parsedQuery
         );
@@ -394,13 +397,16 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
             is(true)
         );
-        assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
+        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
 
         long lower = DateTime.parse("2014-11-01T00:00:00.000+00").getMillis();
         long upper = DateTime.parse("2014-12-08T23:59:59.999+00").getMillis();
         assertEquals(
-            new ApproximateIndexOrDocValuesQuery(
-                LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+            new ApproximateScoreQuery(
+                new IndexOrDocValuesQuery(
+                    LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+                    SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+                ),
                 new ApproximatePointRangeQuery(
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
@@ -411,8 +417,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
-                },
-                SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+                }
             )
 
             ,
@@ -430,12 +435,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}";
         parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
+        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
         lower = DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1;
         upper = DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1;
         assertEquals(
-            new ApproximateIndexOrDocValuesQuery(
-                LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+            new ApproximateScoreQuery(
+                new IndexOrDocValuesQuery(
+                    LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+                    SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+                ),
                 new ApproximatePointRangeQuery(
                     DATE_FIELD_NAME,
                     pack(new long[] { lower }).bytes,
@@ -446,8 +454,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
-                },
-                SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+                }
             )
 
             ,
@@ -476,8 +483,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
             is(true)
         );
-        assertThat(parsedQuery, instanceOf(ApproximateIndexOrDocValuesQuery.class));
-        parsedQuery = ((ApproximateIndexOrDocValuesQuery) parsedQuery).getApproximationQuery();
+        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
+        parsedQuery = ((ApproximateScoreQuery) parsedQuery).getApproximationQuery();
         assertThat(parsedQuery, instanceOf(ApproximateQuery.class));
         // TODO what else can we assert
 
@@ -555,7 +562,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         Query luceneQuery = rewrittenRange.toQuery(queryShardContext);
         final Query expectedQuery;
         if (queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
-            expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
+            expectedQuery = new ConstantScoreQuery(new FieldExistsQuery(query.fieldName()));
         } else {
             expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
         }

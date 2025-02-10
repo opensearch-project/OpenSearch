@@ -37,6 +37,7 @@ import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.ShardStats;
@@ -63,7 +64,10 @@ import org.opensearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Transport action for obtaining cluster state
@@ -76,13 +80,19 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     TransportClusterStatsAction.ClusterStatsNodeRequest,
     ClusterStatsNodeResponse> {
 
-    private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(
+    private static final Map<CommonStatsFlags.Flag, ClusterStatsRequest.IndexMetric> SHARDS_STATS_FLAG_MAP_TO_INDEX_METRIC = Map.of(
         CommonStatsFlags.Flag.Docs,
+        ClusterStatsRequest.IndexMetric.DOCS,
         CommonStatsFlags.Flag.Store,
+        ClusterStatsRequest.IndexMetric.STORE,
         CommonStatsFlags.Flag.FieldData,
+        ClusterStatsRequest.IndexMetric.FIELDDATA,
         CommonStatsFlags.Flag.QueryCache,
+        ClusterStatsRequest.IndexMetric.QUERY_CACHE,
         CommonStatsFlags.Flag.Completion,
-        CommonStatsFlags.Flag.Segments
+        ClusterStatsRequest.IndexMetric.COMPLETION,
+        CommonStatsFlags.Flag.Segments,
+        ClusterStatsRequest.IndexMetric.SEGMENTS
     );
 
     private final NodeService nodeService;
@@ -124,14 +134,27 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                 + " the cluster state that are too slow for a transport thread"
         );
         ClusterState state = clusterService.state();
-        return new ClusterStatsResponse(
-            System.currentTimeMillis(),
-            state.metadata().clusterUUID(),
-            clusterService.getClusterName(),
-            responses,
-            failures,
-            state
-        );
+        if (request.computeAllMetrics()) {
+            return new ClusterStatsResponse(
+                System.currentTimeMillis(),
+                state.metadata().clusterUUID(),
+                clusterService.getClusterName(),
+                responses,
+                failures,
+                state
+            );
+        } else {
+            return new ClusterStatsResponse(
+                System.currentTimeMillis(),
+                state.metadata().clusterUUID(),
+                clusterService.getClusterName(),
+                responses,
+                failures,
+                state,
+                request.requestedMetrics(),
+                request.indicesMetrics()
+            );
+        }
     }
 
     @Override
@@ -149,17 +172,18 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false, false);
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
-            true,
-            true,
-            true,
+            isMetricRequired(Metric.OS, nodeRequest.request),
+            isMetricRequired(Metric.PROCESS, nodeRequest.request),
+            isMetricRequired(Metric.JVM, nodeRequest.request),
             false,
-            true,
-            false,
-            false,
+            isMetricRequired(Metric.FS, nodeRequest.request),
             false,
             false,
             false,
-            true,
+            false,
+            false,
+            isMetricRequired(Metric.INGEST, nodeRequest.request),
+            false,
             false,
             false,
             false,
@@ -177,33 +201,36 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false
         );
         List<ShardStats> shardsStats = new ArrayList<>();
-        for (IndexService indexService : indicesService) {
-            for (IndexShard indexShard : indexService) {
-                if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
-                    // only report on fully started shards
-                    CommitStats commitStats;
-                    SeqNoStats seqNoStats;
-                    RetentionLeaseStats retentionLeaseStats;
-                    try {
-                        commitStats = indexShard.commitStats();
-                        seqNoStats = indexShard.seqNoStats();
-                        retentionLeaseStats = indexShard.getRetentionLeaseStats();
-                    } catch (final AlreadyClosedException e) {
-                        // shard is closed - no stats is fine
-                        commitStats = null;
-                        seqNoStats = null;
-                        retentionLeaseStats = null;
+        if (isMetricRequired(Metric.INDICES, nodeRequest.request)) {
+            CommonStatsFlags commonStatsFlags = getCommonStatsFlags(nodeRequest);
+            for (IndexService indexService : indicesService) {
+                for (IndexShard indexShard : indexService) {
+                    if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
+                        // only report on fully started shards
+                        CommitStats commitStats;
+                        SeqNoStats seqNoStats;
+                        RetentionLeaseStats retentionLeaseStats;
+                        try {
+                            commitStats = indexShard.commitStats();
+                            seqNoStats = indexShard.seqNoStats();
+                            retentionLeaseStats = indexShard.getRetentionLeaseStats();
+                        } catch (final AlreadyClosedException e) {
+                            // shard is closed - no stats is fine
+                            commitStats = null;
+                            seqNoStats = null;
+                            retentionLeaseStats = null;
+                        }
+                        shardsStats.add(
+                            new ShardStats(
+                                indexShard.routingEntry(),
+                                indexShard.shardPath(),
+                                new CommonStats(indicesService.getIndicesQueryCache(), indexShard, commonStatsFlags),
+                                commitStats,
+                                seqNoStats,
+                                retentionLeaseStats
+                            )
+                        );
                     }
-                    shardsStats.add(
-                        new ShardStats(
-                            indexShard.routingEntry(),
-                            indexShard.shardPath(),
-                            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
-                            commitStats,
-                            seqNoStats,
-                            retentionLeaseStats
-                        )
-                    );
                 }
             }
         }
@@ -221,6 +248,31 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             shardsStats.toArray(new ShardStats[0]),
             nodeRequest.request.useAggregatedNodeLevelResponses()
         );
+    }
+
+    /**
+     * A metric is required when: all cluster stats are required (OR) if the metric is requested
+     * @param metric
+     * @param clusterStatsRequest
+     * @return
+     */
+    private boolean isMetricRequired(Metric metric, ClusterStatsRequest clusterStatsRequest) {
+        return clusterStatsRequest.computeAllMetrics() || clusterStatsRequest.requestedMetrics().contains(metric);
+    }
+
+    private static CommonStatsFlags getCommonStatsFlags(ClusterStatsNodeRequest nodeRequest) {
+        Set<CommonStatsFlags.Flag> requestedCommonStatsFlags = new HashSet<>();
+        if (nodeRequest.request.computeAllMetrics()) {
+            requestedCommonStatsFlags.addAll(SHARDS_STATS_FLAG_MAP_TO_INDEX_METRIC.keySet());
+        } else {
+            for (Map.Entry<CommonStatsFlags.Flag, ClusterStatsRequest.IndexMetric> entry : SHARDS_STATS_FLAG_MAP_TO_INDEX_METRIC
+                .entrySet()) {
+                if (nodeRequest.request.indicesMetrics().contains(entry.getValue())) {
+                    requestedCommonStatsFlags.add(entry.getKey());
+                }
+            }
+        }
+        return new CommonStatsFlags(requestedCommonStatsFlags.toArray(new CommonStatsFlags.Flag[0]));
     }
 
     /**

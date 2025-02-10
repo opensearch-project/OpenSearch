@@ -359,7 +359,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
                             public Scorer get(long leadCost) throws IOException {
                                 intersectLeft(values.getPointTree(), visitor, docCount);
                                 DocIdSetIterator iterator = result.build().iterator();
-                                return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
+                                return new ConstantScoreScorer(score(), scoreMode, iterator);
                             }
 
                             @Override
@@ -387,7 +387,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
                             public Scorer get(long leadCost) throws IOException {
                                 intersectRight(values.getPointTree(), visitor, docCount);
                                 DocIdSetIterator iterator = result.build().iterator();
-                                return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
+                                return new ConstantScoreScorer(score(), scoreMode, iterator);
                             }
 
                             @Override
@@ -402,15 +402,6 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
                         };
                     }
                 }
-            }
-
-            @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
-                }
-                return scorerSupplier.get(Long.MAX_VALUE);
             }
 
             @Override
@@ -431,9 +422,6 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
             return false;
         }
         if (context.aggregations() != null) {
-            return false;
-        }
-        if (!(context.query() instanceof ApproximateIndexOrDocValuesQuery)) {
             return false;
         }
         // size 0 could be set for caching

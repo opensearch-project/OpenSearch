@@ -160,11 +160,11 @@ public class BulkProcessorRetryIT extends OpenSearchIntegTestCase {
         SearchResponse results = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0).get();
 
         if (rejectedExecutionExpected) {
-            assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
+            assertThat((int) results.getHits().getTotalHits().value(), lessThanOrEqualTo(numberOfAsyncOps));
         } else if (rejectedAfterAllRetries) {
-            assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
+            assertThat((int) results.getHits().getTotalHits().value(), lessThan(numberOfAsyncOps));
         } else {
-            assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
+            assertThat((int) results.getHits().getTotalHits().value(), equalTo(numberOfAsyncOps));
         }
     }
 

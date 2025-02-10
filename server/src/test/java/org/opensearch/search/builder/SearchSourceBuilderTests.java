@@ -47,10 +47,10 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.query.BaseQueryRewriteContext;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.RandomQueryBuilder;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.script.Script;
@@ -421,6 +421,27 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testSearchPipelineParsingAndSerialization() throws IOException {
+        String restContent = "{ \"query\": { \"match_all\": {} }, \"from\": 0, \"size\": 10, \"search_pipeline\": \"my_pipeline\" }";
+        String expectedContent = "{\"from\":0,\"size\":10,\"query\":{\"match_all\":{\"boost\":1.0}},\"search_pipeline\":\"my_pipeline\"}";
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            searchSourceBuilder = rewrite(searchSourceBuilder);
+
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                searchSourceBuilder.writeTo(output);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                    SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
+                    String actualContent = deserializedBuilder.toString();
+                    assertEquals(expectedContent, actualContent);
+                    assertEquals(searchSourceBuilder.hashCode(), deserializedBuilder.hashCode());
+                    assertNotSame(searchSourceBuilder, deserializedBuilder);
+                }
+            }
+        }
+    }
+
     public void testAggsParsing() throws IOException {
         {
             String restContent = "{\n"
@@ -682,6 +703,30 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testVerbosePipeline() throws IOException {
+        {
+            String restContent = "{ \"verbose_pipeline\": true }";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertTrue(searchSourceBuilder.verbosePipeline());
+            }
+        }
+        {
+            String restContent = "{ \"verbose_pipeline\": false }";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertFalse(searchSourceBuilder.verbosePipeline());
+            }
+        }
+        {
+            String restContent = "{ \"query\": { \"match_all\": {} } }";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertFalse(searchSourceBuilder.verbosePipeline());
+            }
+        }
+    }
+
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));
@@ -692,7 +737,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     private SearchSourceBuilder rewrite(SearchSourceBuilder searchSourceBuilder) throws IOException {
         return Rewriteable.rewrite(
             searchSourceBuilder,
-            new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, Long.valueOf(1)::longValue)
+            new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, Long.valueOf(1)::longValue)
         );
     }
 }

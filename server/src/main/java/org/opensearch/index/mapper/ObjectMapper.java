@@ -171,6 +171,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public void setIncludeInRoot(boolean value) {
             includeInRoot = new Explicit<>(value, true);
         }
+
+        public static boolean isParent(ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper, MapperService mapperService) {
+            if (parentObjectMapper == null || childObjectMapper == null) {
+                return false;
+            }
+
+            ObjectMapper parent = childObjectMapper.getParentObjectMapper(mapperService);
+            while (parent != null && parent != parentObjectMapper) {
+                childObjectMapper = parent;
+                parent = childObjectMapper.getParentObjectMapper(mapperService);
+            }
+            return parentObjectMapper == parent;
+        }
     }
 
     /**
@@ -446,6 +459,15 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         Locale.ROOT,
                         "Set '%s' as true as part of index settings to use star tree index",
                         StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey()
+                    )
+                );
+            }
+            if (IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.get(parserContext.getSettings()) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Set '%s' as true as part of index settings to use star tree index",
+                        IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey()
                     )
                 );
             }

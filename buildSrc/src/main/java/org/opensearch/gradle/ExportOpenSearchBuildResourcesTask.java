@@ -33,6 +33,7 @@ package org.opensearch.gradle;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
+import org.gradle.api.Project;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -41,6 +42,8 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
+
+import javax.inject.Inject;
 
 import java.io.File;
 import java.io.IOException;
@@ -67,8 +70,9 @@ public class ExportOpenSearchBuildResourcesTask extends DefaultTask {
 
     private DirectoryProperty outputDir;
 
-    public ExportOpenSearchBuildResourcesTask() {
-        outputDir = getProject().getObjects().directoryProperty();
+    @Inject
+    public ExportOpenSearchBuildResourcesTask(Project project) {
+        outputDir = project.getObjects().directoryProperty();
     }
 
     @OutputDirectory

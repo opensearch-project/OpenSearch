@@ -45,6 +45,13 @@ grant codeBase "${codebase.mockito-core}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.lang.RuntimePermission "getClassLoader";
+
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "net.bytebuddy.createJavaDispatcher";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.utility";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.dynamic.loading";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.description.type";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.description.method";
 };
 
 grant codeBase "${codebase.objenesis}" {
@@ -113,7 +120,7 @@ grant codeBase "${codebase.httpcore5}" {
 
 grant codeBase "${codebase.httpclient5}" {
   // httpclient5 makes socket connections for rest tests
-  permission java.net.SocketPermission "*", "connect";
+  permission java.net.SocketPermission "*", "connect,resolve";
 };
 
 grant codeBase "${codebase.httpcore-nio}" {
@@ -160,4 +167,5 @@ grant {
   permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
   permission org.opensearch.secure_sm.ThreadContextPermission "stashAndMergeHeaders";
   permission org.opensearch.secure_sm.ThreadContextPermission "stashWithOrigin";
+  permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
 };

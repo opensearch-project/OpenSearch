@@ -38,7 +38,7 @@ import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ActiveShardsObserver;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
@@ -98,7 +98,7 @@ public class MetadataCreateDataStreamService {
                 activeShardsObserver.waitForActiveShards(
                     new String[] { firstBackingIndexName },
                     ActiveShardCount.DEFAULT,
-                    request.masterNodeTimeout(),
+                    request.clusterManagerNodeTimeout(),
                     shardsAcked -> {
                         finalListener.onResponse(new AcknowledgedResponse(true));
                     },
@@ -147,7 +147,7 @@ public class MetadataCreateDataStreamService {
 
         public CreateDataStreamClusterStateUpdateRequest(String name, TimeValue masterNodeTimeout, TimeValue timeout) {
             this.name = name;
-            masterNodeTimeout(masterNodeTimeout);
+            clusterManagerNodeTimeout(masterNodeTimeout);
             ackTimeout(timeout);
         }
     }

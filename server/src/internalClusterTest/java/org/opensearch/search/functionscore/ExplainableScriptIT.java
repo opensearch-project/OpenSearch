@@ -70,13 +70,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -190,7 +190,7 @@ public class ExplainableScriptIT extends ParameterizedStaticSettingsOpenSearchIn
 
         OpenSearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(20L));
+        assertThat(hits.getTotalHits().value(), equalTo(20L));
         int idCounter = 19;
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
@@ -237,7 +237,7 @@ public class ExplainableScriptIT extends ParameterizedStaticSettingsOpenSearchIn
 
         OpenSearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(1L));
+        assertThat(hits.getTotalHits().value(), equalTo(1L));
         assertThat(hits.getHits()[0].getId(), equalTo("1"));
         assertThat(hits.getHits()[0].getExplanation().getDetails(), arrayWithSize(2));
         assertThat(hits.getHits()[0].getExplanation().getDetails()[0].getDescription(), containsString("_name: func1"));

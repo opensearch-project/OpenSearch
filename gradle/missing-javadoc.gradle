@@ -8,6 +8,7 @@
 
 
 import javax.annotation.Nullable
+import javax.inject.Inject
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.internal.jvm.Jvm
@@ -63,8 +64,8 @@ allprojects {
 
 
     tasks.register('missingJavadoc', MissingJavadocTask) {
-      description "This task validates and generates Javadoc API documentation for the main source code."
-      group "documentation"
+      description = "This task validates and generates Javadoc API documentation for the main source code."
+      group = "documentation"
 
       taskResources = resources
       dependsOn sourceSets.main.compileClasspath
@@ -127,6 +128,7 @@ configure([
   project(":plugins:analysis-icu"),
   project(":plugins:analysis-kuromoji"),
   project(":plugins:analysis-nori"),
+  project(":plugins:analysis-phonenumber"),
   project(":plugins:analysis-phonetic"),
   project(":plugins:analysis-smartcn"),
   project(":plugins:analysis-stempel"),
@@ -138,6 +140,7 @@ configure([
   project(":plugins:discovery-gce:qa:gce"),
   project(":plugins:identity-shiro"),
   project(":plugins:ingest-attachment"),
+  project(":plugins:ingestion-kafka"),
   project(":plugins:mapper-annotated-text"),
   project(":plugins:mapper-murmur3"),
   project(":plugins:mapper-size"),
@@ -146,7 +149,6 @@ configure([
   project(":plugins:repository-hdfs"),
   project(":plugins:repository-s3"),
   project(":plugins:store-smb"),
-  project(":plugins:transport-nio"),
   project(":plugins:crypto-kms"),
   project(":qa:die-with-dignity"),
   project(":qa:wildfly"),
@@ -168,7 +170,6 @@ configure([
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
   project(":libs:opensearch-compress"),
-  project(":plugins:events-correlation-engine"),
   project(":server")
 ]) {
   project.tasks.withType(MissingJavadocTask) {
@@ -225,6 +226,18 @@ class MissingJavadocTask extends DefaultTask {
   @InputFiles
   @PathSensitive(PathSensitivity.RELATIVE)
   def taskResources
+
+  Project project
+
+  // See please https://docs.gradle.org/8.11/userguide/service_injection.html#execoperations
+  interface InjectedExecOps {
+    @Inject ExecOperations getExecOps()
+  }
+
+  @Inject
+  MissingJavadocTask(Project project) {
+    this.project = project
+  }
 
   /** Utility method to recursively collect all tasks with same name like this one that we depend on */
   private Set findRenderTasksInDependencies() {
@@ -290,7 +303,7 @@ class MissingJavadocTask extends DefaultTask {
       opts << [ '--missing-method', String.join(',', javadocMissingMethod) ]
     }
     opts << [ '-quiet' ]
-    opts << [ '--release', 11 ]
+    opts << [ '--release', 21 ]
     opts << '-Xdoclint:all,-missing'
 
     // Temporary file that holds all javadoc options for the current task.
@@ -316,11 +329,12 @@ class MissingJavadocTask extends DefaultTask {
       }
     }()
 
+    def execOps = project.objects.newInstance(InjectedExecOps)
     def outputFile = project.file("${getTemporaryDir()}/javadoc-output.txt")
     def result
 
     outputFile.withOutputStream { output ->
-      result = project.exec {
+      result = execOps.execOps.exec {
         executable javadocCmd
 
         // we want to capture both stdout and stderr to the same
@@ -342,8 +356,9 @@ class MissingJavadocTask extends DefaultTask {
         args += [ "-J-Xmx512m" ]
         // force locale to be "en_US" (fix for: https://bugs.openjdk.java.net/browse/JDK-8222793)
         args += [ "-J-Duser.language=en", "-J-Duser.country=US" ]
+        args += ["--add-modules", "jdk.incubator.vector"]
 
-        ignoreExitValue true
+        ignoreExitValue = true
       }
     }
 

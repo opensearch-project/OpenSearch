@@ -18,13 +18,13 @@ import software.amazon.awssdk.core.SdkSystemSetting;
 import software.amazon.awssdk.core.client.config.ClientAsyncConfiguration;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
+import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.ProxyConfiguration;
 import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
-import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
@@ -119,6 +119,7 @@ class S3AsyncService implements Closeable {
             if (existing != null && existing.tryIncRef()) {
                 return existing;
             }
+
             final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(
                 buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder)
             );
@@ -234,15 +235,17 @@ class S3AsyncService implements Closeable {
     }
 
     static ClientOverrideConfiguration buildOverrideConfiguration(final S3ClientSettings clientSettings) {
+        RetryPolicy retryPolicy = SocketAccess.doPrivileged(
+            () -> RetryPolicy.builder()
+                .numRetries(clientSettings.maxRetries)
+                .throttlingBackoffStrategy(
+                    clientSettings.throttleRetries ? BackoffStrategy.defaultThrottlingStrategy(RetryMode.STANDARD) : BackoffStrategy.none()
+                )
+                .build()
+        );
+
         return ClientOverrideConfiguration.builder()
-            .retryPolicy(
-                RetryPolicy.builder()
-                    .numRetries(clientSettings.maxRetries)
-                    .throttlingBackoffStrategy(
-                        clientSettings.throttleRetries ? BackoffStrategy.defaultThrottlingStrategy() : BackoffStrategy.none()
-                    )
-                    .build()
-            )
+            .retryPolicy(retryPolicy)
             .apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis))
             .build();
     }
@@ -343,12 +346,7 @@ class S3AsyncService implements Closeable {
     // valid paths.
     @SuppressForbidden(reason = "Need to provide this override to v2 SDK so that path does not default to home path")
     private static void setDefaultAwsProfilePath() {
-        if (ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.getStringValue().isEmpty()) {
-            System.setProperty(ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.property(), System.getProperty("opensearch.path.conf"));
-        }
-        if (ProfileFileSystemSetting.AWS_CONFIG_FILE.getStringValue().isEmpty()) {
-            System.setProperty(ProfileFileSystemSetting.AWS_CONFIG_FILE.property(), System.getProperty("opensearch.path.conf"));
-        }
+        S3Service.setDefaultAwsProfilePath();
     }
 
     private static IrsaCredentials buildFromEnvironment(IrsaCredentials defaults) {
@@ -440,5 +438,6 @@ class S3AsyncService implements Closeable {
     @Override
     public void close() {
         releaseCachedClients();
+
     }
 }

@@ -34,6 +34,9 @@ import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetada
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,6 +66,14 @@ import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadat
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
+
+    private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+
+    @After
+    public void teardown() throws Exception {
+        super.tearDown();
+        threadPool.shutdown();
+    }
 
     public void testClusterMetadataManifestXContentV0() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path", CODEC_V0);
@@ -214,7 +225,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                     "indicesRoutingDiffPath"
                 )
             )
-            .checksum(new ClusterStateChecksum(createClusterState()))
+            .checksum(new ClusterStateChecksum(createClusterState(), threadPool))
             .build();
         {  // Mutate Cluster Term
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -647,7 +658,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
         final StringKeyDiffProvider<IndexRoutingTable> routingTableIncrementalDiff = Mockito.mock(StringKeyDiffProvider.class);
-        ClusterStateChecksum checksum = new ClusterStateChecksum(createClusterState());
+        ClusterStateChecksum checksum = new ClusterStateChecksum(createClusterState(), threadPool);
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)
             .stateVersion(1L)

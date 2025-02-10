@@ -44,7 +44,6 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.termvectors.TermVectorsRequestBuilder;
 import org.opensearch.action.termvectors.TermVectorsResponse;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -85,6 +84,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Requests;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -155,7 +155,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertTrue(replicaShardRouting + " should be promoted as a primary", replicaShardRouting.primary());
         final SearchResponse response = client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get();
         // new primary should have at least the doc count from the first set of segments.
-        assertTrue(response.getHits().getTotalHits().value >= 1);
+        assertTrue(response.getHits().getTotalHits().value() >= 1);
 
         // assert we can index into the new primary.
         client().prepareIndex(INDEX_NAME).setId("3").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

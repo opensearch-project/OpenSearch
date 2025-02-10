@@ -39,7 +39,6 @@ import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -50,8 +49,9 @@ import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryStringQueryBuilder;
-import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
+import org.opensearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -191,11 +191,14 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             is(true)
         );
         assertEquals(
-            new ApproximateIndexOrDocValuesQuery(
-                LongPoint.newRangeQuery(
-                    DATE_FIELD_NAME,
-                    parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
-                    parser.parse(upperBoundExact, () -> 0).toEpochMilli()
+            new ApproximateScoreQuery(
+                new IndexOrDocValuesQuery(
+                    LongPoint.newRangeQuery(
+                        DATE_FIELD_NAME,
+                        parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
+                        parser.parse(upperBoundExact, () -> 0).toEpochMilli()
+                    ),
+                    controlDv
                 ),
                 new ApproximatePointRangeQuery(
                     DATE_FIELD_NAME,
@@ -207,8 +210,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
-                },
-                controlDv
+                }
             ),
             queryOnDateField
         );

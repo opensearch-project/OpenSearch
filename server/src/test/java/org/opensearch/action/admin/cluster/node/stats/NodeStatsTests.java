@@ -95,6 +95,7 @@ import org.opensearch.node.IoUsageStats;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.node.remotestore.RemoteStoreNodeStats;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
@@ -614,6 +615,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 } else {
                     assertEquals(nodeCacheStats, deserializedNodeCacheStats);
                 }
+
+                RemoteStoreNodeStats remoteStoreNodeStats = nodeStats.getRemoteStoreNodeStats();
+                RemoteStoreNodeStats deserializedRemoteStoreNodeStats = deserializedNodeStats.getRemoteStoreNodeStats();
+                if (remoteStoreNodeStats == null) {
+                    assertNull(deserializedRemoteStoreNodeStats);
+                } else {
+                    assertEquals(remoteStoreNodeStats, deserializedRemoteStoreNodeStats);
+                }
             }
         }
     }
@@ -996,6 +1005,16 @@ public class NodeStatsTests extends OpenSearchTestCase {
             nodeCacheStats = new NodeCacheStats(cacheStatsMap, flags);
         }
 
+        RemoteStoreNodeStats remoteStoreNodeStats = null;
+        if (frequently()) {
+            remoteStoreNodeStats = new RemoteStoreNodeStats() {
+                @Override
+                public long getLastSuccessfulFetchOfPinnedTimestamps() {
+                    return 123456L;
+                }
+            };
+        }
+
         // TODO: Only remote_store based aspects of NodeIndicesStats are being tested here.
         // It is possible to test other metrics in NodeIndicesStats as well since it extends Writeable now
         return new NodeStats(
@@ -1027,7 +1046,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             segmentReplicationRejectionStats,
             null,
             admissionControlStats,
-            nodeCacheStats
+            nodeCacheStats,
+            remoteStoreNodeStats
         );
     }
 

@@ -10,11 +10,12 @@
  */
 
 apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'OpenSearch Workload Management Plugin.'
-  classname 'org.opensearch.plugin.wlm.WorkloadManagementPlugin'
+  description = 'OpenSearch Workload Management Plugin.'
+  classname = 'org.opensearch.plugin.wlm.WorkloadManagementPlugin'
 }
 
 dependencies {

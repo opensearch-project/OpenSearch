@@ -21,12 +21,12 @@ import java.io.IOException;
  * Entry-point for the approximation framework.
  * This class is heavily inspired by {@link org.apache.lucene.search.IndexOrDocValuesQuery}. It acts as a wrapper that consumer two queries, a regular query and an approximate version of the same. By default, it executes the regular query and returns {@link Weight#scorer} for the original query. At run-time, depending on certain constraints, we can re-write the {@code Weight} to use the approximate weight instead.
  */
-public class ApproximateScoreQuery extends Query {
+public final class ApproximateScoreQuery extends Query {
 
     private final Query originalQuery;
     private final ApproximateQuery approximationQuery;
 
-    protected Query resolvedQuery;
+    Query resolvedQuery;
 
     public ApproximateScoreQuery(Query originalQuery, ApproximateQuery approximationQuery) {
         this.originalQuery = originalQuery;

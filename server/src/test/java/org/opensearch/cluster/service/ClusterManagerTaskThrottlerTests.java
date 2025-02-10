@@ -90,7 +90,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
-            return clusterService.getMasterService().getMinNodeVersion();
+            return clusterService.getClusterManagerService().getMinNodeVersion();
         }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
 
@@ -120,7 +120,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
-            return clusterService.getMasterService().getMinNodeVersion();
+            return clusterService.getClusterManagerService().getMinNodeVersion();
         }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", false);
 
@@ -589,11 +589,6 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
             ) throws Exception {
                 // No Op
                 return null;
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return true;
             }
 
             @Override

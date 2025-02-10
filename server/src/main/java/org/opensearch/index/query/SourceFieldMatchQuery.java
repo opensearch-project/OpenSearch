@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -88,7 +89,7 @@ public class SourceFieldMatchQuery extends Query {
         return new ConstantScoreWeight(this, boost) {
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
 
                 Scorer scorer = weight.scorer(context);
                 if (scorer == null) {
@@ -121,7 +122,7 @@ public class SourceFieldMatchQuery extends Query {
                         return 1000f;
                     }
                 };
-                return new ConstantScoreScorer(this, score(), ScoreMode.TOP_DOCS, twoPhase);
+                return new DefaultScorerSupplier(new ConstantScoreScorer(score(), ScoreMode.TOP_DOCS, twoPhase));
             }
 
             @Override

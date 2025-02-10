@@ -633,6 +633,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          */
         final boolean renewalNeeded = StreamSupport.stream(routingTable.spliterator(), false)
             .filter(ShardRouting::assignedToNode)
+            .filter(r -> r.isSearchOnly() == false)
             .anyMatch(shardRouting -> {
                 final RetentionLease retentionLease = retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting));
                 if (retentionLease == null) {
@@ -1583,22 +1584,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
         // For other case which is local translog, return true as the requests are replicated to all shards in the replication group.
         return true;
-    }
-
-    /**
-     * Notifies the tracker of the current allocation IDs in the cluster state.
-     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the cluster-manager
-     * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
-     * @param routingTable                the shard routing table
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #updateFromClusterManager(long, Set, IndexShardRoutingTable)}
-     */
-    @Deprecated
-    public synchronized void updateFromMaster(
-        final long applyingClusterStateVersion,
-        final Set<String> inSyncAllocationIds,
-        final IndexShardRoutingTable routingTable
-    ) {
-        updateFromClusterManager(applyingClusterStateVersion, inSyncAllocationIds, routingTable);
     }
 
     /**

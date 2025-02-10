@@ -36,7 +36,6 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -73,6 +72,7 @@ import org.opensearch.snapshots.SnapshotShardPaths;
 import org.opensearch.snapshots.SnapshotShardPaths.ShardInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -92,6 +92,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.repositories.RepositoryDataTests.generateRandomRepoData;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.calculateMaxWithinIntLimit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -382,6 +383,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         IndexId indexId = repoData.getIndices().values().iterator().next();
         int shardCount = repoData.shardGenerations().getGens(indexId).size();
 
+        // Version 2.17 has file name starting with indexId
         String shardPath = String.join(
             SnapshotShardPaths.DELIMITER,
             indexId.getId(),
@@ -391,7 +393,19 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
             "1"
         );
         ShardInfo shardInfo = SnapshotShardPaths.parseShardPath(shardPath);
+        assertEquals(shardInfo.getIndexId(), indexId);
+        assertEquals(shardInfo.getShardCount(), shardCount);
 
+        // Version 2.17 has file name starting with snapshot_path_
+        shardPath = String.join(
+            SnapshotShardPaths.DELIMITER,
+            SnapshotShardPaths.FILE_PREFIX + indexId.getId(),
+            indexId.getName(),
+            String.valueOf(shardCount),
+            String.valueOf(indexId.getShardPathType()),
+            "1"
+        );
+        shardInfo = SnapshotShardPaths.parseShardPath(shardPath);
         assertEquals(shardInfo.getIndexId(), indexId);
         assertEquals(shardInfo.getShardCount(), shardCount);
     }
@@ -639,5 +653,54 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         assertTrue(settings.contains(BlobStoreRepository.READONLY_SETTING));
         assertTrue(settings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
         repository.close();
+    }
+
+    public void testSnapshotRepositoryDataCacheDefaultSetting() {
+        // given
+        BlobStoreRepository repository = setupRepo();
+        long maxThreshold = BlobStoreRepository.calculateMaxSnapshotRepositoryDataCacheThreshold();
+
+        // when
+        long expectedThreshold = Math.max(ByteSizeUnit.KB.toBytes(500), maxThreshold / 2);
+
+        // then
+        assertEquals(repository.repositoryDataCacheThreshold, expectedThreshold);
+    }
+
+    public void testHeapThresholdUsed() {
+        // given
+        long defaultThresholdOfHeap = ByteSizeUnit.GB.toBytes(1);
+        long defaultAbsoluteThreshold = ByteSizeUnit.KB.toBytes(500);
+
+        // when
+        long expectedThreshold = calculateMaxWithinIntLimit(defaultThresholdOfHeap, defaultAbsoluteThreshold);
+
+        // then
+        assertEquals(defaultThresholdOfHeap, expectedThreshold);
+    }
+
+    public void testAbsoluteThresholdUsed() {
+        // given
+        long defaultThresholdOfHeap = ByteSizeUnit.KB.toBytes(499);
+        long defaultAbsoluteThreshold = ByteSizeUnit.KB.toBytes(500);
+
+        // when
+        long result = calculateMaxWithinIntLimit(defaultThresholdOfHeap, defaultAbsoluteThreshold);
+
+        // then
+        assertEquals(defaultAbsoluteThreshold, result);
+    }
+
+    public void testThresholdCappedAtIntMax() {
+        // given
+        int maxSafeArraySize = Integer.MAX_VALUE - 8;
+        long defaultThresholdOfHeap = (long) maxSafeArraySize + 1;
+        long defaultAbsoluteThreshold = ByteSizeUnit.KB.toBytes(500);
+
+        // when
+        long expectedThreshold = calculateMaxWithinIntLimit(defaultThresholdOfHeap, defaultAbsoluteThreshold);
+
+        // then
+        assertEquals(maxSafeArraySize, expectedThreshold);
     }
 }

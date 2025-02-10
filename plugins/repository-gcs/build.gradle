@@ -43,13 +43,9 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
-  classname 'org.opensearch.repositories.gcs.GoogleCloudStoragePlugin'
+  description = 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
+  classname = 'org.opensearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
-
-versions << [
-  'google_auth': '1.7.0'
-]
 
 dependencies {
   api 'com.google.api:api-common:1.8.1'
@@ -58,7 +54,7 @@ dependencies {
 
   api 'com.google.apis:google-api-services-storage:v1-rev20230617-2.0.0'
 
-  api 'com.google.api-client:google-api-client:2.2.0'
+  api 'com.google.api-client:google-api-client:2.7.0'
 
   api 'com.google.api.grpc:proto-google-common-protos:2.37.1'
   api 'com.google.api.grpc:proto-google-iam-v1:1.33.0'
@@ -67,10 +63,10 @@ dependencies {
   api "com.google.auth:google-auth-library-oauth2-http:${versions.google_auth}"
 
   api 'com.google.cloud:google-cloud-core:2.30.0'
-  api 'com.google.cloud:google-cloud-core-http:2.23.0'
+  api 'com.google.cloud:google-cloud-core-http:2.47.0'
   api 'com.google.cloud:google-cloud-storage:1.113.1'
 
-  api 'com.google.code.gson:gson:2.10.1'
+  api 'com.google.code.gson:gson:2.11.0'
 
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api 'com.google.guava:failureaccess:1.0.1'
@@ -86,7 +82,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'org.threeten:threetenbp:1.4.4'
-  api 'io.grpc:grpc-api:1.57.2'
+  api "io.grpc:grpc-api:${versions.grpc}"
   api 'io.opencensus:opencensus-api:0.31.1'
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
 
@@ -148,7 +144,6 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
-    'com.google.auth.oauth2.GdchCredentials',
     'com.google.protobuf.util.JsonFormat',
     'com.google.protobuf.util.JsonFormat$Parser',
     'com.google.protobuf.util.JsonFormat$Printer',
@@ -302,6 +297,13 @@ yamlRestTest {
 
 testClusters {
   all testClustersConfiguration
+}
+
+/**
+ * Used for testing getting credentials from GCE
+ */
+test {
+  environment 'NO_GCE_CHECK', 'true'
 }
 
 /*

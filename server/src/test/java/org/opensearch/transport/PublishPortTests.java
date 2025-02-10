@@ -43,8 +43,6 @@ import java.util.List;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
-import static org.opensearch.transport.TcpTransport.resolvePublishPort;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PublishPortTests extends OpenSearchTestCase {
@@ -73,48 +71,44 @@ public class PublishPortTests extends OpenSearchTestCase {
 
         }
 
-        int publishPort = resolvePublishPort(
-            new TcpTransport.ProfileSettings(settings, profile),
+        int publishPort = Transport.resolvePublishPort(
+            new TcpTransport.ProfileSettings(settings, profile).publishPort,
             randomAddresses(),
             getByName("127.0.0.2")
         );
         assertThat("Publish port should be explicitly set", publishPort, equalTo(useProfile ? 9080 : 9081));
 
-        publishPort = resolvePublishPort(
-            new TcpTransport.ProfileSettings(baseSettings, profile),
+        publishPort = Transport.resolvePublishPort(
+            new TcpTransport.ProfileSettings(baseSettings, profile).publishPort,
             asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
             getByName("127.0.0.1")
         );
         assertThat("Publish port should be derived from matched address", publishPort, equalTo(boundPort));
 
-        publishPort = resolvePublishPort(
-            new TcpTransport.ProfileSettings(baseSettings, profile),
+        publishPort = Transport.resolvePublishPort(
+            new TcpTransport.ProfileSettings(baseSettings, profile).publishPort,
             asList(address("127.0.0.1", boundPort), address("127.0.0.2", boundPort)),
             getByName("127.0.0.3")
         );
         assertThat("Publish port should be derived from unique port of bound addresses", publishPort, equalTo(boundPort));
 
-        try {
-            resolvePublishPort(
-                new TcpTransport.ProfileSettings(baseSettings, profile),
-                asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
-                getByName("127.0.0.3")
-            );
-            fail("Expected BindTransportException as publish_port not specified and non-unique port of bound addresses");
-        } catch (BindTransportException e) {
-            assertThat(e.getMessage(), containsString("Failed to auto-resolve publish port"));
-        }
+        int resPort = Transport.resolvePublishPort(
+            new TcpTransport.ProfileSettings(baseSettings, profile).publishPort,
+            asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
+            getByName("127.0.0.3")
+        );
+        assertThat("as publish_port not specified and non-unique port of bound addresses", resPort, equalTo(-1));
 
-        publishPort = resolvePublishPort(
-            new TcpTransport.ProfileSettings(baseSettings, profile),
+        publishPort = Transport.resolvePublishPort(
+            new TcpTransport.ProfileSettings(baseSettings, profile).publishPort,
             asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
             getByName("127.0.0.1")
         );
         assertThat("Publish port should be derived from matching wildcard address", publishPort, equalTo(boundPort));
 
         if (NetworkUtils.SUPPORTS_V6) {
-            publishPort = resolvePublishPort(
-                new TcpTransport.ProfileSettings(baseSettings, profile),
+            publishPort = Transport.resolvePublishPort(
+                new TcpTransport.ProfileSettings(baseSettings, profile).publishPort,
                 asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
                 getByName("::1")
             );

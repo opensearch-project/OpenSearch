@@ -59,6 +59,7 @@ import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.opensearch.test.BackgroundIndexer;
@@ -252,22 +253,27 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
-
+            AsyncTransferManager asyncUploadUtils = new AsyncTransferManager(
+                S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.get(clusterService.getSettings()).getBytes(),
+                normalExecutorBuilder.getStreamReader(),
+                priorityExecutorBuilder.getStreamReader(),
+                urgentExecutorBuilder.getStreamReader(),
+                transferSemaphoresHolder
+            );
             return new S3Repository(
                 metadata,
                 registry,
                 service,
                 clusterService,
                 recoverySettings,
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                null,
-                null,
+                asyncUploadUtils,
+                urgentExecutorBuilder,
+                priorityExecutorBuilder,
+                normalExecutorBuilder,
+                s3AsyncService,
+                S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING.get(clusterService.getSettings()),
+                normalPrioritySizeBasedBlockingQ,
+                lowPrioritySizeBasedBlockingQ,
                 genericStatsMetricPublisher
             ) {
 

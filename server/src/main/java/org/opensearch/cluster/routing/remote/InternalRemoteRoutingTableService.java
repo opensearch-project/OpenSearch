@@ -33,7 +33,6 @@ import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
 import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
-import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -49,7 +48,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableConfigured;
 
 /**
  * A Service which provides APIs to upload and download routing table from remote store.
@@ -76,7 +75,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         ThreadPool threadpool,
         String clusterName
     ) {
-        assert isRemoteRoutingTableEnabled(settings) : "Remote routing table is not enabled";
+        assert isRemoteRoutingTableConfigured(settings) : "Remote routing table is not enabled";
         this.repositoriesService = repositoriesService;
         this.settings = settings;
         this.threadPool = threadpool;
@@ -234,10 +233,8 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
     @Override
     protected void doStart() {
-        assert isRemoteRoutingTableEnabled(settings) == true : "Remote routing table is not enabled";
-        final String remoteStoreRepo = settings.get(
-            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY
-        );
+        assert isRemoteRoutingTableConfigured(settings) == true : "Remote routing table is not enabled";
+        final String remoteStoreRepo = RemoteStoreNodeAttribute.getRoutingTableRepoName(settings);
         assert remoteStoreRepo != null : "Remote routing table repository is not configured";
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";

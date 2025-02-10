@@ -57,7 +57,7 @@ if (project == rootProject) {
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project)
 version = props.getProperty("opensearch")
 
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
@@ -74,8 +74,8 @@ processResources {
  *         Java version                                                      *
  *****************************************************************************/
 
-if (JavaVersion.current() < JavaVersion.VERSION_11) {
-  throw new GradleException('At least Java 11 is required to build opensearch gradle tools')
+if (JavaVersion.current() < JavaVersion.VERSION_21) {
+  throw new GradleException('At least Java 21 is required to build opensearch gradle tools')
 }
 
 sourceSets {
@@ -104,23 +104,23 @@ dependencies {
 
   api "commons-codec:commons-codec:${props.getProperty('commonscodec')}"
   api "org.apache.commons:commons-compress:${props.getProperty('commonscompress')}"
-  api 'org.apache.ant:ant:1.10.14'
+  api 'org.apache.ant:ant:1.10.15'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:10.0.0'
-  api 'com.netflix.nebula:nebula-publishing-plugin:21.0.0'
+  api 'com.netflix.nebula:nebula-publishing-plugin:21.1.0'
   api 'com.netflix.nebula:gradle-info-plugin:12.1.6'
   api 'org.apache.rat:apache-rat:0.15'
   api "commons-io:commons-io:${props.getProperty('commonsio')}"
   api "net.java.dev.jna:jna:5.14.0"
-  api 'com.github.johnrengelman:shadow:8.1.1'
+  api 'com.gradleup.shadow:shadow-gradle-plugin:8.3.5'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
-  api 'de.thetaphi:forbiddenapis:3.6'
+  api 'de.thetaphi:forbiddenapis:3.8'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.17.6'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
   api 'org.apache.maven:maven-model:3.9.6'
   api 'com.networknt:json-schema-validator:1.2.0'
   api 'org.jruby.jcodings:jcodings:1.0.58'
-  api 'org.jruby.joni:joni:2.2.1'
+  api 'org.jruby.joni:joni:2.2.3'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.2.1"
 
@@ -171,8 +171,8 @@ if (project != rootProject) {
 
   allprojects {
     java {
-        targetCompatibility = JavaVersion.VERSION_11
-        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_21
+        sourceCompatibility = JavaVersion.VERSION_21
     }
   }
 
@@ -287,15 +287,19 @@ if (project != rootProject) {
   }
 }
 
-// Define this here because we need it early.
+// Define this here because we need it early. It uses VersionCatalogsExtension to extract all versions
+// and converts to a Java Properties object
 class VersionPropertiesLoader {
-  static Properties loadBuildSrcVersion(File input) throws IOException {
+  static Properties loadBuildSrcVersion(Project project) throws IOException {
     Properties props = new Properties();
-    InputStream is = new FileInputStream(input)
-    try {
-      props.load(is)
-    } finally {
-      is.close()
+
+    var catalogs = project.extensions.getByType(VersionCatalogsExtension)
+    var libs = catalogs.named("libs")
+    libs.getVersionAliases().forEach {
+       libs.findVersion(it).ifPresent { v ->
+         // Gradle replaces '_' with '.' so 'google_http_client' becomes 'google.http.client' instead
+         props.setProperty(it.replaceAll("[.]", "_"), v.requiredVersion)
+       }
     }
     loadBuildSrcVersion(props, System.getProperties())
     return props

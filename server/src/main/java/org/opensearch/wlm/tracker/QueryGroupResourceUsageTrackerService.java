@@ -47,6 +47,8 @@ public class QueryGroupResourceUsageTrackerService {
 
         // Iterate over each QueryGroup entry
         for (Map.Entry<String, List<QueryGroupTask>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
+            // refresh the resource stats
+            taskResourceTrackingService.refreshResourceStats(queryGroupEntry.getValue().toArray(new QueryGroupTask[0]));
             // Compute the QueryGroup resource usage
             final Map<ResourceType, Double> queryGroupUsage = new EnumMap<>(ResourceType.class);
             for (ResourceType resourceType : TRACKED_RESOURCES) {
@@ -74,6 +76,7 @@ public class QueryGroupResourceUsageTrackerService {
             .stream()
             .filter(QueryGroupTask.class::isInstance)
             .map(QueryGroupTask.class::cast)
+            .filter(QueryGroupTask::isQueryGroupSet)
             .collect(Collectors.groupingBy(QueryGroupTask::getQueryGroupId, Collectors.mapping(task -> task, Collectors.toList())));
     }
 }

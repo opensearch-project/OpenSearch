@@ -34,7 +34,6 @@ package org.opensearch.common.util.concurrent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ContextPreservingActionListener;
-import org.opensearch.client.OriginSettingClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
@@ -48,6 +47,7 @@ import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.secure_sm.ThreadContextPermission;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskThreadContextStatePropagator;
+import org.opensearch.transport.client.OriginSettingClient;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -221,6 +221,7 @@ public final class ThreadContext implements Writeable {
      *
      * permission org.opensearch.secure_sm.ThreadContextPermission "stashWithOrigin";
      */
+    @SuppressWarnings("removal")
     public StoredContext stashWithOrigin(String origin) {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -243,6 +244,7 @@ public final class ThreadContext implements Writeable {
      *
      * permission org.opensearch.secure_sm.ThreadContextPermission "stashAndMergeHeaders";
      */
+    @SuppressWarnings("removal")
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -548,6 +550,15 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Remove the {@code value} for the specified {@code key}.
+     *
+     * @param key         the header name
+     */
+    public void removeResponseHeader(final String key) {
+        threadLocal.get().responseHeaders.remove(key);
+    }
+
+    /**
      * Saves the current thread context and wraps command in a Runnable that restores that context before running command. If
      * <code>command</code> has already been passed through this method then it is returned unaltered rather than wrapped twice.
      */
@@ -592,6 +603,7 @@ public final class ThreadContext implements Writeable {
      *
      * permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
      */
+    @SuppressWarnings("removal")
     public void markAsSystemContext() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {

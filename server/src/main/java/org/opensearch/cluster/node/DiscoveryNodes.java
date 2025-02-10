@@ -125,16 +125,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Returns {@code true} if the local node is the elected cluster-manager node.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isLocalNodeElectedClusterManager()}
-     */
-    @Deprecated
-    public boolean isLocalNodeElectedMaster() {
-        return isLocalNodeElectedClusterManager();
-    }
-
-    /**
      * Get the number of known nodes
      *
      * @return number of nodes
@@ -171,17 +161,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Get a {@link Map} of the discovered cluster-manager nodes arranged by their ids
-     *
-     * @return {@link Map} of the discovered cluster-manager nodes arranged by their ids
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerNodes()}
-     */
-    @Deprecated
-    public Map<String, DiscoveryNode> getMasterNodes() {
-        return getClusterManagerNodes();
-    }
-
-    /**
      * @return All the ingest nodes arranged by their ids
      */
     public Map<String, DiscoveryNode> getIngestNodes() {
@@ -197,17 +176,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         final Map<String, DiscoveryNode> nodes = new HashMap<>(dataNodes);
         nodes.putAll(clusterManagerNodes);
         return Collections.unmodifiableMap(nodes);
-    }
-
-    /**
-     * Get a {@link Map} of the discovered cluster-manager and data nodes arranged by their ids
-     *
-     * @return {@link Map} of the discovered cluster-manager and data nodes arranged by their ids
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerAndDataNodes()}
-     */
-    @Deprecated
-    public Map<String, DiscoveryNode> getMasterAndDataNodes() {
-        return getClusterManagerAndDataNodes();
     }
 
     /**
@@ -231,16 +199,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             StreamSupport.stream(Spliterators.spliterator(clusterManagerNodes.entrySet(), 0), false).map(cur -> cur.getValue()),
             StreamSupport.stream(this.spliterator(), false).filter(n -> n.isClusterManagerNode() == false)
         );
-    }
-
-    /**
-     * Returns a stream of all nodes, with cluster-manager nodes at the front
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagersFirstStream()}
-     */
-    @Deprecated
-    public Stream<DiscoveryNode> mastersFirstStream() {
-        return clusterManagersFirstStream();
     }
 
     /**
@@ -293,17 +251,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Get the id of the cluster-manager node
-     *
-     * @return id of the cluster-manager
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerNodeId()}
-     */
-    @Deprecated
-    public String getMasterNodeId() {
-        return getClusterManagerNodeId();
-    }
-
-    /**
      * Get the id of the local node
      *
      * @return id of the local node
@@ -330,17 +277,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return nodes.get(clusterManagerNodeId);
         }
         return null;
-    }
-
-    /**
-     * Returns the cluster-manager node, or {@code null} if there is no cluster-manager node
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerNode()}
-     */
-    @Deprecated
-    @Nullable
-    public DiscoveryNode getMasterNode() {
-        return getClusterManagerNode();
     }
 
     /**
@@ -606,34 +542,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return Objects.equals(newClusterManagerNode, previousClusterManagerNode) == false;
         }
 
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerNodeChanged()} */
-        @Deprecated
-        public boolean masterNodeChanged() {
-            return clusterManagerNodeChanged();
-        }
-
         @Nullable
         public DiscoveryNode previousClusterManagerNode() {
             return previousClusterManagerNode;
         }
 
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #previousClusterManagerNode()} */
-        @Deprecated
-        @Nullable
-        public DiscoveryNode previousMasterNode() {
-            return previousClusterManagerNode();
-        }
-
         @Nullable
         public DiscoveryNode newClusterManagerNode() {
             return newClusterManagerNode;
-        }
-
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #newClusterManagerNode()} */
-        @Deprecated
-        @Nullable
-        public DiscoveryNode newMasterNode() {
-            return newClusterManagerNode();
         }
 
         public boolean removed() {
@@ -855,12 +771,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return this;
         }
 
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerNodeId} */
-        @Deprecated
-        public Builder masterNodeId(String clusterManagerNodeId) {
-            return clusterManagerNodeId(clusterManagerNodeId);
-        }
-
         public Builder localNodeId(String localNodeId) {
             this.localNodeId = localNodeId;
             return this;
@@ -938,12 +848,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
         public boolean isLocalNodeElectedClusterManager() {
             return clusterManagerNodeId != null && clusterManagerNodeId.equals(localNodeId);
-        }
-
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isLocalNodeElectedClusterManager()} */
-        @Deprecated
-        public boolean isLocalNodeElectedMaster() {
-            return isLocalNodeElectedClusterManager();
         }
     }
 

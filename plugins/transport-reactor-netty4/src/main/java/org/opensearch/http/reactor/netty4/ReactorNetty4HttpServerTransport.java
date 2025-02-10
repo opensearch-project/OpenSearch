@@ -18,6 +18,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.net.NetUtils;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.AbstractHttpServerTransport;
@@ -88,6 +89,19 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("opensearch.net.mtu", "1500")));
 
     /**
+     * Configure the maximum length of the content of the HTTP/2.0 clear-text upgrade request.
+     * By default the server will reject an upgrade request with non-empty content,
+     * because the upgrade request is most likely a GET request. If the client sends
+     * a non-GET upgrade request, {@link #h2cMaxContentLength} specifies the maximum
+     * length of the content of the upgrade request.
+     */
+    public static final Setting<ByteSizeValue> SETTING_H2C_MAX_CONTENT_LENGTH = Setting.byteSizeSetting(
+        "h2c.max_content_length",
+        new ByteSizeValue(65536, ByteSizeUnit.KB),
+        Property.NodeScope
+    );
+
+    /**
      * The number of Reactor Netty HTTP workers
      */
     public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = Setting.intSetting("http.netty.worker_count", 0, Property.NodeScope);
@@ -133,6 +147,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
     private final ByteSizeValue maxInitialLineLength;
     private final ByteSizeValue maxHeaderSize;
     private final ByteSizeValue maxChunkSize;
+    private final ByteSizeValue h2cMaxContentLength;
     private final SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     private volatile DisposableServer disposableServer;
@@ -208,6 +223,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.h2cMaxContentLength = SETTING_H2C_MAX_CONTENT_LENGTH.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.secureHttpTransportSettingsProvider = secureHttpTransportSettingsProvider;
     }
@@ -228,8 +244,10 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .compress(true)
                 .httpRequestDecoder(
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
+                        .h2cMaxContentLength(h2cMaxContentLength.bytesAsInt())
                         .maxHeaderSize(maxHeaderSize.bytesAsInt())
                         .maxInitialLineLength(maxInitialLineLength.bytesAsInt())
+                        .allowPartialChunks(false)
                 )
                 .handle((req, res) -> incomingRequest(req, res))
         );

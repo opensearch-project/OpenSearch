@@ -1625,6 +1625,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Fetches the last remote uploaded segment metadata file
+     * @return {@link RemoteSegmentMetadata}
+     * @throws IOException
+     */
+    public RemoteSegmentMetadata fetchLastRemoteUploadedSegmentMetadata() throws IOException {
+        if (!indexSettings.isAssignedOnRemoteNode()) {
+            throw new IllegalStateException("Index is not assigned on Remote Node");
+        }
+        RemoteSegmentMetadata lastUploadedMetadata = getRemoteDirectory().readLatestMetadataFile();
+        if (lastUploadedMetadata == null) {
+            throw new FileNotFoundException("No metadata file found in remote store");
+        }
+        return lastUploadedMetadata;
+    }
+
+    /**
      * Creates a new {@link IndexCommit} snapshot from the currently running engine. All resources referenced by this
      * commit won't be freed until the commit / snapshot is closed.
      *
@@ -2499,8 +2515,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
         };
 
-        // Do not load the global checkpoint if this is a remote snapshot index
-        if (indexSettings.isRemoteSnapshot() == false && indexSettings.isRemoteTranslogStoreEnabled() == false) {
+        // Do not load the global checkpoint if this is a remote snapshot index or using ingestion source
+        if (indexSettings.isRemoteSnapshot() == false
+            && indexSettings.isRemoteTranslogStoreEnabled() == false
+            && !indexSettings.getIndexMetadata().useIngestionSource()) {
             loadGlobalCheckpointToReplicationTracker();
         }
 
@@ -2524,22 +2542,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
-        recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
-        loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker);
-        getEngine().translogManager().skipTranslogRecovery();
+        openEngineAndSkipTranslogRecovery(true);
     }
 
     public void openEngineAndSkipTranslogRecoveryFromSnapshot() throws IOException {
-        assert routingEntry().recoverySource().getType() == RecoverySource.Type.SNAPSHOT : "not a snapshot recovery ["
-            + routingEntry()
-            + "]";
+        assert routingEntry().isSearchOnly() || routingEntry().recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            : "not a snapshot recovery [" + routingEntry() + "]";
         recoveryState.validateCurrentStage(RecoveryState.Stage.INDEX);
         maybeCheckIndex();
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+        openEngineAndSkipTranslogRecovery(routingEntry().isSearchOnly());
+    }
+
+    void openEngineAndSkipTranslogRecovery(boolean syncFromRemote) throws IOException {
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker, false);
+        innerOpenEngineAndTranslog(replicationTracker, syncFromRemote);
+        assert routingEntry().isSearchOnly() == false || translogStats().estimatedNumberOfOperations() == 0
+            : "Translog is expected to be empty but holds " + translogStats().estimatedNumberOfOperations() + "Operations.";
         getEngine().translogManager().skipTranslogRecovery();
     }
 
@@ -2617,6 +2637,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
+        if (indexSettings.getIndexMetadata().useIngestionSource()) {
+            return;
+        }
         assert assertSequenceNumbersInCommit();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
     }
@@ -2889,7 +2912,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void recoverFromStore(ActionListener<Boolean> listener) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
-        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+        assert shardRouting.primary() || shardRouting.isSearchOnly()
+            : "recover from store only makes sense if the shard is a primary shard or an untracked search only replica";
         assert shardRouting.initializing() : "can only start recovery on initializing shard";
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         storeRecovery.recoverFromStore(this, listener);
@@ -4052,8 +4076,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isReadOnlyReplica,
             this::enableUploadToRemoteTranslog,
             translogFactorySupplier.apply(indexSettings, shardRouting),
-            isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
+            isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
             // timeseries
+            () -> docMapper()
         );
     }
 
@@ -5214,7 +5239,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else if (segmentsNFile != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        storeDirectory.openInput(segmentsNFile, IOContext.DEFAULT)
+                        storeDirectory.openInput(segmentsNFile, IOContext.READONCE)
                     )
                 ) {
                     long commitGeneration = SegmentInfos.generationFromSegmentsFileName(segmentsNFile);
@@ -5288,7 +5313,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // Visible for testing
     boolean localDirectoryContains(Directory localDirectory, String file, long checksum) throws IOException {
-        try (IndexInput indexInput = localDirectory.openInput(file, IOContext.DEFAULT)) {
+        try (IndexInput indexInput = localDirectory.openInput(file, IOContext.READONCE)) {
             if (checksum == CodecUtil.retrieveChecksum(indexInput)) {
                 return true;
             } else {

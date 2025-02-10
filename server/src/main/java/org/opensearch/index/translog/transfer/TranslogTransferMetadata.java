@@ -170,6 +170,16 @@ public class TranslogTransferMetadata {
         }
     }
 
+    public static long getMaxGenerationFromFileName(String filename) {
+        String[] tokens = filename.split(METADATA_SEPARATOR);
+        try {
+            return RemoteStoreUtils.invertLong(tokens[2]);
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Exception while getting max generation from: {}", filename), e);
+            return -1;
+        }
+    }
+
     public static Tuple<Long, Long> getMinMaxPrimaryTermFromFilename(String filename) {
         String[] tokens = filename.split(METADATA_SEPARATOR);
         if (tokens.length < 7) {

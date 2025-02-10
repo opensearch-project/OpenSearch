@@ -40,6 +40,7 @@ import org.opensearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.opensearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
+import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileCollection;
@@ -60,7 +61,10 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
+
+import javax.inject.Inject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -90,7 +94,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         CliMain.EXIT_VIOLATION,
         CliMain.EXIT_UNSUPPORTED_JDK
     );
-    private static final String JDK_JAR_HELL_MAIN_CLASS = "org.opensearch.bootstrap.JdkJarHellCheck";
+    private static final String JDK_JAR_HELL_MAIN_CLASS = "org.opensearch.common.bootstrap.JdkJarHellCheck";
 
     private Set<String> missingClassExcludes = new TreeSet<>();
 
@@ -104,9 +108,22 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private FileCollection jdkJarHellClasspath;
 
-    private final Property<JavaVersion> targetCompatibility = getProject().getObjects().property(JavaVersion.class);
+    private final Project project;
+
+    private final Property<JavaVersion> targetCompatibility;
+
+    @Inject
+    public ThirdPartyAuditTask(Project project) {
+        this.project = project;
+        this.targetCompatibility = project.getObjects().property(JavaVersion.class);
+    }
 
     public boolean jarHellEnabled = true;
+
+    interface InjectedExecOps {
+        @Inject
+        ExecOperations getExecOps();
+    }
 
     @Input
     public Property<JavaVersion> getTargetCompatibility() {
@@ -116,7 +133,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
     @InputFiles
     @PathSensitive(PathSensitivity.NAME_ONLY)
     public Configuration getForbiddenAPIsConfiguration() {
-        return getProject().getConfigurations().getByName("forbiddenApisCliJar");
+        return project.getConfigurations().getByName("forbiddenApisCliJar");
     }
 
     @InputFile
@@ -141,12 +158,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     @Internal
     public File getJarExpandDir() {
-        return new File(new File(getProject().getBuildDir(), "precommit/thirdPartyAudit"), getName());
+        return new File(new File(project.getBuildDir(), "precommit/thirdPartyAudit"), getName());
     }
 
     @OutputFile
     public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + getName());
+        return new File(project.getBuildDir(), "markers/" + getName());
     }
 
     // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jdk jar hell.
@@ -205,10 +222,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
         // err on the side of scanning these to make sure we don't miss anything
         Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null && dep.getGroup().startsWith("org.opensearch") == false;
 
-        Set<File> jars = GradleUtils.getFiles(getProject(), getRuntimeConfiguration(), reallyThirdParty).getFiles();
+        Set<File> jars = GradleUtils.getFiles(project, getRuntimeConfiguration(), reallyThirdParty).getFiles();
         Set<File> compileOnlyConfiguration = GradleUtils.getFiles(
-            getProject(),
-            getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME),
+            project,
+            project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME),
             reallyThirdParty
         ).getFiles();
         // don't scan provided dependencies that we already scanned, e.x. don't scan cores dependencies for every plugin
@@ -221,8 +238,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
         Set<File> jars = getJarsToScan();
-
-        extractJars(jars);
+        Set<File> extractedJars = extractJars(jars);
 
         final String forbiddenApisOutput = runForbiddenAPIsCli();
 
@@ -240,7 +256,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
         Set<String> jdkJarHellClasses = null;
         if (this.jarHellEnabled) {
-            jdkJarHellClasses = runJdkJarHellCheck();
+            jdkJarHellClasses = runJdkJarHellCheck(extractedJars);
         }
 
         if (missingClassExcludes != null) {
@@ -293,16 +309,26 @@ public class ThirdPartyAuditTask extends DefaultTask {
         getLogger().error("Forbidden APIs output:\n{}==end of forbidden APIs==", forbiddenApisOutput);
     }
 
-    private void extractJars(Set<File> jars) {
+    /**
+     * Extract project jars to build directory as specified by getJarExpandDir.
+     * Handle multi release jars by keeping versions closest to `targetCompatibility` version.
+     * @param jars to extract to build dir
+     * @return File set of extracted jars
+     */
+    private Set<File> extractJars(Set<File> jars) {
+        Set<File> extractedJars = new TreeSet<>();
         File jarExpandDir = getJarExpandDir();
         // We need to clean up to make sure old dependencies don't linger
-        getProject().delete(jarExpandDir);
+        project.delete(jarExpandDir);
 
         jars.forEach(jar -> {
-            FileTree jarFiles = getProject().zipTree(jar);
-            getProject().copy(spec -> {
+            String jarPrefix = jar.getName().replace(".jar", "");
+            File jarSubDir = new File(jarExpandDir, jarPrefix);
+            extractedJars.add(jarSubDir);
+            FileTree jarFiles = project.zipTree(jar);
+            project.copy(spec -> {
                 spec.from(jarFiles);
-                spec.into(jarExpandDir);
+                spec.into(jarSubDir);
                 // exclude classes from multi release jars
                 spec.exclude("META-INF/versions/**");
             });
@@ -319,9 +345,9 @@ public class ThirdPartyAuditTask extends DefaultTask {
             IntStream.rangeClosed(
                 Integer.parseInt(JavaVersion.VERSION_1_9.getMajorVersion()),
                 Integer.parseInt(targetCompatibility.get().getMajorVersion())
-            ).forEach(majorVersion -> getProject().copy(spec -> {
-                spec.from(getProject().zipTree(jar));
-                spec.into(jarExpandDir);
+            ).forEach(majorVersion -> project.copy(spec -> {
+                spec.from(project.zipTree(jar));
+                spec.into(jarSubDir);
                 String metaInfPrefix = "META-INF/versions/" + majorVersion;
                 spec.include(metaInfPrefix + "/**");
                 // Drop the version specific prefix
@@ -329,6 +355,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 spec.setIncludeEmptyDirs(false);
             }));
         });
+
+        return extractedJars;
     }
 
     private void assertNoJarHell(Set<String> jdkJarHellClasses) {
@@ -357,14 +385,15 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private String runForbiddenAPIsCli() throws IOException {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-        ExecResult result = getProject().javaexec(spec -> {
+        InjectedExecOps execOps = project.getObjects().newInstance(InjectedExecOps.class);
+        ExecResult result = execOps.getExecOps().javaexec(spec -> {
             if (javaHome != null) {
                 spec.setExecutable(javaHome + "/bin/java");
             }
             spec.classpath(
                 getForbiddenAPIsConfiguration(),
                 getRuntimeConfiguration(),
-                getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
+                project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
             );
             spec.jvmArgs("-Xmx1g");
             spec.jvmArgs(LoggedExec.shortLivedArgs());
@@ -389,17 +418,22 @@ public class ThirdPartyAuditTask extends DefaultTask {
         return forbiddenApisOutput;
     }
 
-    private Set<String> runJdkJarHellCheck() throws IOException {
+    /**
+     * Execute java with JDK_JAR_HELL_MAIN_CLASS against provided jars with OpenSearch core in the classpath.
+     * @param jars to scan for jarHell violations.
+     * @return standard out of jarHell process.
+     */
+    private Set<String> runJdkJarHellCheck(Set<File> jars) throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
-        ExecResult execResult = getProject().javaexec(spec -> {
+        InjectedExecOps execOps = project.getObjects().newInstance(InjectedExecOps.class);
+        ExecResult execResult = execOps.getExecOps().javaexec(spec -> {
             spec.classpath(
                 jdkJarHellClasspath,
                 getRuntimeConfiguration(),
-                getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
+                project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
             );
-
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
-            spec.args(getJarExpandDir());
+            spec.args(jars);
             spec.setIgnoreExitValue(true);
             if (javaHome != null) {
                 spec.setExecutable(javaHome + "/bin/java");
@@ -417,9 +451,9 @@ public class ThirdPartyAuditTask extends DefaultTask {
     }
 
     private Configuration getRuntimeConfiguration() {
-        Configuration runtime = getProject().getConfigurations().findByName("runtimeClasspath");
+        Configuration runtime = project.getConfigurations().findByName("runtimeClasspath");
         if (runtime == null) {
-            return getProject().getConfigurations().getByName("testCompileClasspath");
+            return project.getConfigurations().getByName("testCompileClasspath");
         }
         return runtime;
     }

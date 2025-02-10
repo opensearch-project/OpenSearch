@@ -33,8 +33,13 @@
 package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
+
+import java.util.Set;
+
+import static org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.IndexMetric;
+import static org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
 
 /**
  * Transport request builder for obtaining cluster stats
@@ -53,6 +58,21 @@ public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
 
     public final ClusterStatsRequestBuilder useAggregatedNodeLevelResponses(boolean useAggregatedNodeLevelResponses) {
         request.useAggregatedNodeLevelResponses(useAggregatedNodeLevelResponses);
+        return this;
+    }
+
+    public final ClusterStatsRequestBuilder computeAllMetrics(boolean applyMetricFiltering) {
+        request.computeAllMetrics(applyMetricFiltering);
+        return this;
+    }
+
+    public final ClusterStatsRequestBuilder requestMetrics(Set<Metric> requestMetrics) {
+        requestMetrics.forEach(request::addMetric);
+        return this;
+    }
+
+    public final ClusterStatsRequestBuilder indexMetrics(Set<IndexMetric> indexMetrics) {
+        indexMetrics.forEach(request::addIndexMetric);
         return this;
     }
 }

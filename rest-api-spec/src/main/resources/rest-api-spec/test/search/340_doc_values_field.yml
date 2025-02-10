@@ -455,6 +455,28 @@
         index: test-iodvq
         body:
           query:
+            term:
+              ip_field: "192.168.0.1/24"
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            term:
+              ip_field: "192.168.0.1/31"
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
             range: {
               date_nanos: {
                 gte: "2018-10-29T12:12:12.123456789Z"
@@ -993,6 +1015,28 @@
         index: test-index
         body:
           query:
+            term:
+              ip_field: "192.168.0.1/24"
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            term:
+              ip_field: "192.168.0.1/31"
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
             range: {
               date_nanos: {
                 gte: "2018-10-29T12:12:12.123456789Z"
@@ -1078,7 +1122,7 @@
   - skip:
       features: [ "headers" ]
       version: " - 2.99.99"
-      reason: "searching with only doc_values was added in 3.0.0"
+      reason: "searching with only doc_values was finally added in 3.0.0"
   - do:
       indices.create:
         index: test-doc-values
@@ -1149,6 +1193,37 @@
           - '{ "some_keyword": "400", "byte": 121, "double": 101.0, "float": "801.0", "half_float": "401.0", "integer": 1291, "long": 13457, "short": 151, "unsigned_long": 10223372036854775801, "ip_field": "192.168.0.2", "boolean": true, "date_nanos": "2020-10-29T12:12:12.123456789Z", "date": "2020-10-29T12:12:12.987Z" }'
           - '{ "index": { "_index": "test-doc-values", "_id": "3" } }'
           - '{ "some_keyword": "5", "byte": 122, "double": 102.0, "float": "802.0", "half_float": "402.0", "integer": 1292, "long": 13458, "short": 152, "unsigned_long": 10223372036854775802, "ip_field": "192.168.0.3", "boolean": false, "date_nanos": "2024-10-29T12:12:12.123456789Z", "date": "2024-10-29T12:12:12.987Z" }'
+          - '{ "index": { "_index": "test-doc-values", "_id": "4" } }'
+          - '{ "some_keyword": "Keyword1" }'
+          - '{ "index": { "_index": "test-doc-values", "_id": "5" } }'
+          - '{ "some_keyword": "keyword1" }'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            term: {
+              "some_keyword": {
+                "value": "Keyword1"
+              } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            term: {
+              "some_keyword": {
+                "value": "keyword1",
+                "case_insensitive": "true"
+              } }
+
+  - match: { hits.total: 2 }
 
   - do:
       search:
@@ -1379,6 +1454,28 @@
         body:
           query:
             terms:
+              ip_field: ["192.168.0.1", "192.168.0.2"]
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            terms:
+              ip_field: ["192.168.0.1/31", "192.168.0.3"]
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            terms:
               boolean: [true, false]
 
   - match: { hits.total: 3 }
@@ -1515,6 +1612,28 @@
                 lte: "192.168.0.2"
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            term:
+              ip_field: "192.168.0.1/31"
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            term:
+              ip_field: "192.168.0.1/24"
+
+  - match: { hits.total: 3 }
 
   - do:
       search:

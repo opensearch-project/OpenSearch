@@ -1,0 +1,88 @@
+---
+"Search shards with slice specified in body":
+  - skip:
+      version: " - 2.18.99"
+      reason: "Added slice body to search_shards in 2.19"
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 7
+              number_of_replicas: 0
+
+  - do:
+      search_shards:
+        index: test_index
+        body:
+          slice:
+            id: 0
+            max: 3
+  - length: { shards: 3 }
+  - match: { shards.0.0.index: "test_index" }
+  - match: { shards.0.0.shard: 0 }
+  - match: { shards.1.0.shard: 3 }
+  - match: { shards.2.0.shard: 6 }
+
+  - do:
+      search_shards:
+        index: test_index
+        body:
+          slice:
+            id: 1
+            max: 3
+  - length: { shards: 2 }
+  - match: { shards.0.0.index: "test_index" }
+  - match: { shards.0.0.shard: 1 }
+  - match: { shards.1.0.shard: 4 }
+
+  - do:
+      search_shards:
+        index: test_index
+        body:
+          slice:
+            id: 2
+            max: 3
+  - length: { shards: 2 }
+  - match: { shards.0.0.index: "test_index" }
+  - match: { shards.0.0.shard: 2 }
+  - match: { shards.1.0.shard: 5 }
+
+
+  - do:
+      search_shards:
+        index: test_index
+        preference: "_shards:0,2,4,6"
+        body:
+          slice:
+            id: 0
+            max: 3
+  - length: { shards: 2 }
+  - match: { shards.0.0.index: "test_index" }
+  - match: { shards.0.0.shard: 0 }
+  - match: { shards.1.0.shard: 6 }
+
+  - do:
+      search_shards:
+        index: test_index
+        preference: "_shards:0,2,4,6"
+        body:
+          slice:
+            id: 1
+            max: 3
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: "test_index" }
+  - match: { shards.0.0.shard: 2 }
+
+  - do:
+      search_shards:
+        index: test_index
+        preference: "_shards:0,2,4,6"
+        body:
+          slice:
+            id: 2
+            max: 3
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: "test_index" }
+  - match: { shards.0.0.shard: 4 }

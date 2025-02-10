@@ -39,6 +39,7 @@ grant {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.lang.RuntimePermission "setContextClassLoader";
   permission java.lang.RuntimePermission "shutdownHooks";
+  permission java.lang.RuntimePermission "getClassLoader";
 
   // azure client set Authenticator for proxy username/password
   permission java.net.NetPermission "setDefaultAuthenticator";

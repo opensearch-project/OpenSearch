@@ -34,14 +34,14 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
-  classname 'org.opensearch.ingest.geoip.IngestGeoIpModulePlugin'
+  description = 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
+  classname = 'org.opensearch.ingest.geoip.IngestGeoIpModulePlugin'
 }
 
 dependencies {
-  api('com.maxmind.geoip2:geoip2:4.2.0')
+  api('com.maxmind.geoip2:geoip2:4.2.1')
   // geoip2 dependencies:
-  api('com.maxmind.db:maxmind-db:3.1.0')
+  api('com.maxmind.db:maxmind-db:3.1.1')
   api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}")
 

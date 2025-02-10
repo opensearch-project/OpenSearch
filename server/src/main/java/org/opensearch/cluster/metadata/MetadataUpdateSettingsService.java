@@ -63,7 +63,6 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -77,8 +76,8 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateOverlap;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogDurabilitySettings;
@@ -140,6 +139,7 @@ public class MetadataUpdateSettingsService {
 
         validateRefreshIntervalSettings(normalizedSettings, clusterService.getClusterSettings());
         validateTranslogDurabilitySettings(normalizedSettings, clusterService.getClusterSettings(), clusterService.getSettings());
+        final int defaultReplicaCount = clusterService.getClusterSettings().get(Metadata.DEFAULT_REPLICA_COUNT_SETTING);
 
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
@@ -248,7 +248,10 @@ public class MetadataUpdateSettingsService {
                     }
 
                     if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
-                        final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
+                        final int updatedNumberOfReplicas = openSettings.getAsInt(
+                            IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                            defaultReplicaCount
+                        );
                         if (preserveExisting == false) {
                             for (Index index : request.indices()) {
                                 if (index.getName().charAt(0) != '.') {
@@ -329,15 +332,13 @@ public class MetadataUpdateSettingsService {
                                 /*
                                  * The setting index.number_of_replicas is special; we require that this setting has a value in the index. When
                                  * creating the index, we ensure this by explicitly providing a value for the setting to the default (one) if
-                                 * there is a not value provided on the source of the index creation. A user can update this setting though,
-                                 * including updating it to null, indicating that they want to use the default value. In this case, we again
-                                 * have to provide an explicit value for the setting to the default (one).
+                                 * there is no value provided on the source of the index creation or "cluster.default_number_of_replicas" is
+                                 * not set. A user can update this setting though, including updating it to null, indicating that they want to
+                                 * use the value configured by cluster settings or a default value 1. In this case, we again have to provide
+                                 * an explicit value for the setting.
                                  */
                                 if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
-                                    indexSettings.put(
-                                        IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-                                        IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY)
-                                    );
+                                    indexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, defaultReplicaCount);
                                 }
                                 Settings finalSettings = indexSettings.build();
                                 indexScopedSettings.validate(
@@ -536,14 +537,12 @@ public class MetadataUpdateSettingsService {
     private void validateSearchReplicaCountSettings(Settings requestSettings, Index[] indices, ClusterState currentState) {
         final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings);
         if (updatedNumberOfSearchReplicas > 0) {
-            if (Arrays.stream(indices).allMatch(index -> currentState.metadata().isSegmentReplicationEnabled(index.getName())) == false) {
+            if (Arrays.stream(indices)
+                .allMatch(
+                    index -> currentState.metadata().index(index.getName()).getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)
+                ) == false) {
                 throw new IllegalArgumentException(
-                    "To set "
-                        + SETTING_NUMBER_OF_SEARCH_REPLICAS
-                        + ", "
-                        + INDEX_REPLICATION_TYPE_SETTING.getKey()
-                        + " must be set to "
-                        + ReplicationType.SEGMENT
+                    "To set " + SETTING_NUMBER_OF_SEARCH_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
                 );
             }
         }

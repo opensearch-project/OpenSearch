@@ -82,19 +82,23 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         return Objects.hash(stats);
     }
 
+    public Map<String, QueryGroupStatsHolder> getStats() {
+        return stats;
+    }
+
     /**
      * This is a stats holder object which will hold the data for a query group at a point in time
      * the instance will only be created on demand through stats api
      */
     public static class QueryGroupStatsHolder implements ToXContentObject, Writeable {
-        public static final String COMPLETIONS = "completions";
-        public static final String REJECTIONS = "rejections";
+        public static final String COMPLETIONS = "total_completions";
+        public static final String REJECTIONS = "total_rejections";
         public static final String TOTAL_CANCELLATIONS = "total_cancellations";
         public static final String FAILURES = "failures";
         private long completions;
         private long rejections;
         private long failures;
-        private long totalCancellations;
+        private long cancellations;
         private Map<ResourceType, ResourceStats> resourceStats;
 
         // this is needed to support the factory method
@@ -104,13 +108,13 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             long completions,
             long rejections,
             long failures,
-            long totalCancellations,
+            long cancellations,
             Map<ResourceType, ResourceStats> resourceStats
         ) {
             this.completions = completions;
             this.rejections = rejections;
             this.failures = failures;
-            this.totalCancellations = totalCancellations;
+            this.cancellations = cancellations;
             this.resourceStats = resourceStats;
         }
 
@@ -118,7 +122,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             this.completions = in.readVLong();
             this.rejections = in.readVLong();
             this.failures = in.readVLong();
-            this.totalCancellations = in.readVLong();
+            this.cancellations = in.readVLong();
             this.resourceStats = in.readMap((i) -> ResourceType.fromName(i.readString()), ResourceStats::new);
         }
 
@@ -136,10 +140,10 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
                 resourceStatsMap.put(resourceTypeStateEntry.getKey(), ResourceStats.from(resourceTypeStateEntry.getValue()));
             }
 
-            statsHolder.completions = queryGroupState.getCompletions();
+            statsHolder.completions = queryGroupState.getTotalCompletions();
             statsHolder.rejections = queryGroupState.getTotalRejections();
             statsHolder.failures = queryGroupState.getFailures();
-            statsHolder.totalCancellations = queryGroupState.getTotalCancellations();
+            statsHolder.cancellations = queryGroupState.getTotalCancellations();
             statsHolder.resourceStats = resourceStatsMap;
             return statsHolder;
         }
@@ -154,7 +158,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
             out.writeVLong(statsHolder.completions);
             out.writeVLong(statsHolder.rejections);
             out.writeVLong(statsHolder.failures);
-            out.writeVLong(statsHolder.totalCancellations);
+            out.writeVLong(statsHolder.cancellations);
             out.writeMap(statsHolder.resourceStats, (o, val) -> o.writeString(val.getName()), ResourceStats::writeTo);
         }
 
@@ -166,9 +170,10 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(COMPLETIONS, completions);
+            // builder.field(SHARD_COMPLETIONS, shardCompletions);
             builder.field(REJECTIONS, rejections);
-            builder.field(FAILURES, failures);
-            builder.field(TOTAL_CANCELLATIONS, totalCancellations);
+            // builder.field(FAILURES, failures);
+            builder.field(TOTAL_CANCELLATIONS, cancellations);
 
             for (ResourceType resourceType : ResourceType.getSortedValues()) {
                 ResourceStats resourceStats1 = resourceStats.get(resourceType);
@@ -189,12 +194,12 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
                 && rejections == that.rejections
                 && Objects.equals(resourceStats, that.resourceStats)
                 && failures == that.failures
-                && totalCancellations == that.totalCancellations;
+                && cancellations == that.cancellations;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(completions, rejections, totalCancellations, failures, resourceStats);
+            return Objects.hash(completions, rejections, cancellations, failures, resourceStats);
         }
     }
 
@@ -204,6 +209,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
     public static class ResourceStats implements ToXContentObject, Writeable {
         public static final String CURRENT_USAGE = "current_usage";
         public static final String CANCELLATIONS = "cancellations";
+        public static final String REJECTIONS = "rejections";
         public static final double PRECISION = 1e-9;
         private final double currentUsage;
         private final long cancellations;
@@ -255,7 +261,7 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(CURRENT_USAGE, currentUsage);
             builder.field(CANCELLATIONS, cancellations);
-            builder.field(QueryGroupStatsHolder.REJECTIONS, rejections);
+            builder.field(REJECTIONS, rejections);
             return builder;
         }
 

@@ -171,7 +171,13 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Extension scope
          */
-        ExtensionScope
+        ExtensionScope,
+
+        /**
+         * Mark this setting as immutable on snapshot restore
+         * i.e. the setting will not be allowed to be removed or modified during restore
+         */
+        UnmodifiableOnRestore
     }
 
     private final Key key;
@@ -208,10 +214,13 @@ public class Setting<T> implements ToXContentObject {
             final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
+            } else if (propertiesAsSet.contains(Property.UnmodifiableOnRestore) && propertiesAsSet.contains(Property.Dynamic)) {
+                throw new IllegalArgumentException("UnmodifiableOnRestore setting [" + key + "] cannot be dynamic");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.UnmodifiableOnRestore);
             checkPropertyRequiresNodeScope(propertiesAsSet, Property.Consistent);
             this.properties = propertiesAsSet;
         }
@@ -346,6 +355,10 @@ public class Setting<T> implements ToXContentObject {
      */
     public final boolean isFinal() {
         return properties.contains(Property.Final);
+    }
+
+    public final boolean isUnmodifiableOnRestore() {
+        return properties.contains(Property.UnmodifiableOnRestore);
     }
 
     public final boolean isInternalIndex() {
@@ -1855,6 +1868,10 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    public static Setting<Double> doubleSetting(String key, double defaultValue, Validator<Double> validator, Property... properties) {
+        return new Setting<>(key, Double.toString(defaultValue), Double::parseDouble, validator, properties);
+    }
+
     /**
      * A writeable parser for double
      *
@@ -1959,6 +1976,15 @@ public class Setting<T> implements ToXContentObject {
             validator,
             properties
         );
+    }
+
+    public static Setting<Double> doubleSetting(
+        String key,
+        Setting<Double> fallbackSetting,
+        Validator<Double> validator,
+        Property... properties
+    ) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, Double::parseDouble, validator, properties);
     }
 
     /// simpleString

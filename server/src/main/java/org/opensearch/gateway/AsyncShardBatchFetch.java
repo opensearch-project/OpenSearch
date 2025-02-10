@@ -11,6 +11,7 @@ package org.opensearch.gateway;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
@@ -48,7 +49,8 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
         Class<V> clazz,
         V emptyShardResponse,
         Predicate<V> emptyShardResponsePredicate,
-        ShardBatchResponseFactory<T, V> responseFactory
+        ShardBatchResponseFactory<T, V> responseFactory,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         super(
             logger,
@@ -64,7 +66,8 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
                 clazz,
                 emptyShardResponse,
                 emptyShardResponsePredicate,
-                responseFactory
+                responseFactory,
+                clusterManagerMetrics
             )
         );
     }
@@ -116,9 +119,10 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
             Class<V> clazz,
             V emptyResponse,
             Predicate<V> emptyShardResponsePredicate,
-            ShardBatchResponseFactory<T, V> responseFactory
+            ShardBatchResponseFactory<T, V> responseFactory,
+            ClusterManagerMetrics clusterManagerMetrics
         ) {
-            super(Loggers.getLogger(logger, "_" + logKey), type);
+            super(Loggers.getLogger(logger, "_" + logKey), type, clusterManagerMetrics);
             this.batchSize = shardAttributesMap.size();
             this.emptyShardResponsePredicate = emptyShardResponsePredicate;
             cache = new HashMap<>();
@@ -237,11 +241,13 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
                 for (Map.Entry<ShardId, V> shardData : shardDataFromNode.entrySet()) {
                     if (shardData.getValue() != null) {
                         ShardId shardId = shardData.getKey();
-                        if (emptyShardResponsePredicate.test(shardData.getValue())) {
-                            this.emptyShardResponse[shardIdKey.get(shardId)] = true;
-                            this.shardData[shardIdKey.get(shardId)] = null;
-                        } else {
-                            this.shardData[shardIdKey.get(shardId)] = shardData.getValue();
+                        if (shardIdKey.get(shardId) != null) {// the response might be for shard which is no longer present in cache
+                            if (emptyShardResponsePredicate.test(shardData.getValue())) {
+                                this.emptyShardResponse[shardIdKey.get(shardId)] = true;
+                                this.shardData[shardIdKey.get(shardId)] = null;
+                            } else {
+                                this.shardData[shardIdKey.get(shardId)] = shardData.getValue();
+                            }
                         }
                     }
                 }

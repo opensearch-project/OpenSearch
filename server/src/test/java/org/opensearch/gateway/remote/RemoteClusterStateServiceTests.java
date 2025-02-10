@@ -151,7 +151,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableConfigured;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -280,8 +280,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState clusterState = generateClusterStateWithOneIndex().build();
         final RemoteClusterStateManifestInfo manifestDetails = remoteClusterStateService.writeFullMetadata(
             clusterState,
-            randomAlphaOfLength(10),
-            MANIFEST_CURRENT_CODEC_VERSION
+            randomAlphaOfLength(10)
         );
         Assert.assertThat(manifestDetails, nullValue());
     }
@@ -327,11 +326,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(
-            clusterState,
-            "prev-cluster-uuid",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
 
@@ -370,6 +366,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // TODO Make the publication flag parameterized
         publicationEnabled = true;
         settings = Settings.builder().put(settings).put(REMOTE_PUBLICATION_SETTING_KEY, publicationEnabled).build();
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
@@ -388,6 +386,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             ),
             writableRegistry()
         );
+        assertTrue(remoteClusterStateService.isRemotePublicationEnabled());
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager())
             .customs(
                 Map.of(
@@ -398,11 +397,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(
-            clusterState,
-            "prev-cluster-uuid",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
 
@@ -450,11 +446,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         }).when(container).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
 
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(
-            clusterState,
-            "prev-cluster-uuid",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
 
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
@@ -531,7 +524,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         assertThrows(
             RemoteStateTransferException.class,
-            () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10), MANIFEST_CURRENT_CODEC_VERSION)
+            () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
     }
 
@@ -575,7 +568,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ).thenReturn(new RemoteClusterStateUtils.UploadedMetadataResults());
         RemoteStateTransferException ex = expectThrows(
             RemoteStateTransferException.class,
-            () -> spiedService.writeFullMetadata(clusterState, randomAlphaOfLength(10), MANIFEST_CURRENT_CODEC_VERSION)
+            () -> spiedService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
         assertTrue(ex.getMessage().contains("Timed out waiting for transfer"));
     }
@@ -597,7 +590,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         assertThrows(
             RemoteStateTransferException.class,
-            () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10), MANIFEST_CURRENT_CODEC_VERSION)
+            () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
         assertEquals(0, remoteClusterStateService.getUploadStats().getSuccessCount());
     }
@@ -747,6 +740,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     public void testWriteIncrementalMetadataSuccessWhenPublicationEnabled() throws IOException {
         publicationEnabled = true;
         settings = Settings.builder().put(settings).put(REMOTE_PUBLICATION_SETTING_KEY, true).build();
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
@@ -765,6 +760,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             ),
             writableRegistry()
         );
+        assertTrue(remoteClusterStateService.isRemotePublicationEnabled());
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
@@ -966,6 +962,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(false)
 
         );
+        assertNotNull(remoteClusterStateService.getFullDownloadStats());
+        assertEquals(1, remoteClusterStateService.getFullDownloadStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getFullDownloadStats().getFailedCount());
     }
 
     public void testGetClusterStateFromManifest_CodecV1() throws IOException {
@@ -1300,6 +1299,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         diffManifest.getClusterStateCustomDeleted().forEach(clusterStateCustomName -> {
             assertFalse(updatedClusterState.customs().containsKey(clusterStateCustomName));
         });
+        assertNotNull(remoteClusterStateService.getDiffDownloadStats());
+        assertEquals(1, remoteClusterStateService.getDiffDownloadStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getDiffDownloadStats().getFailedCount());
     }
 
     public void testReadClusterStateInParallel_TimedOut() throws IOException {
@@ -1844,7 +1846,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // global metadata is updated
         assertThat(manifestAfterUpdate.hasMetadataAttributesFiles(), is(true));
         // During incremental update, codec version will not change.
-        assertThat(manifestAfterUpdate.getCodecVersion(), is(previousCodec));
+        assertThat(manifestAfterUpdate.getCodecVersion(), is(MANIFEST_CURRENT_CODEC_VERSION));
     }
 
     public void testWriteIncrementalGlobalMetadataFromCodecV0Success() throws IOException {
@@ -1879,7 +1881,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ).getClusterMetadataManifest();
 
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
-            .codecVersion(previousManifest.getCodecVersion())
+            .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
             .indices(Collections.emptyList())
             .clusterTerm(1L)
             .stateVersion(1L)
@@ -2068,11 +2070,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // Initial cluster state with index.
         final ClusterState initialClusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(
-            initialClusterState,
-            "_na_",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_")
+            .getClusterMetadataManifest();
 
         ClusterState clusterState1 = ClusterState.builder(initialClusterState)
             .metadata(
@@ -2150,11 +2149,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // Initial cluster state with index.
         final ClusterState initialClusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(
-            initialClusterState,
-            "_na_",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_")
+            .getClusterMetadataManifest();
         String initialIndex = "test-index";
         Index index1 = new Index("test-index-1", "index-uuid-1");
         Index index2 = new Index("test-index-2", "index-uuid-2");
@@ -2232,11 +2228,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // Initial cluster state with index.
         final ClusterState initialClusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(
-            initialClusterState,
-            "_na_",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_")
+            .getClusterMetadataManifest();
 
         ClusterState newClusterState = clusterStateUpdater.apply(initialClusterState);
 
@@ -2249,11 +2242,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 initialManifest
             ).getClusterMetadataManifest();
         } else {
-            manifestAfterMetadataUpdate = remoteClusterStateService.writeFullMetadata(
-                newClusterState,
-                initialClusterState.stateUUID(),
-                MANIFEST_CURRENT_CODEC_VERSION
-            ).getClusterMetadataManifest();
+            manifestAfterMetadataUpdate = remoteClusterStateService.writeFullMetadata(newClusterState, initialClusterState.stateUUID())
+                .getClusterMetadataManifest();
         }
 
         assertions.accept(initialManifest, manifestAfterMetadataUpdate);
@@ -2363,6 +2353,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ClusterState stateFromCache = remoteClusterStateService.getRemoteClusterStateCache()
             .getState(clusterState.getClusterName().value(), expectedManifest);
         assertEquals(stateFromCache.getMetadata(), state.getMetadata());
+
+        ClusterState stateFromCache2 = remoteClusterStateService.getClusterStateForManifest(
+            clusterState.getClusterName().value(),
+            expectedManifest,
+            "nodeA",
+            true
+        );
+        assertEquals(stateFromCache2.getMetadata(), state.getMetadata());
 
         final ClusterMetadataManifest notExistMetadata = ClusterMetadataManifest.builder()
             .indices(List.of())
@@ -2736,11 +2734,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(
-            clusterState,
-            "prev-cluster-uuid",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
 
         assertTrue(remoteClusterStateService.getUploadStats() != null);
         assertEquals(1, remoteClusterStateService.getUploadStats().getSuccessCount());
@@ -2749,7 +2744,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemoteRoutingTableNotInitializedWhenDisabled() {
-        if (isRemoteRoutingTableEnabled(settings)) {
+        if (isRemoteRoutingTableConfigured(settings)) {
             assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof InternalRemoteRoutingTableService);
         } else {
             assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof NoopRemoteRoutingTableService);
@@ -2795,11 +2790,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(
-            clusterState,
-            "prev-cluster-uuid",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         final UploadedIndexMetadata uploadedIndiceRoutingMetadata = new UploadedIndexMetadata(
             "test-index",
@@ -2848,11 +2840,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when((blobStoreRepository.basePath())).thenReturn(BlobPath.cleanPath().add("base-path"));
 
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(
-            clusterState,
-            "prev-cluster-uuid",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
 
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         final UploadedIndexMetadata uploadedIndiceRoutingMetadata = new UploadedIndexMetadata(
@@ -3102,11 +3091,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(
-            clusterState,
-            "prev-cluster-uuid",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         final UploadedIndexMetadata uploadedIndiceRoutingMetadata = new UploadedIndexMetadata(
             "test-index",
@@ -3123,7 +3109,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .previousClusterUUID("prev-cluster-uuid")
             .routingTableVersion(1L)
             .indicesRouting(List.of(uploadedIndiceRoutingMetadata))
-            .checksum(new ClusterStateChecksum(clusterState))
+            .checksum(new ClusterStateChecksum(clusterState, threadPool))
             .build();
 
         assertThat(manifest.getIndices().size(), is(1));
@@ -3146,11 +3132,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(
-            clusterState,
-            "prev-cluster-uuid",
-            MANIFEST_CURRENT_CODEC_VERSION
-        ).getClusterMetadataManifest();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         final UploadedIndexMetadata uploadedIndiceRoutingMetadata = new UploadedIndexMetadata(
             "test-index",
@@ -3193,7 +3176,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indices(Collections.emptyList())
-            .checksum(new ClusterStateChecksum(clusterState))
+            .checksum(new ClusterStateChecksum(clusterState, threadPool))
             .build();
         when((blobStoreRepository.basePath())).thenReturn(BlobPath.cleanPath().add("base-path"));
 
@@ -3219,7 +3202,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .previousClusterUUID("prev-cluster-uuid")
             .routingTableVersion(1)
             .indicesRouting(List.of(uploadedIndiceRoutingMetadata))
-            .checksum(new ClusterStateChecksum(clusterState))
+            .checksum(new ClusterStateChecksum(clusterState, threadPool))
             .build();
 
         assertThat(manifest.getIndices().size(), is(1));
@@ -3245,7 +3228,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indices(Collections.emptyList())
-            .checksum(new ClusterStateChecksum(clusterState))
+            .checksum(new ClusterStateChecksum(clusterState, threadPool))
             .build();
         when((blobStoreRepository.basePath())).thenReturn(BlobPath.cleanPath().add("base-path"));
 
@@ -3271,7 +3254,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .previousClusterUUID("prev-cluster-uuid")
             .routingTableVersion(1)
             .indicesRouting(List.of(uploadedIndiceRoutingMetadata))
-            .checksum(new ClusterStateChecksum(clusterState))
+            .checksum(new ClusterStateChecksum(clusterState, threadPool))
             .build();
 
         assertThat(manifest.getIndices().size(), is(1));
@@ -3342,13 +3325,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             anyString(),
             anyBoolean()
         );
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
     }
 
     public void testGetClusterStateForManifestWithChecksumValidationEnabled() throws IOException {
         initializeWithChecksumEnabled(RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE);
         ClusterState clusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().checksum(
-            new ClusterStateChecksum(clusterState)
+            new ClusterStateChecksum(clusterState, threadPool)
         ).build();
         remoteClusterStateService.start();
         RemoteClusterStateService mockService = spy(remoteClusterStateService);
@@ -3374,13 +3358,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             );
         mockService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, true);
         verify(mockService, times(1)).validateClusterStateFromChecksum(manifest, clusterState, ClusterName.DEFAULT.value(), NODE_ID, true);
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
     }
 
     public void testGetClusterStateForManifestWithChecksumValidationModeNone() throws IOException {
         initializeWithChecksumEnabled(RemoteClusterStateService.RemoteClusterStateValidationMode.NONE);
         ClusterState clusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().checksum(
-            new ClusterStateChecksum(clusterState)
+            new ClusterStateChecksum(clusterState, threadPool)
         ).build();
         remoteClusterStateService.start();
         RemoteClusterStateService mockService = spy(remoteClusterStateService);
@@ -3406,13 +3391,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             );
         mockService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, true);
         verify(mockService, times(0)).validateClusterStateFromChecksum(any(), any(), anyString(), anyString(), anyBoolean());
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
     }
 
     public void testGetClusterStateForManifestWithChecksumValidationEnabledWithMismatch() throws IOException {
         initializeWithChecksumEnabled(RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE);
         ClusterState clusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().checksum(
-            new ClusterStateChecksum(clusterState)
+            new ClusterStateChecksum(clusterState, threadPool)
         ).build();
         remoteClusterStateService.start();
         RemoteClusterStateService mockService = spy(remoteClusterStateService);
@@ -3448,6 +3434,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             NODE_ID,
             true
         );
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
+        assertNotNull(remoteClusterStateService.getFullDownloadStats());
+        assertEquals(0, remoteClusterStateService.getFullDownloadStats().getSuccessCount());
+        assertEquals(1, remoteClusterStateService.getFullDownloadStats().getFailedCount());
     }
 
     public void testGetClusterStateForManifestWithChecksumValidationDebugWithMismatch() throws IOException {
@@ -3461,7 +3451,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         );
         ClusterState clusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().checksum(
-            new ClusterStateChecksum(clusterState)
+            new ClusterStateChecksum(clusterState, threadPool)
         ).build();
         remoteClusterStateService.start();
         RemoteClusterStateService mockService = spy(remoteClusterStateService);
@@ -3494,13 +3484,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             NODE_ID,
             true
         );
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateFullDownloadValidationFailed());
     }
 
     public void testGetClusterStateUsingDiffWithChecksum() throws IOException {
         initializeWithChecksumEnabled(RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE);
         ClusterState clusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().checksum(
-            new ClusterStateChecksum(clusterState)
+            new ClusterStateChecksum(clusterState, threadPool)
         ).diffManifest(ClusterStateDiffManifest.builder().build()).build();
 
         remoteClusterStateService.start();
@@ -3535,13 +3526,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(NODE_ID),
             eq(false)
         );
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
     }
 
     public void testGetClusterStateUsingDiffWithChecksumModeNone() throws IOException {
         initializeWithChecksumEnabled(RemoteClusterStateService.RemoteClusterStateValidationMode.NONE);
         ClusterState clusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().checksum(
-            new ClusterStateChecksum(clusterState)
+            new ClusterStateChecksum(clusterState, threadPool)
         ).diffManifest(ClusterStateDiffManifest.builder().build()).build();
 
         remoteClusterStateService.start();
@@ -3576,13 +3568,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(NODE_ID),
             eq(false)
         );
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
     }
 
     public void testGetClusterStateUsingDiffWithChecksumModeDebugMismatch() throws IOException {
         initializeWithChecksumEnabled(RemoteClusterStateService.RemoteClusterStateValidationMode.DEBUG);
         ClusterState clusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().checksum(
-            new ClusterStateChecksum(clusterState)
+            new ClusterStateChecksum(clusterState, threadPool)
         ).diffManifest(ClusterStateDiffManifest.builder().build()).build();
 
         remoteClusterStateService.start();
@@ -3616,13 +3609,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(NODE_ID),
             eq(false)
         );
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
     }
 
     public void testGetClusterStateUsingDiffWithChecksumModeTraceMismatch() throws IOException {
         initializeWithChecksumEnabled(RemoteClusterStateService.RemoteClusterStateValidationMode.TRACE);
         ClusterState clusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().checksum(
-            new ClusterStateChecksum(clusterState)
+            new ClusterStateChecksum(clusterState, threadPool)
         ).diffManifest(ClusterStateDiffManifest.builder().build()).build();
 
         remoteClusterStateService.start();
@@ -3677,13 +3671,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(NODE_ID),
             eq(false)
         );
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
     }
 
     public void testGetClusterStateUsingDiffWithChecksumMismatch() throws IOException {
         initializeWithChecksumEnabled(RemoteClusterStateService.RemoteClusterStateValidationMode.FAILURE);
         ClusterState clusterState = generateClusterStateWithAllAttributes().build();
         ClusterMetadataManifest manifest = generateClusterMetadataManifestWithAllAttributes().checksum(
-            new ClusterStateChecksum(clusterState)
+            new ClusterStateChecksum(clusterState, threadPool)
         ).diffManifest(ClusterStateDiffManifest.builder().build()).build();
 
         remoteClusterStateService.start();
@@ -3738,6 +3733,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             eq(NODE_ID),
             eq(false)
         );
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getStateDiffDownloadValidationFailed());
+        assertNotNull(remoteClusterStateService.getDiffDownloadStats());
+        assertEquals(0, remoteClusterStateService.getDiffDownloadStats().getSuccessCount());
+        assertEquals(1, remoteClusterStateService.getDiffDownloadStats().getFailedCount());
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {

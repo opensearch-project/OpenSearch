@@ -88,7 +88,7 @@ public class EhcacheDiskCacheSettings {
      */
     public static final Setting.AffixSetting<String> DISK_CACHE_ALIAS_SETTING = Setting.suffixKeySetting(
         EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".alias",
-        (key) -> Setting.simpleString(key, "", NodeScope)
+        (key) -> Setting.simpleString(key, "ehcache_disk", NodeScope)
     );
 
     /**
@@ -101,6 +101,7 @@ public class EhcacheDiskCacheSettings {
 
     /**
      * Disk cache max size setting.
+     * If this cache is used as a tier in a TieredSpilloverCache, this setting is ignored.
      */
     public static final Setting.AffixSetting<Long> DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING = Setting.suffixKeySetting(
         EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".max_size_in_bytes",

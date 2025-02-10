@@ -36,8 +36,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'An easy, safe and fast scripting language for OpenSearch'
-  classname 'org.opensearch.painless.PainlessModulePlugin'
+  description = 'An easy, safe and fast scripting language for OpenSearch'
+  classname = 'org.opensearch.painless.PainlessModulePlugin'
 }
 
 ext {
@@ -115,11 +115,17 @@ testClusters {
   }
 }
 
+interface InjectedExecOps {
+  @Inject ExecOperations getExecOps()
+}
+
+
 tasks.register("generateContextDoc", DefaultTestClustersTask) {
   dependsOn sourceSets.doc.runtimeClasspath
   useCluster testClusters.generateContextCluster
   doFirst {
-    project.javaexec {
+    def execOps = project.objects.newInstance(InjectedExecOps)
+    execOps.execOps.javaexec {
       mainClass = 'org.opensearch.painless.ContextDocGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI().get(0)}"

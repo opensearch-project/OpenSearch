@@ -8,8 +8,7 @@
 
 package org.opensearch.plugin.wlm.rest;
 
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.node.NodeClient;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupAction;
@@ -20,6 +19,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.List;
 

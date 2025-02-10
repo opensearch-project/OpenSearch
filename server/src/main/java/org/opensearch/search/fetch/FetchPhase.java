@@ -38,10 +38,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.annotation.PublicApi;
@@ -55,7 +52,6 @@ import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -225,7 +221,7 @@ public class FetchPhase {
         }
     }
 
-    private FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
+    protected FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -234,7 +230,11 @@ public class FetchPhase {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
             boolean loadSource = sourceRequired(context);
-            return new FieldsVisitor(loadSource);
+            return new FieldsVisitor(
+                loadSource,
+                context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
+                context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
+            );
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
             return null;
@@ -266,9 +266,18 @@ public class FetchPhase {
             boolean loadSource = sourceRequired(context);
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
-                return new FieldsVisitor(loadSource);
+                return new FieldsVisitor(
+                    loadSource,
+                    context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
+                    context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
+                );
             } else {
-                return new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
+                return new CustomFieldsVisitor(
+                    storedToRequestedFields.keySet(),
+                    loadSource,
+                    context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
+                    context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
+                );
             }
         }
     }
@@ -501,7 +510,6 @@ public class FetchPhase {
         ObjectMapper current = nestedObjectMapper;
         String originalName = nestedObjectMapper.name();
         SearchHit.NestedIdentity nestedIdentity = null;
-        final IndexSettings indexSettings = context.getQueryShardContext().getIndexSettings();
         do {
             Query parentFilter;
             nestedParentObjectMapper = current.getParentObjectMapper(mapperService);
@@ -520,14 +528,13 @@ public class FetchPhase {
                 current = nestedParentObjectMapper;
                 continue;
             }
-            final Weight childWeight = context.searcher()
-                .createWeight(context.searcher().rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            Scorer childScorer = childWeight.scorer(subReaderContext);
-            if (childScorer == null) {
+            BitSet childIter = context.bitsetFilterCache()
+                .getBitSetProducer(context.searcher().rewrite(childFilter))
+                .getBitSet(subReaderContext);
+            if (childIter == null) {
                 current = nestedParentObjectMapper;
                 continue;
             }
-            DocIdSetIterator childIter = childScorer.iterator();
 
             BitSet parentBits = context.bitsetFilterCache().getBitSetProducer(parentFilter).getBitSet(subReaderContext);
 
@@ -541,8 +548,8 @@ public class FetchPhase {
              * that appear before him.
              */
             int previousParent = parentBits.prevSetBit(currentParent);
-            for (int docId = childIter.advance(previousParent + 1); docId < nestedSubDocId
-                && docId != DocIdSetIterator.NO_MORE_DOCS; docId = childIter.nextDoc()) {
+            for (int docId = childIter.nextSetBit(previousParent + 1); docId < nestedSubDocId
+                && docId != DocIdSetIterator.NO_MORE_DOCS; docId = childIter.nextSetBit(docId + 1)) {
                 offset++;
             }
             currentParent = nestedSubDocId;

@@ -10,6 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.fileformats.node;
 import org.apache.lucene.store.RandomAccessInput;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
+import org.opensearch.search.startree.StarTreeNodeCollector;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -192,7 +193,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
     }
 
     @Override
-    public StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException {
+    public StarTreeNode getChildForDimensionValue(Long dimensionValue, StarTreeNode lastMatchedChild) throws IOException {
         // there will be no children for leaf nodes
         if (isLeaf()) {
             return null;
@@ -200,7 +201,7 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
 
         StarTreeNode resultStarTreeNode = null;
         if (null != dimensionValue) {
-            resultStarTreeNode = binarySearchChild(dimensionValue);
+            resultStarTreeNode = binarySearchChild(dimensionValue, lastMatchedChild);
         }
         return resultStarTreeNode;
     }
@@ -240,19 +241,27 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
      * @return The child node if found, null otherwise
      * @throws IOException If there's an error reading from the input
      */
-    private FixedLengthStarTreeNode binarySearchChild(long dimensionValue) throws IOException {
+    private FixedLengthStarTreeNode binarySearchChild(long dimensionValue, StarTreeNode lastMatchedNode) throws IOException {
 
         int low = firstChildId;
-
-        // if the current node is star node, increment the low to reduce the search space
-        if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, firstChildId), StarTreeNodeType.STAR) != null) {
-            low++;
-        }
 
         int high = getInt(LAST_CHILD_ID_OFFSET);
         // if the current node is null node, decrement the high to reduce the search space
         if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, high), StarTreeNodeType.NULL) != null) {
             high--;
+        }
+
+        if (lastMatchedNode instanceof FixedLengthStarTreeNode) {
+            int lastMatchedNodeId = ((FixedLengthStarTreeNode) lastMatchedNode).nodeId();
+            // Start the binary search from node after the last matched as low.
+            if ((lastMatchedNodeId + 1) <= high) {
+                low = lastMatchedNodeId + 1;
+            } else {
+                return null;
+            }
+        } else if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, low), StarTreeNodeType.STAR) != null) {
+            // if the current node is star node, increment the low to reduce the search space
+            low++;
         }
 
         while (low <= high) {
@@ -269,6 +278,100 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
             }
         }
         return null;
+    }
+
+    @Override
+    public void collectChildrenInRange(long low, long high, StarTreeNodeCollector collector) throws IOException {
+        if (low <= high) {
+            FixedLengthStarTreeNode lowStarTreeNode = binarySearchChild(low, true, null);
+            if (lowStarTreeNode != null) {
+                FixedLengthStarTreeNode highStarTreeNode = binarySearchChild(high, false, lowStarTreeNode);
+                if (highStarTreeNode != null) {
+                    for (int lowNodeId = lowStarTreeNode.nodeId(); lowNodeId <= highStarTreeNode.nodeId(); ++lowNodeId) {
+                        collector.collectStarTreeNode(new FixedLengthStarTreeNode(in, lowNodeId));
+                    }
+                } else if (lowStarTreeNode.getDimensionValue() <= high) { // Low StarTreeNode is the last default node for that dimension.
+                    collector.collectStarTreeNode(lowStarTreeNode);
+                }
+            }
+        }
+    }
+
+    /**
+     *
+     * @param dimensionValue : The dimension to match.
+     * @param matchNextHighest : If true then we try to return @dimensionValue or the next Highest. Else, we return @dimensionValue or the next Lowest.
+     * @param lastMatchedNode : If not null, we begin the binary search from the node after this.
+     * @return : Matched node or null.
+     * @throws IOException :
+     */
+    private FixedLengthStarTreeNode binarySearchChild(long dimensionValue, boolean matchNextHighest, StarTreeNode lastMatchedNode)
+        throws IOException {
+
+        int low = firstChildId;
+        int tempLow = low;
+        int starNodeId, nullNodeId;
+        starNodeId = nullNodeId = Integer.MIN_VALUE;
+
+        // if the current node is star node, increment the tempLow to reduce the search space
+        if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, tempLow), StarTreeNodeType.STAR) != null) {
+            starNodeId = tempLow;
+            tempLow++;
+        }
+
+        int high = getInt(LAST_CHILD_ID_OFFSET);
+        int tempHigh = high;
+        // if the current node is null node, decrement the tempHigh to reduce the search space
+        if (matchStarTreeNodeTypeOrNull(new FixedLengthStarTreeNode(in, tempHigh), StarTreeNodeType.NULL) != null) {
+            nullNodeId = tempHigh;
+            tempHigh--;
+        }
+
+        if (lastMatchedNode instanceof FixedLengthStarTreeNode) {
+            int lastMatchedNodeId = ((FixedLengthStarTreeNode) lastMatchedNode).nodeId();
+            // Start the binary search from node after the last matched as low.
+            if ((lastMatchedNodeId + 1) <= tempHigh) {
+                tempLow = lastMatchedNodeId + 1;
+            } else {
+                return null;
+            }
+        }
+
+        while (tempLow <= tempHigh) {
+            int mid = tempLow + (tempHigh - tempLow) / 2;
+            FixedLengthStarTreeNode midNode = new FixedLengthStarTreeNode(in, mid);
+            long midDimensionValue = midNode.getDimensionValue();
+
+            if (midDimensionValue == dimensionValue) {
+                return midNode;
+            } else {
+                if (midDimensionValue < dimensionValue) { // Going to the right from mid to search next
+                    tempLow = mid + 1;
+                    // We are going out of bounds for this dimension on the right side.
+                    if (tempLow > high || tempLow == nullNodeId) {
+                        return matchNextHighest ? null : midNode;
+                    } else {
+                        FixedLengthStarTreeNode nodeGreaterThanMid = new FixedLengthStarTreeNode(in, tempLow);
+                        if (nodeGreaterThanMid.getDimensionValue() > dimensionValue) {
+                            return matchNextHighest ? nodeGreaterThanMid : midNode;
+                        }
+                    }
+                } else {  // Going to the left from mid to search next
+                    tempHigh = mid - 1;
+                    // We are going out of bounds for this dimension on the left side.
+                    if (tempHigh < low || tempHigh == starNodeId) {
+                        return matchNextHighest ? midNode : null;
+                    } else {
+                        FixedLengthStarTreeNode nodeLessThanMid = new FixedLengthStarTreeNode(in, tempHigh);
+                        if (nodeLessThanMid.getDimensionValue() < dimensionValue) {
+                            return matchNextHighest ? midNode : nodeLessThanMid;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+
     }
 
     @Override
@@ -296,5 +399,9 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    public int nodeId() {
+        return nodeId;
     }
 }

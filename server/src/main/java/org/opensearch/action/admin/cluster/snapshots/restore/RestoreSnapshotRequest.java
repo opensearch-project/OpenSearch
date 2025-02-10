@@ -112,6 +112,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private String renamePattern;
     private String renameReplacement;
+    private String renameAliasPattern;
+    private String renameAliasReplacement;
     private boolean waitForCompletion;
     private boolean includeGlobalState = false;
     private boolean partial = false;
@@ -164,6 +166,12 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             sourceRemoteTranslogRepository = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
+            renameAliasPattern = in.readOptionalString();
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
+            renameAliasReplacement = in.readOptionalString();
+        }
     }
 
     @Override
@@ -190,6 +198,12 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         }
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalString(sourceRemoteTranslogRepository);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
+            out.writeOptionalString(renameAliasPattern);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
+            out.writeOptionalString(renameAliasReplacement);
         }
     }
 
@@ -359,6 +373,51 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
      */
     public String renameReplacement() {
         return renameReplacement;
+    }
+
+    /**
+     * Sets rename pattern that should be applied to restored indices' alias.
+     * <p>
+     * Alias that match the rename pattern will be renamed according to {@link #renameAliasReplacement(String)}. The
+     * rename pattern is applied according to the {@link java.util.regex.Matcher#appendReplacement(StringBuffer, String)}
+     * If two or more aliases are renamed into the same name, they will be merged.
+     *
+     * @param renameAliasPattern rename pattern
+     * @return this request
+     */
+    public RestoreSnapshotRequest renameAliasPattern(String renameAliasPattern) {
+        this.renameAliasPattern = renameAliasPattern;
+        return this;
+    }
+
+    /**
+     * Returns rename alias pattern
+     *
+     * @return rename alias pattern
+     */
+    public String renameAliasPattern() {
+        return renameAliasPattern;
+    }
+
+    /**
+     * Sets rename alias replacement
+     * <p>
+     * See {@link #renameAliasPattern(String)} for more information.
+     *
+     * @param renameAliasReplacement rename replacement
+     */
+    public RestoreSnapshotRequest renameAliasReplacement(String renameAliasReplacement) {
+        this.renameAliasReplacement = renameAliasReplacement;
+        return this;
+    }
+
+    /**
+     * Returns rename alias replacement
+     *
+     * @return rename alias replacement
+     */
+    public String renameAliasReplacement() {
+        return renameAliasReplacement;
     }
 
     /**
@@ -625,6 +684,18 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                 } else {
                     throw new IllegalArgumentException("malformed rename_replacement");
                 }
+            } else if (name.equals("rename_alias_pattern")) {
+                if (entry.getValue() instanceof String) {
+                    renameAliasPattern((String) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed rename_alias_pattern");
+                }
+            } else if (name.equals("rename_alias_replacement")) {
+                if (entry.getValue() instanceof String) {
+                    renameAliasReplacement((String) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed rename_alias_replacement");
+                }
             } else if (name.equals("index_settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed index_settings section");
@@ -652,6 +723,12 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                 } else {
                     throw new IllegalArgumentException("malformed source_remote_store_repository");
                 }
+            } else if (name.equals("source_remote_translog_repository")) {
+                if (entry.getValue() instanceof String) {
+                    setSourceRemoteTranslogRepository((String) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed source_remote_translog_repository");
+                }
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -678,6 +755,12 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         }
         if (renameReplacement != null) {
             builder.field("rename_replacement", renameReplacement);
+        }
+        if (renameAliasPattern != null) {
+            builder.field("rename_alias_pattern", renameAliasPattern);
+        }
+        if (renameAliasReplacement != null) {
+            builder.field("rename_alias_replacement", renameAliasReplacement);
         }
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
@@ -727,6 +810,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(renamePattern, that.renamePattern)
             && Objects.equals(renameReplacement, that.renameReplacement)
+            && Objects.equals(renameAliasPattern, that.renameAliasPattern)
+            && Objects.equals(renameAliasReplacement, that.renameAliasReplacement)
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
             && Objects.equals(snapshotUuid, that.snapshotUuid)
@@ -745,6 +830,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             indicesOptions,
             renamePattern,
             renameReplacement,
+            renameAliasPattern,
+            renameAliasReplacement,
             waitForCompletion,
             includeGlobalState,
             partial,

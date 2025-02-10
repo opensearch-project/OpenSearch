@@ -20,6 +20,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
@@ -32,6 +33,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -1801,6 +1803,83 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertArrayEquals(filesPostFirstDownload, filesPostSecondDownload);
     }
 
+    public void testSyncWithGlobalCheckpointUpdate() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 2 }));
+
+        // Set a global checkpoint
+        long initialGlobalCheckpoint = 1L;
+        globalCheckpoint.set(initialGlobalCheckpoint);
+
+        // Sync the translog
+        translog.sync();
+
+        // Verify that the globalCheckpointSynced is updated
+        assertEquals(initialGlobalCheckpoint, ((RemoteFsTranslog) translog).getLastSyncedCheckpoint().globalCheckpoint);
+
+        // Update global checkpoint
+        long newGlobalCheckpoint = 2L;
+        globalCheckpoint.set(newGlobalCheckpoint);
+
+        // Add a new operation and sync
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 2, primaryTerm.get(), new byte[] { 3 }));
+        translog.sync();
+
+        // Verify that the globalCheckpointSynced is updated to the new value
+        assertEquals(newGlobalCheckpoint, ((RemoteFsTranslog) translog).getLastSyncedCheckpoint().globalCheckpoint);
+    }
+
+    public void testSyncNeededWithGlobalCheckpointUpdate() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+
+        // Set initial global checkpoint
+        long initialGlobalCheckpoint = 0L;
+        globalCheckpoint.set(initialGlobalCheckpoint);
+
+        // Sync the translog
+        translog.sync();
+
+        // Verify that sync is not needed
+        assertFalse(translog.syncNeeded());
+
+        // Update global checkpoint
+        long newGlobalCheckpoint = 1L;
+        globalCheckpoint.set(newGlobalCheckpoint);
+
+        // Verify that sync is now needed due to global checkpoint update
+        assertTrue(translog.syncNeeded());
+
+        // Sync again
+        translog.sync();
+
+        // Verify that sync is not needed after syncing
+        assertFalse(translog.syncNeeded());
+    }
+
+    public void testGlobalCheckpointUpdateDuringClose() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+
+        // Set initial global checkpoint
+        long initialGlobalCheckpoint = 0L;
+        globalCheckpoint.set(initialGlobalCheckpoint);
+
+        // Sync the translog
+        translog.sync();
+
+        // Update global checkpoint
+        long newGlobalCheckpoint = 1L;
+        globalCheckpoint.set(newGlobalCheckpoint);
+
+        // Close the translog
+        translog.close();
+
+        // Verify that the last synced checkpoint includes the updated global checkpoint
+        assertEquals(newGlobalCheckpoint, ((RemoteFsTranslog) translog).getLastSyncedCheckpoint().globalCheckpoint);
+    }
+
     public class ThrowingBlobRepository extends FsRepository {
 
         private final Environment environment;
@@ -1887,6 +1966,28 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 }
             }
             super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+        }
+
+        @Override
+        public void listBlobsByPrefixInSortedOrder(
+            String blobNamePrefix,
+            int limit,
+            BlobNameSortOrder blobNameSortOrder,
+            ActionListener<List<BlobMetadata>> listener
+        ) {
+            if (fail.fail()) {
+                listener.onFailure(new RuntimeException("blob container throwing error"));
+                return;
+            }
+            if (slowDown.getSleepSeconds() > 0) {
+                try {
+                    Thread.sleep(slowDown.getSleepSeconds() * 1000L);
+                } catch (InterruptedException e) {
+                    listener.onFailure(new RuntimeException(e));
+                    return;
+                }
+            }
+            super.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder, listener);
         }
     }
 

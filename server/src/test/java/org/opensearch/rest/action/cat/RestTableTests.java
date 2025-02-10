@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.common.Table;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -64,10 +65,26 @@ public class RestTableTests extends OpenSearchTestCase {
     private static final String ACCEPT = "Accept";
     private static final String TEXT_PLAIN = "text/plain; charset=UTF-8";
     private static final String TEXT_TABLE_BODY = "foo foo foo foo foo foo foo foo\n";
+    private static final String PAGINATED_TEXT_TABLE_BODY = "foo foo foo foo foo foo foo foo\nnext_token foo\n";
     private static final String JSON_TABLE_BODY = "[{\"bulk.foo\":\"foo\",\"bulk.bar\":\"foo\",\"aliasedBulk\":\"foo\","
         + "\"aliasedSecondBulk\":\"foo\",\"unmatched\":\"foo\","
         + "\"invalidAliasesBulk\":\"foo\",\"timestamp\":\"foo\",\"epoch\":\"foo\"}]";
+    private static final String PAGINATED_JSON_TABLE_BODY =
+        "{\"next_token\":\"foo\",\"entities\":[{\"bulk.foo\":\"foo\",\"bulk.bar\":\"foo\",\"aliasedBulk\":\"foo\","
+            + "\"aliasedSecondBulk\":\"foo\",\"unmatched\":\"foo\","
+            + "\"invalidAliasesBulk\":\"foo\",\"timestamp\":\"foo\",\"epoch\":\"foo\"}]}";
     private static final String YAML_TABLE_BODY = "---\n"
+        + "- bulk.foo: \"foo\"\n"
+        + "  bulk.bar: \"foo\"\n"
+        + "  aliasedBulk: \"foo\"\n"
+        + "  aliasedSecondBulk: \"foo\"\n"
+        + "  unmatched: \"foo\"\n"
+        + "  invalidAliasesBulk: \"foo\"\n"
+        + "  timestamp: \"foo\"\n"
+        + "  epoch: \"foo\"\n";
+    private static final String PAGINATED_YAML_TABLE_BODY = "---\n"
+        + "next_token: \"foo\"\n"
+        + "entities:\n"
         + "- bulk.foo: \"foo\"\n"
         + "  bulk.bar: \"foo\"\n"
         + "  aliasedBulk: \"foo\"\n"
@@ -83,20 +100,7 @@ public class RestTableTests extends OpenSearchTestCase {
     public void setup() {
         restRequest = new FakeRestRequest();
         table = new Table();
-        table.startHeaders();
-        table.addCell("bulk.foo", "alias:f;desc:foo");
-        table.addCell("bulk.bar", "alias:b;desc:bar");
-        // should be matched as well due to the aliases
-        table.addCell("aliasedBulk", "alias:bulkWhatever;desc:bar");
-        table.addCell("aliasedSecondBulk", "alias:foobar,bulkolicious,bulkotastic;desc:bar");
-        // no match
-        table.addCell("unmatched", "alias:un.matched;desc:bar");
-        // invalid alias
-        table.addCell("invalidAliasesBulk", "alias:,,,;desc:bar");
-        // timestamp
-        table.addCell("timestamp", "alias:ts");
-        table.addCell("epoch", "alias:t");
-        table.endHeaders();
+        addHeaders(table);
     }
 
     public void testThatDisplayHeadersSupportWildcards() throws Exception {
@@ -121,8 +125,26 @@ public class RestTableTests extends OpenSearchTestCase {
         assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON)), APPLICATION_JSON, JSON_TABLE_BODY);
     }
 
+    public void testThatWeUseTheAcceptHeaderJsonForPaginatedTable() throws Exception {
+        assertResponse(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON)),
+            APPLICATION_JSON,
+            PAGINATED_JSON_TABLE_BODY,
+            getPaginatedTable()
+        );
+    }
+
     public void testThatWeUseTheAcceptHeaderYaml() throws Exception {
         assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_YAML)), APPLICATION_YAML, YAML_TABLE_BODY);
+    }
+
+    public void testThatWeUseTheAcceptHeaderYamlForPaginatedTable() throws Exception {
+        assertResponse(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_YAML)),
+            APPLICATION_YAML,
+            PAGINATED_YAML_TABLE_BODY,
+            getPaginatedTable()
+        );
     }
 
     public void testThatWeUseTheAcceptHeaderSmile() throws Exception {
@@ -135,6 +157,15 @@ public class RestTableTests extends OpenSearchTestCase {
 
     public void testThatWeUseTheAcceptHeaderText() throws Exception {
         assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(TEXT_PLAIN)), TEXT_PLAIN, TEXT_TABLE_BODY);
+    }
+
+    public void testThatWeUseTheAcceptHeaderTextForPaginatedTable() throws Exception {
+        assertResponse(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(TEXT_PLAIN)),
+            TEXT_PLAIN,
+            PAGINATED_TEXT_TABLE_BODY,
+            getPaginatedTable()
+        );
     }
 
     public void testIgnoreContentType() throws Exception {
@@ -261,6 +292,10 @@ public class RestTableTests extends OpenSearchTestCase {
     }
 
     private RestResponse assertResponseContentType(Map<String, List<String>> headers, String mediaType) throws Exception {
+        return assertResponseContentType(headers, mediaType, table);
+    }
+
+    private RestResponse assertResponseContentType(Map<String, List<String>> headers, String mediaType, Table table) throws Exception {
         FakeRestRequest requestWithAcceptHeader = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).build();
         table.startRow();
         table.addCell("foo");
@@ -282,7 +317,11 @@ public class RestTableTests extends OpenSearchTestCase {
     }
 
     private void assertResponse(Map<String, List<String>> headers, String mediaType, String body) throws Exception {
-        RestResponse response = assertResponseContentType(headers, mediaType);
+        assertResponse(headers, mediaType, body, table);
+    }
+
+    private void assertResponse(Map<String, List<String>> headers, String mediaType, String body, Table table) throws Exception {
+        RestResponse response = assertResponseContentType(headers, mediaType, table);
         assertThat(response.content().utf8ToString(), equalTo(body));
     }
 
@@ -293,5 +332,29 @@ public class RestTableTests extends OpenSearchTestCase {
         }
 
         return headerNames;
+    }
+
+    private Table getPaginatedTable() {
+        PageToken pageToken = new PageToken("foo", "entities");
+        Table paginatedTable = new Table(pageToken);
+        addHeaders(paginatedTable);
+        return paginatedTable;
+    }
+
+    private void addHeaders(Table table) {
+        table.startHeaders();
+        table.addCell("bulk.foo", "alias:f;desc:foo");
+        table.addCell("bulk.bar", "alias:b;desc:bar");
+        // should be matched as well due to the aliases
+        table.addCell("aliasedBulk", "alias:bulkWhatever;desc:bar");
+        table.addCell("aliasedSecondBulk", "alias:foobar,bulkolicious,bulkotastic;desc:bar");
+        // no match
+        table.addCell("unmatched", "alias:un.matched;desc:bar");
+        // invalid alias
+        table.addCell("invalidAliasesBulk", "alias:,,,;desc:bar");
+        // timestamp
+        table.addCell("timestamp", "alias:ts");
+        table.addCell("epoch", "alias:t");
+        table.endHeaders();
     }
 }

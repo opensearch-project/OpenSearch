@@ -53,12 +53,16 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.module.CacheModule;
+import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
+import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
+import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -73,6 +77,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentHelper;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.request.RequestCacheStats;
@@ -851,15 +856,54 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertFalse(concurrentModificationExceptionDetected.get());
     }
 
-    private IndicesRequestCache getIndicesRequestCache(Settings settings) {
+    public void testCacheMaxSize_WhenPluggableCachingOff() throws Exception {
+        // If pluggable caching is off, the IRC should put a max size value into the cache config that it uses to create its cache.
+        threadPool = getThreadPool();
+        long cacheSize = 1000;
+        Settings settings = Settings.builder().put(INDICES_CACHE_QUERY_SIZE.getKey(), cacheSize + "b").build();
+        cache = getIndicesRequestCache(settings);
+        CacheConfig<IndicesRequestCache.Key, BytesReference> config;
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            // For the purposes of this test it doesn't matter if the node environment matches the one used in the constructor
+            config = cache.getCacheConfig(settings, env);
+        }
+        assertEquals(cacheSize, (long) config.getMaxSizeInBytes());
+        allowDeprecationWarning();
+    }
+
+    public void testCacheMaxSize_WhenPluggableCachingOn() throws Exception {
+        // If pluggable caching is on, and a store name is present, the IRC should NOT put a max size value into the cache config.
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder()
+            .put(INDICES_CACHE_QUERY_SIZE.getKey(), 1000 + "b")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .put(
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME
+            )
+            .build();
+        cache = getIndicesRequestCache(settings);
+        CacheConfig<IndicesRequestCache.Key, BytesReference> config;
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            // For the purposes of this test it doesn't matter if the node environment matches the one used in the constructor
+            config = cache.getCacheConfig(settings, env);
+        }
+        assertEquals(0, (long) config.getMaxSizeInBytes());
+        allowDeprecationWarning();
+    }
+
+    private IndicesRequestCache getIndicesRequestCache(Settings settings) throws IOException {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        return new IndicesRequestCache(
-            settings,
-            indicesService.indicesRequestCache.cacheEntityLookup,
-            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
-            threadPool,
-            ClusterServiceUtils.createClusterService(threadPool)
-        );
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            return new IndicesRequestCache(
+                settings,
+                indicesService.indicesRequestCache.cacheEntityLookup,
+                new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+                threadPool,
+                ClusterServiceUtils.createClusterService(threadPool),
+                env
+            );
+        }
     }
 
     private DirectoryReader getReader(IndexWriter writer, ShardId shardId) throws IOException {
@@ -913,23 +957,26 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%")
             .put(FeatureFlags.PLUGGABLE_CACHE, true)
             .build();
-        cache = new IndicesRequestCache(settings, (shardId -> {
-            IndexService indexService = null;
-            try {
-                indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            } catch (IndexNotFoundException ex) {
-                return Optional.empty();
-            }
-            try {
-                return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-            } catch (ShardNotFoundException ex) {
-                return Optional.empty();
-            }
-        }),
-            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
-            threadPool,
-            ClusterServiceUtils.createClusterService(threadPool)
-        );
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            cache = new IndicesRequestCache(settings, (shardId -> {
+                IndexService indexService = null;
+                try {
+                    indexService = indicesService.indexServiceSafe(shardId.getIndex());
+                } catch (IndexNotFoundException ex) {
+                    return Optional.empty();
+                }
+                try {
+                    return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+                } catch (ShardNotFoundException ex) {
+                    return Optional.empty();
+                }
+            }),
+                new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+                threadPool,
+                ClusterServiceUtils.createClusterService(threadPool),
+                env
+            );
+        }
 
         writer.addDocument(newDoc(0, "foo"));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
@@ -1058,6 +1105,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             IOUtils.close(reader, secondReader, writer, dir, cache);
         }
         indexShard = createIndex("test1").getShard(0);
+        NodeEnvironment environment = newNodeEnvironment();
         IndicesRequestCache cache = new IndicesRequestCache(
             // TODO: Add wiggle room to max size to allow for overhead of ICacheKey. This can be removed once API PR goes in, as it updates
             // the old API to account for the ICacheKey overhead.
@@ -1065,7 +1113,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
             threadPool,
-            ClusterServiceUtils.createClusterService(threadPool)
+            ClusterServiceUtils.createClusterService(threadPool),
+            environment
         );
         dir = newDirectory();
         writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -1085,7 +1134,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals("baz", value3.streamInput().readString());
         assertEquals(2, cache.count());
         assertEquals(1, indexShard.requestCache().stats().getEvictions());
-        IOUtils.close(reader, secondReader, thirdReader);
+        IOUtils.close(reader, secondReader, thirdReader, environment);
+        allowDeprecationWarning();
     }
 
     public void testClearAllEntityIdentity() throws Exception {
@@ -1156,7 +1206,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 TopDocs topDocs = searcher.search(new TermQuery(new Term("id", Integer.toString(id))), 1);
-                assertEquals(1, topDocs.totalHits.value);
+                assertEquals(1, topDocs.totalHits.value());
                 Document document = reader.storedFields().document(topDocs.scoreDocs[0].doc);
                 out.writeString(document.get("value"));
                 loadedFromCache = false;
@@ -1363,6 +1413,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         }
         IOUtils.close(cache);
         executorService.shutdownNow();
+        allowDeprecationWarning();
     }
 
     public void testDeleteAndCreateIndexShardOnSameNodeAndVerifyStats() throws Exception {
@@ -1529,6 +1580,12 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             sb.append(characters.charAt(index));
         }
         return sb.toString();
+    }
+
+    private void allowDeprecationWarning() {
+        assertWarnings(
+            "[indices.requests.cache.size] setting was deprecated in OpenSearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private class TestBytesReference extends AbstractBytesReference {

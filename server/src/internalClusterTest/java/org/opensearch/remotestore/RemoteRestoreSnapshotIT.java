@@ -9,15 +9,16 @@
 package org.opensearch.remotestore;
 
 import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
@@ -25,7 +26,9 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
@@ -38,19 +41,19 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
-import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotRestoreException;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.junit.After;
-import org.junit.Before;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -62,16 +65,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
+import static org.opensearch.snapshots.SnapshotsService.getPinningEntity;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -79,48 +88,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
-    private static final String BASE_REMOTE_REPO = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
-    private Path remoteRepoPath;
-
-    @Before
-    public void setup() {
-        remoteRepoPath = randomRepoPath().toAbsolutePath();
-    }
-
-    @After
-    public void teardown() {
-        clusterAdmin().prepareCleanupRepository(BASE_REMOTE_REPO).get();
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(remoteStoreClusterSettings(BASE_REMOTE_REPO, remoteRepoPath))
-            .build();
-    }
-
-    private Settings.Builder getIndexSettings(int numOfShards, int numOfReplicas) {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s");
-        return settingsBuilder;
-    }
-
-    private void indexDocuments(Client client, String indexName, int numOfDocs) {
-        indexDocuments(client, indexName, 0, numOfDocs);
-    }
-
-    private void indexDocuments(Client client, String indexName, int fromId, int toId) {
-        for (int i = fromId; i < toId; i++) {
-            String id = Integer.toString(i);
-            client.prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
-        }
-        client.admin().indices().prepareFlush(indexName).get();
-    }
+public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
     private void assertDocsPresentInIndex(Client client, String indexName, int numOfDocs) {
         for (int i = 0; i < numOfDocs; i++) {
@@ -528,6 +496,51 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
     }
 
+    public void testSuccessfulIndexRestoredFromSnapshotWithUpdatedSetting() throws IOException, ExecutionException, InterruptedException {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+
+        String indexName1 = "testindex1";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotName1 = "test-restore-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+
+        Settings indexSettings = getIndexSettings(1, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        final int numDocsInIndex1 = randomIntBetween(20, 30);
+        indexDocuments(client(), indexName1, numDocsInIndex1);
+        flushAndRefresh(indexName1);
+        ensureGreen(indexName1);
+
+        logger.info("--> snapshot");
+        SnapshotInfo snapshotInfo1 = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(Arrays.asList(indexName1)));
+        assertThat(snapshotInfo1.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo1.successfulShards(), equalTo(snapshotInfo1.totalShards()));
+        assertThat(snapshotInfo1.state(), equalTo(SnapshotState.SUCCESS));
+
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(indexName1)).get());
+        assertFalse(indexExists(indexName1));
+
+        // try index restore with index.number_of_replicas setting modified. index.number_of_replicas can be modified on restore
+        Settings numberOfReplicasSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+
+        RestoreSnapshotResponse restoreSnapshotResponse1 = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(false)
+            .setIndexSettings(numberOfReplicasSettings)
+            .setIndices(indexName1)
+            .get();
+
+        assertEquals(restoreSnapshotResponse1.status(), RestStatus.ACCEPTED);
+        ensureGreen(indexName1);
+        assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
+    }
+
     protected IndexShard getIndexShard(String node, String indexName) {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
@@ -740,7 +753,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, index, numDocsInIndex, numDocsInIndex + randomIntBetween(2, 5));
         ensureGreen(index);
 
-        // try index restore with remote store disabled
+        // try index restore with index.remote_store.enabled ignored
         SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
             () -> client().admin()
@@ -755,26 +768,37 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.enabled] on restore"));
 
-        // try index restore with remote store repository modified
-        Settings remoteStoreIndexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, newRemoteStoreRepo)
-            .build();
-
+        // try index restore with index.remote_store.segment.repository ignored
         exception = expectThrows(
             SnapshotRestoreException.class,
             () -> client().admin()
                 .cluster()
                 .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
                 .setWaitForCompletion(false)
-                .setIndexSettings(remoteStoreIndexSettings)
+                .setIgnoreIndexSettings(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY)
                 .setIndices(index)
                 .setRenamePattern(index)
                 .setRenameReplacement(restoredIndex)
                 .get()
         );
-        assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.segment.repository]" + " on restore"));
+        assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.segment.repository] on restore"));
 
-        // try index restore with remote store repository and translog store repository disabled
+        // try index restore with index.remote_store.translog.repository ignored
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIgnoreIndexSettings(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.translog.repository] on restore"));
+
+        // try index restore with index.remote_store.segment.repository and index.remote_store.translog.repository ignored
         exception = expectThrows(
             SnapshotRestoreException.class,
             () -> client().admin()
@@ -791,19 +815,92 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .get()
         );
         assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.segment.repository]" + " on restore"));
+
+        // try index restore with index.remote_store.enabled modified
+        Settings remoteStoreIndexSettings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false).build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(remoteStoreIndexSettings)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.enabled]" + " on restore"));
+
+        // try index restore with index.remote_store.segment.repository modified
+        Settings remoteStoreSegmentIndexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, newRemoteStoreRepo)
+            .build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(remoteStoreSegmentIndexSettings)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.segment.repository]" + " on restore"));
+
+        // try index restore with index.remote_store.translog.repository modified
+        Settings remoteStoreTranslogIndexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, newRemoteStoreRepo)
+            .build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(remoteStoreTranslogIndexSettings)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.translog.repository]" + " on restore"));
+
+        // try index restore with index.remote_store.translog.repository and index.remote_store.segment.repository modified
+        Settings multipleRemoteStoreIndexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, newRemoteStoreRepo)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, newRemoteStoreRepo)
+            .build();
+
+        exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndexSettings(multipleRemoteStoreIndexSettings)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(restoredIndex)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("cannot modify setting [index.remote_store.segment.repository]" + " on restore"));
     }
 
-    public void testCreateSnapshotV2() throws Exception {
+    public void testCreateSnapshotV2_Orphan_Timestamp_Cleanup() throws Exception {
         internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         internalCluster().startDataOnlyNode(pinnedTimestampSettings());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
-        String indexName3 = "testindex3";
         String snapshotRepoName = "test-create-snapshot-repo";
         String snapshotName1 = "test-create-snapshot1";
         Path absolutePath1 = randomRepoPath().toAbsolutePath();
-        logger.info("Snapshot Path [{}]", absolutePath1);
 
         Settings.Builder settings = Settings.builder()
             .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
@@ -827,27 +924,37 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
+        // create an orphan timestamp related to this repo
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+            RemoteStorePinnedTimestampService.class,
+            internalCluster().getClusterManagerName()
+        );
+        forceSyncPinnedTimestamps();
+
+        long pinnedTimestamp = System.currentTimeMillis();
+        final CountDownLatch latch = new CountDownLatch(1);
+        LatchedActionListener<Void> latchedActionListener = new LatchedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {}
+
+            @Override
+            public void onFailure(Exception e) {}
+        }, latch);
+
+        remoteStorePinnedTimestampService.pinTimestamp(
+            pinnedTimestamp,
+            getPinningEntity(snapshotRepoName, "some_uuid"),
+            latchedActionListener
+        );
+        latch.await();
+
         SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, Collections.emptyList());
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
 
-        indexDocuments(client, indexName1, 10);
-        indexDocuments(client, indexName2, 20);
-
-        createIndex(indexName3, indexSettings);
-        indexDocuments(client, indexName3, 10);
-
-        String snapshotName2 = "test-create-snapshot2";
-
-        // verify response status if waitForCompletion is not true
-        RestStatus createSnapshotResponseStatus = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
-            .get()
-            .status();
-        assertEquals(RestStatus.ACCEPTED, createSnapshotResponseStatus);
+        waitUntil(() -> 1 == RemoteStorePinnedTimestampService.getPinnedEntities().size());
     }
 
     public void testMixedSnapshotCreationWithV2RepositorySetting() throws Exception {
@@ -919,7 +1026,8 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName2));
         assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
-
+        forceSyncPinnedTimestamps();
+        assertEquals(RemoteStorePinnedTimestampService.getPinnedEntities().size(), 1);
     }
 
     public void testConcurrentSnapshotV2CreateOperation() throws InterruptedException, ExecutionException {
@@ -963,17 +1071,8 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             Thread thread = new Thread(() -> {
                 try {
                     String snapshotName = "snapshot-concurrent-" + snapshotIndex;
-                    CreateSnapshotResponse createSnapshotResponse2 = client().admin()
-                        .cluster()
-                        .prepareCreateSnapshot(snapshotRepoName, snapshotName)
-                        .setWaitForCompletion(true)
-                        .get();
-                    SnapshotInfo snapshotInfo = createSnapshotResponse2.getSnapshotInfo();
-                    assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-                    assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-                    assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
-                    assertThat(snapshotInfo.snapshotId().getName(), equalTo(snapshotName));
-                    assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+                    client().admin().cluster().prepareCreateSnapshot(snapshotRepoName, snapshotName).setWaitForCompletion(true).get();
+                    logger.info("Snapshot completed {}", snapshotName);
                 } catch (Exception e) {}
             });
             threads.add(thread);
@@ -988,13 +1087,167 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             thread.join();
         }
 
-        // Validate that only one snapshot has been created
+        // Sleeping 10 sec for earlier created snapshot to complete runNextQueuedOperation and be ready for next snapshot
+        // We can't put `waitFor` since we don't have visibility on its completion
+        Thread.sleep(TimeValue.timeValueSeconds(10).seconds());
+        client().admin().cluster().prepareCreateSnapshot(snapshotRepoName, "snapshot-cleanup-timestamp").setWaitForCompletion(true).get();
         Repository repository = internalCluster().getInstance(RepositoriesService.class).repository(snapshotRepoName);
         PlainActionFuture<RepositoryData> repositoryDataPlainActionFuture = new PlainActionFuture<>();
         repository.getRepositoryData(repositoryDataPlainActionFuture);
-
         RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
-        assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(1));
+        assertThat(repositoryData.getSnapshotIds().size(), greaterThanOrEqualTo(2));
+        waitUntil(() -> {
+            forceSyncPinnedTimestamps();
+            return RemoteStorePinnedTimestampService.getPinnedEntities().size() == repositoryData.getSnapshotIds().size();
+        });
+    }
+
+    public void testConcurrentSnapshotV2CreateOperation_MasterChange() throws Exception {
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        Thread thread = new Thread(() -> {
+            try {
+                String snapshotName = "snapshot-earlier-master";
+                internalCluster().nonClusterManagerClient()
+                    .admin()
+                    .cluster()
+                    .prepareCreateSnapshot(snapshotRepoName, snapshotName)
+                    .setWaitForCompletion(true)
+                    .setClusterManagerNodeTimeout(TimeValue.timeValueSeconds(60))
+                    .get();
+
+            } catch (Exception ignored) {}
+        });
+        thread.start();
+
+        // stop existing master
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
+        stopNode(clusterManagerNode);
+
+        // Validate that we have greater one snapshot has been created
+        String snapshotName = "new-snapshot";
+        try {
+            client().admin().cluster().prepareCreateSnapshot(snapshotRepoName, snapshotName).setWaitForCompletion(true).get();
+        } catch (Exception e) {
+            logger.info("Exception while creating new-snapshot", e);
+        }
+
+        AtomicLong totalSnaps = new AtomicLong();
+
+        // Validate that snapshot is present in repository data
+        assertBusy(() -> {
+            GetSnapshotsRequest request = new GetSnapshotsRequest(snapshotRepoName);
+            GetSnapshotsResponse response2 = client().admin().cluster().getSnapshots(request).actionGet();
+            assertThat(response2.getSnapshots().size(), greaterThanOrEqualTo(1));
+            totalSnaps.set(response2.getSnapshots().size());
+
+        }, 30, TimeUnit.SECONDS);
+        thread.join();
+        forceSyncPinnedTimestamps();
+        waitUntil(() -> {
+            this.forceSyncPinnedTimestamps();
+            return RemoteStorePinnedTimestampService.getPinnedEntities().size() == totalSnaps.intValue();
+        });
+    }
+
+    public void testCreateSnapshotV2() throws Exception {
+        internalCluster().startClusterManagerOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        internalCluster().startDataOnlyNode(pinnedTimestampSettings());
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String indexName3 = "testindex3";
+        String snapshotRepoName = "test-create-snapshot-repo";
+        String snapshotName1 = "test-create-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        Settings.Builder settings = Settings.builder()
+            .put(FsRepository.LOCATION_SETTING.getKey(), absolutePath1)
+            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .put(BlobStoreRepository.SHALLOW_SNAPSHOT_V2.getKey(), true);
+
+        createRepository(snapshotRepoName, FsRepository.TYPE, settings);
+
+        Client client = client();
+        Settings indexSettings = getIndexSettings(20, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 10;
+        final int numDocsInIndex2 = 20;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, Collections.emptyList());
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.getPinnedTimestamp(), greaterThan(0L));
+
+        indexDocuments(client, indexName1, 10);
+        indexDocuments(client, indexName2, 20);
+
+        createIndex(indexName3, indexSettings);
+        indexDocuments(client, indexName3, 10);
+
+        String snapshotName2 = "test-create-snapshot2";
+
+        // verify response status if waitForCompletion is not true
+        RestStatus createSnapshotResponseStatus = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
+            .get()
+            .status();
+        assertEquals(RestStatus.ACCEPTED, createSnapshotResponseStatus);
+        forceSyncPinnedTimestamps();
+        assertEquals(2, RemoteStorePinnedTimestampService.getPinnedEntities().size());
+    }
+
+    public void forceSyncPinnedTimestamps() {
+        // for all nodes , run forceSyncPinnedTimestamps()
+        for (String node : internalCluster().getNodeNames()) {
+            RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = internalCluster().getInstance(
+                RemoteStorePinnedTimestampService.class,
+                node
+            );
+            remoteStorePinnedTimestampService.forceSyncPinnedTimestamps();
+        }
     }
 
     public void testCreateSnapshotV2WithRedIndex() throws Exception {
@@ -1313,13 +1566,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         enableV2Thread.join();
         createV1SnapshotThread.join();
-    }
-
-    private Settings pinnedTimestampSettings() {
-        Settings settings = Settings.builder()
-            .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), true)
-            .build();
-        return settings;
     }
 
 }

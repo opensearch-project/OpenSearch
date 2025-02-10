@@ -33,20 +33,20 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.opensearch.client.Requests.snapshotsStatusRequest;
 import static org.opensearch.rest.RestRequest.Method.GET;
+import static org.opensearch.transport.client.Requests.snapshotsStatusRequest;
 
 /**
  * Returns status of currently running snapshot
@@ -82,6 +82,9 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
             snapshots = Strings.EMPTY_ARRAY;
         }
         String[] indices = request.paramAsStringArray("index", Strings.EMPTY_ARRAY);
+        if (indices.length == 1 && "_all".equalsIgnoreCase(indices[0])) {
+            indices = Strings.EMPTY_ARRAY;
+        }
         SnapshotsStatusRequest snapshotsStatusRequest = snapshotsStatusRequest(repository).snapshots(snapshots).indices(indices);
         snapshotsStatusRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", snapshotsStatusRequest.ignoreUnavailable()));
 

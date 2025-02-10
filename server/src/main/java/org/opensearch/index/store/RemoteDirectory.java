@@ -32,7 +32,6 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
-import org.opensearch.index.store.remote.utils.BlockIOContext;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -202,15 +201,42 @@ public class RemoteDirectory extends Directory {
         return openInput(name, fileLength(name), context);
     }
 
+    /**
+     * Opens a stream for reading one block from the existing file and returns {@link RemoteIndexInput} enclosing
+     * the block stream.
+     * @param name the name of an existing file.
+     * @param position block start position
+     * @param length block length
+     * @param fileLength file length
+     * @param context desired {@link IOContext} context
+     * @return the {@link RemoteIndexInput} enclosing the block stream
+     * @throws IOException in case of I/O error
+     * @throws NoSuchFileException if the file does not exist
+     */
+    public IndexInput openBlockInput(String name, long position, long length, long fileLength, IOContext context) throws IOException {
+        try {
+            return getBlockInput(name, position, length, fileLength);
+        } catch (Exception e) {
+            logger.error("Exception while reading blob for file: " + name + " for path " + blobContainer.path());
+            throw e;
+        }
+    }
+
+    /**
+     * Opens a stream for reading the existing file and returns {@link RemoteIndexInput} enclosing
+     * the stream.
+     * @param name the name of an existing file.
+     * @param fileLength file length
+     * @param context desired {@link IOContext} context
+     * @return the {@link RemoteIndexInput} enclosing the block stream
+     * @throws IOException in case of I/O error
+     * @throws NoSuchFileException if the file does not exist
+     */
     public IndexInput openInput(String name, long fileLength, IOContext context) throws IOException {
         InputStream inputStream = null;
         try {
-            if (context instanceof BlockIOContext) {
-                return getBlockInput(name, fileLength, (BlockIOContext) context);
-            } else {
-                inputStream = blobContainer.readBlob(name);
-                return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
-            }
+            inputStream = blobContainer.readBlob(name);
+            return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
         } catch (Exception e) {
             // In case the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) {
@@ -424,7 +450,7 @@ public class RemoteDirectory extends Directory {
     }
 
     private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
-        try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
+        try (IndexInput indexInput = directory.openInput(file, IOContext.READONCE)) {
             try {
                 return checksumOfChecksum(indexInput, SEGMENT_CHECKSUM_BYTES);
             } catch (Exception e) {
@@ -441,10 +467,8 @@ public class RemoteDirectory extends Directory {
         }
     }
 
-    private IndexInput getBlockInput(String name, long fileLength, BlockIOContext blockIOContext) throws IOException {
-        long position = blockIOContext.getBlockStart();
-        long length = blockIOContext.getBlockSize();
-        if (position < 0 || length < 0 || (position + length > fileLength)) {
+    private IndexInput getBlockInput(String name, long position, long length, long fileLength) throws IOException {
+        if (position < 0 || length <= 0 || (position + length > fileLength)) {
             throw new IllegalArgumentException("Invalid values of block start and size");
         }
         byte[] bytes;

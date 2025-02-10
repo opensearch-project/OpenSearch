@@ -33,12 +33,12 @@
 package org.opensearch.action.admin.cluster.repositories.put;
 
 import org.opensearch.action.admin.cluster.crypto.CryptoSettings;
-import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequestBuilder;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.Map;
 
