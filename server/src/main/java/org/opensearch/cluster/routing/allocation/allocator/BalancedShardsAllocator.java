@@ -62,9 +62,11 @@ import org.opensearch.core.action.ActionListener;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.cluster.action.shard.ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
@@ -199,6 +201,32 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Adjusts the priority of the followup reroute task when current round times out. NORMAL is right for reasonable clusters,
+     * but for a cluster in a messed up state which is starving NORMAL priority tasks, it might be necessary to raise this higher
+     * to allocate shards.
+     */
+    public static final Setting<Priority> FOLLOW_UP_REROUTE_PRIORITY_SETTING = new Setting<>(
+        "cluster.routing.allocation.balanced_shards_allocator.schedule_reroute.priority",
+        Priority.NORMAL.toString(),
+        BalancedShardsAllocator::parseReroutePriority,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private static Priority parseReroutePriority(String priorityString) {
+        final Priority priority = Priority.valueOf(priorityString.toUpperCase(Locale.ROOT));
+        switch (priority) {
+            case NORMAL:
+            case HIGH:
+            case URGENT:
+                return priority;
+        }
+        throw new IllegalArgumentException(
+            "priority [" + priority + "] not supported for [" + FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey() + "]"
+        );
+    }
+
     private volatile boolean movePrimaryFirst;
     private volatile ShardMovementStrategy shardMovementStrategy;
 
@@ -213,6 +241,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private volatile boolean ignoreThrottleInRestore;
     private volatile TimeValue allocatorTimeout;
+    private volatile Priority followUpRerouteTaskPriority;
     private long startTime;
     private RerouteService rerouteService;
 
@@ -233,6 +262,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setPreferPrimaryShardRebalance(PREFER_PRIMARY_SHARD_REBALANCE.get(settings));
         setShardMovementStrategy(SHARD_MOVEMENT_STRATEGY_SETTING.get(settings));
         setAllocatorTimeout(ALLOCATOR_TIMEOUT_SETTING.get(settings));
+        setFollowUpRerouteTaskPriority(FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE, this::setPreferPrimaryShardBalance);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVEMENT_STRATEGY_SETTING, this::setShardMovementStrategy);
@@ -244,6 +274,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_CONSTRAINT_THRESHOLD_SETTING, this::setPrimaryConstraintThresholdSetting);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_THROTTLE_FOR_REMOTE_RESTORE, this::setIgnoreThrottleInRestore);
         clusterSettings.addSettingsUpdateConsumer(ALLOCATOR_TIMEOUT_SETTING, this::setAllocatorTimeout);
+        clusterSettings.addSettingsUpdateConsumer(FOLLOW_UP_REROUTE_PRIORITY_SETTING, this::setFollowUpRerouteTaskPriority);
     }
 
     @Override
@@ -342,6 +373,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.allocatorTimeout = allocatorTimeout;
     }
 
+    private void setFollowUpRerouteTaskPriority(Priority followUpRerouteTaskPriority) {
+        this.followUpRerouteTaskPriority = followUpRerouteTaskPriority;
+    }
+
     protected boolean allocatorTimedOut() {
         if (allocatorTimeout.equals(TimeValue.MINUS_ONE)) {
             if (logger.isTraceEnabled()) {
@@ -438,10 +473,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private void scheduleRerouteIfAllocatorTimedOut() {
         if (allocatorTimedOut()) {
-            assert rerouteService != null : "RerouteService not set to schedule reroute after allocator time out";
+            if (rerouteService == null) {
+                logger.info("RerouteService not set to schedule reroute after allocator time out");
+                return;
+            }
             rerouteService.reroute(
                 "reroute after balanced shards allocator timed out",
-                Priority.HIGH,
+                followUpRerouteTaskPriority,
                 ActionListener.wrap(
                     r -> logger.trace("reroute after balanced shards allocator timed out completed"),
                     e -> logger.debug("reroute after balanced shards allocator timed out failed", e)
