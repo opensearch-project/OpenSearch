@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -40,9 +41,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
-import io.grpc.netty.shaded.io.netty.util.NettyRuntime;
-import io.grpc.netty.shaded.io.netty.util.concurrent.Future;
+import io.netty.channel.EventLoopGroup;
+import io.netty.util.NettyRuntime;
+import io.netty.util.concurrent.Future;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.settings.Setting.intSetting;
@@ -137,8 +138,8 @@ final class ServerComponents implements AutoCloseable {
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
-    void setSslContextProvider(SslContextProvider sslContextProvider) {
-        this.sslContextProvider = Objects.requireNonNull(sslContextProvider);
+    void setSslContextProvider(@Nullable SslContextProvider sslContextProvider) {
+        this.sslContextProvider = sslContextProvider;
     }
 
     void setFlightProducer(FlightProducer flightProducer) {
@@ -150,7 +151,7 @@ final class ServerComponents implements AutoCloseable {
             allocator,
             location,
             producer,
-            sslContextProvider.getServerSslContext(),
+            sslContextProvider != null ? sslContextProvider.getServerSslContext() : null,
             ServerConfig.serverChannelType(),
             bossEventLoopGroup,
             workerEventLoopGroup,
@@ -258,7 +259,7 @@ final class ServerComponents implements AutoCloseable {
 
     private boolean startFlightServer(TransportAddress transportAddress) {
         InetSocketAddress address = transportAddress.address();
-        Location serverLocation = sslContextProvider.isSslEnabled()
+        Location serverLocation = sslContextProvider != null
             ? Location.forGrpcTls(address.getHostString(), address.getPort())
             : Location.forGrpcInsecure(address.getHostString(), address.getPort());
         try {
