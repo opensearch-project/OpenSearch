@@ -16,7 +16,6 @@ import org.apache.arrow.util.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.flight.bootstrap.tls.DefaultSslContextProvider;
-import org.opensearch.arrow.flight.bootstrap.tls.DisabledSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.service.ClusterService;
@@ -93,7 +92,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
             serverComponents.setAllocator(allocator);
             SslContextProvider sslContextProvider = ServerConfig.isSslEnabled()
                 ? new DefaultSslContextProvider(secureTransportSettingsProvider)
-                : new DisabledSslContextProvider();
+                : null;
             serverComponents.setSslContextProvider(sslContextProvider);
             serverComponents.initComponents();
             clientManager = new FlightClientManager(

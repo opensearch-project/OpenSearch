@@ -24,6 +24,7 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -37,7 +38,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
-import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
+import io.netty.channel.EventLoopGroup;
 
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS_SETTING;
 
@@ -71,7 +72,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
     public FlightClientManager(
         BufferAllocator allocator,
         ClusterService clusterService,
-        SslContextProvider sslContextProvider,
+        @Nullable SslContextProvider sslContextProvider,
         EventLoopGroup elg,
         ThreadPool threadPool,
         Client client
@@ -80,7 +81,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         this.clientConfig = new ClientConfiguration(
             Objects.requireNonNull(allocator, "BufferAllocator cannot be null"),
             Objects.requireNonNull(clusterService, "ClusterService cannot be null"),
-            Objects.requireNonNull(sslContextProvider, "SslContextProvider cannot be null"),
+            sslContextProvider,
             Objects.requireNonNull(elg, "EventLoopGroup cannot be null"),
             Objects.requireNonNull(grpcExecutor, "ExecutorService cannot be null")
         );
@@ -154,7 +155,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
                     TransportAddress publishAddress = nodeInfo.getBoundAddress().publishAddress();
                     String address = publishAddress.getAddress();
                     int flightPort = publishAddress.address().getPort();
-                    Location location = clientConfig.sslContextProvider.isSslEnabled()
+                    Location location = clientConfig.sslContextProvider != null
                         ? Location.forGrpcTls(address, flightPort)
                         : Location.forGrpcInsecure(address, flightPort);
 
@@ -179,7 +180,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
             ServerConfig.clientChannelType(),
             clientConfig.grpcExecutor,
             clientConfig.workerELG,
-            clientConfig.sslContextProvider.getClientSslContext()
+            clientConfig.sslContextProvider != null ? clientConfig.sslContextProvider.getClientSslContext() : null
         ).build();
     }
 
@@ -199,14 +200,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         grpcExecutor.shutdown();
     }
 
-    private static class ClientHolder {
-        final OSFlightClient flightClient;
-        final Location location;
-
-        ClientHolder(Location location, OSFlightClient flightClient) {
-            this.location = location;
-            this.flightClient = flightClient;
-        }
+    private record ClientHolder(Location location, OSFlightClient flightClient) {
     }
 
     /**
@@ -249,17 +243,12 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         return flightClients;
     }
 
-    private static class ClientConfiguration {
-        private final BufferAllocator allocator;
-        private final ClusterService clusterService;
-        private final SslContextProvider sslContextProvider;
-        private final EventLoopGroup workerELG;
-        private final ExecutorService grpcExecutor;
-
-        ClientConfiguration(
+    private record ClientConfiguration(BufferAllocator allocator, ClusterService clusterService, SslContextProvider sslContextProvider,
+        EventLoopGroup workerELG, ExecutorService grpcExecutor) {
+        private ClientConfiguration(
             BufferAllocator allocator,
             ClusterService clusterService,
-            SslContextProvider sslContextProvider,
+            @Nullable SslContextProvider sslContextProvider,
             EventLoopGroup workerELG,
             ExecutorService grpcExecutor
         ) {

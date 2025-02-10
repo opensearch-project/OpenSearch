@@ -55,7 +55,7 @@ class DefaultSecureTransportParameters implements SecureTransportSettingsProvide
 
     @Override
     public Collection<String> cipherSuites() {
-        return null;
+        return List.of();
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.apache.arrow.flight.CallOptions;
 import org.apache.arrow.flight.OSFlightClient;
 import org.opensearch.arrow.flight.bootstrap.FlightClientManager;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
+import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.Plugin;

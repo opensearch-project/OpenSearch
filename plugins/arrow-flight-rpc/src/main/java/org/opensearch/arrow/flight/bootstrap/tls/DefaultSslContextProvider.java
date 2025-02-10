@@ -14,12 +14,13 @@ import javax.net.ssl.SSLException;
 
 import java.util.Locale;
 
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SupportedCipherSuiteFilter;
+import io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.netty.handler.ssl.ApplicationProtocolNames;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslProvider;
+import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 
 /**
  * DefaultSslContextProvider is an implementation of the SslContextProvider interface that provides SSL contexts based on the provided SecureTransportSettingsProvider.
@@ -36,15 +37,6 @@ public class DefaultSslContextProvider implements SslContextProvider {
         this.secureTransportSettingsProvider = secureTransportSettingsProvider;
     }
 
-    /**
-     * Returns true to indicate that SSL is enabled.
-     * @return true
-     */
-    @Override
-    public boolean isSslEnabled() {
-        return true;
-    }
-
     // TODO - handle certificates reload
     /**
      * Creates and returns the server SSL context based on the provided SecureTransportSettingsProvider.
@@ -54,7 +46,7 @@ public class DefaultSslContextProvider implements SslContextProvider {
     public SslContext getServerSslContext() {
         try {
             SecureTransportSettingsProvider.SecureTransportParameters parameters = secureTransportSettingsProvider.parameters(null).get();
-            return io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder.forServer(parameters.keyManagerFactory().get())
+            return SslContextBuilder.forServer(parameters.keyManagerFactory().get())
                 .sslProvider(SslProvider.valueOf(parameters.sslProvider().get().toUpperCase(Locale.ROOT)))
                 .clientAuth(ClientAuth.valueOf(parameters.clientAuth().get().toUpperCase(Locale.ROOT)))
                 .protocols(parameters.protocols())
@@ -87,7 +79,7 @@ public class DefaultSslContextProvider implements SslContextProvider {
     public SslContext getClientSslContext() {
         try {
             SecureTransportSettingsProvider.SecureTransportParameters parameters = secureTransportSettingsProvider.parameters(null).get();
-            return io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder.forClient()
+            return SslContextBuilder.forClient()
                 .sslProvider(SslProvider.valueOf(parameters.sslProvider().get().toUpperCase(Locale.ROOT)))
                 .protocols(parameters.protocols())
                 .ciphers(parameters.cipherSuites(), SupportedCipherSuiteFilter.INSTANCE)
