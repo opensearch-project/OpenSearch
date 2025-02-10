@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.wlm.rule.action;
 
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -53,6 +54,13 @@ public class DeleteRuleResponse extends ActionResponse implements ToXContent, To
         builder.endObject();
         return builder;
     }
+
+    public String toXContentString() throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        this.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return builder.toString();
+    }
+
 
     /**
      * acknowledged getter

@@ -11,6 +11,9 @@ package org.opensearch.plugin.wlm.rule.service;
 import org.apache.lucene.search.TotalHits;
 import org.mockito.ArgumentCaptor;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.delete.DeleteRequest;
+import org.opensearch.action.delete.DeleteResponse;
+import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetRequestBuilder;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
@@ -24,6 +27,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.plugin.wlm.rule.action.CreateRuleResponse;
+import org.opensearch.plugin.wlm.rule.action.DeleteRuleResponse;
 import org.opensearch.plugin.wlm.rule.action.GetRuleResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.Rule;
@@ -119,4 +123,126 @@ public class RulePersistenceServiceTests extends OpenSearchTestCase {
         assertTrue(exception instanceof ResourceNotFoundException);
         clearInvocations(client, getRequestBuilder, getResponse, listener);
     }
+
+    public void testDeleteRuleSuccess() {
+        String ruleId = "existing-rule";
+        ActionListener<DeleteRuleResponse> listener = mock(ActionListener.class);
+        Client client = mock(Client.class);
+        RulePersistenceService rulePersistenceService = new RulePersistenceService(client);
+
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(true);
+
+        doAnswer(invocation -> {
+            ActionListener<GetResponse> actionListener = invocation.getArgument(1);
+            actionListener.onResponse(getResponse);
+            return null;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+
+        DeleteResponse deleteResponse = mock(DeleteResponse.class);
+        when(deleteResponse.getResult()).thenReturn(DeleteResponse.Result.DELETED);
+
+        doAnswer(invocation -> {
+            ActionListener<DeleteResponse> actionListener = invocation.getArgument(1);
+            actionListener.onResponse(deleteResponse);
+            return null;
+        }).when(client).delete(any(DeleteRequest.class), any(ActionListener.class));
+
+        rulePersistenceService.deleteRule(ruleId, listener);
+
+        ArgumentCaptor<DeleteRuleResponse> responseCaptor = ArgumentCaptor.forClass(DeleteRuleResponse.class);
+        verify(listener, times(1)).onResponse(responseCaptor.capture());
+
+        DeleteRuleResponse deleteRuleResponse = responseCaptor.getValue();
+        assertNotNull(deleteRuleResponse);
+        assertTrue(deleteRuleResponse.isAcknowledged());
+    }
+
+
+
+    /**
+     * Test case to verify deleteRule when the rule ID does not exist
+     */
+    public void testDeleteRuleNotFound() {
+        String nonExistentRuleId = "non-existent-rule";
+        ActionListener<DeleteRuleResponse> listener = mock(ActionListener.class);
+        Client client = mock(Client.class);
+        RulePersistenceService rulePersistenceService = new RulePersistenceService(client);
+
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(false);
+
+        doAnswer(invocation -> {
+            ActionListener<GetResponse> actionListener = invocation.getArgument(1);
+            actionListener.onResponse(getResponse);
+            return null;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+
+        rulePersistenceService.deleteRule(nonExistentRuleId, listener);
+
+        ArgumentCaptor<Exception> captor = ArgumentCaptor.forClass(Exception.class);
+        verify(listener, times(1)).onFailure(captor.capture());
+
+        Exception exception = captor.getValue();
+        assertNotNull(exception);
+        assertTrue(exception instanceof ResourceNotFoundException);
+        assertEquals("The rule with id " + nonExistentRuleId + " doesn't exist", exception.getMessage());
+    }
+
+
+    /**
+     * Test case to verify deleteRule when ID is null
+     */
+    public void testDeleteRuleNullId() {
+        ActionListener<DeleteRuleResponse> listener = mock(ActionListener.class);
+        Client client = mock(Client.class);
+        RulePersistenceService rulePersistenceService = new RulePersistenceService(client);
+
+        rulePersistenceService.deleteRule(null, listener);
+
+        ArgumentCaptor<Exception> captor = ArgumentCaptor.forClass(Exception.class);
+        verify(listener).onFailure(captor.capture());
+        Exception exception = captor.getValue();
+        assertTrue(exception instanceof IllegalArgumentException);
+        assertEquals("Rule ID must not be null", exception.getMessage());
+
+        clearInvocations(client, listener);
+    }
+
+    /**
+     * Test case to verify deleteRule handles errors when deleting a rule
+     */
+    public void testDeleteRuleErrorDuringDeletion() {
+        String ruleId = "existing-rule";
+        ActionListener<DeleteRuleResponse> listener = mock(ActionListener.class);
+        Client client = mock(Client.class);
+        RulePersistenceService rulePersistenceService = new RulePersistenceService(client);
+
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(true);
+
+        doAnswer(invocation -> {
+            ActionListener<GetResponse> actionListener = invocation.getArgument(1);
+            actionListener.onResponse(getResponse);
+            return null;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+
+        doAnswer(invocation -> {
+            ActionListener<DeleteResponse> actionListener = invocation.getArgument(1);
+            actionListener.onFailure(new RuntimeException("Deletion failed"));
+            return null;
+        }).when(client).delete(any(DeleteRequest.class), any(ActionListener.class));
+
+        rulePersistenceService.deleteRule(ruleId, listener);
+
+        ArgumentCaptor<Exception> captor = ArgumentCaptor.forClass(Exception.class);
+        verify(listener, times(1)).onFailure(captor.capture());
+
+        Exception exception = captor.getValue();
+        assertNotNull(exception);
+        assertTrue(exception instanceof RuntimeException);
+        assertEquals("Deletion failed", exception.getMessage());
+    }
+
+
 }
