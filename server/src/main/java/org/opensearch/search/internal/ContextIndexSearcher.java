@@ -44,6 +44,7 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -257,7 +258,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void search(Query query, Collector collector) throws IOException {
-        super.search(query, collector);
+        query = collector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
+        Weight weight = createWeight(query, collector.scoreMode(), 1);
+        LeafSlice[] leafSlices = getSlices();
+        for (LeafSlice leafSlice : leafSlices) {
+            search(leafSlice.partitions, weight, collector);
+        }
         searchContext.bucketCollectorProcessor().processPostCollection(collector);
     }
 
