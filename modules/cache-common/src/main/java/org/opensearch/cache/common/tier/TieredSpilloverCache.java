@@ -54,7 +54,7 @@ import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIER
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP;
-import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
 import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE;
@@ -343,39 +343,30 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             CompletableFuture<Tuple<ICacheKey<K>, V>> future
         ) throws Exception {
             // Handler to handle results post-processing. Takes a tuple<key, value> or exception as an input and returns
-            // a tuple of the value and a boolean for whether it entered the cache. Also before returning value, puts the value in cache
-            // if this is allowed by the cache policies.
+            // the value. Also before returning value, puts the value in cache.
             boolean didPutIntoCache = false;
-            BiFunction<Tuple<ICacheKey<K>, V>, Throwable, Boolean> handler = (pair, ex) -> {
-                boolean lambdaDidPutIntoCache = false;
+            BiFunction<Tuple<ICacheKey<K>, V>, Throwable, Void> handler = (pair, ex) -> {
                 if (pair != null) {
-                    if (evaluatePoliciesList(pair.v2(), policies)) {
-                        try (ReleasableLock ignore = writeLock.acquire()) {
-                            onHeapCache.put(pair.v1(), pair.v2());
-                            // We must load the value for the policy to check it, so we can't rely on loader.isLoaded()
-                            // to determine if the new value entered the cache since the policy may have blocked it.
-                            // Instead return this boolean as well.
-                            lambdaDidPutIntoCache = true;
-                        } catch (Exception e) {
-                            // TODO: Catch specific exceptions to know whether this resulted from cache or underlying removal
-                            // listeners/stats. Needs better exception handling at underlying layers.For now swallowing
-                            // exception.
-                            logger.warn("Exception occurred while putting item onto heap cache", e);
-                        }
+                    try (ReleasableLock ignore = writeLock.acquire()) {
+                        onHeapCache.put(pair.v1(), pair.v2());
+                    } catch (Exception e) {
+                        // TODO: Catch specific exceptions to know whether this resulted from cache or underlying removal
+                        // listeners/stats. Needs better exception handling at underlying layers.For now swallowing
+                        // exception.
+                        logger.warn("Exception occurred while putting item onto heap cache", e);
                     }
                 } else {
                     if (ex != null) {
                         logger.warn("Exception occurred while trying to compute the value", ex);
                     }
                 }
-                // Safe to remove from the map even if policy blocks value from entering the cache
                 completableFutureMap.remove(key);// Remove key from map as not needed anymore.
-                return lambdaDidPutIntoCache;
+                return null;
             };
             V value = null;
             if (future == null) {
                 future = completableFutureMap.get(key);
-                CompletableFuture<Boolean> didPutIntoCacheFuture = future.handle(handler);
+                future.handle(handler);
                 try {
                     value = loader.load(key);
                 } catch (Exception ex) {
@@ -387,15 +378,14 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     future.completeExceptionally(npe);
                     throw new ExecutionException(npe);
                 } else {
-                    future.complete(new Tuple<>(key, value));
-                    // If the future is completed, didPutIntoCacheFuture should also be completed, so it's safe to run .get() on it
-                    didPutIntoCache = didPutIntoCacheFuture.get();
-                    if (!didPutIntoCache) {
-                        // The old indices stats API runs onCached() whenever loader.load() runs. We can't change this as it's PublicApi.
-                        // But now it may not be the case that the key actually enters the cache on loader.load().
-                        // To cancel this out, send the removalListener (the IRC) a removal notification with evicted = false,
-                        // so that it subtracts the stats off again without incrementing evictions.
-                        // These old stats will be removed anyway in 3.0.
+                    if (evaluatePoliciesList(value, policies)) {
+                        future.complete(new Tuple<>(key, value));
+                        didPutIntoCache = true;
+                    } else {
+                        future.complete(null); // Passing null would skip the logic to put this into onHeap cache.
+                        // Now loader.load() was run but the key didn't actually enter the cache.
+                        // To cancel this out, send the removalListener a removal notification with evicted = false,
+                        // The removal listener will be removed anyway in 3.0 alongside the old indices request stats API.
                         removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
                     }
                 }
@@ -857,7 +847,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             }
             ICache.Factory diskCacheFactory = cacheFactories.get(diskCacheStoreName);
 
-            TimeValue tookTimePolicyThreshold = TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType).get(settings);
+            TimeValue tookTimePolicyThreshold = TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType).get(settings);
             TimeValue tookTimeDiskPolicyThreshold = TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType).get(settings);
             Function<V, CachedQueryResult.PolicyValues> cachedResultParser = Objects.requireNonNull(
                 config.getCachedResultParser(),
@@ -889,7 +879,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                         tookTimePolicyThreshold,
                         cachedResultParser,
                         config.getClusterSettings(),
-                        TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType)
+                        TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType)
                     )
                 )
                 .addDiskPolicy(
@@ -1006,32 +996,12 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         }
 
         /**
-         * Set multiple policies to be used to limit access to this cache.
-         * @param policies the policies
-         * @return builder
-         */
-        public Builder<K, V> addPolicies(List<Predicate<V>> policies) {
-            this.policies.addAll(policies);
-            return this;
-        }
-
-        /**
          * Set a cache policy to be used to limit access to this cache's disk tier.
          * @param diskPolicy the policy
          * @return builder
          */
         public Builder<K, V> addDiskPolicy(Predicate<V> diskPolicy) {
             this.diskPolicies.add(diskPolicy);
-            return this;
-        }
-
-        /**
-         * Set multiple policies to be used to limit access to this cache's disk tier.
-         * @param diskPolicies the policies
-         * @return builder
-         */
-        public Builder<K, V> addDiskPolicies(List<Predicate<V>> diskPolicies) {
-            this.diskPolicies.addAll(diskPolicies);
             return this;
         }
 

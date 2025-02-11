@@ -22,7 +22,7 @@ import java.util.Map;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP;
-import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
 /**
  * Plugin for TieredSpilloverCache.
@@ -62,7 +62,7 @@ public class TieredSpilloverCachePlugin extends Plugin implements CachePlugin {
             settingList.add(
                 TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
             );
-            settingList.add(TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType));
+            settingList.add(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType));
             settingList.add(TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType));
             if (FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings)) {
                 settingList.add(DISK_CACHE_ENABLED_SETTING_MAP.get(cacheType));

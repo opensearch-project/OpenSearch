@@ -230,8 +230,7 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
             Settings.builder()
                 .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
-                        .getKey(),
+                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(100, TimeUnit.SECONDS)
                 )
                 .build()

@@ -64,7 +64,7 @@ import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.MIN_
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP;
-import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
@@ -85,7 +85,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     public void setup() {
         Settings settings = Settings.EMPTY;
         clusterSettings = new ClusterSettings(settings, new HashSet<>());
-        clusterSettings.registerSetting(TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
+        clusterSettings.registerSetting(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
         clusterSettings.registerSetting(TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
         clusterSettings.registerSetting(DISK_CACHE_ENABLED_SETTING_MAP.get(CacheType.INDICES_REQUEST_CACHE));
     }
@@ -1504,7 +1504,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 onHeapCacheSize * keyValueSize + "b"
             )
             // Initialize the settings to some other value, so we can demonstrate the updating logic works correctly.
-            .put(TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), TimeValue.ZERO)
+            .put(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), TimeValue.ZERO)
             .put(TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), TimeValue.ZERO)
             .put(TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(), 1)
             .build();
@@ -1544,7 +1544,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         clusterSettings.applySettings(
             Settings.builder()
                 .put(
-                    TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     new TimeValue(cacheThresholdNanos / 1_000_000)
                 )
                 .put(
@@ -1575,7 +1575,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         // Set heap threshold to 0 to ensure random keys can all enter
         clusterSettings.applySettings(
             Settings.builder()
-                .put(TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), TimeValue.ZERO)
+                .put(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), TimeValue.ZERO)
                 .build()
         );
         for (int i = 0; i < onHeapCacheSize; i++) {
@@ -1602,7 +1602,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     public void testMinimumThresholdSettingValue() throws Exception {
         // Confirm we can't set TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD to below
         // TimeValue.ZERO (for example, MINUS_ONE)
-        Setting<TimeValue> concreteSetting = TieredSpilloverCacheSettings.TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(
+        Setting<TimeValue> concreteSetting = TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(
             CacheType.INDICES_REQUEST_CACHE
         );
         TimeValue validDuration = new TimeValue(0, TimeUnit.MILLISECONDS);
@@ -2590,10 +2590,14 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setOnHeapCacheSizeInBytes(onHeapCacheSizeInBytes)
             .setCacheConfig(cacheConfig);
         if (policies != null) {
-            builder.addPolicies(policies);
+            for (Predicate<String> policy : policies) {
+                builder.addPolicy(policy);
+            }
         }
         if (diskPolicies != null) {
-            builder.addDiskPolicies(diskPolicies);
+            for (Predicate<String> diskPolicy : diskPolicies) {
+                builder.addDiskPolicy(diskPolicy);
+            }
         }
         return builder.build();
     }

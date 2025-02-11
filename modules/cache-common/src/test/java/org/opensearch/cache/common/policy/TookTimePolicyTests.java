@@ -29,7 +29,7 @@ import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
 public class TookTimePolicyTests extends OpenSearchTestCase {
     private final Function<BytesReference, CachedQueryResult.PolicyValues> transformationFunction = (data) -> {
@@ -46,7 +46,7 @@ public class TookTimePolicyTests extends OpenSearchTestCase {
     public void setup() {
         Settings settings = Settings.EMPTY;
         clusterSettings = new ClusterSettings(settings, new HashSet<>());
-        clusterSettings.registerSetting(TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
+        clusterSettings.registerSetting(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
     }
 
     private TookTimePolicy<BytesReference> getTookTimePolicy(TimeValue threshold) {
@@ -54,7 +54,7 @@ public class TookTimePolicyTests extends OpenSearchTestCase {
             threshold,
             transformationFunction,
             clusterSettings,
-            TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+            TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
         );
     }
 
@@ -96,7 +96,7 @@ public class TookTimePolicyTests extends OpenSearchTestCase {
             TimeValue.ZERO,
             dummyTransformationFunction,
             clusterSettings,
-            TOOK_TIME_HEAP_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+            TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
         );
         BytesReference minusOne = getValidPolicyInput(-1L);
         assertTrue(policy.test(minusOne));
