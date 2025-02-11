@@ -1657,6 +1657,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         assertEquals(0, getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         assertEquals(expectedKeys, getTotalStatsSnapshot(tieredSpilloverCache).getItems());
+        assertEquals(keyValuePairs.size() - expectedKeys, removalListener.evictionsMetric.count()); // Policy rejects should send a removal
+                                                                                                    // notification
     }
 
     public void testEntryPoliciesConcurrentlyWithComputeIfAbsent() throws Exception {
@@ -1736,6 +1738,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         assertEquals(0, getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         assertEquals(expectedKeys, getTotalStatsSnapshot(tieredSpilloverCache).getItems());
+        assertEquals(keyValuePairs.size() - expectedKeys, removalListener.evictionsMetric.count()); // Policy rejects should send a removal
+                                                                                                    // notification
     }
 
     public void testPutWithDiskCacheDisabledSetting() throws Exception {

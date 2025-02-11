@@ -268,6 +268,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                         onHeapCache.put(key, value);
                     }
                     updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, value);
+                } else {
+                    // Signal to the caller that the key didn't enter the cache by sending a removal notification.
+                    removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
                 }
             } else {
                 // Put it inside desired tier.
@@ -280,6 +283,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                         }
                         updateStatsOnPut(cacheValueTuple.v2(), key, value);
                     }
+                } else {
+                    removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
                 }
             }
         }
@@ -383,9 +388,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                         didPutIntoCache = true;
                     } else {
                         future.complete(null); // Passing null would skip the logic to put this into onHeap cache.
-                        // Now loader.load() was run but the key didn't actually enter the cache.
-                        // To cancel this out, send the removalListener a removal notification with evicted = false,
-                        // The removal listener will be removed anyway in 3.0 alongside the old indices request stats API.
+                        // Signal to the caller that the key didn't enter the cache by sending a removal notification.
                         removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
                     }
                 }
