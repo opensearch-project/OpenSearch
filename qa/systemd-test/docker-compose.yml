@@ -1,11 +1,14 @@
 services:
   # self-contained systemd example: run 'docker-compose up' to see it
-  amazonlinux:
+  centos:
     image: opensearch-systemd-test
     container_name: opensearch-systemd-test-container
     build:
       dockerfile_inline: |
-        FROM amazonlinux:2023
+        FROM centos:8
+        RUN sed -i 's|mirrorlist=|#mirrorlist=|g' /etc/yum.repos.d/*.repo && \
+        sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/*.repo
+
         # install systemd
         RUN dnf -y install systemd && dnf clean all
         # in practice, you'd COPY in the RPM you want to test right here
@@ -26,7 +29,7 @@ services:
         ForwardToConsole=yes
         EOF
         # start systemd as PID 1
-        CMD ["/sbin/init"]
+        CMD ["usr/sbin/init"]
         # enable opensearch service
         RUN systemctl enable opensearch
         # shutdown systemd properly
