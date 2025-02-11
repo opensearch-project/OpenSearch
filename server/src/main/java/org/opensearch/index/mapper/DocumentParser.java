@@ -535,14 +535,48 @@ final class DocumentParser {
         }
     }
 
+    private static void parseObjectWithoutObjectMapper(final ParseContext context, ObjectMapper mapper, String currentFieldName)
+        throws IOException {
+        XContentParser parser = context.parser();
+        XContentParser.Token token;
+
+        final String[] paths = splitAndValidatePath(currentFieldName);
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                parseObject(context, mapper, currentFieldName, paths);
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                parseArray(context, mapper, currentFieldName, paths);
+            } else if (token == XContentParser.Token.VALUE_NULL) {
+                parseNullValue(context, mapper, currentFieldName, paths);
+            } else if (token == XContentParser.Token.FIELD_NAME) {
+                // seems to work even with empty body
+            } else if (token == null) {
+                throw new MapperParsingException(
+                    "object mapping for ["
+                        + mapper.name()
+                        + "] with array for ["
+                        + currentFieldName
+                        + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?"
+                );
+            } else {
+                assert token.isValue();
+                parseValue(context, mapper, currentFieldName, token, paths);
+            }
+        }
+    }
+
     private static void parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName, String[] paths)
         throws IOException {
         assert currentFieldName != null;
 
         Mapper objectMapper = getMapper(context, mapper, currentFieldName, paths);
-        if (objectMapper != null) {
+        if (objectMapper != null && objectMapper instanceof ObjectMapper) {
             context.path().add(currentFieldName);
             parseObjectOrField(context, objectMapper);
+            context.path().remove();
+        } else if (objectMapper != null) {
+            context.path().add(currentFieldName);
+            parseObjectWithoutObjectMapper(context, mapper, currentFieldName);
             context.path().remove();
         } else {
             currentFieldName = paths[paths.length - 1];
