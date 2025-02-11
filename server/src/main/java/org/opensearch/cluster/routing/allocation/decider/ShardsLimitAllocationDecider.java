@@ -41,7 +41,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.index.Index;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.function.BiPredicate;
@@ -133,23 +132,9 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     }
 
     /**
-     * Counts the number of primary shards on a given node for a given index
-     */
-    private int countIndexPrimaryShards(RoutingNode node, ShardRouting shardRouting) {
-        Index index = shardRouting.index();
-        int count = 0;
-        for (ShardRouting shard : node) {
-            if (shard.index().equals(index) && shard.primary() && !shard.relocating()) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    /**
      * Checks whether the given shardRouting's index uses segment replication
      */
-    private boolean isIndexSegmentReplicationUsed(RoutingAllocation allocation, ShardRouting shardRouting) {
+    private boolean isSegRepEnabledIndex(RoutingAllocation allocation, ShardRouting shardRouting) {
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         Settings indexSettings = indexMetadata.getSettings();
         return IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexSettings) == ReplicationType.SEGMENT;
@@ -205,9 +190,9 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             }
         }
 
-        final boolean isIndexSegmentReplicationUsed = isIndexSegmentReplicationUsed(allocation, shardRouting);
-        if (indexPrimaryShardLimit > 0 && isIndexSegmentReplicationUsed && shardRouting.primary()) {
-            final int indexPrimaryShardCount = countIndexPrimaryShards(node, shardRouting);
+        final boolean isIndexSegRepEnabled = isSegRepEnabledIndex(allocation, shardRouting);
+        if (indexPrimaryShardLimit > 0 && isIndexSegRepEnabled && shardRouting.primary()) {
+            final int indexPrimaryShardCount = node.numberOfOwningPrimaryShardsForIndex(shardRouting.index());
             if (decider.test(indexPrimaryShardCount, indexPrimaryShardLimit)) {
                 return allocation.decision(
                     Decision.NO,
