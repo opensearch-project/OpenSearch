@@ -68,7 +68,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
 
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
-    public static final ParseField EXECUTION_HINT_FIELD = new ParseField(("execution_hint"));
+    public static final ParseField EXECUTION_HINT_FIELD = new ParseField("execution_hint");
 
     public static final ObjectParser<CardinalityAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
