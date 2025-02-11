@@ -258,6 +258,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void search(Query query, Collector collector) throws IOException {
+        // TODO : Remove when switching to use the @org.apache.lucene.search.IndexSearcher#search(Query, CollectorManager) variant from
+        // @org.opensearch.search.query.QueryPhase#searchWithCollector which then calls the overridden
+        // search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector)
         query = collector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
         Weight weight = createWeight(query, collector.scoreMode(), 1);
         LeafSlice[] leafSlices = getSlices();
