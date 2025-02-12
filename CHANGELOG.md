@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Deprecated
 
 ### Removed
+- Removed FeatureFlags.PLUGGABLE_CACHE as the feature is no longer experimental ([#17344](https://github.com/opensearch-project/OpenSearch/pull/17344))
 
 ### Fixed
 - Fix case insensitive and escaped query on wildcard ([#16827](https://github.com/opensearch-project/OpenSearch/pull/16827))
