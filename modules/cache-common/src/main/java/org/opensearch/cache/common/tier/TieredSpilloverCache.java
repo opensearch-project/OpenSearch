@@ -315,9 +315,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 Tuple<V, Boolean> computedValueTuple = compute(key, loader, future);
                 // Handle stats
                 if (computedValueTuple.v2()) {
-                    // The value was just computed and added to the cache by this thread. Register a miss for the heap cache, and the disk
-                    // cache
-                    // if present
+                    // The value was just computed and added to the cache by this thread, or it was rejected by the policy.
+                    // Register a miss for the heap cache, and the disk cache if present
                     updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, computedValueTuple.v1());
                     statsHolder.incrementMisses(heapDimensionValues);
                     if (caches.get(diskCache).isEnabled()) {
@@ -349,7 +348,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         ) throws Exception {
             // Handler to handle results post-processing. Takes a tuple<key, value> or exception as an input and returns
             // the value. Also before returning value, puts the value in cache.
-            boolean didPutIntoCache = false;
+            boolean wasCacheMiss = false;
             BiFunction<Tuple<ICacheKey<K>, V>, Throwable, Void> handler = (pair, ex) -> {
                 if (pair != null) {
                     try (ReleasableLock ignore = writeLock.acquire()) {
@@ -383,12 +382,13 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     future.completeExceptionally(npe);
                     throw new ExecutionException(npe);
                 } else {
+                    wasCacheMiss = true;
                     if (evaluatePoliciesList(value, policies)) {
                         future.complete(new Tuple<>(key, value));
-                        didPutIntoCache = true;
                     } else {
                         future.complete(null); // Passing null would skip the logic to put this into onHeap cache.
                         // Signal to the caller that the key didn't enter the cache by sending a removal notification.
+                        // This case also counts as a cache miss.
                         removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
                     }
                 }
@@ -399,7 +399,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     throw new IllegalStateException(ex);
                 }
             }
-            return new Tuple<>(value, didPutIntoCache);
+            return new Tuple<>(value, wasCacheMiss);
         }
 
         @Override
