@@ -33,10 +33,8 @@
 package org.opensearch.test.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.opensearch.OpenSearchException;
-import org.locationtech.jts.algorithm.ConvexHull;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
 import org.opensearch.common.geo.builders.CoordinatesBuilder;
 import org.opensearch.common.geo.builders.GeometryCollectionBuilder;
 import org.opensearch.common.geo.builders.LineStringBuilder;
@@ -47,14 +45,18 @@ import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.search.geo.GeoShapeQueryTests;
 import org.junit.Assert;
+
+import java.util.Random;
+
+import org.locationtech.jts.algorithm.ConvexHull;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
 import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
 import org.locationtech.spatial4j.distance.DistanceUtils;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Rectangle;
 import org.locationtech.spatial4j.shape.impl.Range;
-
-import java.util.Random;
 
 import static org.locationtech.spatial4j.shape.SpatialRelation.CONTAINS;
 

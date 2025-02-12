@@ -33,11 +33,11 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.hamcrest.Matchers;
 
@@ -245,6 +245,46 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         );
 
         assertThat(e.getMessage(), startsWith("mapping set to strict, dynamic introduction of [very] within [_doc] is not allowed"));
+    }
+
+    public void testCopyToStrictAllowTemplatesDynamicInnerObjectParsing() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "strict_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "test");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            {
+                b.startObject("copy_test");
+                {
+                    b.field("type", "text");
+                    b.field("copy_to", "very.inner.field");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> docMapper.parse(source(b -> b.field("copy_test", "foo")))
+        );
+
+        assertThat(
+            e.getMessage(),
+            startsWith("mapping set to strict_allow_templates, dynamic introduction of [very] within [_doc] is not allowed")
+        );
     }
 
     public void testCopyToInnerStrictDynamicInnerObjectParsing() throws Exception {

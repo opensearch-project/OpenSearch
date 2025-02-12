@@ -8,10 +8,11 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.concurrent.RefCountedReleasable;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -28,6 +29,7 @@ public class AmazonAsyncS3Reference extends RefCountedReleasable<AmazonAsyncS3Wi
         super("AWS_S3_CLIENT", client, () -> {
             client.client().close();
             client.priorityClient().close();
+            client.urgentClient().close();
             AwsCredentialsProvider credentials = client.credentials();
             if (credentials instanceof Closeable) {
                 try {

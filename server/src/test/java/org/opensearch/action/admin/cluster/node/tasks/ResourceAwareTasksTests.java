@@ -9,27 +9,30 @@
 package org.opensearch.action.admin.cluster.node.tasks;
 
 import com.sun.management.ThreadMXBean;
+
 import org.apache.lucene.util.Constants;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.NotifyOnceListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskCancelledException;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.tasks.TaskResourceUsage;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.test.tasks.MockTaskManagerListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -49,9 +52,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 @SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
 public class ResourceAwareTasksTests extends TaskManagerTestCase {
@@ -562,8 +565,57 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
             assertNotNull(taskInfo.getResourceStats());
             assertNotNull(taskInfo.getResourceStats().getResourceUsageInfo());
-            assertTrue(taskInfo.getResourceStats().getResourceUsageInfo().get("total") instanceof TaskResourceUsage);
-            TaskResourceUsage taskResourceUsage = (TaskResourceUsage) taskInfo.getResourceStats().getResourceUsageInfo().get("total");
+            assertNotNull(taskInfo.getResourceStats().getResourceUsageInfo().get("total"));
+            TaskResourceUsage taskResourceUsage = taskInfo.getResourceStats().getResourceUsageInfo().get("total");
+            assertCPUTime(taskResourceUsage.getCpuTimeInNanos());
+            assertTrue(taskResourceUsage.getMemoryInBytes() > 0);
+        };
+
+        taskTestContext.operationFinishedValidator = (task, threadId) -> { assertEquals(0, resourceTasks.size()); };
+
+        startResourceAwareNodesAction(testNodes[0], false, taskTestContext, new ActionListener<NodesResponse>() {
+            @Override
+            public void onResponse(NodesResponse listTasksResponse) {
+                responseReference.set(listTasksResponse);
+                taskTestContext.requestCompleteLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throwableReference.set(e);
+                taskTestContext.requestCompleteLatch.countDown();
+            }
+        });
+
+        // Waiting for whole request to complete and return successfully till client
+        taskTestContext.requestCompleteLatch.await();
+
+        assertTasksRequestFinishedSuccessfully(responseReference.get(), throwableReference.get());
+    }
+
+    public void testOnDemandRefreshWhileGetTask() throws InterruptedException {
+        setup(true, false);
+
+        final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
+        final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
+
+        TaskTestContext taskTestContext = new TaskTestContext();
+
+        Map<Long, Task> resourceTasks = testNodes[0].taskResourceTrackingService.getResourceAwareTasks();
+
+        taskTestContext.operationStartValidator = (task, threadId) -> {
+            assertFalse(resourceTasks.isEmpty());
+            GetTaskResponse getTaskResponse = ActionTestUtils.executeBlocking(
+                testNodes[0].transportGetTaskAction,
+                new GetTaskRequest().setTaskId(new TaskId(testNodes[0].getNodeId(), new ArrayList<>(resourceTasks.values()).get(0).getId()))
+            );
+
+            TaskInfo taskInfo = getTaskResponse.getTask().getTask();
+
+            assertNotNull(taskInfo.getResourceStats());
+            assertNotNull(taskInfo.getResourceStats().getResourceUsageInfo());
+            assertNotNull(taskInfo.getResourceStats().getResourceUsageInfo().get("total"));
+            TaskResourceUsage taskResourceUsage = taskInfo.getResourceStats().getResourceUsageInfo().get("total");
             assertCPUTime(taskResourceUsage.getCpuTimeInNanos());
             assertTrue(taskResourceUsage.getMemoryInBytes() > 0);
         };

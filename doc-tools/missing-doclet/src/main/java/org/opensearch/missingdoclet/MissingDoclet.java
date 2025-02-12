@@ -45,7 +45,7 @@ import jdk.javadoc.doclet.StandardDoclet;
  *   It isn't recursive, just ignores exactly the elements you tell it.
  * Has option --missing-method to apply "method" level to selected packages (fix one at a time).
  *   Matches package names exactly: so you'll need to list subpackages separately.
- *
+ * <p>
  * Note: This by default ignores javadoc validation on overridden methods.
  */
 // Original version of this class is ported from MissingDoclet code in Lucene,
@@ -332,13 +332,20 @@ public class MissingDoclet extends StandardDoclet {
 
     // Ignore classes annotated with @Generated and all enclosed elements in them.
     private boolean isGenerated(Element element) {
-        return element
+        final boolean isGenerated = element
             .getAnnotationMirrors()
             .stream()
             .anyMatch(m -> m
                 .getAnnotationType()
                 .toString() /* ClassSymbol.toString() returns class name */
                 .equalsIgnoreCase("javax.annotation.Generated"));
+
+        if (!isGenerated && element.getEnclosingElement() != null) {
+            // check if enclosing element is generated
+            return isGenerated(element.getEnclosingElement());
+        } 
+
+        return isGenerated;
     }
 
     private boolean hasInheritedJavadocs(Element element) {

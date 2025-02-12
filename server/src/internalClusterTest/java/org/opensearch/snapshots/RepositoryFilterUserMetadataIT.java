@@ -32,13 +32,13 @@
 package org.opensearch.snapshots;
 
 import org.apache.lucene.index.IndexCommit;
-
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.mapper.MapperService;
@@ -59,7 +59,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
 public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
@@ -72,17 +71,10 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
     public void testFilteredRepoMetadataIsUsed() {
         final String clusterManagerName = internalCluster().getClusterManagerName();
         final String repoName = "test-repo";
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(repoName)
-                .setType(MetadataFilteringPlugin.TYPE)
-                .setSettings(
-                    Settings.builder()
-                        .put("location", randomRepoPath())
-                        .put(MetadataFilteringPlugin.CLUSTER_MANAGER_SETTING_VALUE, clusterManagerName)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", randomRepoPath())
+            .put(MetadataFilteringPlugin.CLUSTER_MANAGER_SETTING_VALUE, clusterManagerName);
+        createRepository(repoName, MetadataFilteringPlugin.TYPE, settings);
         createIndex("test-idx");
         final SnapshotInfo snapshotInfo = client().admin()
             .cluster()
@@ -128,6 +120,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                         SnapshotInfo snapshotInfo,
                         Version repositoryMetaVersion,
                         Function<ClusterState, ClusterState> stateTransformer,
+                        Priority repositoryUpdatePriority,
                         ActionListener<RepositoryData> listener
                     ) {
                         super.finalizeSnapshot(
@@ -137,6 +130,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                             snapshotInfo,
                             repositoryMetaVersion,
                             stateTransformer,
+                            repositoryUpdatePriority,
                             listener
                         );
                     }

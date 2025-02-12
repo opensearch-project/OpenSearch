@@ -31,8 +31,8 @@
 
 package org.opensearch.repositories.s3;
 
-import org.junit.Before;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import software.amazon.awssdk.services.s3.model.StorageClass;
+
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -42,7 +42,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import software.amazon.awssdk.services.s3.model.StorageClass;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Map;
@@ -50,7 +51,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
@@ -110,13 +110,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository("test-repo")
-            .setType("s3")
-            .setSettings(settings)
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo", "s3", settings);
     }
 
     @Override

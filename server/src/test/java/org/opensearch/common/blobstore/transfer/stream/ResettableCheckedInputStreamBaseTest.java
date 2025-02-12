@@ -8,9 +8,9 @@
 
 package org.opensearch.common.blobstore.transfer.stream;
 
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -33,14 +33,16 @@
 package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
 
 /**
  * Clone of {@link SortedNumericDocValues} for double values.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SortedNumericDoubleValues {
 
     /** Sole constructor. (For invocation by subclass
@@ -68,4 +70,15 @@ public abstract class SortedNumericDoubleValues {
      */
     public abstract int docValueCount();
 
+    /**
+     * Advances to the first beyond the current whose document number is greater than or equal to
+     * <i>target</i>, and returns the document number itself. Exhausts the iterator and returns {@link
+     * org.apache.lucene.search.DocIdSetIterator#NO_MORE_DOCS} if <i>target</i> is greater than the highest document number in the set.
+     *
+     * This method is being used by {@link org.apache.lucene.search.comparators.NumericComparator.NumericLeafComparator} when point values optimization kicks
+     * in and is implemented by most numeric types.
+     */
+    public int advance(int target) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 }

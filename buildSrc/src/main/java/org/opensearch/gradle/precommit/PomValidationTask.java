@@ -35,9 +35,12 @@ package org.opensearch.gradle.precommit;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.gradle.api.GradleException;
+import org.gradle.api.Project;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.TaskAction;
+
+import javax.inject.Inject;
 
 import java.io.FileReader;
 import java.util.Collection;
@@ -46,9 +49,15 @@ import java.util.function.Predicate;
 
 public class PomValidationTask extends PrecommitTask {
 
-    private final RegularFileProperty pomFile = getProject().getObjects().fileProperty();
+    private final RegularFileProperty pomFile;
 
     private boolean foundError;
+
+    @Inject
+    public PomValidationTask(Project project) {
+        super(project);
+        this.pomFile = project.getObjects().fileProperty();
+    }
 
     @InputFile
     public RegularFileProperty getPomFile() {
@@ -106,6 +115,7 @@ public class PomValidationTask extends PrecommitTask {
 
     private void validateString(String element, String value) {
         validateNonNull(element, value, () -> validateNonEmpty(element, value, s -> s.trim().isEmpty()));
+        getLogger().info(element + " with value " + value + " is validated.");
     }
 
     private <T> void validateCollection(String element, Collection<T> value, Consumer<T> validator) {

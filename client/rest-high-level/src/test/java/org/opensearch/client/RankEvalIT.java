@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import org.junit.Before;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -50,6 +49,7 @@ import org.opensearch.index.rankeval.RatedRequest;
 import org.opensearch.index.rankeval.RatedSearchHit;
 import org.opensearch.index.rankeval.RecallAtK;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,7 +121,7 @@ public class RankEvalIT extends OpenSearchRestHighLevelClientTestCase {
         }
 
         // now try this when test2 is closed
-        client().performRequest(new Request("POST", "index2/_close"));
+        client().performRequest(new Request("POST", "/index2/_close"));
         rankEvalRequest.indicesOptions(IndicesOptions.fromParameters(null, "true", null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
     }
@@ -158,7 +158,7 @@ public class RankEvalIT extends OpenSearchRestHighLevelClientTestCase {
 
             RankEvalRequest rankEvalRequest = new RankEvalRequest(spec, new String[] { "index", "index2" });
             RankEvalResponse response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
-            assertEquals(expectedScores[i], response.getMetricScore(), Double.MIN_VALUE);
+            assertEquals(expectedScores[i], response.getMetricScore(), DOUBLE_DELTA);
             i++;
         }
     }

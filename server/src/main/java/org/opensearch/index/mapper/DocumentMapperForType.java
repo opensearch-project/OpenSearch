@@ -32,6 +32,8 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.common.annotation.DeprecatedApi;
+
 /**
  * Document mapper used for types
  *
@@ -40,6 +42,7 @@ package org.opensearch.index.mapper;
  * @deprecated types are being removed
  */
 @Deprecated
+@DeprecatedApi(since = "2.0.0")
 public class DocumentMapperForType {
     private final DocumentMapper documentMapper;
     private final Mapping mapping;

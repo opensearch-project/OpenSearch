@@ -126,9 +126,9 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
 
     /**
      * Visits an expression that is also considered a statement.
-     *
+     * <p>
      * If the statement is a return from the execute method, performs return value conversion.
-     *
+     * <p>
      * Checks: control flow, type validation
      */
     @Override
@@ -168,9 +168,9 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
 
     /**
      * Visits a return statement and casts the value to the return type if possible.
-     *
+     * <p>
      * If the statement is a return from the execute method, performs return value conversion.
-     *
+     * <p>
      * Checks: type validation
      */
     @Override

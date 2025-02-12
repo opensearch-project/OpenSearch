@@ -33,16 +33,16 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.ingest.IngestStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.MockScriptPlugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -108,7 +108,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
                         + "  ]\n"
                         + "}"
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
 
@@ -160,8 +160,8 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
             equalTo(id)
         );
 
-        client().admin().cluster().preparePutPipeline(pipelineIdWithScript, pipelineWithScript, XContentType.JSON).get();
-        client().admin().cluster().preparePutPipeline(pipelineIdWithoutScript, pipelineWithoutScript, XContentType.JSON).get();
+        client().admin().cluster().preparePutPipeline(pipelineIdWithScript, pipelineWithScript, MediaTypeRegistry.JSON).get();
+        client().admin().cluster().preparePutPipeline(pipelineIdWithoutScript, pipelineWithoutScript, MediaTypeRegistry.JSON).get();
 
         checkPipelineExists.accept(pipelineIdWithScript);
         checkPipelineExists.accept(pipelineIdWithoutScript);
@@ -225,7 +225,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
             .setId("1")
             .setContent(
                 new BytesArray("{\"script\": {\"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"my_script\"} }"),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
         BytesReference pipeline = new BytesArray(
@@ -236,7 +236,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
                 + "  ]\n"
                 + "}"
         );
-        client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
+        client().admin().cluster().preparePutPipeline("_id", pipeline, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("index")
             .setId("1")
@@ -277,7 +277,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         BytesReference pipeline = new BytesArray(
             "{\n" + "  \"processors\" : [\n" + "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" + "  ]\n" + "}"
         );
-        client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
+        client().admin().cluster().preparePutPipeline("_id", pipeline, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("index")
             .setId("1")

@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
@@ -44,46 +45,55 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
+import org.opensearch.index.document.SortedUnsignedLongDocValuesSetQuery;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.query.BitmapDocValuesQuery;
+import org.opensearch.search.query.BitmapIndexQuery;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import org.roaringbitmap.RoaringBitmap;
+
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -117,15 +127,27 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testIntegerTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
+        assertEquals(
+            new IndexOrDocValuesQuery(IntPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
+            ft.termsQuery(Arrays.asList(1, 2.1), null)
+        );
+        assertEquals(
+            new IndexOrDocValuesQuery(IntPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
+            ft.termsQuery(Arrays.asList(1.0, 2.1), null)
+        );
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
+        assertEquals(
+            new IndexOrDocValuesQuery(LongPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
+            ft.termsQuery(Arrays.asList(1, 2.1), null)
+        );
+        assertEquals(
+            new IndexOrDocValuesQuery(LongPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
+            ft.termsQuery(Arrays.asList(1.0, 2.1), null)
+        );
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
     }
 
@@ -150,16 +172,18 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static MappedFieldType unsearchable() {
-        return new NumberFieldType("field", NumberType.LONG, false, false, true, true, null, Collections.emptyMap());
+        return new NumberFieldType("field", NumberType.LONG, false, false, false, true, null, Collections.emptyMap());
     }
 
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", null));
+        Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("field", 42);
+        Query query = new IndexOrDocValuesQuery(LongPoint.newExactQuery("field", 42), dvQuery);
+        assertEquals(query, ft.termQuery("42", null));
 
         MappedFieldType unsearchable = unsearchable();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testRangeQueryWithNegativeBounds() {
@@ -379,7 +403,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testUnsignedLongRangeQuery() {
@@ -395,7 +419,23 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
+    }
+
+    public void testUnsignedLongTermsQuery() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG);
+        Query expected = new IndexOrDocValuesQuery(
+            BigIntegerPoint.newSetQuery("field", BigInteger.valueOf(1), BigInteger.valueOf(3)),
+            SortedUnsignedLongDocValuesSetQuery.newSlowSetQuery("field", BigInteger.valueOf(1), BigInteger.valueOf(3))
+        );
+        assertEquals(expected, ft.termsQuery(List.of("1", "3"), MOCK_QSC));
+
+        MappedFieldType unsearchable = unsearchable();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.termsQuery(List.of("1", "3"), MOCK_QSC)
+        );
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testDoubleRangeQuery() {
@@ -415,7 +455,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testConversions() {
@@ -517,8 +557,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             float u = (randomFloat() * 2 - 1) * 65504;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query floatQ = NumberType.FLOAT.rangeQuery("float", l, u, includeLower, includeUpper, false, MOCK_QSC);
-            Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery("half_float", l, u, includeLower, includeUpper, false, MOCK_QSC);
+            Query floatQ = NumberType.FLOAT.rangeQuery("float", l, u, includeLower, includeUpper, false, true, MOCK_QSC);
+            Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery("half_float", l, u, includeLower, includeUpper, false, true, MOCK_QSC);
             assertEquals(searcher.count(floatQ), searcher.count(halfFloatQ));
         }
         IOUtils.close(reader, dir);
@@ -548,8 +588,17 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             BigInteger u = randomUnsignedLong();
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query unsignedLongQ = NumberType.UNSIGNED_LONG.rangeQuery("unsigned_long", l, u, includeLower, includeUpper, false, MOCK_QSC);
-            Query doubleQ = NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false, MOCK_QSC);
+            Query unsignedLongQ = NumberType.UNSIGNED_LONG.rangeQuery(
+                "unsigned_long",
+                l,
+                u,
+                includeLower,
+                includeUpper,
+                false,
+                true,
+                MOCK_QSC
+            );
+            Query doubleQ = NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false, true, MOCK_QSC);
             assertEquals(searcher.count(doubleQ), searcher.count(unsignedLongQ));
         }
         IOUtils.close(reader, dir);
@@ -557,21 +606,23 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testNegativeZero() {
         assertEquals(
-            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_QSC),
-            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_QSC)
+            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, true, MOCK_QSC),
+            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, true, MOCK_QSC)
         );
         assertEquals(
-            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_QSC),
-            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_QSC)
+            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, true, MOCK_QSC),
+            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, true, MOCK_QSC)
         );
         assertEquals(
-            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_QSC),
-            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_QSC)
+            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, true, MOCK_QSC),
+            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, true, MOCK_QSC)
         );
 
-        assertFalse(NumberType.DOUBLE.termQuery("field", -0d).equals(NumberType.DOUBLE.termQuery("field", +0d)));
-        assertFalse(NumberType.FLOAT.termQuery("field", -0f).equals(NumberType.FLOAT.termQuery("field", +0f)));
-        assertFalse(NumberType.HALF_FLOAT.termQuery("field", -0f).equals(NumberType.HALF_FLOAT.termQuery("field", +0f)));
+        assertFalse(NumberType.DOUBLE.termQuery("field", -0d, true, true).equals(NumberType.DOUBLE.termQuery("field", +0d, true, true)));
+        assertFalse(NumberType.FLOAT.termQuery("field", -0f, true, true).equals(NumberType.FLOAT.termQuery("field", +0f, true, true)));
+        assertFalse(
+            NumberType.HALF_FLOAT.termQuery("field", -0f, true, true).equals(NumberType.HALF_FLOAT.termQuery("field", +0f, true, true))
+        );
     }
 
     // Make sure we construct the IndexOrDocValuesQuery objects with queries that match
@@ -627,11 +678,14 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 true,
+                true,
                 MOCK_QSC
             );
-            assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-            IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
-            assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
+            assertThat(query, either(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+            if (query instanceof IndexOrDocValuesQuery) {
+                IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
+                assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
+            }
         }
         reader.close();
         dir.close();
@@ -706,6 +760,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 random().nextBoolean() ? null : valueSupplier.get(),
                 randomBoolean(),
                 randomBoolean(),
+                true,
                 true,
                 context
             );
@@ -798,7 +853,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         public void write(XContentBuilder b) throws IOException {
             if (value instanceof BigInteger) {
-                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON);
+                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), MediaTypeRegistry.JSON);
             } else {
                 b.field("field", value);
             }
@@ -898,5 +953,61 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             .fieldType();
         assertEquals(Collections.singletonList(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(Collections.singletonList(2.71f), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testBitmapQuery() throws IOException {
+        RoaringBitmap r = new RoaringBitmap();
+        byte[] array = new byte[r.serializedSizeInBytes()];
+        r.serialize(ByteBuffer.wrap(array));
+        BytesArray bitmap = new BytesArray(array);
+
+        NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
+        assertEquals(
+            new IndexOrDocValuesQuery(new BitmapIndexQuery("field", r), new BitmapDocValuesQuery("field", r)),
+            ft.bitmapQuery(bitmap)
+        );
+
+        ft = new NumberFieldType("field", NumberType.INTEGER, false, false, true, true, null, Collections.emptyMap());
+        assertEquals(new BitmapDocValuesQuery("field", r), ft.bitmapQuery(bitmap));
+
+        ft = new NumberFieldType("field", NumberType.INTEGER, true, false, false, true, null, Collections.emptyMap());
+        assertEquals(new BitmapIndexQuery("field", r), ft.bitmapQuery(bitmap));
+
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig());
+        DirectoryReader reader = DirectoryReader.open(w);
+        assertEquals(new MatchNoDocsQuery(), ft.bitmapQuery(bitmap).rewrite(newSearcher(reader)));
+        reader.close();
+        w.close();
+        dir.close();
+
+        NumberType type = randomValueOtherThan(NumberType.INTEGER, () -> randomFrom(NumberType.values()));
+        ft = new NumberFieldMapper.NumberFieldType("field", type);
+        NumberFieldType finalFt = ft;
+        assertThrows(IllegalArgumentException.class, () -> finalFt.bitmapQuery(bitmap));
+    }
+
+    public void testFetchUnsignedLongDocValues() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+        Document doc = new Document();
+        final BigInteger expectedValue = randomUnsignedLong();
+        doc.add(new SortedNumericDocValuesField("ul", expectedValue.longValue()));
+        w.addDocument(doc);
+        try (DirectoryReader reader = DirectoryReader.open(w)) {
+            final NumberFieldType ft = new NumberFieldType("ul", NumberType.UNSIGNED_LONG);
+            IndexNumericFieldData fielddata = (IndexNumericFieldData) ft.fielddataBuilder(
+                "index",
+                () -> { throw new UnsupportedOperationException(); }
+            ).build(null, null);
+            assertEquals(IndexNumericFieldData.NumericType.UNSIGNED_LONG, fielddata.getNumericType());
+            DocValueFetcher.Leaf fetcher = fielddata.load(reader.leaves().get(0)).getLeafValueFetcher(DocValueFormat.UNSIGNED_LONG);
+            assertTrue(fetcher.advanceExact(0));
+            assertEquals(1, fetcher.docValueCount());
+            final Object value = fetcher.nextValue();
+            assertTrue(value instanceof BigInteger);
+            assertEquals(expectedValue, value);
+        }
+        IOUtils.close(w, dir);
     }
 }

@@ -8,24 +8,32 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.mockito.ArgumentMatchers;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.test.TestSearchContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+
+import org.mockito.ArgumentMatchers;
 
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class AggregationProcessorTests extends AggregationSetupTests {
     private final AggregationProcessor testAggregationProcessor = new ConcurrentAggregationProcessor();
@@ -48,15 +56,19 @@ public class AggregationProcessorTests extends AggregationSetupTests {
     }
 
     public void testPostProcessWithNonGlobalAggregatorsAndSingleSlice() throws Exception {
-        testPostProcessCommon(multipleNonGlobalAggs, 1, 0, 2);
+        testPostProcessCommon(multipleNonGlobalAggs, 1, 0, 2, false);
     }
 
     public void testPostProcessWithNonGlobalAggregatorsAndMultipleSlices() throws Exception {
-        testPostProcessCommon(multipleNonGlobalAggs, randomIntBetween(2, 5), 0, 2);
+        testPostProcessCommon(multipleNonGlobalAggs, randomIntBetween(2, 5), 0, 2, false);
     }
 
     public void testPostProcessGlobalAndNonGlobalAggregators() throws Exception {
-        testPostProcessCommon(globalNonGlobalAggs, randomIntBetween(2, 5), 1, 1);
+        testPostProcessCommon(globalNonGlobalAggs, randomIntBetween(2, 5), 1, 1, false);
+    }
+
+    public void testPostProcessGlobalAndNonGlobalAggregatorsWithProfilers() throws Exception {
+        testPostProcessCommon(globalNonGlobalAggs, randomIntBetween(2, 5), 1, 1, true);
     }
 
     private void testPreProcessCommon(String agg, int expectedGlobalAggs, int expectedNonGlobalAggs) throws Exception {
@@ -127,8 +139,13 @@ public class AggregationProcessorTests extends AggregationSetupTests {
         }
     }
 
-    private void testPostProcessCommon(String aggs, int numSlices, int expectedGlobalAggs, int expectedNonGlobalAggsPerSlice)
-        throws Exception {
+    private void testPostProcessCommon(
+        String aggs,
+        int numSlices,
+        int expectedGlobalAggs,
+        int expectedNonGlobalAggsPerSlice,
+        boolean withProfilers
+    ) throws Exception {
         final Collection<Collector> nonGlobalCollectors = new ArrayList<>();
         final Collection<Collector> globalCollectors = new ArrayList<>();
         testPreProcessCommon(aggs, expectedGlobalAggs, expectedNonGlobalAggsPerSlice, nonGlobalCollectors, globalCollectors);
@@ -141,27 +158,66 @@ public class AggregationProcessorTests extends AggregationSetupTests {
                 globalCollectors.add(context.queryCollectorManagers().get(GlobalAggCollectorManager.class).newCollector());
             }
         }
-        final ContextIndexSearcher testSearcher = mock(ContextIndexSearcher.class);
         final IndexSearcher.LeafSlice[] slicesToReturn = new IndexSearcher.LeafSlice[numSlices];
-        when(testSearcher.getSlices()).thenReturn(slicesToReturn);
+
+        // Build a ContextIndexSearcher that stubs slices to return slicesToReturn. Slices is protected in IndexReader
+        // so this builds a real object. The DirectoryReader fetched to build the object is not used for any searches.
+        final DirectoryReader reader;
+        try (Engine.Searcher searcher = context.indexShard().acquireSearcher("test")) {
+            reader = searcher.getDirectoryReader();
+        }
+        ContextIndexSearcher testSearcher = spy(
+            new ContextIndexSearcher(
+                reader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                randomBoolean(),
+                mock(ExecutorService.class),
+                context
+            ) {
+                @Override
+                protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+                    return slicesToReturn;
+                }
+            }
+        );
+
         ((TestSearchContext) context).setSearcher(testSearcher);
         AggregationCollectorManager collectorManager;
         if (expectedNonGlobalAggsPerSlice > 0) {
             collectorManager = (AggregationCollectorManager) context.queryCollectorManagers().get(NonGlobalAggCollectorManager.class);
+            for (Collector c : nonGlobalCollectors) {
+                context.bucketCollectorProcessor().processPostCollection(c);
+            }
             collectorManager.reduce(nonGlobalCollectors).reduce(context.queryResult());
         }
         if (expectedGlobalAggs > 0) {
             collectorManager = (AggregationCollectorManager) context.queryCollectorManagers().get(GlobalAggCollectorManager.class);
+            for (Collector c : globalCollectors) {
+                context.bucketCollectorProcessor().processPostCollection(c);
+            }
             ReduceableSearchResult result = collectorManager.reduce(globalCollectors);
-            when(testSearcher.search(nullable(Query.class), ArgumentMatchers.<CollectorManager<?, ReduceableSearchResult>>any()))
-                .thenReturn(result);
+            doReturn(result).when(testSearcher)
+                .search(nullable(Query.class), ArgumentMatchers.<CollectorManager<?, ReduceableSearchResult>>any());
         }
         assertTrue(context.queryResult().hasAggs());
+        if (withProfilers) {
+            ((TestSearchContext) context).withProfilers();
+        }
         testAggregationProcessor.postProcess(context);
         assertTrue(context.queryResult().hasAggs());
         // for global aggs verify that search.search is called with CollectionManager
         if (expectedGlobalAggs > 0) {
             verify(testSearcher, times(1)).search(nullable(Query.class), ArgumentMatchers.<CollectorManager<?, ?>>any());
+            if (withProfilers) {
+                // First profiler is from withProfilers() call, second one is from postProcess() call
+                assertEquals(2, context.getProfilers().getQueryProfilers().size());
+                assertEquals(
+                    CollectorResult.REASON_AGGREGATION_GLOBAL,
+                    context.getProfilers().getQueryProfilers().get(1).getCollector().getReason()
+                );
+            }
         }
         // after shard level reduce it should have only 1 InternalAggregation instance for each agg in request and internal aggregation
         // will be equal to sum of expected global and nonglobal aggs

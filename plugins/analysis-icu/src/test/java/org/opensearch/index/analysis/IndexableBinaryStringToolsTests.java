@@ -34,9 +34,10 @@ import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-import org.apache.lucene.util.ArrayUtil;
+
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.junit.BeforeClass;
 

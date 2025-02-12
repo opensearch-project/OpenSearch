@@ -1,0 +1,61 @@
+---
+"Validate we are able to index documents after upgrade":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "geo_shape_index_old", "_id":191}}'
+          - '{"name": "NEMO Science Museum","location": {"type": "envelope","coordinates": [ [100.0, 1.0], [101.0, 0.0] ]}}'
+          - '{"index": {"_index": "geo_shape_index_old", "_id":219}}'
+          - '{"name": "NEMO Science Museum","location": {"type": "envelope","coordinates": [ [100.0, 1.0], [106.0, 0.0] ]}}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: geo_shape_index_old
+  - match: { hits.total: 2 }
+
+
+---
+"Create index with Geoshape field in new cluster":
+  - do:
+      indices.create:
+        index: geo_shape_index_new
+        body:
+          settings:
+            index:
+              number_of_replicas: 2
+          mappings:
+            "properties":
+              "location":
+                "type": "geo_shape"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "geo_shape_index_new", "_id":191}}'
+          - '{"name": "NEMO Science Museum","location": {"type": "envelope","coordinates": [ [100.0, 1.0], [101.0, 0.0] ]}}'
+          - '{"index": {"_index": "geo_shape_index_new", "_id":219}}'
+          - '{"name": "NEMO Science Museum","location": {"type": "envelope","coordinates": [ [100.0, 1.0], [106.0, 0.0] ]}}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: geo_shape_index_new
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: geo_shape_index_new
+        body:
+          aggregations:
+            myaggregation:
+              geo_bounds:
+                field: "location"
+  - match: { hits.total: 2 }
+  - match: { aggregations.myaggregation.bounds.top_left.lat: 0.9999999823048711 }
+  - match: { aggregations.myaggregation.bounds.top_left.lon: 99.99999999068677 }
+  - match: { aggregations.myaggregation.bounds.bottom_right.lat: 0.0 }
+  - match: { aggregations.myaggregation.bounds.bottom_right.lon: 105.99999996833503 }

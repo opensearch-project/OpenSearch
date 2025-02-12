@@ -119,7 +119,13 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                 searchContext,
                 parent,
                 cardinality,
-                metadata
+                metadata,
+                config
             );
+    }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
     }
 }

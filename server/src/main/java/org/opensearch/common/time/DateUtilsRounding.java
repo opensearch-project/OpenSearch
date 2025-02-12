@@ -32,12 +32,12 @@ package org.opensearch.common.time;
  * This class has been copied from different locations within the joda time package, as
  * these methods fast when used for rounding, as they do not require conversion to java
  * time objects
- *
+ * <p>
  * This code has been copied from jodatime 2.10.1
  * The source can be found at https://github.com/JodaOrg/joda-time/tree/v2.10.1
- *
+ * <p>
  * See following methods have been copied (along with required helper variables)
- *
+ * <p>
  * - org.joda.time.chrono.GregorianChronology.calculateFirstDayOfYearMillis(int year)
  * - org.joda.time.chrono.BasicChronology.getYear(int year)
  * - org.joda.time.chrono.BasicGJChronology.getMonthOfYear(long utcMillis, int year)

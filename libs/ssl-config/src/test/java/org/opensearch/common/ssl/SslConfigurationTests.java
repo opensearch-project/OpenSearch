@@ -32,16 +32,18 @@
 
 package org.opensearch.common.ssl;
 
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
-import org.mockito.Mockito;
 
 import javax.net.ssl.SSLContext;
+
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.common.ssl.SslConfigurationLoader.DEFAULT_CIPHERS;
 import static org.hamcrest.Matchers.containsString;

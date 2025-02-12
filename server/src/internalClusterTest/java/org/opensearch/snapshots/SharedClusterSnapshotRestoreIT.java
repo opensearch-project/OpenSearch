@@ -33,11 +33,9 @@
 package org.opensearch.snapshots;
 
 import org.apache.lucene.util.BytesRef;
-
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -53,7 +51,6 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotsInProgress.State;
@@ -65,17 +62,18 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.util.BytesRefUtils;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.util.BytesRefUtils;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -83,7 +81,9 @@ import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.mockstore.MockRepository;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
@@ -390,17 +390,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
 
         logger.info("-->  creating repository");
-        assertAcked(
-            clusterAdmin().preparePutRepository("test-repo")
-                .setType("mock")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", randomRepoPath())
-                        .put("random", randomAlphaOfLength(10))
-                        .put("random_control_io_exception_rate", 0.2)
-                )
-                .setVerify(false)
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", randomRepoPath())
+            .put("random", randomAlphaOfLength(10))
+            .put("random_control_io_exception_rate", 0.2);
+        OpenSearchIntegTestCase.putRepository(clusterAdmin(), "test-repo", "mock", false, settings);
 
         createIndexWithRandomDocs("test-idx", 100);
 
@@ -691,11 +685,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         // update the test repository
-        assertAcked(
-            clusterAdmin().preparePutRepository("test-repo")
-                .setType("mock")
-                .setSettings(Settings.builder().put("location", repositoryLocation).put(repositorySettings).build())
-        );
+        Settings.Builder settings = Settings.builder().put("location", repositoryLocation).put(repositorySettings);
+        OpenSearchIntegTestCase.putRepository(clusterAdmin(), "test-repo", "mock", settings);
 
         // attempt to restore the snapshot with the given settings
         RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
@@ -1016,27 +1007,17 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
 
         logger.info("--> trying to move repository to another location");
+        Settings.Builder settings = Settings.builder().put("location", repositoryLocation.resolve("test"));
         try {
-            client.admin()
-                .cluster()
-                .preparePutRepository("test-repo")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", repositoryLocation.resolve("test")))
-                .get();
+            OpenSearchIntegTestCase.putRepository(client.admin().cluster(), "test-repo", "fs", settings);
             fail("shouldn't be able to replace in-use repository");
         } catch (Exception ex) {
             logger.info("--> in-use repository replacement failed");
         }
 
         logger.info("--> trying to create a repository with different name");
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository("test-repo-2")
-                .setVerify(false) // do not do verification itself as snapshot threads could be fully blocked
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", repositoryLocation.resolve("test")))
-        );
+        Settings.Builder settingsBuilder = Settings.builder().put("location", repositoryLocation.resolve("test"));
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), "test-repo-2", "fs", false, settingsBuilder);
 
         logger.info("--> unblocking blocked node");
         unblockNode("test-repo", blockedNode);
@@ -1885,7 +1866,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
      * This test ensures that when a shard is removed from a node (perhaps due to the node
      * leaving the cluster, then returning), all snapshotting of that shard is aborted, so
      * all Store references held onto by the snapshot are released.
-     *
+     * <p>
      * See https://github.com/elastic/elasticsearch/issues/20876
      */
     public void testSnapshotCanceledOnRemovedShard() throws Exception {
@@ -1942,20 +1923,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
         final Client client = client();
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository("test-repo")
-                .setType("mock")
-                .setVerify(false)
-                .setSettings(
-                    Settings.builder()
-                        .put("location", repoPath)
-                        .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
-                        // test that we can take a snapshot after a failed one, even if a partial index-N was written
-                        .put("random", randomAlphaOfLength(10))
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", repoPath)
+            .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
+            // test that we can take a snapshot after a failed one, even if a partial index-N was written
+            .put("random", randomAlphaOfLength(10));
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), "test-repo", "mock", false, settings);
 
         assertAcked(
             prepareCreate("test-idx").setSettings(
@@ -2005,14 +1978,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
         final Client client = client();
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutRepository("test-repo")
-                .setType("fs")
-                .setVerify(false)
-                .setSettings(Settings.builder().put("location", repoPath))
-        );
+        Settings.Builder settings = Settings.builder().put("location", repoPath);
+        OpenSearchIntegTestCase.putRepository(client.admin().cluster(), "test-repo", "fs", false, settings);
 
         logger.info("--> creating random number of indices");
         final int numIndices = randomIntBetween(1, 10);

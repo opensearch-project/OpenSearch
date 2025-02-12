@@ -33,12 +33,12 @@
 package org.opensearch.action.admin.indices.analyze;
 
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.test.RandomObjects;
 

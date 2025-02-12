@@ -19,8 +19,22 @@
                     "type":"myfilter"
                 },
                 "dict_dec":{
-                    "type":"dictionary_decompounder",
-                    "word_list":["donau", "dampf", "schiff", "spargel", "creme", "suppe"]
+                  "type":"dictionary_decompounder",
+                  "word_list":["donau", "dampf", "schiff", "spargel", "creme", "suppe"]
+                },
+                "hyphen_dec":{
+                  "type":"hyphenation_decompounder",
+                  "word_list":["læse", "hest"],
+                  "hyphenation_patterns_path": "da_UTF8.xml"
+                },
+                "hyphen_dec_no_sub_matches":{
+                  "type":"hyphenation_decompounder",
+                  "word_list":["basketball", "basket", "ball", "kurv"],
+                  "hyphenation_patterns_path": "da_UTF8.xml",
+                  "only_longest_match": false,
+                  "no_sub_matches": true,
+                  "no_overlapping_matches": false
+
                 }
             },
             "analyzer":{
@@ -45,8 +59,16 @@
                     "filter":["lowercase", "stop", "czech_stem"]
                 },
                 "decompoundingAnalyzer":{
-                    "tokenizer":"standard",
-                    "filter":["dict_dec"]
+                  "tokenizer":"standard",
+                  "filter":["dict_dec"]
+                },
+                "hyphenationAnalyzer":{
+                  "tokenizer":"standard",
+                  "filter":["hyphen_dec"]
+                },
+                "hyphenationAnalyzerNoSubMatches":{
+                  "tokenizer":"standard",
+                  "filter":["hyphen_dec_no_sub_matches"]
                 }
             }
         }

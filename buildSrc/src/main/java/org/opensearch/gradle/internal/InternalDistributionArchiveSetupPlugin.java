@@ -41,9 +41,9 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.tasks.AbstractCopyTask;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskContainer;
@@ -52,6 +52,7 @@ import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Compression;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.internal.os.OperatingSystem;
+
 import java.io.File;
 
 import static org.opensearch.gradle.util.Util.capitalize;
@@ -147,8 +148,8 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         project.getTasks().withType(AbstractCopyTask.class).configureEach(t -> {
             t.dependsOn(project.getTasks().withType(EmptyDirTask.class));
             t.setIncludeEmptyDirs(true);
-            t.setDirMode(0755);
-            t.setFileMode(0644);
+            t.dirPermissions(perms -> perms.unix(0755));
+            t.filePermissions(perms -> perms.unix(0644));
         });
 
         // common config across all archives

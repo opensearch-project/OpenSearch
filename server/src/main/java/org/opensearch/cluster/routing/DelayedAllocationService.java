@@ -42,8 +42,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.threadpool.Scheduler;
@@ -238,12 +238,5 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     // protected so that it can be overridden (and disabled) by unit tests
     protected void assertClusterOrClusterManagerStateThread() {
         assert ClusterService.assertClusterOrClusterManagerStateThread();
-    }
-
-    // protected so that it can be overridden (and disabled) by unit tests
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #assertClusterOrClusterManagerStateThread()} */
-    @Deprecated
-    protected void assertClusterOrMasterStateThread() {
-        assertClusterOrClusterManagerStateThread();
     }
 }

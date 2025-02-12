@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.utils.cache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.Weigher;
@@ -25,6 +27,7 @@ import java.util.function.Predicate;
  * @opensearch.internal
  */
 public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
+    private static final Logger logger = LogManager.getLogger(SegmentedCache.class);
 
     private static final int HASH_BITS = 0x7fffffff;
 
@@ -49,15 +52,15 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     private final Weigher<V> weigher;
 
     public SegmentedCache(Builder<K, V> builder) {
-        this.capacity = builder.capacity;
         final int segments = ceilingNextPowerOfTwo(builder.concurrencyLevel);
         this.segmentMask = segments - 1;
         this.table = newSegmentArray(segments);
-        this.perSegmentCapacity = (capacity + (segments - 1)) / segments;
+        this.perSegmentCapacity = (builder.capacity + (segments - 1)) / segments;
         this.weigher = builder.weigher;
         for (int i = 0; i < table.length; i++) {
             table[i] = new LRUCache<>(perSegmentCapacity, builder.listener, builder.weigher);
         }
+        this.capacity = perSegmentCapacity * segments;
     }
 
     @SuppressWarnings("unchecked")
@@ -181,6 +184,16 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
             evictionWeight += c.evictionWeight();
         }
         return new CacheStats(hitCount, missCount, removeCount, removeWeight, replaceCount, evictionCount, evictionWeight);
+    }
+
+    // To be used only for debugging purposes
+    public void logCurrentState() {
+        int i = 0;
+        for (RefCountedCache<K, V> cache : table) {
+            logger.trace("SegmentedCache " + i);
+            ((LRUCache<K, V>) cache).logCurrentState();
+            i++;
+        }
     }
 
     enum SingletonWeigher implements Weigher<Object> {

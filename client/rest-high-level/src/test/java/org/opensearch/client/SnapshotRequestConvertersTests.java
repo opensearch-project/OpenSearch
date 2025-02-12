@@ -45,7 +45,7 @@ import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReques
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -230,6 +230,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         String repository = RequestConvertersTests.randomIndicesNames(1, 1)[0];
         String[] snapshots = RequestConvertersTests.randomIndicesNames(1, 5);
+        String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
         StringBuilder snapshotNames = new StringBuilder(snapshots[0]);
         for (int idx = 1; idx < snapshots.length; idx++) {
             snapshotNames.append(",").append(snapshots[idx]);
@@ -237,7 +238,7 @@ public class SnapshotRequestConvertersTests extends OpenSearchTestCase {
         boolean ignoreUnavailable = randomBoolean();
         String endpoint = "/_snapshot/" + repository + "/" + snapshotNames.toString() + "/_status";
 
-        SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repository, snapshots);
+        SnapshotsStatusRequest snapshotsStatusRequest = (new SnapshotsStatusRequest(repository, snapshots)).indices(indices);
         RequestConvertersTests.setRandomClusterManagerTimeout(snapshotsStatusRequest, expectedParams);
         snapshotsStatusRequest.ignoreUnavailable(ignoreUnavailable);
         expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));

@@ -8,7 +8,6 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.client.Client;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -20,6 +19,7 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 import org.opensearch.threadpool.Scheduler;
+import org.opensearch.transport.client.Client;
 
 import java.util.Collections;
 import java.util.Map;
@@ -35,7 +35,7 @@ import java.util.function.LongSupplier;
 public interface SearchPipelinePlugin {
     /**
      * Returns additional search pipeline request processor types added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the unique name for the processor which is specified
      * in pipeline configurations, and the value is a {@link org.opensearch.search.pipeline.Processor.Factory}
      * to create the processor from a given pipeline configuration.
@@ -46,7 +46,7 @@ public interface SearchPipelinePlugin {
 
     /**
      * Returns additional search pipeline response processor types added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the unique name for the processor which is specified
      * in pipeline configurations, and the value is a {@link org.opensearch.search.pipeline.Processor.Factory}
      * to create the processor from a given pipeline configuration.
@@ -57,7 +57,7 @@ public interface SearchPipelinePlugin {
 
     /**
      * Returns additional search pipeline search phase results processor types added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the unique name for the processor which is specified
      * in pipeline configurations, and the value is a {@link org.opensearch.search.pipeline.Processor.Factory}
      * to create the processor from a given pipeline configuration.

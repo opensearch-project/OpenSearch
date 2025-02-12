@@ -20,7 +20,7 @@ import java.util.function.LongSupplier;
 public class TokenBucket {
     /**
      * Defines a monotonically increasing counter.
-     *
+     * <p>
      * Usage examples:
      * 1. clock = System::nanoTime can be used to perform rate-limiting per unit time
      * 2. clock = AtomicLong::get can be used to perform rate-limiting per unit number of operations

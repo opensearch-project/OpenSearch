@@ -32,20 +32,23 @@
 
 package org.opensearch.index.get;
 
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Stats for a search get
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetStats implements Writeable, ToXContentFragment {
 
     private long existsCount;
@@ -135,6 +138,7 @@ public class GetStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.GET);
         builder.field(Fields.TOTAL, getCount());
+        builder.field(Fields.GET_TIME, Objects.toString(getTime()));
         builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, getTime());
         builder.field(Fields.EXISTS_TOTAL, existsCount);
         builder.humanReadableField(Fields.EXISTS_TIME_IN_MILLIS, Fields.EXISTS_TIME, getExistsTime());
@@ -153,7 +157,12 @@ public class GetStats implements Writeable, ToXContentFragment {
     static final class Fields {
         static final String GET = "get";
         static final String TOTAL = "total";
-        static final String TIME = "getTime";
+        /**
+         * Deprecated field name for time. Use {@link #TIME} instead.
+         */
+        @Deprecated(forRemoval = true)
+        static final String GET_TIME = "getTime";
+        static final String TIME = "time";
         static final String TIME_IN_MILLIS = "time_in_millis";
         static final String EXISTS_TOTAL = "exists_total";
         static final String EXISTS_TIME = "exists_time";

@@ -36,9 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.opensearch.common.settings.Setting.ByteSizeValueParser;
@@ -51,13 +49,15 @@ import org.opensearch.common.settings.Setting.MinMaxTimeValueParser;
 import org.opensearch.common.settings.Setting.MinTimeValueParser;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Setting.RegexValidator;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.monitor.jvm.JvmInfo;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
@@ -201,7 +201,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(new ByteSizeValue(12), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
     public void testMemorySizeWithFallbackValue() {
@@ -219,10 +219,12 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2, 1.0);
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "30%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3)), value.get());
+        // If value=getHeapMax()*0.3 is bigger than 2gb, and is bigger than Integer.MAX_VALUE,
+        // then (long)((int) value) will lose precision.
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3)), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("b.byte.size", "40%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4)), value.get());
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4)), value.get());
     }
 
     public void testSimpleUpdate() {
@@ -909,6 +911,18 @@ public class SettingTests extends OpenSearchTestCase {
         }
     }
 
+    public void testAffixKeySettingWithDynamicPrefix() {
+        Setting.AffixSetting<Boolean> setting = Setting.suffixKeySetting(
+            "enable",
+            (key) -> Setting.boolSetting(key, false, Property.NodeScope)
+        );
+        Setting<Boolean> concreteSetting = setting.getConcreteSettingForNamespace("foo.bar");
+        assertEquals("foo.bar.enable", concreteSetting.getKey());
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSettingForNamespace("foo."));
+        assertEquals("key [foo..enable] must match [*.enable] but didn't.", ex.getMessage());
+    }
+
     public void testAffixKeySetting() {
         Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
         assertTrue(setting.hasComplexMatcher());
@@ -1260,6 +1274,20 @@ public class SettingTests extends OpenSearchTestCase {
     public void testDoubleWithDefaultValue() {
         Setting<Double> doubleSetting = Setting.doubleSetting("foo.bar", 42.1);
         assertEquals(doubleSetting.get(Settings.EMPTY), Double.valueOf(42.1));
+
+        Setting<Double> doubleSettingWithValidator = Setting.doubleSetting("foo.bar", 42.1, value -> {
+            if (value <= 0.0) {
+                throw new IllegalArgumentException("The setting foo.bar must be >0");
+            }
+        });
+        try {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> doubleSettingWithValidator.get(Settings.builder().put("foo.bar", randomFrom(-1, 0)).build())
+            );
+        } catch (IllegalArgumentException ex) {
+            assertEquals("The setting foo.bar must be >0", ex.getMessage());
+        }
     }
 
     public void testDoubleWithFallbackValue() {
@@ -1268,6 +1296,20 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(doubleSetting.get(Settings.EMPTY), Double.valueOf(2.1));
         assertEquals(doubleSetting.get(Settings.builder().put("foo.bar", 3.2).build()), Double.valueOf(3.2));
         assertEquals(doubleSetting.get(Settings.builder().put("foo.baz", 3.2).build()), Double.valueOf(3.2));
+
+        Setting<Double> doubleSettingWithValidator = Setting.doubleSetting("foo.bar", fallbackSetting, value -> {
+            if (value <= 0.0) {
+                throw new IllegalArgumentException("The setting foo.bar must be >0");
+            }
+        });
+        try {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> doubleSettingWithValidator.get(Settings.builder().put("foo.bar", randomFrom(-1, 0)).build())
+            );
+        } catch (IllegalArgumentException ex) {
+            assertEquals("The setting foo.bar must be >0", ex.getMessage());
+        }
     }
 
     public void testDoubleWithMinMax() throws Exception {
@@ -1395,6 +1437,22 @@ public class SettingTests extends OpenSearchTestCase {
             () -> Setting.simpleString("foo.bar", Property.Final, Property.Dynamic)
         );
         assertThat(ex.getMessage(), containsString("final setting [foo.bar] cannot be dynamic"));
+    }
+
+    public void testRejectConflictingDynamicAndUnmodifiableOnRestoreProperties() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.UnmodifiableOnRestore, Property.Dynamic)
+        );
+        assertThat(ex.getMessage(), containsString("UnmodifiableOnRestore setting [foo.bar] cannot be dynamic"));
+    }
+
+    public void testRejectNonIndexScopedUnmodifiableOnRestoreSetting() {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.UnmodifiableOnRestore)
+        );
+        assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [UnmodifiableOnRestore]")));
     }
 
     public void testRejectNonIndexScopedNotCopyableOnResizeSetting() {

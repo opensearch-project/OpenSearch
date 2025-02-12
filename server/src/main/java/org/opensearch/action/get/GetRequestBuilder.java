@@ -33,17 +33,19 @@
 package org.opensearch.action.get;
 
 import org.opensearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.VersionType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * A get document action request builder.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetRequest, GetResponse, GetRequestBuilder> {
 
     public GetRequestBuilder(OpenSearchClient client, GetAction action) {

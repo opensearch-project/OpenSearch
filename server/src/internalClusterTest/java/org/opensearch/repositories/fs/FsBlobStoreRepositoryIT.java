@@ -35,11 +35,11 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 
 import java.io.IOException;
@@ -76,19 +76,11 @@ public class FsBlobStoreRepositoryIT extends OpenSearchBlobStoreRepositoryIntegT
         final Path repoPath = randomRepoPath();
 
         logger.info("--> creating repository {} at {}", repoName, repoPath);
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(repoName)
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", repoPath)
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", repoPath)
+            .put("compress", randomBoolean())
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        createRepository(repoName, "fs", settings);
 
         final String indexName = randomName();
         int docCount = iterations(10, 1000);
@@ -112,14 +104,7 @@ public class FsBlobStoreRepositoryIT extends OpenSearchBlobStoreRepositoryIntegT
             IOUtils.rm(deletedPath);
         }
         assertFalse(Files.exists(deletedPath));
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(repoName)
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", repoPath).put("readonly", true))
-        );
+        createRepository(repoName, "fs", Settings.builder().put("location", repoPath).put("readonly", true));
 
         final OpenSearchException exception = expectThrows(
             OpenSearchException.class,

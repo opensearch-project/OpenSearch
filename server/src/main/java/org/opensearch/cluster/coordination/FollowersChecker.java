@@ -35,15 +35,18 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -55,7 +58,6 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportRequestOptions.Type;
-import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
@@ -90,7 +92,8 @@ public class FollowersChecker {
         "cluster.fault_detection.follower_check.interval",
         TimeValue.timeValueMillis(1000),
         TimeValue.timeValueMillis(100),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // the timeout for each check sent to each node
@@ -98,7 +101,9 @@ public class FollowersChecker {
         "cluster.fault_detection.follower_check.timeout",
         TimeValue.timeValueMillis(10000),
         TimeValue.timeValueMillis(1),
-        Setting.Property.NodeScope
+        TimeValue.timeValueMillis(150000),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // the number of failed checks that must happen before the follower is considered to have failed.
@@ -111,8 +116,8 @@ public class FollowersChecker {
 
     private final Settings settings;
 
-    private final TimeValue followerCheckInterval;
-    private final TimeValue followerCheckTimeout;
+    private TimeValue followerCheckInterval;
+    private TimeValue followerCheckTimeout;
     private final int followerCheckRetryCount;
     private final BiConsumer<DiscoveryNode, String> onNodeFailure;
     private final Consumer<FollowerCheckRequest> handleRequestAndUpdateState;
@@ -124,13 +129,16 @@ public class FollowersChecker {
     private final TransportService transportService;
     private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
+    private ClusterManagerMetrics clusterManagerMetrics;
 
     public FollowersChecker(
         Settings settings,
+        ClusterSettings clusterSettings,
         TransportService transportService,
         Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
         BiConsumer<DiscoveryNode, String> onNodeFailure,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -141,7 +149,8 @@ public class FollowersChecker {
         followerCheckInterval = FOLLOWER_CHECK_INTERVAL_SETTING.get(settings);
         followerCheckTimeout = FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings);
         followerCheckRetryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
-
+        clusterSettings.addSettingsUpdateConsumer(FOLLOWER_CHECK_INTERVAL_SETTING, this::setFollowerCheckInterval);
+        clusterSettings.addSettingsUpdateConsumer(FOLLOWER_CHECK_TIMEOUT_SETTING, this::setFollowerCheckTimeout);
         updateFastResponseState(0, Mode.CANDIDATE);
         transportService.registerRequestHandler(
             FOLLOWER_CHECK_ACTION_NAME,
@@ -157,6 +166,15 @@ public class FollowersChecker {
                 handleDisconnectedNode(node);
             }
         });
+        this.clusterManagerMetrics = clusterManagerMetrics;
+    }
+
+    private void setFollowerCheckInterval(TimeValue followerCheckInterval) {
+        this.followerCheckInterval = followerCheckInterval;
+    }
+
+    private void setFollowerCheckTimeout(TimeValue followerCheckTimeout) {
+        this.followerCheckTimeout = followerCheckTimeout;
     }
 
     /**
@@ -405,6 +423,7 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerChecksFailureCounter, 1.0);
             transportService.getThreadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {

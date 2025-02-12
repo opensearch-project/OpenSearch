@@ -42,21 +42,22 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.cli.KeyStoreAwareCommand;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.PidFile;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.bootstrap.JarHell;
+import org.opensearch.common.cli.EnvironmentAwareCommand;
 import org.opensearch.common.inject.CreationException;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.IfConfig;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
-import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.env.Environment;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
@@ -262,7 +263,7 @@ final class Bootstrap {
         SecureString password;
         try {
             if (keystore != null && keystore.hasPassword()) {
-                password = readPassphrase(System.in, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
+                password = readPassphrase(System.in, EnvironmentAwareCommand.MAX_PASSPHRASE_LENGTH);
             } else {
                 password = new SecureString(new char[0]);
             }

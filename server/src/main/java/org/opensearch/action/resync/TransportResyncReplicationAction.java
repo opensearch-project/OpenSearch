@@ -32,7 +32,6 @@
 package org.opensearch.action.resync;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -43,8 +42,9 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -54,6 +54,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportException;
@@ -93,7 +94,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         IndexingPressureService indexingPressureService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Tracer tracer
     ) {
         super(
             settings,
@@ -109,7 +111,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             EXECUTOR_NAME_FUNCTION,
             true, /* we should never reject resync because of thread pool capacity on primary */
             indexingPressureService,
-            systemIndices
+            systemIndices,
+            tracer
         );
     }
 

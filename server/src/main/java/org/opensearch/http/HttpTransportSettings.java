@@ -37,9 +37,9 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.transport.PortsRange;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
 
 import java.util.Collections;
 import java.util.List;
@@ -177,6 +177,14 @@ public final class HttpTransportSettings {
     // A default of 0 means that by default there is no read timeout
     public static final Setting<TimeValue> SETTING_HTTP_READ_TIMEOUT = Setting.timeSetting(
         "http.read_timeout",
+        new TimeValue(0),
+        new TimeValue(0),
+        Property.NodeScope
+    );
+
+    // A default of 0 means that by default there is no connect timeout
+    public static final Setting<TimeValue> SETTING_HTTP_CONNECT_TIMEOUT = Setting.timeSetting(
+        "http.connect_timeout",
         new TimeValue(0),
         new TimeValue(0),
         Property.NodeScope

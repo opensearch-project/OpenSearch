@@ -32,14 +32,13 @@
 package org.opensearch.index.store;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
-
-import org.hamcrest.MatcherAssert;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -49,7 +48,6 @@ import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.replication.TransportReplicationAction;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -61,34 +59,36 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.env.NodeEnvironment;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.CorruptionUtils;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.MockIndexEventListener;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Requests;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -116,7 +116,6 @@ import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayLis
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -168,7 +167,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(MergePolicyProvider.INDEX_MERGE_ENABLED, false)
                     // no checkindex - we corrupt shards on purpose
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     // no translog based flush - it might change the .liv / segments.N files
@@ -287,7 +286,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
             prepareCreate("test").setSettings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(MergePolicyProvider.INDEX_MERGE_ENABLED, false)
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on
                                                                                               // purpose
                     // no translog based flush - it might change the .liv / segments.N files
@@ -553,7 +552,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
             prepareCreate("test").setSettings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(MergePolicyProvider.INDEX_MERGE_ENABLED, false)
                     // no checkindex - we corrupt shards on purpose
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     // no translog based flush - it might change the .liv / segments.N files
@@ -578,18 +577,12 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
         // the other problem here why we can't corrupt segments.X files is that the snapshot flushes again before
         // it snapshots and that will write a new segments.X+1 file
         logger.info("-->  creating repository");
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", randomRepoPath().toAbsolutePath())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", randomRepoPath().toAbsolutePath())
+            .put("compress", randomBoolean())
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        createRepository("test-repo", "fs", settings);
+
         logger.info("--> snapshot");
         final CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
@@ -625,7 +618,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
             prepareCreate("test").setSettings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(MergePolicyProvider.INDEX_MERGE_ENABLED, false)
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on
                                                                                               // purpose
                     .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)) // no
@@ -711,6 +704,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
 
         final NodeStats primaryNode = dataNodeStats.get(0);
         final NodeStats replicaNode = dataNodeStats.get(1);
+
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -761,18 +755,11 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
         // Create a snapshot repository. This repo is used to take a snapshot after
         // corrupting a file, which causes the node to notice the corrupt data and
         // close the shard.
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
-                .setType("fs")
-                .setSettings(
-                    Settings.builder()
-                        .put("location", randomRepoPath().toAbsolutePath())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                )
-        );
+        Settings.Builder settings = Settings.builder()
+            .put("location", randomRepoPath().toAbsolutePath())
+            .put("compress", randomBoolean())
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        createRepository("test-repo", "fs", settings);
 
         client().prepareIndex("test").setSource("field", "value").execute();
         indexingInFlight.await();
@@ -796,6 +783,17 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
 
         // Assert the cluster returns to green status because the replica will be promoted to primary
         ensureGreen();
+
+        // After Lucene 9.9 check index will flag corruption with old (not the latest) commit points.
+        // For this test our previous corrupt commit "segments_2" will remain on the primary.
+        // This asserts this is the case, and then resets check index status.
+        assertEquals("Check index has a single failure", 1, checkIndexFailures.size());
+        assertTrue(
+            checkIndexFailures.get(0)
+                .getMessage()
+                .contains("could not read old (not latest) commit point segments file \"segments_2\" in directory")
+        );
+        resetCheckIndexStatus();
     }
 
     private int numShards(String... index) {

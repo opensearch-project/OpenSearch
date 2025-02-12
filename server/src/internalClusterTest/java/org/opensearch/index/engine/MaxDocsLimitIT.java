@@ -36,16 +36,17 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
-
 import org.junit.After;
 import org.junit.Before;
 
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
 
     private static final AtomicInteger maxDocs = new AtomicInteger();
+    private static final ShardId shardId = new ShardId(new Index("test", "_na_"), 0);
 
     public static class TestEnginePlugin extends Plugin implements EnginePlugin {
         @Override
@@ -123,7 +125,10 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
             IllegalArgumentException.class,
             () -> client().prepareDelete("test", "any-id").get()
         );
-        assertThat(deleteError.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
+        assertThat(
+            deleteError.getMessage(),
+            containsString("Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs.get() + "] documents per shard")
+        );
         client().admin().indices().prepareRefresh("test").get();
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(new MatchAllQueryBuilder())
@@ -131,7 +136,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .get();
         OpenSearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) maxDocs.get()));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) maxDocs.get()));
         if (randomBoolean()) {
             client().admin().indices().prepareFlush("test").get();
         }
@@ -144,7 +149,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .get();
         OpenSearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) maxDocs.get()));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) maxDocs.get()));
     }
 
     public void testMaxDocsLimitConcurrently() throws Exception {
@@ -162,7 +167,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .get();
         OpenSearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) indexingResult.numSuccess));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) indexingResult.numSuccess));
         int totalSuccess = indexingResult.numSuccess;
         while (totalSuccess < maxDocs.get()) {
             indexingResult = indexDocs(between(1, 10), between(1, 8));
@@ -180,7 +185,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .get();
         OpenSearchAssertions.assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalSuccess));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) totalSuccess));
     }
 
     static final class IndexingResult {
@@ -204,12 +209,21 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
                 phaser.arriveAndAwaitAdvance();
                 while (completedRequests.incrementAndGet() <= numRequests) {
                     try {
-                        final IndexResponse resp = client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                        final IndexResponse resp = client().prepareIndex("test").setSource("{}", MediaTypeRegistry.JSON).get();
                         numSuccess.incrementAndGet();
                         assertThat(resp.status(), equalTo(RestStatus.CREATED));
                     } catch (IllegalArgumentException e) {
                         numFailure.incrementAndGet();
-                        assertThat(e.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
+                        assertThat(
+                            e.getMessage(),
+                            containsString(
+                                "Number of documents in shard "
+                                    + shardId
+                                    + " exceeds the limit of ["
+                                    + maxDocs.get()
+                                    + "] documents per shard"
+                            )
+                        );
                     }
                 }
             });

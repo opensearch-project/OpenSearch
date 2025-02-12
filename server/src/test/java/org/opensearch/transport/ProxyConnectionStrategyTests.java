@@ -42,6 +42,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -82,7 +83,7 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
             .put("node.name", id)
             .put(settings)
             .build();
-        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool);
+        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, NoopTracer.INSTANCE);
         try {
             newService.start();
             newService.acceptIncomingRequests();
@@ -99,7 +100,14 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
         try (MockTransportService transport1 = startTransport("node1", Version.CURRENT)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -138,7 +146,14 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
             TransportAddress address2 = transport2.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -200,7 +215,14 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
         try (MockTransportService transport1 = startTransport("incompatible-node", incompatibleVersion)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -240,7 +262,14 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
             TransportAddress address2 = transport2.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -303,7 +332,14 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
                 return address;
             };
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -338,7 +374,14 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
         try (MockTransportService remoteTransport = startTransport("node1", Version.CURRENT)) {
             TransportAddress remoteAddress = remoteTransport.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -441,7 +484,14 @@ public class ProxyConnectionStrategyTests extends OpenSearchTestCase {
         try (MockTransportService transport1 = startTransport("node1", Version.CURRENT, bindSettings)) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 

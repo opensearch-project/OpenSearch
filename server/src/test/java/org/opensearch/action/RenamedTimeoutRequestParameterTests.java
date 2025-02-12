@@ -8,28 +8,48 @@
 
 package org.opensearch.action;
 
-import org.junit.After;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.client.node.NodeClient;
-import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
+import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterRerouteAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
+import org.opensearch.rest.action.admin.cluster.RestCreateSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
+import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
+import org.opensearch.rest.action.admin.cluster.RestGetSnapshotsAction;
+import org.opensearch.rest.action.admin.cluster.RestGetStoredScriptAction;
+import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
+import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
+import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
+import org.opensearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
 import org.opensearch.rest.action.admin.indices.RestAddIndexBlockAction;
 import org.opensearch.rest.action.admin.indices.RestCloseIndexAction;
 import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.opensearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestDeleteIndexAction;
+import org.opensearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestGetComponentTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestGetComposableIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestGetIndicesAction;
 import org.opensearch.rest.action.admin.indices.RestGetMappingAction;
 import org.opensearch.rest.action.admin.indices.RestGetSettingsAction;
@@ -37,61 +57,42 @@ import org.opensearch.rest.action.admin.indices.RestIndexDeleteAliasesAction;
 import org.opensearch.rest.action.admin.indices.RestIndexPutAliasAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesAliasesAction;
 import org.opensearch.rest.action.admin.indices.RestOpenIndexAction;
-import org.opensearch.rest.action.admin.indices.RestPutMappingAction;
-import org.opensearch.rest.action.admin.indices.RestResizeHandler;
-import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
-import org.opensearch.rest.action.admin.indices.RestUpdateSettingsAction;
-import org.opensearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestGetComponentTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestGetComposableIndexTemplateAction;
-import org.opensearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestPutComponentTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestPutComposableIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.opensearch.rest.action.admin.indices.RestPutMappingAction;
+import org.opensearch.rest.action.admin.indices.RestResizeHandler;
+import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateTemplateAction;
-import org.opensearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
-import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
-import org.opensearch.rest.action.admin.cluster.RestCreateSnapshotAction;
-import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
-import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
-import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
-import org.opensearch.rest.action.admin.cluster.RestGetSnapshotsAction;
-import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
-import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
-import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
-import org.opensearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
-import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
-import org.opensearch.rest.action.admin.cluster.RestGetStoredScriptAction;
-import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
+import org.opensearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.opensearch.rest.action.cat.RestAllocationAction;
-import org.opensearch.rest.action.cat.RestMasterAction;
-import org.opensearch.rest.action.cat.RestRepositoriesAction;
-import org.opensearch.rest.action.cat.RestThreadPoolAction;
 import org.opensearch.rest.action.cat.RestClusterManagerAction;
-import org.opensearch.rest.action.cat.RestShardsAction;
-import org.opensearch.rest.action.cat.RestPluginsAction;
+import org.opensearch.rest.action.cat.RestIndicesAction;
 import org.opensearch.rest.action.cat.RestNodeAttrsAction;
 import org.opensearch.rest.action.cat.RestNodesAction;
-import org.opensearch.rest.action.cat.RestIndicesAction;
-import org.opensearch.rest.action.cat.RestTemplatesAction;
 import org.opensearch.rest.action.cat.RestPendingClusterTasksAction;
+import org.opensearch.rest.action.cat.RestPluginsAction;
+import org.opensearch.rest.action.cat.RestRepositoriesAction;
 import org.opensearch.rest.action.cat.RestSegmentsAction;
+import org.opensearch.rest.action.cat.RestShardsAction;
 import org.opensearch.rest.action.cat.RestSnapshotAction;
+import org.opensearch.rest.action.cat.RestTemplatesAction;
+import org.opensearch.rest.action.cat.RestThreadPoolAction;
 import org.opensearch.rest.action.ingest.RestDeletePipelineAction;
 import org.opensearch.rest.action.ingest.RestGetPipelineAction;
 import org.opensearch.rest.action.ingest.RestPutPipelineAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.transport.client.node.NodeClient;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_SETTING;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * As of 2.0, the request parameter 'master_timeout' in all applicable REST APIs is deprecated,
@@ -155,7 +156,10 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testCatIndices() {
-        RestIndicesAction action = new RestIndicesAction();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings settings = Settings.builder().build();
+        ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        RestIndicesAction action = new RestIndicesAction(responseLimitSettings);
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
@@ -169,7 +173,7 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testCatMaster() {
-        RestMasterAction action = new RestMasterAction();
+        RestClusterManagerAction action = new RestClusterManagerAction();
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
@@ -239,7 +243,10 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testCatSegments() {
-        RestSegmentsAction action = new RestSegmentsAction();
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final Settings settings = Settings.builder().build();
+        final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        RestSegmentsAction action = new RestSegmentsAction(responseLimitSettings);
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
         assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
@@ -715,6 +722,6 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     private FakeRestRequest getFakeRestRequestWithBody() {
-        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), XContentType.JSON).build();
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), MediaTypeRegistry.JSON).build();
     }
 }

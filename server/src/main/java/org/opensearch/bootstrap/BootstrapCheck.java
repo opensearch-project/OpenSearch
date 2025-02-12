@@ -32,18 +32,22 @@
 
 package org.opensearch.bootstrap;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Objects;
 
 /**
  * Encapsulates a bootstrap check.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface BootstrapCheck {
 
     /**
      * Encapsulate the result of a bootstrap check.
      */
+    @PublicApi(since = "1.0.0")
     final class BootstrapCheckResult {
 
         private final String message;

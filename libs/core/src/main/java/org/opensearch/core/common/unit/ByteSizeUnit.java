@@ -32,6 +32,7 @@
 
 package org.opensearch.core.common.unit;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -44,9 +45,17 @@ import java.io.IOException;
  * A {@code SizeUnit} does not maintain size information, but only
  * helps organize and use size representations that may be maintained
  * separately across various contexts.
+ * <p>
+ * It use conventional data storage values (base-2) :
+ * <ul>
+ *     <li>1KB = 1024 bytes</li>
+ *     <li>1MB = 1024KB</li>
+ *     <li> ... </li>
+ * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum ByteSizeUnit implements Writeable {
     BYTES {
         @Override

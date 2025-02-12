@@ -40,7 +40,6 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
@@ -54,6 +53,7 @@ import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolInfo;
 import org.opensearch.threadpool.ThreadPoolStats;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -163,6 +163,10 @@ public class RestThreadPoolAction extends AbstractCatAction {
         table.addCell("rejected", "alias:r;default:true;text-align:right;desc:number of rejected tasks");
         table.addCell("largest", "alias:l;default:false;text-align:right;desc:highest number of seen active threads");
         table.addCell("completed", "alias:c;default:false;text-align:right;desc:number of completed tasks");
+        table.addCell(
+            "total_wait_time",
+            "alias:twt;default:false;text-align:right;desc:total time tasks spent waiting in thread_pool queue"
+        );
         table.addCell("core", "alias:cr;default:false;text-align:right;desc:core number of threads in a scaling thread pool");
         table.addCell("max", "alias:mx;default:false;text-align:right;desc:maximum number of threads in a scaling thread pool");
         table.addCell("size", "alias:sz;default:false;text-align:right;desc:number of threads in a fixed thread pool");
@@ -267,6 +271,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(poolStats == null ? null : poolStats.getRejected());
                 table.addCell(poolStats == null ? null : poolStats.getLargest());
                 table.addCell(poolStats == null ? null : poolStats.getCompleted());
+                table.addCell(poolStats == null ? null : poolStats.getWaitTime());
                 table.addCell(core);
                 table.addCell(max);
                 table.addCell(size);

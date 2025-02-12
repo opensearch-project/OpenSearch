@@ -38,16 +38,16 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -135,7 +135,7 @@ public class AggregatorBaseTests extends OpenSearchSingleNodeTestCase {
             indexed,
             false,
             true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            DateFieldMapper.getDefaultDateTimeFormatter(),
             resolution,
             null,
             Collections.emptyMap()
@@ -184,7 +184,7 @@ public class AggregatorBaseTests extends OpenSearchSingleNodeTestCase {
                 assertNull(pointReaderShim(mockSearchContext(null), null, getVSConfig("number", resolution, false, context)));
             }
             // Check that we decode a dates "just like" the doc values instance.
-            Instant expected = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2020-01-01T00:00:00Z"));
+            Instant expected = Instant.from(DateFieldMapper.getDefaultDateTimeFormatter().parse("2020-01-01T00:00:00Z"));
             byte[] scratch = new byte[8];
             LongPoint.encodeDimension(DateFieldMapper.Resolution.MILLISECONDS.convert(expected), scratch, 0);
             assertThat(

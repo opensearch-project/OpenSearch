@@ -36,8 +36,8 @@ import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastShardRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;

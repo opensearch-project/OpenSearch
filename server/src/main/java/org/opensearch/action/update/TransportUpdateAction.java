@@ -32,8 +32,8 @@
 
 package org.opensearch.action.update;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.RoutingMissingException;
@@ -47,7 +47,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.action.support.single.instance.TransportInstanceSingleOperationAction;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -55,23 +54,30 @@ import org.opensearch.cluster.routing.PlainShardIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NotSerializableExceptionWrapper;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -87,7 +93,7 @@ import static org.opensearch.action.bulk.TransportSingleItemBulkWriteAction.wrap
  * @opensearch.internal
  */
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
-
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportUpdateAction.class);
     private final AutoCreateIndex autoCreateIndex;
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;
@@ -154,10 +160,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         if (request.isRequireAlias() && (clusterService.state().getMetadata().hasAlias(request.index()) == false)) {
-            throw new IndexNotFoundException(
+            IndexNotFoundException e = new IndexNotFoundException(
                 "[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true] and [" + request.index() + "] is not an alias",
                 request.index()
             );
+
+            incDocStatusStats(e);
+            throw e;
         }
         // if we don't have a master, we don't have metadata, that's fine, let it find a cluster-manager using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
@@ -193,7 +202,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     private void innerExecute(final Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
-        super.doExecute(task, request, listener);
+        super.doExecute(task, request, ActionListener.wrap(listener::onResponse, e -> {
+            incDocStatusStats(e);
+            listener.onFailure(e);
+        }));
     }
 
     @Override
@@ -267,6 +279,15 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
+                final Settings indexSettings = indexService.getIndexSettings().getSettings();
+                if (IndexSettings.DEFAULT_PIPELINE.exists(indexSettings) || IndexSettings.FINAL_PIPELINE.exists(indexSettings)) {
+                    deprecationLogger.deprecate(
+                        "update_operation_with_ingest_pipeline",
+                        "the index ["
+                            + indexRequest.index()
+                            + "] has a default ingest pipeline or a final ingest pipeline, the support of the ingest pipelines for update operation causes unexpected result and will be removed in 3.0.0"
+                    );
+                }
                 client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
                     UpdateResponse update = new UpdateResponse(
                         response.getShardInfo(),
@@ -330,7 +351,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         shard.noopUpdate();
                     }
                 }
+
+                DocStatusStats stats = new DocStatusStats();
+                stats.inc(RestStatus.OK);
+
+                indicesService.addDocStatusStats(stats);
                 listener.onResponse(update);
+
                 break;
             default:
                 throw new IllegalStateException("Illegal result " + result.getResponseResult());
@@ -360,5 +387,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             }
         }
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
+    }
+
+    private void incDocStatusStats(final Exception e) {
+        DocStatusStats stats = new DocStatusStats();
+        stats.inc(ExceptionsHelper.status(e));
+        indicesService.addDocStatusStats(stats);
     }
 }

@@ -25,7 +25,7 @@ import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 /**
  * Responsible for wrapping the original task's runnable and sending updates on when it starts and finishes to
  * entities listening to the events.
- *
+ * <p>
  * It's able to associate runnable with a task with the help of task Id available in thread context.
  */
 public class TaskAwareRunnable extends AbstractRunnable implements WrappedRunnable {

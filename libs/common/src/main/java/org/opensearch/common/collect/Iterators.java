@@ -41,6 +41,15 @@ import java.util.NoSuchElementException;
  * @opensearch.internal
  */
 public class Iterators {
+
+    /**
+     * Concat iterators
+     *
+     * @param iterators the iterators to concat
+     * @param <T> the type of iterator
+     * @return a new {@link ConcatenatedIterator}
+     * @throws NullPointerException if iterators is null
+     */
     public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
         if (iterators == null) {
             throw new NullPointerException("iterators");
@@ -71,6 +80,11 @@ public class Iterators {
             this.iterators = iterators;
         }
 
+        /**
+         * Returns {@code true} if the iteration has more elements. (In other words, returns {@code true} if {@link #next} would return an
+         * element rather than throwing an exception.)
+         * @return {@code true} if the iteration has more elements
+         */
         @Override
         public boolean hasNext() {
             boolean hasNext = false;
@@ -81,6 +95,11 @@ public class Iterators {
             return hasNext;
         }
 
+        /**
+         * Returns the next element in the iteration.
+         * @return the next element in the iteration
+         * @throws NoSuchElementException if the iteration has no more elements
+         */
         @Override
         public T next() {
             if (!hasNext()) {

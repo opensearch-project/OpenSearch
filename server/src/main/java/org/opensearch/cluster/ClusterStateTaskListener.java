@@ -32,14 +32,16 @@
 package org.opensearch.cluster;
 
 import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.List;
 
 /**
  * Interface to implement a cluster state change listener
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ClusterStateTaskListener {
 
     /**
@@ -53,17 +55,6 @@ public interface ClusterStateTaskListener {
      */
     default void onNoLongerClusterManager(String source) {
         onFailure(source, new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
-    }
-
-    /**
-     * called when the task was rejected because the local node is no longer cluster-manager.
-     * Used only for tasks submitted to {@link ClusterManagerService}.
-     *
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #onNoLongerClusterManager(String)}
-     */
-    @Deprecated
-    default void onNoLongerMaster(String source) {
-        onNoLongerClusterManager(source);
     }
 
     /**

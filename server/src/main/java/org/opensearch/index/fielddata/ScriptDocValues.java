@@ -37,16 +37,17 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.geometry.utils.Geohash;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -55,13 +56,14 @@ import java.util.function.UnaryOperator;
 /**
  * Script level doc values, the assumption is that any implementation will
  * implement a {@link Longs#getValue getValue} method.
- *
+ * <p>
  * Implementations should not internally re-use objects for the values that they
  * return as a single {@link ScriptDocValues} instance can be reused to return
  * values form multiple documents.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     /**
@@ -159,7 +161,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
      *
      * @opensearch.internal
      */
-    public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
+    public static final class Dates extends ScriptDocValues<ZonedDateTime> {
 
         private final SortedNumericDocValues in;
         private final boolean isNanos;
@@ -167,7 +169,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         /**
          * Values wrapped in {@link java.time.ZonedDateTime} objects.
          */
-        private JodaCompatibleZonedDateTime[] dates;
+        private ZonedDateTime[] dates;
         private int count;
 
         public Dates(SortedNumericDocValues in, boolean isNanos) {
@@ -179,12 +181,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Fetch the first field value or 0 millis after epoch if there are no
          * in.
          */
-        public JodaCompatibleZonedDateTime getValue() {
+        public ZonedDateTime getValue() {
             return get(0);
         }
 
         @Override
-        public JodaCompatibleZonedDateTime get(int index) {
+        public ZonedDateTime get(int index) {
             if (count == 0) {
                 throw new IllegalStateException(
                     "A document doesn't have a value for a field! "
@@ -223,13 +225,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
             if (dates == null || count > dates.length) {
                 // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new JodaCompatibleZonedDateTime[count];
+                dates = new ZonedDateTime[count];
             }
             for (int i = 0; i < count; ++i) {
                 if (isNanos) {
-                    dates[i] = new JodaCompatibleZonedDateTime(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
+                    dates[i] = ZonedDateTime.ofInstant(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
                 } else {
-                    dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
+                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
                 }
             }
         }
@@ -589,11 +591,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                         + "Use doc[<field>].size()==0 to check if a document is missing a field!"
                 );
             }
-            /**
-             * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
-             * returned value and the same instance might be used to
-             * return values from multiple documents.
-             **/
+            /*
+              We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
+              returned value and the same instance might be used to
+              return values from multiple documents.
+             */
             return values[index].toBytesRef();
         }
 

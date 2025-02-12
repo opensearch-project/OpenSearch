@@ -33,14 +33,13 @@ package org.opensearch.repositories.gcs;
 
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
-
 import org.opensearch.common.settings.SecureSetting;
-import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.settings.SecureString;
 
 import java.io.IOException;
 import java.io.InputStream;

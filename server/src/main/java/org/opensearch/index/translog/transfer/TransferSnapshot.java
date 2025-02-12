@@ -8,10 +8,11 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 
+import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -39,4 +40,10 @@ public interface TransferSnapshot {
      * @return the translog transfer metadata
      */
     TranslogTransferMetadata getTranslogTransferMetadata();
+
+    /**
+     * The snapshot of the translog generational files having checkpoint file inputStream as metadata
+     * @return the set of translog files having checkpoint file inputStream as metadata.
+     */
+    Set<TransferFileSnapshot> getTranslogFileSnapshotWithMetadata() throws IOException;
 }

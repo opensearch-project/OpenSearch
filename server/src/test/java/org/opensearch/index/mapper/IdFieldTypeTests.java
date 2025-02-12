@@ -40,6 +40,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.List;
+
 import org.mockito.Mockito;
 
 public class IdFieldTypeTests extends OpenSearchTestCase {
@@ -71,10 +74,10 @@ public class IdFieldTypeTests extends OpenSearchTestCase {
 
         MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
         Query query = ft.termQuery("id", context);
-        assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
+        assertEquals(new TermInSetQuery("_id", List.of(Uid.encodeId("id"))), query);
 
         query = ft.termQuery("id", context);
-        assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
+        assertEquals(new TermInSetQuery("_id", List.of(Uid.encodeId("id"))), query);
     }
 
     public void testIsAggregatable() {

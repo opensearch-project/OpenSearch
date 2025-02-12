@@ -182,7 +182,7 @@ public final class DiffableUtils {
 
     /**
      * Represents differences between two maps of objects and is used as base class for different map implementations.
-     *
+     * <p>
      * Implements serialization. How differences are applied is left to subclasses.
      *
      * @param <K> the type of map keys
@@ -269,6 +269,18 @@ public final class DiffableUtils {
          */
         public Map<K, T> getUpserts() {
             return upserts;
+        }
+
+        @Override
+        public String toString() {
+            return new StringBuilder().append("MapDiff{deletes=")
+                .append(deletes)
+                .append(", diffs=")
+                .append(diffs)
+                .append(", upserts=")
+                .append(upserts)
+                .append("}")
+                .toString();
         }
 
         @Override
@@ -381,9 +393,9 @@ public final class DiffableUtils {
     /**
      * Provides read and write operations to serialize map values.
      * Reading of values can be made dependent on map key.
-     *
+     * <p>
      * Also provides operations to distinguish whether map values are diffable.
-     *
+     * <p>
      * Should not be directly implemented, instead implement either
      * {@link DiffableValueSerializer} or {@link NonDiffableValueSerializer}.
      *
@@ -494,6 +506,18 @@ public final class DiffableUtils {
      * @opensearch.internal
      */
     public abstract static class NonDiffableValueSerializer<K, V> implements ValueSerializer<K, V> {
+        private static final NonDiffableValueSerializer ABSTRACT_INSTANCE = new NonDiffableValueSerializer<>() {
+            @Override
+            public void write(Object value, StreamOutput out) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Object read(StreamInput in, Object key) {
+                throw new UnsupportedOperationException();
+            }
+        };
+
         @Override
         public boolean supportsDiffableValues() {
             return false;
@@ -513,11 +537,15 @@ public final class DiffableUtils {
         public Diff<V> readDiff(StreamInput in, K key) throws IOException {
             throw new UnsupportedOperationException();
         }
+
+        public static <K, V> NonDiffableValueSerializer<K, V> getAbstractInstance() {
+            return ABSTRACT_INSTANCE;
+        }
     }
 
     /**
      * Implementation of the ValueSerializer that wraps value and diff readers.
-     *
+     * <p>
      * Note: this implementation is ignoring the key.
      *
      * @opensearch.internal

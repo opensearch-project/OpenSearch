@@ -41,24 +41,27 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.RetentionLeases;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndexingMemoryController;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
@@ -74,8 +77,9 @@ import java.util.function.Supplier;
  * Once {@link Engine} has been created with this object, changes to this
  * object will affect the {@link Engine} instance.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class EngineConfig {
     private final ShardId shardId;
     private final IndexSettings indexSettings;
@@ -105,8 +109,9 @@ public final class EngineConfig {
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
     private final boolean isReadOnlyReplica;
-    private final BooleanSupplier primaryModeSupplier;
+    private final BooleanSupplier startedPrimarySupplier;
     private final Comparator<LeafReader> leafSorter;
+    private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -130,18 +135,29 @@ public final class EngineConfig {
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
         switch (s) {
             case "default":
+            case "lz4":
             case "best_compression":
-            case "zstd":
-            case "zstd_no_dict":
+            case "zlib":
             case "lucene_default":
                 return s;
             default:
-                if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
-                    throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, best_compression, zstd, zstd_no_dict] but was: " + s
-                    );
+                if (Codec.availableCodecs().contains(s)) {
+                    return s;
                 }
-                return s;
+
+                for (String codecName : Codec.availableCodecs()) {
+                    Codec codec = Codec.forName(codecName);
+                    if (codec instanceof CodecAliases) {
+                        CodecAliases codecWithAlias = (CodecAliases) codec;
+                        if (codecWithAlias.aliases().contains(s)) {
+                            return s;
+                        }
+                    }
+                }
+
+                throw new IllegalArgumentException(
+                    "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib] but was: " + s
+                );
         }
     }, Property.IndexScope, Property.NodeScope);
 
@@ -178,12 +194,11 @@ public final class EngineConfig {
 
     private static void doValidateCodecSettings(final String codec) {
         switch (codec) {
-            case "zstd":
-            case "zstd_no_dict":
-                return;
             case "best_compression":
+            case "zlib":
             case "lucene_default":
             case "default":
+            case "lz4":
                 break;
             default:
                 if (Codec.availableCodecs().contains(codec)) {
@@ -191,6 +206,18 @@ public final class EngineConfig {
                     if (luceneCodec instanceof CodecSettings
                         && ((CodecSettings) luceneCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
                         return;
+                    }
+                }
+                for (String codecName : Codec.availableCodecs()) {
+                    Codec availableCodec = Codec.forName(codecName);
+                    if (availableCodec instanceof CodecAliases) {
+                        CodecAliases availableCodecWithAlias = (CodecAliases) availableCodec;
+                        if (availableCodecWithAlias.aliases().contains(codec)) {
+                            if (availableCodec instanceof CodecSettings
+                                && ((CodecSettings) availableCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                                return;
+                            }
+                        }
                     }
                 }
         }
@@ -211,6 +238,12 @@ public final class EngineConfig {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> INDEX_USE_COMPOUND_FILE = Setting.boolSetting(
+        "index.use_compound_file",
+        true,
+        Property.IndexScope
+    );
+
     private final TranslogConfig translogConfig;
 
     private final TranslogFactory translogFactory;
@@ -219,7 +252,7 @@ public final class EngineConfig {
      * Creates a new {@link org.opensearch.index.engine.EngineConfig}
      */
     private EngineConfig(Builder builder) {
-        if (builder.isReadOnlyReplica && builder.indexSettings.isSegRepEnabled() == false) {
+        if (builder.isReadOnlyReplica && builder.indexSettings.isSegRepEnabledOrRemoteNode() == false) {
             throw new IllegalArgumentException("Shard can only be wired as a read only replica with Segment Replication enabled");
         }
         this.shardId = builder.shardId;
@@ -233,6 +266,7 @@ public final class EngineConfig {
         this.codecService = builder.codecService;
         this.eventListener = builder.eventListener;
         codecName = builder.indexSettings.getValue(INDEX_CODEC_SETTING);
+
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
@@ -261,9 +295,10 @@ public final class EngineConfig {
         this.primaryTermSupplier = builder.primaryTermSupplier;
         this.tombstoneDocSupplier = builder.tombstoneDocSupplier;
         this.isReadOnlyReplica = builder.isReadOnlyReplica;
-        this.primaryModeSupplier = builder.primaryModeSupplier;
+        this.startedPrimarySupplier = builder.startedPrimarySupplier;
         this.translogFactory = builder.translogFactory;
         this.leafSorter = builder.leafSorter;
+        this.documentMapperForTypeSupplier = builder.documentMapperForTypeSupplier;
     }
 
     /**
@@ -465,15 +500,19 @@ public final class EngineConfig {
      * @return true if this engine should be wired as read only.
      */
     public boolean isReadOnlyReplica() {
-        return indexSettings.isSegRepEnabled() && isReadOnlyReplica;
+        return indexSettings.isSegRepEnabledOrRemoteNode() && isReadOnlyReplica;
+    }
+
+    public boolean useCompoundFile() {
+        return indexSettings.getValue(INDEX_USE_COMPOUND_FILE);
     }
 
     /**
-     * Returns the underlying primaryModeSupplier.
+     * Returns the underlying startedPrimarySupplier.
      * @return the primary mode supplier.
      */
-    public BooleanSupplier getPrimaryModeSupplier() {
-        return primaryModeSupplier;
+    public BooleanSupplier getStartedPrimarySupplier() {
+        return startedPrimarySupplier;
     }
 
     /**
@@ -488,8 +527,9 @@ public final class EngineConfig {
      * A supplier supplies tombstone documents which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface TombstoneDocSupplier {
         /**
          * Creates a tombstone document for a delete operation.
@@ -505,6 +545,10 @@ public final class EngineConfig {
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {
         return tombstoneDocSupplier;
+    }
+
+    public Supplier<DocumentMapperForType> getDocumentMapperForTypeSupplier() {
+        return documentMapperForTypeSupplier;
     }
 
     public TranslogDeletionPolicyFactory getCustomTranslogDeletionPolicyFactory() {
@@ -550,8 +594,9 @@ public final class EngineConfig {
         private TombstoneDocSupplier tombstoneDocSupplier;
         private TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
         private boolean isReadOnlyReplica;
-        private BooleanSupplier primaryModeSupplier;
+        private BooleanSupplier startedPrimarySupplier;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
+        private Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
         Comparator<LeafReader> leafSorter;
 
         public Builder shardId(ShardId shardId) {
@@ -664,6 +709,11 @@ public final class EngineConfig {
             return this;
         }
 
+        public Builder documentMapperForTypeSupplier(Supplier<DocumentMapperForType> documentMapperForTypeSupplier) {
+            this.documentMapperForTypeSupplier = documentMapperForTypeSupplier;
+            return this;
+        }
+
         public Builder translogDeletionPolicyFactory(TranslogDeletionPolicyFactory translogDeletionPolicyFactory) {
             this.translogDeletionPolicyFactory = translogDeletionPolicyFactory;
             return this;
@@ -674,8 +724,8 @@ public final class EngineConfig {
             return this;
         }
 
-        public Builder primaryModeSupplier(BooleanSupplier primaryModeSupplier) {
-            this.primaryModeSupplier = primaryModeSupplier;
+        public Builder startedPrimarySupplier(BooleanSupplier startedPrimarySupplier) {
+            this.startedPrimarySupplier = startedPrimarySupplier;
             return this;
         }
 

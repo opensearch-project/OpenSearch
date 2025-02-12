@@ -34,10 +34,11 @@ package org.opensearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.FieldMemoryStats;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -47,8 +48,9 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * On heap field data for shards
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     private final CounterMetric evictionsMetric = new CounterMetric();

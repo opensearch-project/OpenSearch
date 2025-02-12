@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
@@ -52,6 +51,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.opensearch.persistent.decider.AssignmentDecision;
@@ -323,7 +323,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
     /**
      * This unassigns a task from any node, i.e. it is assigned to a {@code null} node with the provided reason.
-     *
+     * <p>
      * Since the assignment executor node is null, the {@link PersistentTasksClusterService} will attempt to reassign it to a valid
      * node quickly.
      *

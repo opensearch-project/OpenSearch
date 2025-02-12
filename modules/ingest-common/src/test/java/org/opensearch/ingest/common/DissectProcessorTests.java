@@ -155,4 +155,28 @@ public class DissectProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
     }
+
+    public void testMatchEmptyBrackets() {
+        IngestDocument ingestDocument = new IngestDocument(
+            "_index",
+            "_id",
+            null,
+            null,
+            null,
+            Collections.singletonMap("message", "[foo],[bar],[]")
+        );
+        DissectProcessor dissectProcessor = new DissectProcessor("", null, "message", "[%{a}],[%{b}],[%{c}]", "", true);
+        dissectProcessor.execute(ingestDocument);
+        assertEquals("foo", ingestDocument.getFieldValue("a", String.class));
+        assertEquals("bar", ingestDocument.getFieldValue("b", String.class));
+        assertEquals("", ingestDocument.getFieldValue("c", String.class));
+
+        ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("message", "{}{}{}{baz}"));
+        dissectProcessor = new DissectProcessor("", null, "message", "{%{a}}{%{b}}{%{c}}{%{d}}", "", true);
+        dissectProcessor.execute(ingestDocument);
+        assertEquals("", ingestDocument.getFieldValue("a", String.class));
+        assertEquals("", ingestDocument.getFieldValue("b", String.class));
+        assertEquals("", ingestDocument.getFieldValue("c", String.class));
+        assertEquals("baz", ingestDocument.getFieldValue("d", String.class));
+    }
 }

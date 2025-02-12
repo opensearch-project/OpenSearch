@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
@@ -67,8 +69,10 @@ import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -83,6 +87,7 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.extractVa
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.nestedQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
@@ -105,10 +110,22 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase()
-public class TopHitsIT extends OpenSearchIntegTestCase {
+public class TopHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String TERMS_AGGS_FIELD = "terms";
     private static final String SORT_FIELD = "sort";
+
+    public TopHitsIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -357,7 +374,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             assertThat(bucket.getDocCount(), equalTo(10L));
             TopHits topHits = bucket.getAggregations().get("hits");
             SearchHits hits = topHits.getHits();
-            assertThat(hits.getTotalHits().value, equalTo(10L));
+            assertThat(hits.getTotalHits().value(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
             higestSortValue += 10;
             assertThat((Long) hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));
@@ -378,7 +395,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
 
         assertSearchResponse(response);
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(8L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(8L));
         assertThat(response.getHits().getHits().length, equalTo(0));
         assertThat(response.getHits().getMaxScore(), equalTo(Float.NaN));
         Terms terms = response.getAggregations().get("terms");
@@ -412,7 +429,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
 
         assertSearchResponse(response);
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(8L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(8L));
         assertThat(response.getHits().getHits().length, equalTo(0));
         assertThat(response.getHits().getMaxScore(), equalTo(Float.NaN));
         terms = response.getAggregations().get("terms");
@@ -445,7 +462,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             assertThat(bucket.getDocCount(), equalTo(10L));
             TopHits topHits = bucket.getAggregations().get("hits");
             SearchHits hits = topHits.getHits();
-            assertThat(hits.getTotalHits().value, equalTo(10L));
+            assertThat(hits.getTotalHits().value(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
 
             assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
@@ -477,7 +494,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             assertThat(bucket.getDocCount(), equalTo(10L));
             TopHits topHits = bucket.getAggregations().get("hits");
             SearchHits hits = topHits.getHits();
-            assertThat(hits.getTotalHits().value, equalTo(10L));
+            assertThat(hits.getTotalHits().value(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
 
             assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
@@ -537,7 +554,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(10L));
         TopHits topHits = bucket.getAggregations().get("hits");
         SearchHits hits = topHits.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(controlHits.getTotalHits().value));
+        assertThat(hits.getTotalHits().value(), equalTo(controlHits.getTotalHits().value()));
         assertThat(hits.getHits().length, equalTo(controlHits.getHits().length));
         for (int i = 0; i < hits.getHits().length; i++) {
             logger.info(
@@ -577,7 +594,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             assertThat(bucket.getDocCount(), equalTo(10L));
             TopHits topHits = bucket.getAggregations().get("hits");
             SearchHits hits = topHits.getHits();
-            assertThat(hits.getTotalHits().value, equalTo(10L));
+            assertThat(hits.getTotalHits().value(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
             assertThat(hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));
             assertThat(hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
@@ -612,7 +629,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertThat(key(bucket), equalTo("b"));
         TopHits topHits = bucket.getAggregations().get("hits");
         SearchHits hits = topHits.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(4L));
+        assertThat(hits.getTotalHits().value(), equalTo(4L));
         assertThat(hits.getHits().length, equalTo(1));
         assertThat(hits.getAt(0).getId(), equalTo("6"));
 
@@ -620,7 +637,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertThat(key(bucket), equalTo("c"));
         topHits = bucket.getAggregations().get("hits");
         hits = topHits.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(3L));
+        assertThat(hits.getTotalHits().value(), equalTo(3L));
         assertThat(hits.getHits().length, equalTo(1));
         assertThat(hits.getAt(0).getId(), equalTo("9"));
 
@@ -628,7 +645,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertThat(key(bucket), equalTo("a"));
         topHits = bucket.getAggregations().get("hits");
         hits = topHits.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(2L));
+        assertThat(hits.getTotalHits().value(), equalTo(2L));
         assertThat(hits.getHits().length, equalTo(1));
         assertThat(hits.getAt(0).getId(), equalTo("2"));
     }
@@ -664,7 +681,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         for (Terms.Bucket bucket : terms.getBuckets()) {
             TopHits topHits = bucket.getAggregations().get("hits");
             SearchHits hits = topHits.getHits();
-            assertThat(hits.getTotalHits().value, equalTo(10L));
+            assertThat(hits.getTotalHits().value(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(1));
 
             SearchHit hit = hits.getAt(0);
@@ -726,7 +743,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         TopHits hits = response.getAggregations().get("hits");
         assertThat(hits, notNullValue());
         assertThat(hits.getName(), equalTo("hits"));
-        assertThat(hits.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(hits.getHits().getTotalHits().value(), equalTo(0L));
     }
 
     public void testTrackScores() throws Exception {
@@ -788,7 +805,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1L));
         TopHits topHits = bucket.getAggregations().get("top-comments");
         SearchHits searchHits = topHits.getHits();
-        assertThat(searchHits.getTotalHits().value, equalTo(1L));
+        assertThat(searchHits.getTotalHits().value(), equalTo(1L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(extractValue("date", searchHits.getAt(0).getSourceAsMap()), equalTo(1));
@@ -797,7 +814,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(2L));
         topHits = bucket.getAggregations().get("top-comments");
         searchHits = topHits.getHits();
-        assertThat(searchHits.getTotalHits().value, equalTo(2L));
+        assertThat(searchHits.getTotalHits().value(), equalTo(2L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(extractValue("date", searchHits.getAt(0).getSourceAsMap()), equalTo(2));
@@ -809,7 +826,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1L));
         topHits = bucket.getAggregations().get("top-comments");
         searchHits = topHits.getHits();
-        assertThat(searchHits.getTotalHits().value, equalTo(1L));
+        assertThat(searchHits.getTotalHits().value(), equalTo(1L));
         assertThat(searchHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(extractValue("date", searchHits.getAt(0).getSourceAsMap()), equalTo(4));
@@ -833,7 +850,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertThat(toComments.getDocCount(), equalTo(4L));
 
         TopHits topComments = toComments.getAggregations().get("top-comments");
-        assertThat(topComments.getHits().getTotalHits().value, equalTo(4L));
+        assertThat(topComments.getHits().getTotalHits().value(), equalTo(4L));
         assertThat(topComments.getHits().getHits().length, equalTo(4));
 
         assertThat(topComments.getHits().getAt(0).getId(), equalTo("2"));
@@ -860,7 +877,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertThat(toReviewers.getDocCount(), equalTo(7L));
 
         TopHits topReviewers = toReviewers.getAggregations().get("top-reviewers");
-        assertThat(topReviewers.getHits().getTotalHits().value, equalTo(7L));
+        assertThat(topReviewers.getHits().getTotalHits().value(), equalTo(7L));
         assertThat(topReviewers.getHits().getHits().length, equalTo(7));
 
         assertThat(topReviewers.getHits().getAt(0).getId(), equalTo("1"));
@@ -941,7 +958,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
         assertThat(nested.getDocCount(), equalTo(4L));
 
         SearchHits hits = ((TopHits) nested.getAggregations().get("top-comments")).getHits();
-        assertThat(hits.getTotalHits().value, equalTo(4L));
+        assertThat(hits.getTotalHits().value(), equalTo(4L));
         SearchHit searchHit = hits.getAt(0);
         assertThat(searchHit.getId(), equalTo("1"));
         assertThat(searchHit.getNestedIdentity().getField().string(), equalTo("comments"));
@@ -1001,7 +1018,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
 
             TopHits hits = nested.getAggregations().get("comments");
             SearchHits searchHits = hits.getHits();
-            assertThat(searchHits.getTotalHits().value, equalTo(numNestedDocs));
+            assertThat(searchHits.getTotalHits().value(), equalTo(numNestedDocs));
             for (int j = 0; j < 3; j++) {
                 assertThat(searchHits.getAt(j).getNestedIdentity().getField().string(), equalTo("comments"));
                 assertThat(searchHits.getAt(j).getNestedIdentity().getOffset(), equalTo(0));
@@ -1127,7 +1144,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             assertThat(bucket.getDocCount(), equalTo(10L));
             TopHits topHits = bucket.getAggregations().get("hits");
             SearchHits hits = topHits.getHits();
-            assertThat(hits.getTotalHits().value, equalTo(10L));
+            assertThat(hits.getTotalHits().value(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
             for (SearchHit hit : hits) {
                 assertThat(hit.getSourceAsMap(), nullValue());

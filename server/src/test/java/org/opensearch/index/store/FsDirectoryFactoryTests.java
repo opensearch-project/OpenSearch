@@ -31,31 +31,30 @@
 
 package org.opensearch.index.store;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
-import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
-import org.hamcrest.Matchers;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Set;
+import java.util.function.BiPredicate;
 
 import static org.opensearch.test.store.MockFSDirectoryFactory.FILE_SYSTEM_BASED_STORE_TYPES;
 
@@ -72,7 +71,8 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
-            // test default hybrid mmap extensions
+            // test default hybrid extensions
+            // true->mmap, false->nio
             assertTrue(hybridDirectory.useDelegate("foo.nvd"));
             assertTrue(hybridDirectory.useDelegate("foo.dvd"));
             assertTrue(hybridDirectory.useDelegate("foo.tim"));
@@ -82,42 +82,48 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             assertTrue(hybridDirectory.useDelegate("foo.kdi"));
             assertTrue(hybridDirectory.useDelegate("foo.cfs"));
             assertTrue(hybridDirectory.useDelegate("foo.doc"));
+            assertTrue(hybridDirectory.useDelegate("foo.new"));
             assertFalse(hybridDirectory.useDelegate("foo.pos"));
             assertFalse(hybridDirectory.useDelegate("foo.pay"));
-            MMapDirectory delegate = hybridDirectory.getDelegate();
-            assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
-            FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
-            assertTrue(preLoadMMapDirectory.useDelegate("foo.dvd"));
-            assertTrue(preLoadMMapDirectory.useDelegate("foo.bar"));
-            assertFalse(preLoadMMapDirectory.useDelegate("foo.cfs"));
         }
         build = Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "nvd", "dvd", "cfs")
-            .putList(IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey(), "nvd", "dvd", "tim", "pos", "pay")
+            .putList(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey(), "tip", "dim", "kdd", "kdi", "cfs", "doc", "new")
             .build();
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
-            // test custom hybrid mmap extensions
+            // test custom hybrid nio extensions
+            // true->mmap, false->nio
             assertTrue(hybridDirectory.useDelegate("foo.nvd"));
             assertTrue(hybridDirectory.useDelegate("foo.dvd"));
             assertTrue(hybridDirectory.useDelegate("foo.tim"));
+            assertTrue(hybridDirectory.useDelegate("foo.pos"));
+            assertTrue(hybridDirectory.useDelegate("foo.pay"));
+            assertFalse(hybridDirectory.useDelegate("foo.new"));
             assertFalse(hybridDirectory.useDelegate("foo.tip"));
             assertFalse(hybridDirectory.useDelegate("foo.dim"));
             assertFalse(hybridDirectory.useDelegate("foo.kdd"));
             assertFalse(hybridDirectory.useDelegate("foo.kdi"));
             assertFalse(hybridDirectory.useDelegate("foo.cfs"));
             assertFalse(hybridDirectory.useDelegate("foo.doc"));
-            assertTrue(hybridDirectory.useDelegate("foo.pos"));
-            assertTrue(hybridDirectory.useDelegate("foo.pay"));
-            MMapDirectory delegate = hybridDirectory.getDelegate();
-            assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
-            FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
-            assertTrue(preLoadMMapDirectory.useDelegate("foo.dvd"));
-            assertFalse(preLoadMMapDirectory.useDelegate("foo.bar"));
-            assertTrue(preLoadMMapDirectory.useDelegate("foo.cfs"));
-            assertTrue(preLoadMMapDirectory.useDelegate("foo.nvd"));
+        }
+        build = Settings.builder()
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
+            .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "nvd", "dvd", "cfs")
+            .putList(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey())
+            .build();
+        try (Directory directory = newDirectory(build)) {
+            assertTrue(FsDirectoryFactory.isHybridFs(directory));
+            FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
+            // test custom hybrid mmap extensions
+            // true->mmap, false->nio
+            assertTrue(hybridDirectory.useDelegate("foo.new"));
+            assertTrue(hybridDirectory.useDelegate("foo.nvd"));
+            assertTrue(hybridDirectory.useDelegate("foo.dvd"));
+            assertTrue(hybridDirectory.useDelegate("foo.cfs"));
+            assertTrue(hybridDirectory.useDelegate("foo.doc"));
         }
     }
 
@@ -129,41 +135,19 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
         return new FsDirectoryFactory().newDirectory(idxSettings, path);
     }
 
-    private void doTestPreload(String... preload) throws IOException {
-        Settings build = Settings.builder()
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mmapfs")
-            .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
-            .build();
-        Directory directory = newDirectory(build);
-        try (Directory dir = directory) {
-            assertSame(dir, directory); // prevent warnings
-            assertFalse(directory instanceof SleepingLockWrapper);
-            if (preload.length == 0) {
-                assertTrue(directory.toString(), directory instanceof MMapDirectory);
-                assertFalse(((MMapDirectory) directory).getPreload());
-            } else if (Arrays.asList(preload).contains("*")) {
-                assertTrue(directory.toString(), directory instanceof MMapDirectory);
-                assertTrue(((MMapDirectory) directory).getPreload());
-            } else {
-                assertTrue(directory.toString(), directory instanceof FsDirectoryFactory.PreLoadMMapDirectory);
-                FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) directory;
-                for (String ext : preload) {
-                    assertTrue("ext: " + ext, preLoadMMapDirectory.useDelegate("foo." + ext));
-                    assertTrue("ext: " + ext, preLoadMMapDirectory.getDelegate().getPreload());
-                }
-                assertFalse(preLoadMMapDirectory.useDelegate("XXX"));
-                assertFalse(preLoadMMapDirectory.getPreload());
-                preLoadMMapDirectory.close();
-                expectThrows(
-                    AlreadyClosedException.class,
-                    () -> preLoadMMapDirectory.getDelegate().openInput("foo.bar", IOContext.DEFAULT)
-                );
+    private void doTestPreload(String... preload) {
+        Set<String> preloadSet = Set.of(preload);
+        if (preload.length == 0) {
+            assertFalse(FsDirectoryFactory.createPreloadPredicate(preloadSet).test("file", null));
+        } else if (Arrays.asList(preload).contains("*")) {
+            assertTrue(FsDirectoryFactory.createPreloadPredicate(preloadSet).test("file", null));
+        } else {
+            BiPredicate<String, IOContext> preloadPredicate = FsDirectoryFactory.createPreloadPredicate(preloadSet);
+            for (String ext : preload) {
+                assertTrue("ext: " + ext, preloadPredicate.test("foo." + ext, null));
             }
+            assertFalse(preloadPredicate.test("XXX", null));
         }
-        expectThrows(
-            AlreadyClosedException.class,
-            () -> directory.openInput(randomBoolean() && preload.length != 0 ? "foo." + preload[0] : "foo.bar", IOContext.DEFAULT)
-        );
     }
 
     public void testStoreDirectory() throws IOException {
@@ -199,7 +183,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
                     assertTrue(type + " " + directory.toString(), directory instanceof MMapDirectory);
                     break;
                 case FS:
-                    if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+                    if (Constants.JRE_IS_64BIT) {
                         assertTrue(FsDirectoryFactory.isHybridFs(directory));
                     } else {
                         assertTrue(directory.toString(), directory instanceof NIOFSDirectory);

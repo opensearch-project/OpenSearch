@@ -32,16 +32,16 @@
 
 package org.opensearch.test.rest;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.core.rest.RestStatus;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -56,6 +56,15 @@ public class FakeRestRequest extends RestRequest {
             NamedXContentRegistry.EMPTY,
             new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
             new HashMap<>(),
+            new FakeHttpChannel(null)
+        );
+    }
+
+    public FakeRestRequest(Map<String, String> params) {
+        this(
+            NamedXContentRegistry.EMPTY,
+            new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
+            params,
             new FakeHttpChannel(null)
         );
     }

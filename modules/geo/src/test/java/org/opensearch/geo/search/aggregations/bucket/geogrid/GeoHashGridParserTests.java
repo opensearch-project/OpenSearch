@@ -31,18 +31,18 @@
 
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
+import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.geo.GeometryTestUtils;
+import org.opensearch.geometry.Rectangle;
+import org.opensearch.test.OpenSearchTestCase;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-
-import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.core.xcontent.XContentParseException;
-import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.geo.GeometryTestUtils;
-import org.opensearch.geometry.Rectangle;
-import org.opensearch.test.OpenSearchTestCase;
 
 public class GeoHashGridParserTests extends OpenSearchTestCase {
     public void testParseValidFromInts() throws Exception {

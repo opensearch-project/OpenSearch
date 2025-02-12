@@ -33,8 +33,8 @@
 package org.opensearch.core.internal.net;
 
 import org.apache.lucene.util.Constants;
-import org.opensearch.common.util.net.NetUtils;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.util.net.NetUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.Runtime.Version;

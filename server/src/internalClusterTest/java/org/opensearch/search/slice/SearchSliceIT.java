@@ -32,9 +32,9 @@
 
 package org.opensearch.search.slice;
 
-import org.opensearch.action.ActionFuture;
-import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
@@ -42,30 +42,46 @@ import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.sort.SortBuilders;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SearchSliceIT extends OpenSearchIntegTestCase {
+public class SearchSliceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+    public SearchSliceIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
     private void setupIndex(int numDocs, int numberOfShards) throws IOException, ExecutionException, InterruptedException {
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -189,7 +205,7 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
             SliceBuilder sliceBuilder = new SliceBuilder(field, id, numSlice);
             SearchResponse searchResponse = request.slice(sliceBuilder).setFrom(0).get();
             totalResults += searchResponse.getHits().getHits().length;
-            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value;
+            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value();
             int numSliceResults = searchResponse.getHits().getHits().length;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 assertTrue(keys.add(hit.getId()));
@@ -215,7 +231,7 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
         setupIndex(totalDocs, numShards);
         {
             SearchResponse sr = client().prepareSearch("test").setQuery(matchAllQuery()).setPreference("_shards:1,4").setSize(0).get();
-            int numDocs = (int) sr.getHits().getTotalHits().value;
+            int numDocs = (int) sr.getHits().getTotalHits().value();
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = client().prepareSearch("test")
@@ -228,7 +244,7 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
         }
         {
             SearchResponse sr = client().prepareSearch("test").setQuery(matchAllQuery()).setRouting("foo", "bar").setSize(0).get();
-            int numDocs = (int) sr.getHits().getTotalHits().value;
+            int numDocs = (int) sr.getHits().getTotalHits().value();
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = client().prepareSearch("test")
@@ -250,7 +266,7 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
                     .get()
             );
             SearchResponse sr = client().prepareSearch("alias1", "alias3").setQuery(matchAllQuery()).setSize(0).get();
-            int numDocs = (int) sr.getHits().getTotalHits().value;
+            int numDocs = (int) sr.getHits().getTotalHits().value();
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = client().prepareSearch("alias1", "alias3")
@@ -307,7 +323,7 @@ public class SearchSliceIT extends OpenSearchIntegTestCase {
             SliceBuilder sliceBuilder = new SliceBuilder(field, id, numSlice);
             SearchResponse searchResponse = request.slice(sliceBuilder).get();
             totalResults += searchResponse.getHits().getHits().length;
-            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value;
+            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value();
             int numSliceResults = searchResponse.getHits().getHits().length;
             String scrollId = searchResponse.getScrollId();
             for (SearchHit hit : searchResponse.getHits().getHits()) {

@@ -40,11 +40,11 @@ import org.opensearch.index.query.QueryBuilders;
 
 import java.io.IOException;
 
-import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 
 public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCase<DeleteByQueryRequest> {
     public void testDeleteteByQueryRequestImplementsIndicesRequestReplaceable() {

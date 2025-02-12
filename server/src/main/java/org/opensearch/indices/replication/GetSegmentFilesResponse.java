@@ -10,8 +10,8 @@ package org.opensearch.indices.replication;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 import java.util.List;

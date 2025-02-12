@@ -209,28 +209,28 @@ public abstract class OpenSearchAllocationWithConstraintsTestCase extends OpenSe
                     continue;
                 }
 
-                /**
-                 * Hot spots can occur due to the order in which shards get allocated to nodes.
-                 * A node with fewer shards may not be able to accept current shard due to
-                 * SameShardAllocationDecider, causing it to breach allocation constraint on
-                 * another node. We need to differentiate between such hot spots v/s actual hot
-                 * spots.
-                 *
-                 * A simple check could be to ensure there is no node with shards less than
-                 * allocation limit, that can accept current shard. However, in current
-                 * allocation algorithm, when nodes get throttled, shards are added to
-                 * ModelNodes without adding them to actual cluster (RoutingNodes). As a result,
-                 * the shards per node we see here, are different from the ones observed by
-                 * weight function in balancer. RoutingNodes with {@link count} < {@link limit}
-                 * may not have had the same count in the corresponding ModelNode seen by weight
-                 * function. We hence use the following alternate check --
-                 *
-                 * Given the way {@link limit} is defined, we should not have hot spots if *all*
-                 * nodes are eligible to accept the shard. A hot spot is acceptable, if either
-                 * all peer nodes have {@link count} > {@link limit}, or if even one node is
-                 * ineligible to accept the shard due to SameShardAllocationDecider, as this
-                 * leads to a chain of events that breach IndexShardsPerNode constraint on all
-                 * other nodes.
+                /*
+                  Hot spots can occur due to the order in which shards get allocated to nodes.
+                  A node with fewer shards may not be able to accept current shard due to
+                  SameShardAllocationDecider, causing it to breach allocation constraint on
+                  another node. We need to differentiate between such hot spots v/s actual hot
+                  spots.
+
+                  A simple check could be to ensure there is no node with shards less than
+                  allocation limit, that can accept current shard. However, in current
+                  allocation algorithm, when nodes get throttled, shards are added to
+                  ModelNodes without adding them to actual cluster (RoutingNodes). As a result,
+                  the shards per node we see here, are different from the ones observed by
+                  weight function in balancer. RoutingNodes with {@link count} < {@link limit}
+                  may not have had the same count in the corresponding ModelNode seen by weight
+                  function. We hence use the following alternate check --
+
+                  Given the way {@link limit} is defined, we should not have hot spots if *all*
+                  nodes are eligible to accept the shard. A hot spot is acceptable, if either
+                  all peer nodes have {@link count} > {@link limit}, or if even one node is
+                  ineligible to accept the shard due to SameShardAllocationDecider, as this
+                  leads to a chain of events that breach IndexShardsPerNode constraint on all
+                  other nodes.
                  */
 
                 // If all peer nodes have count >= limit, hotspot is acceptable

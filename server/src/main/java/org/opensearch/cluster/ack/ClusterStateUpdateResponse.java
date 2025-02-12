@@ -32,11 +32,14 @@
 
 package org.opensearch.cluster.ack;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Base response returned after a cluster state update
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterStateUpdateResponse {
 
     private final boolean acknowledged;

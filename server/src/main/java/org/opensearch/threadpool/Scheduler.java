@@ -34,6 +34,7 @@ package org.opensearch.threadpool;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -60,7 +61,7 @@ public interface Scheduler {
 
     /**
      * Create a scheduler that can be used client side. Server side, please use <code>ThreadPool.schedule</code> instead.
-     *
+     * <p>
      * Notice that if any scheduled jobs fail with an exception, these will bubble up to the uncaught exception handler where they will
      * be logged as a warning. This includes jobs started using execute, submit and schedule.
      * @param settings the settings to use
@@ -154,7 +155,10 @@ public interface Scheduler {
 
     /**
      * This interface represents an object whose execution may be cancelled during runtime.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Cancellable {
 
         /**
@@ -171,14 +175,17 @@ public interface Scheduler {
 
     /**
      * A scheduled cancellable allow cancelling and reading the remaining delay of a scheduled task.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface ScheduledCancellable extends Delayed, Cancellable {}
 
     /**
      * This class encapsulates the scheduling of a {@link Runnable} that needs to be repeated on a interval. For example, checking a value
      * for cleanup every second could be done by passing in a Runnable that can perform the check and the specified interval between
      * executions of this runnable. <em>NOTE:</em> the runnable is only rescheduled to run again after completion of the runnable.
-     *
+     * <p>
      * For this class, <i>completion</i> means that the call to {@link Runnable#run()} returned or an exception was thrown and caught. In
      * case of an exception, this class will log the exception and reschedule the runnable for its next execution. This differs from the
      * {@link ScheduledThreadPoolExecutor#scheduleWithFixedDelay(Runnable, long, long, TimeUnit)} semantics as an exception there would

@@ -36,12 +36,11 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.common.settings.SecureString;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -49,6 +48,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -400,10 +400,10 @@ public abstract class BaseStreamTests extends OpenSearchTestCase {
         }
     }
 
-    public void testJodaDateTimeSerialization() throws IOException {
+    public void testJavaDateTimeSerialization() throws IOException {
         final BytesStreamOutput output = new BytesStreamOutput();
         long millis = randomIntBetween(0, Integer.MAX_VALUE);
-        JodaCompatibleZonedDateTime time = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), ZoneOffset.ofHours(-7));
+        ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.ofHours(-7));
         output.writeGenericValue(time);
 
         final BytesReference bytesReference = output.bytes();

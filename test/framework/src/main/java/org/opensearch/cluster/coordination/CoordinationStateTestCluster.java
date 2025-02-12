@@ -34,6 +34,7 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -48,9 +49,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
@@ -58,6 +57,8 @@ import static org.opensearch.test.OpenSearchTestCase.randomLong;
 import static org.opensearch.test.OpenSearchTestCase.randomLongBetween;
 import static org.opensearch.test.OpenSearchTestCase.randomSubsetOf;
 import static org.hamcrest.Matchers.hasSize;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.junit.Assert.assertThat;
 
 public class CoordinationStateTestCluster {
@@ -128,6 +129,8 @@ public class CoordinationStateTestCluster {
 
         DiscoveryNode localNode;
         CoordinationState.PersistedState persistedState;
+        PersistedStateRegistry persistedStateRegistry;
+
         CoordinationState state;
 
         ClusterNode(DiscoveryNode localNode, ElectionStrategy electionStrategy) {
@@ -143,8 +146,11 @@ public class CoordinationStateTestCluster {
                     0L
                 )
             );
+            persistedStateRegistry = new PersistedStateRegistry();
+            persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, persistedState);
+
             this.electionStrategy = electionStrategy;
-            state = new CoordinationState(localNode, persistedState, electionStrategy);
+            state = new CoordinationState(localNode, persistedStateRegistry, electionStrategy, Settings.EMPTY);
         }
 
         void reboot() {
@@ -183,7 +189,7 @@ public class CoordinationStateTestCluster {
                 localNode.getVersion()
             );
 
-            state = new CoordinationState(localNode, persistedState, electionStrategy);
+            state = new CoordinationState(localNode, persistedStateRegistry, electionStrategy, Settings.EMPTY);
         }
 
         void setInitialState(CoordinationMetadata.VotingConfiguration initialConfig, long initialValue) {

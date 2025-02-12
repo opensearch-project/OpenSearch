@@ -32,27 +32,27 @@
 
 package org.opensearch.analysis.common;
 
-import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 import static org.hamcrest.Matchers.instanceOf;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 
 public class NGramTokenizerFactoryTests extends OpenSearchTokenStreamTestCase {
     public void testParseTokenChars() {

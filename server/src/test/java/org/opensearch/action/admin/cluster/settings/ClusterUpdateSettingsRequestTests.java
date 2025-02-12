@@ -33,10 +33,11 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.XContentTestUtils;
 
@@ -59,14 +60,14 @@ public class ClusterUpdateSettingsRequestTests extends OpenSearchTestCase {
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         final ClusterUpdateSettingsRequest request = createTestItem();
         boolean humanReadable = randomBoolean();
-        final XContentType xContentType = XContentType.JSON;
-        BytesReference originalBytes = toShuffledXContent(request, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        final MediaType mediaType = MediaTypeRegistry.JSON;
+        BytesReference originalBytes = toShuffledXContent(request, mediaType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         if (addRandomFields) {
             String unsupportedField = "unsupported_field";
             BytesReference mutated = BytesReference.bytes(
                 XContentTestUtils.insertIntoXContent(
-                    xContentType.xContent(),
+                    mediaType.xContent(),
                     originalBytes,
                     Collections.singletonList(""),
                     () -> unsupportedField,
@@ -75,11 +76,11 @@ public class ClusterUpdateSettingsRequestTests extends OpenSearchTestCase {
             );
             XContentParseException iae = expectThrows(
                 XContentParseException.class,
-                () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated))
+                () -> ClusterUpdateSettingsRequest.fromXContent(createParser(mediaType.xContent(), mutated))
             );
             assertThat(iae.getMessage(), containsString("[cluster_update_settings_request] unknown field [" + unsupportedField + "]"));
         } else {
-            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            try (XContentParser parser = createParser(mediaType.xContent(), originalBytes)) {
                 ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);
 
                 assertNull(parser.nextToken());

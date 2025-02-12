@@ -32,13 +32,16 @@
 
 package org.opensearch.index.analysis;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.Reader;
 
 /**
  * Base character filter factory behavior used in analysis chain
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface CharFilterFactory {
 
     String name();

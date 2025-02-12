@@ -33,16 +33,19 @@
 package org.opensearch.tasks;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceStats;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParserHelper;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ObjectParserHelper;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -64,8 +67,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
  * and use in APIs. Instead, immutable and writeable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class TaskInfo implements Writeable, ToXContentFragment {
     private final TaskId taskId;
 
@@ -398,7 +402,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 
     // Implements equals and hashCode for testing

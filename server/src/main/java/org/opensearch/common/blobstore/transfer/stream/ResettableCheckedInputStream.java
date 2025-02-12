@@ -8,10 +8,10 @@
 
 package org.opensearch.common.blobstore.transfer.stream;
 
-import com.jcraft.jzlib.CRC32;
-
 import java.io.FilterInputStream;
 import java.io.IOException;
+
+import com.jcraft.jzlib.CRC32;
 
 /**
  * ResettableCheckedInputStream is a modified implementation of {@link java.util.zip.CheckedInputStream} that supports

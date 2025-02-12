@@ -32,11 +32,14 @@
 
 package org.opensearch.common.cache;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Notification when an element is removed from the cache
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RemovalNotification<K, V> {
 
     private final K key;

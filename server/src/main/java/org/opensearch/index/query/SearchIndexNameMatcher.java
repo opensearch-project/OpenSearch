@@ -73,7 +73,7 @@ public class SearchIndexNameMatcher implements Predicate<String> {
 
     /**
      *  Given an index pattern, checks whether it matches against the current shard.
-     *
+     * <p>
      *  If this shard represents a remote shard target, then in order to match the pattern contain
      *  the separator ':', and must match on both the cluster alias and index name.
      */

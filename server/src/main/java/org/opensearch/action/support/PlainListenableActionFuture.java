@@ -32,8 +32,8 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ListenableActionFuture;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;

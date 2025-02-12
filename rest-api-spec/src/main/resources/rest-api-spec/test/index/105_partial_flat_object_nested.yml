@@ -89,8 +89,8 @@ teardown:
 # and no dynamic fields were created.
 "Mappings":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7"
 
   - do:
       indices.get_mapping:
@@ -106,8 +106,8 @@ teardown:
 ---
 "Supported queries":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7"
 
 
   # Verify Document Count
@@ -506,23 +506,6 @@ teardown:
 
   - length: { hits.hits: 2 }
 
-  # Exists Query with nested dot path, use the flat_object_field_name.last_key
-  - do:
-      search:
-        body: {
-          _source: true,
-          query: {
-            nested: {
-              path: "issue",
-              query: {
-                "exists": {
-                  "field": issue.labels.type
-                } } }
-          }
-        }
-
-  - length: { hits.hits: 2 }
-
   # Exists Query without dot path for the flat_object_field_name
   - do:
       search:
@@ -634,3 +617,27 @@ teardown:
 
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.issue.0.labels.comment: [ [ "Doe","Shipped" ],[ "John","Approved" ] ] }
+
+---
+"Exists query for sub field":
+  - skip:
+      version: " - 2.99.99"
+      reason: "exists query for sub field of flat_object field has bug before 3.0.0"
+
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            nested: {
+              path: "issue",
+              query: {
+                "exists": {
+                  "field": issue.labels.category.type
+                }
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }

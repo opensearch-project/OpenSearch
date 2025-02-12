@@ -43,6 +43,7 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.Prepared;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.ScorerAware;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.index.fielddata.AbstractSortingNumericDocValues;
@@ -75,8 +76,9 @@ import java.util.function.LongUnaryOperator;
 /**
  * Base class for a ValuesSource; the primitive data for an agg
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class ValuesSource {
 
     /**
@@ -240,6 +242,10 @@ public abstract class ValuesSource {
 
                 public FieldData(IndexOrdinalsFieldData indexFieldData) {
                     this.indexFieldData = indexFieldData;
+                }
+
+                public String getIndexFieldName() {
+                    return this.indexFieldData.getFieldName();
                 }
 
                 @Override
@@ -574,6 +580,11 @@ public abstract class ValuesSource {
                     }
                     return false;
                 }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return doubleValues.advance(target);
+                }
             }
         }
 
@@ -613,6 +624,10 @@ public abstract class ValuesSource {
             @Override
             public SortedNumericDoubleValues doubleValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getDoubleValues();
+            }
+
+            public String getIndexFieldName() {
+                return indexFieldData.getFieldName();
             }
         }
 

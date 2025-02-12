@@ -37,7 +37,7 @@ java {
 
 base {
   group = 'org.opensearch.client'
-  archivesBaseName = 'opensearch-rest-client-sniffer'
+  archivesName = 'opensearch-rest-client-sniffer'
 }
 
 dependencies {

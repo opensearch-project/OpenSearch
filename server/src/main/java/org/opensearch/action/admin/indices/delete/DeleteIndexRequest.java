@@ -35,20 +35,23 @@ package org.opensearch.action.admin.indices.delete;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.util.CollectionUtils;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to delete an index. Best created with {@link org.opensearch.client.Requests#deleteIndexRequest(String)}.
+ * A request to delete an index. Best created with {@link Requests#deleteIndexRequest(String)}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;

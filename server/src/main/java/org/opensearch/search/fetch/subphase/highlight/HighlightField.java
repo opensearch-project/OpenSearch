@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch.subphase.highlight;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -52,8 +53,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * A field highlighted with its highlighted fragments.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class HighlightField implements ToXContentFragment, Writeable {
 
     private String name;

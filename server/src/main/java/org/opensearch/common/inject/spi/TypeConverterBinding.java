@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject.spi;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.matcher.Matcher;
@@ -45,8 +46,9 @@ import java.util.Objects;
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class TypeConverterBinding implements Element {
     private final Object source;
     private final Matcher<? super TypeLiteral<?>> typeMatcher;

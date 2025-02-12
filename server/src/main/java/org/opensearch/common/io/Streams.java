@@ -32,9 +32,9 @@
 
 package org.opensearch.common.io;
 
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStream;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.BufferedReader;

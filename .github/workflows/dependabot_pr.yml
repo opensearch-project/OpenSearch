@@ -7,27 +7,34 @@ jobs:
     permissions:
       pull-requests: write
       contents: write
-    if: ${{ github.actor == 'dependabot[bot]' }}
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     steps:
       - name: GitHub App token
         id: github_app_token
-        uses: tibdex/github-app-token@v1.5.0
+        uses: tibdex/github-app-token@v2.1.0
         with:
           app_id: ${{ secrets.APP_ID }}
           private_key: ${{ secrets.APP_PRIVATE_KEY }}
           installation_id: 22958780
 
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           token: ${{ steps.github_app_token.outputs.token }}
+
+      # See please https://docs.gradle.org/8.10/userguide/upgrading_version_8.html#minimum_daemon_jvm_version
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
 
       - name: Update Gradle SHAs
         run: |
           ./gradlew updateSHAs
 
       - name: Commit the changes
-        uses: stefanzweifel/git-auto-commit-action@v4.7.2
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: Updating SHAs
           branch: ${{ github.head_ref }}
@@ -40,7 +47,7 @@ jobs:
           ./gradlew spotlessApply
 
       - name: Commit the changes
-        uses: stefanzweifel/git-auto-commit-action@v4.7.2
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: Spotless formatting
           branch: ${{ github.head_ref }}
@@ -54,7 +61,7 @@ jobs:
           version: 'Unreleased 2.x'
 
       - name: Commit the changes
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Update changelog"
           branch: ${{ github.head_ref }}

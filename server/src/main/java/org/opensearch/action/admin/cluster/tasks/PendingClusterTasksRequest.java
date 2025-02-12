@@ -34,6 +34,7 @@ package org.opensearch.action.admin.cluster.tasks;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -41,8 +42,9 @@ import java.io.IOException;
 /**
  * Transport request for getting pending cluster tasks
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PendingClusterTasksRequest extends ClusterManagerNodeReadRequest<PendingClusterTasksRequest> {
 
     public PendingClusterTasksRequest() {}

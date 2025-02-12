@@ -44,7 +44,7 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "Routing pools are incompatible. Shard pool: [%s], Node Pool: [%s]",
+                "Routing pools are incompatible. Shard pool: [%s], node pool: [%s]",
                 shardPool,
                 targetNodePool
             );
@@ -56,21 +56,21 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
                     shardRouting,
                     shardPool,
                     node.node(),
-                    DiscoveryNodeRole.DATA_ROLE
+                    DiscoveryNodeRole.DATA_ROLE.roleName()
                 );
                 return allocation.decision(
                     Decision.NO,
                     NAME,
-                    "Routing pools are incompatible. Shard pool: [{}], Node Pool: [{}] without [{}] role",
+                    "Routing pools are incompatible. Shard pool: [%s], node pool: [%s] without [%s] role",
                     shardPool,
                     targetNodePool,
-                    DiscoveryNodeRole.DATA_ROLE
+                    DiscoveryNodeRole.DATA_ROLE.roleName()
                 );
             }
         return allocation.decision(
             Decision.YES,
             NAME,
-            "Routing pools are compatible. Shard pool: [%s], Node Pool: [%s]",
+            "Routing pools are compatible. Shard pool: [%s], node pool: [%s]",
             shardPool,
             targetNodePool
         );
@@ -85,6 +85,36 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
     public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         logger.debug("Evaluating force allocation for primary shard.");
         return canAllocate(shardRouting, node, allocation);
+    }
+
+    @Override
+    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        RoutingPool targetPool = RoutingPool.getShardPool(shardRouting, allocation);
+        RoutingPool currentNodePool = RoutingPool.getNodePool(allocation.routingNodes().node(shardRouting.currentNodeId()));
+        if (RoutingPool.REMOTE_CAPABLE.equals(targetPool) && targetPool != currentNodePool) {
+            logger.debug(
+                "Shard: [{}] has current pool: [{}], target pool: [{}]. Cannot remain on node: [{}]",
+                shardRouting.shortSummary(),
+                currentNodePool.name(),
+                RoutingPool.REMOTE_CAPABLE.name(),
+                node.node()
+            );
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "Shard %s is allocated on a different pool %s than the target pool %s",
+                shardRouting.shortSummary(),
+                currentNodePool,
+                targetPool
+            );
+        }
+        return allocation.decision(
+            Decision.YES,
+            NAME,
+            "Routing pools are compatible. Shard pool: [%s], node pool: [%s]",
+            currentNodePool,
+            targetPool
+        );
     }
 
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
@@ -106,7 +136,7 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "Routing pools are incompatible. Index pool: [%s], Node Pool: [%s]",
+                "Routing pools are incompatible. Index pool: [%s], node pool: [%s]",
                 indexPool,
                 targetNodePool
             );
@@ -118,21 +148,21 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
                     indexMetadata.getIndex().getName(),
                     indexPool,
                     node,
-                    DiscoveryNodeRole.DATA_ROLE
+                    DiscoveryNodeRole.DATA_ROLE.roleName()
                 );
                 return allocation.decision(
                     Decision.NO,
                     NAME,
-                    "Routing pools are incompatible. Index pool: [{}], Node Pool: [{}] without [{}] role",
+                    "Routing pools are incompatible. Index pool: [%s], node pool: [%s] without [%s] role",
                     indexPool,
                     targetNodePool,
-                    DiscoveryNodeRole.DATA_ROLE
+                    DiscoveryNodeRole.DATA_ROLE.roleName()
                 );
             }
         return allocation.decision(
             Decision.YES,
             NAME,
-            "Routing pools are compatible. Index pool: [%s], Node Pool: [%s]",
+            "Routing pools are compatible. Index pool: [%s], node pool: [%s]",
             indexPool,
             targetNodePool
         );

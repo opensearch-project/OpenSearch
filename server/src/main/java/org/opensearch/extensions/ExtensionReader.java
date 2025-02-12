@@ -8,15 +8,16 @@
 
 package org.opensearch.extensions;
 
-import java.net.UnknownHostException;
 import org.opensearch.cluster.node.DiscoveryNode;
+
+import java.net.UnknownHostException;
 
 /**
  * Reference to a method that transports a parse request to an extension. By convention, this method takes
  * a category class used to identify the reader defined within the JVM that the extension is running on.
  * Additionally, this method takes in the extension's corresponding DiscoveryNode and a byte array (context) that the
  * extension's reader will be applied to.
- *
+ * <p>
  * By convention the extensions' reader is a constructor that takes StreamInput as an argument for most classes and a static method for things like enums.
  * Classes will implement this via a constructor (or a static method in the case of enumerations), it's something that should
  * look like:

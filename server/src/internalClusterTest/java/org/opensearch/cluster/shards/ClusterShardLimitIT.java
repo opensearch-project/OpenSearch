@@ -33,21 +33,19 @@
 package org.opensearch.cluster.shards;
 
 import org.opensearch.Version;
-
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.Client;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
@@ -58,6 +56,7 @@ import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.NodeConfigurationSource;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.client.Client;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
@@ -246,23 +245,22 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         assertFalse(clusterState.getMetadata().hasIndex(".test-index"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6287")
     public void testCreateIndexWithMaxClusterShardSetting() {
-        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        setMaxShardLimit(dataNodes, shardsPerNodeKey);
+        int maxAllowedShardsPerNode = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        setMaxShardLimit(maxAllowedShardsPerNode, shardsPerNodeKey);
 
-        int maxAllowedShards = dataNodes + 1;
-        int extraShardCount = maxAllowedShards + 1;
+        // Always keep
+        int maxAllowedShardsPerCluster = maxAllowedShardsPerNode * 1000;
+        int extraShardCount = 1;
         // Getting total active shards in the cluster.
         int currentActiveShards = client().admin().cluster().prepareHealth().get().getActiveShards();
         try {
-            setMaxShardLimit(maxAllowedShards, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
+            setMaxShardLimit(maxAllowedShardsPerCluster, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
             prepareCreate("test_index_with_cluster_shard_limit").setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, extraShardCount).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
             ).get();
         } catch (final IllegalArgumentException ex) {
-            verifyException(Math.min(maxAllowedShards, dataNodes * dataNodes), currentActiveShards, extraShardCount, ex);
+            verifyException(maxAllowedShardsPerCluster, currentActiveShards, extraShardCount, ex);
         } finally {
             setMaxShardLimit(-1, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
         }
@@ -496,8 +494,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         repoSettings.put("location", randomRepoPath());
         repoSettings.put("compress", randomBoolean());
         repoSettings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
-
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(repoSettings.build()));
+        createRepository("test-repo", "fs", repoSettings);
 
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
         ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);

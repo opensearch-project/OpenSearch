@@ -38,12 +38,12 @@
 8-10:-XX:+UseCMSInitiatingOccupancyOnly
 
 ## G1GC Configuration
-# NOTE: G1 GC is only supported on JDK version 10 or later
-# to use G1GC, uncomment the next two lines and update the version on the
-# following three lines to your version of the JDK
-# 10:-XX:-UseConcMarkSweepGC
-# 10:-XX:-UseCMSInitiatingOccupancyOnly
+# NOTE: G1GC is the default GC for all JDKs 11 and newer
 11-:-XX:+UseG1GC
+# See https://github.com/elastic/elasticsearch/pull/46169 for the history
+# behind these settings, but the tl;dr is that default values can lead
+# to situations where heap usage grows enough to trigger a circuit breaker
+# before GC kicks in.
 11-:-XX:G1ReservePercent=25
 11-:-XX:InitiatingHeapOccupancyPercent=30
 
@@ -81,7 +81,11 @@ ${error.file}
 
 # JDK 20+ Incubating Vector Module for SIMD optimizations;
 # disabling may reduce performance on vector optimized lucene
-20:--add-modules=jdk.incubator.vector
+20-:--add-modules=jdk.incubator.vector
 
 # HDFS ForkJoinPool.common() support by SecurityManager
 -Djava.util.concurrent.ForkJoinPool.common.threadFactory=org.opensearch.secure_sm.SecuredForkJoinWorkerThreadFactory
+
+# See please https://bugs.openjdk.org/browse/JDK-8341127 (openjdk/jdk#21283)
+23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.setAsTypeCache
+23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.asTypeUncached

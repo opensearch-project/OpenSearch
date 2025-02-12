@@ -40,10 +40,10 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -98,22 +98,33 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         // Verify segment store
         assertBusy(() -> {
-            /**
-             * Use default tabular output and sort response based on shard,segment,primaryOrReplica columns to allow line by
-             * line parsing where records related to a segment (e.g. _0) are chunked together with first record belonging
-             * to primary while remaining *replicaCount* records belongs to replica copies
-             * */
+            /*
+              Use default tabular output and sort response based on shard,segment,primaryOrReplica columns to allow line by
+              line parsing where records related to a segment (e.g. _0) are chunked together with first record belonging
+              to primary while remaining *replicaCount* records belongs to replica copies
+              */
             Request segrepStatsRequest = new Request("GET", "/_cat/segments/" + index + "?s=shard,segment,primaryOrReplica");
             segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count");
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
-            logger.info("--> _cat/segments response\n {}", EntityUtils.toString(segrepStatsResponse.getEntity()));
             List<String> responseList = Streams.readAllLines(segrepStatsResponse.getEntity().getContent());
-            for (int segmentsIndex=0; segmentsIndex < responseList.size();) {
-                String[] primaryRow = responseList.get(segmentsIndex++).split(" +");
+            logger.info("--> _cat/segments response\n {}", responseList.toString().replace(',', '\n'));
+            // Filter response for rows with zero doc count
+            List<String> filteredList = new ArrayList<>();
+            for(String row: responseList) {
+                String count = row.split(" +")[4];
+                if (count.equals("0") == false) {
+                    filteredList.add(row);
+                }
+            }
+            // Ensure there is result for replica copies before processing the result. This results in retry when there
+            // are not enough number of rows vs failing with IndexOutOfBoundsException
+            assertEquals(0, filteredList.size() % (replicaCount + 1));
+            for (int segmentsIndex=0; segmentsIndex < filteredList.size();) {
+                String[] primaryRow = filteredList.get(segmentsIndex++).split(" +");
                 String shardId = primaryRow[0] + primaryRow[1];
                 assertTrue(primaryRow[2].equals("p"));
                 for(int replicaIndex = 1; replicaIndex <= replicaCount; replicaIndex++) {
-                    String[] replicaRow = responseList.get(segmentsIndex).split(" +");
+                    String[] replicaRow = filteredList.get(segmentsIndex).split(" +");
                     String replicaShardId = replicaRow[0] + replicaRow[1];
                     // When segment has 0 doc count, not all replica copies posses that segment. Skip to next segment
                     if (replicaRow[2].equals("p")) {
@@ -157,7 +168,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         }, 1, TimeUnit.MINUTES);
     }
 
-    public void testIndexing() throws IOException, ParseException {
+    public void testIndexing() throws Exception {
         switch (CLUSTER_TYPE) {
         case OLD:
             break;
@@ -248,9 +259,9 @@ public class IndexingIT extends AbstractRollingTestCase {
      * This test verifies that during rolling upgrades the segment replication does not break when replica shards can
      * be running on older codec versions.
      *
-     * @throws Exception
+     * @throws Exception if index creation fail
+     * @throws UnsupportedOperationException if cluster type is unknown
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8322")
     public void testIndexingWithSegRep() throws Exception {
         if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
             logger.info("--> Skip test for version {} where segment replication feature is not available", UPGRADE_FROM_VERSION);
@@ -333,6 +344,88 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
     }
 
+    public void testIndexingWithFuzzyFilterPostings() throws Exception {
+        if (UPGRADE_FROM_VERSION.onOrBefore(Version.V_2_11_1)) {
+            logger.info("--> Skip test for version {} where fuzzy filter postings format feature is not available", UPGRADE_FROM_VERSION);
+            return;
+        }
+        final String indexName = "test-index-fuzzy-set";
+        final int shardCount = 3;
+        final int replicaCount = 1;
+        logger.info("--> Case {}", CLUSTER_TYPE);
+        printClusterNodes();
+        logger.info("--> _cat/shards before test execution \n{}", EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/shards?v")).getEntity()));
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shardCount)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), replicaCount)
+                    .put(
+                        EngineConfig.INDEX_CODEC_SETTING.getKey(),
+                        randomFrom(new ArrayList<>(CODECS) {
+                            {
+                                add(CodecService.LUCENE_DEFAULT_CODEC);
+                            }
+                        })
+                    )
+                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
+                createIndex(indexName, settings.build());
+                waitForClusterHealthWithNoShardMigration(indexName, "green");
+                bulk(indexName, "_OLD", 5);
+                break;
+            case MIXED:
+                waitForClusterHealthWithNoShardMigration(indexName, "yellow");
+                break;
+            case UPGRADED:
+                Settings.Builder settingsBuilder = Settings.builder()
+                    .put(IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING.getKey(), true);
+                updateIndexSettings(indexName, settingsBuilder);
+                waitForClusterHealthWithNoShardMigration(indexName, "green");
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        }
+
+        int expectedCount;
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                expectedCount = 5;
+                break;
+            case MIXED:
+                if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+                    expectedCount = 5;
+                } else {
+                    expectedCount = 10;
+                }
+                break;
+            case UPGRADED:
+                expectedCount = 15;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        }
+
+        assertCount(indexName, expectedCount);
+
+        if (CLUSTER_TYPE != ClusterType.OLD) {
+            bulk(indexName, "_" + CLUSTER_TYPE, 5);
+            logger.info("--> Index one doc (to be deleted next) and verify doc count");
+            Request toBeDeleted = new Request("PUT", "/" + indexName + "/_doc/to_be_deleted");
+            toBeDeleted.addParameter("refresh", "true");
+            toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");
+            client().performRequest(toBeDeleted);
+            assertCount(indexName, expectedCount + 6);
+
+            logger.info("--> Delete previously added doc and verify doc count");
+            Request delete = new Request("DELETE", "/" + indexName + "/_doc/to_be_deleted");
+            delete.addParameter("refresh", "true");
+            client().performRequest(delete);
+            assertCount(indexName, expectedCount + 5);
+
+            //forceMergeAndVerify(indexName, shardCount * (1 + replicaCount));
+        }
+    }
+
     public void testAutoIdWithOpTypeCreate() throws IOException {
         final String indexName = "auto_id_and_op_type_create_index";
         StringBuilder b = new StringBuilder();
@@ -389,12 +482,14 @@ public class IndexingIT extends AbstractRollingTestCase {
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException, ParseException {
-        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total");
-        Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
+    private void assertCount(String index, int count) throws Exception {
+        assertBusy(() -> {
+            Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
+            searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+            searchTestIndexRequest.addParameter("filter_path", "hits.total");
+            Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
+            assertEquals("{\"hits\":{\"total\":" + count + "}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+        }, 30, TimeUnit.SECONDS);
     }
 }

@@ -64,33 +64,36 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.hamcrest.Matchers;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.io.stream.InputStreamStreamInput;
-import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.LuceneTests;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.env.ShardLock;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -100,7 +103,6 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -109,10 +111,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
+import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -124,9 +127,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
-import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
-import static org.opensearch.test.VersionUtils.randomVersion;
 
 public class StoreTests extends OpenSearchTestCase {
 
@@ -393,7 +393,7 @@ public class StoreTests extends OpenSearchTestCase {
         metadata = store.getMetadata();
         assertThat(metadata.asMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
-            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
+            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.READONCE)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                 assertThat(meta.writtenBy(), equalTo(Version.LATEST));
@@ -800,7 +800,7 @@ public class StoreTests extends OpenSearchTestCase {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
-        });
+        }, null);
         assertEquals(count.get(), 0);
 
         final int iters = randomIntBetween(1, 10);
@@ -809,6 +809,26 @@ public class StoreTests extends OpenSearchTestCase {
         }
 
         assertEquals(count.get(), 1);
+    }
+
+    public void testStoreShardPath() {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0))
+            .build();
+        final Path path = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        final ShardPath shardPath = new ShardPath(false, path, path, shardId);
+        final Store store = new Store(
+            shardId,
+            IndexSettingsModule.newIndexSettings("index", settings),
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            shardPath
+        );
+        assertEquals(shardPath, store.shardPath());
+        store.close();
     }
 
     public void testStoreStats() throws IOException {
@@ -961,12 +981,11 @@ public class StoreTests extends OpenSearchTestCase {
                 )
             );
         }
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata outStoreFileMetadata =
-            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
-                new ShardId("test", "_na_", 0),
-                metadataSnapshot,
-                peerRecoveryRetentionLeases
-            );
+        StoreFilesMetadata outStoreFileMetadata = new StoreFilesMetadata(
+            new ShardId("test", "_na_", 0),
+            metadataSnapshot,
+            peerRecoveryRetentionLeases
+        );
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.opensearch.Version targetNodeVersion = randomVersion(random());
@@ -975,8 +994,7 @@ public class StoreTests extends OpenSearchTestCase {
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata inStoreFileMetadata =
-            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(in);
+        StoreFilesMetadata inStoreFileMetadata = new StoreFilesMetadata(in);
         Iterator<StoreFileMetadata> outFiles = outStoreFileMetadata.iterator();
         for (StoreFileMetadata inFile : inStoreFileMetadata) {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
@@ -1169,47 +1187,40 @@ public class StoreTests extends OpenSearchTestCase {
         store.close();
     }
 
-    public void testCleanupAndPreserveLatestCommitPoint() throws IOException {
+    public void testCreateEmptyStore() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(
-            shardId,
-            SEGMENT_REPLICATION_INDEX_SETTINGS,
-            StoreTests.newDirectory(random()),
-            new DummyShardLock(shardId)
-        );
-        commitRandomDocs(store);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST);
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        assertFalse(segmentInfos.getUserData().containsKey(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
+        store.close();
+    }
 
-        Store.MetadataSnapshot commitMetadata = store.getMetadata();
+    public void testCreateEmptyStoreWithTranlogUUID() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST, "dummy-translog-UUID");
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        assertEquals("dummy-translog-UUID", segmentInfos.getUserData().get(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
+        store.close();
+    }
 
-        // index more docs but only IW.flush, this will create additional files we'll clean up.
-        final IndexWriter writer = indexRandomDocs(store);
-        writer.flush();
-        writer.close();
+    public void testCreateEmptyWithNullTranlogUUID() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST, null);
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        assertFalse(segmentInfos.getUserData().containsKey(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
+        store.close();
+    }
 
-        final List<String> additionalSegments = new ArrayList<>();
-        for (String file : store.directory().listAll()) {
-            if (commitMetadata.contains(file) == false) {
-                additionalSegments.add(file);
-            }
-        }
-        assertFalse(additionalSegments.isEmpty());
-
-        Collection<String> filesToConsiderForCleanUp = Stream.of(store.readLastCommittedSegmentsInfo().files(true), additionalSegments)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toList());
-
-        // clean up everything not in the latest commit point.
-        store.cleanupAndPreserveLatestCommitPoint(filesToConsiderForCleanUp, "test");
-
-        // we want to ensure commitMetadata files are preserved after calling cleanup
-        for (String existingFile : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(existingFile)) {
-                assertTrue(commitMetadata.contains(existingFile));
-                assertFalse(additionalSegments.contains(existingFile));
-            }
-        }
-        deleteContent(store.directory());
-        IOUtils.close(store);
+    private void testDefaultUserData(SegmentInfos segmentInfos) {
+        assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+        assertEquals("-1", segmentInfos.getUserData().get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
     }
 
     public void testGetSegmentMetadataMap() throws IOException {
@@ -1274,9 +1285,8 @@ public class StoreTests extends OpenSearchTestCase {
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
     public void testReadSegmentsFromOldIndices() throws Exception {
         int expectedIndexCreatedVersionMajor = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION.luceneVersion.major;
-        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
         Path tmp = createTempDir();
-        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        TestUtil.unzip(getClass().getResourceAsStream(LuceneTests.OLDER_VERSION_INDEX_ZIP_RELATIVE_PATH), tmp);
         final ShardId shardId = new ShardId("index", "_na_", 1);
         Store store = null;
 
@@ -1299,10 +1309,9 @@ public class StoreTests extends OpenSearchTestCase {
     }
 
     public void testReadSegmentsFromOldIndicesFailure() throws IOException {
-        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
         final ShardId shardId = new ShardId("index", "_na_", 1);
         Path tmp = createTempDir();
-        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        TestUtil.unzip(getClass().getResourceAsStream(LuceneTests.OLDER_VERSION_INDEX_ZIP_RELATIVE_PATH), tmp);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "index",
             Settings.builder()

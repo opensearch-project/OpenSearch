@@ -35,10 +35,10 @@ package org.opensearch.common.ssl;
 import org.opensearch.common.Nullable;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
-import org.mockito.Mockito;
 
 import javax.net.ssl.SSLSession;
 import javax.security.auth.x500.X500Principal;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.PublicKey;
@@ -55,6 +55,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.mockito.Mockito;
 
 public class SslDiagnosticsTests extends OpenSearchTestCase {
 

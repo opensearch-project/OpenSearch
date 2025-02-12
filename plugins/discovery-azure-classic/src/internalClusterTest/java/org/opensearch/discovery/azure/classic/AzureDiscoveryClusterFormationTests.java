@@ -32,17 +32,18 @@
 
 package org.opensearch.discovery.azure.classic;
 
-import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
-import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
+
+import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
+import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
 import org.opensearch.node.Node;
@@ -62,6 +63,7 @@ import javax.xml.XMLConstants;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -294,6 +296,7 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
      * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
      * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
      */
+    @SuppressWarnings("removal")
     private static String getProtocol() {
         if (Runtime.version().compareTo(Version.parse("12")) < 0) {
             return "TLSv1.2";

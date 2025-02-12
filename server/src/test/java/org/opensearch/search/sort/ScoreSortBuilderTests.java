@@ -33,8 +33,8 @@
 package org.opensearch.search.sort;
 
 import org.apache.lucene.search.SortField;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;

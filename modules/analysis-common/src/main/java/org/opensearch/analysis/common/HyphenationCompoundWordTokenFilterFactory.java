@@ -40,11 +40,12 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.Analysis;
-import org.xml.sax.InputSource;
 
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
+import org.xml.sax.InputSource;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter} to decompound tokens based on hyphenation rules.
@@ -53,10 +54,15 @@ import java.nio.file.Path;
  */
 public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
 
+    private final boolean noSubMatches;
+    private final boolean noOverlappingMatches;
     private final HyphenationTree hyphenationTree;
 
     HyphenationCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
+
+        noSubMatches = settings.getAsBoolean("no_sub_matches", false);
+        noOverlappingMatches = settings.getAsBoolean("no_overlapping_matches", false);
 
         String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);
         if (hyphenationPatternsPath == null) {
@@ -84,7 +90,9 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
             minWordSize,
             minSubwordSize,
             maxSubwordSize,
-            onlyLongestMatch
+            onlyLongestMatch,
+            noSubMatches,
+            noOverlappingMatches
         );
     }
 }

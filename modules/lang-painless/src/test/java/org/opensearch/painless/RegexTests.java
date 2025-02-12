@@ -32,10 +32,10 @@
 
 package org.opensearch.painless;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.script.ScriptException;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.nio.CharBuffer;
 import java.util.Arrays;

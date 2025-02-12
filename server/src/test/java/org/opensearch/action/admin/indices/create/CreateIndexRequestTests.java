@@ -35,14 +35,14 @@ package org.opensearch.action.admin.indices.create;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class CreateIndexRequestTests extends OpenSearchTestCase {
@@ -94,7 +95,7 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         CreateIndexRequest request = new CreateIndexRequest();
         OpenSearchParseException e = expectThrows(
             OpenSearchParseException.class,
-            () -> { request.source(createIndex, XContentType.JSON); }
+            () -> { request.source(createIndex, MediaTypeRegistry.JSON); }
         );
         assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }
@@ -148,6 +149,41 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
         OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
         assertThat(e.getMessage(), equalTo("key [settings] must be an object"));
+    }
+
+    public void testToString() throws IOException {
+        CreateIndexRequest request = new CreateIndexRequest("foo");
+        String mapping = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .endObject()
+            .endObject()
+            .toString();
+        request.mapping(mapping);
+
+        assertThat(request.toString(), containsString("index='foo'"));
+        assertThat(request.toString(), containsString("mappings='{\"_doc\":{}}'"));
+    }
+
+    public void testContext() throws IOException {
+        String contextName = "Test";
+        String contextVersion = "1";
+        Map<String, Object> paramsMap = Map.of("foo", "bar");
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()))) {
+            builder.startObject()
+                .startObject("context")
+                .field("name", contextName)
+                .field("version", contextVersion)
+                .field("params", paramsMap)
+                .endObject()
+                .endObject();
+
+            CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
+            parsedCreateIndexRequest.source(builder);
+            assertEquals(contextName, parsedCreateIndexRequest.context().name());
+            assertEquals(contextVersion, parsedCreateIndexRequest.context().version());
+            assertEquals(paramsMap, parsedCreateIndexRequest.context().params());
+        }
     }
 
     public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {

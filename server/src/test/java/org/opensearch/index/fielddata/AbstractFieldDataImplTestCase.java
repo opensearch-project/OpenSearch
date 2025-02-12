@@ -39,6 +39,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.Strings;
@@ -127,7 +128,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             TopFieldDocs topDocs;
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(toString(((FieldDoc) topDocs.scoreDocs[0]).fields[0]), equalTo(one()));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
@@ -137,11 +138,32 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
             sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
         }
+    }
+
+    public void testWideSortField() throws Exception {
+        if (this instanceof NoOrdinalsStringFieldDataTests || this instanceof PagedBytesStringFieldDataTests) {
+            return; // Numeric types are not supported there.
+        }
+        // integer to long widening should happen
+        IndexFieldData<?> indexFieldData = getForField("int", "value");
+        SortField sortField = indexFieldData.wideSortField(null, MultiValueMode.MIN, null, false);
+        assertTrue(((SortedNumericSortField) sortField).getNumericType() == SortField.Type.LONG);
+
+        // long to long no widening should happen
+        indexFieldData = getForField("long", "value");
+        sortField = indexFieldData.wideSortField(null, MultiValueMode.MIN, null, false);
+        assertTrue(((SortedNumericSortField) sortField).getNumericType() == SortField.Type.LONG);
+
+        // float to float no widening should happen
+        indexFieldData = getForField("float", "value");
+        sortField = indexFieldData.wideSortField(null, MultiValueMode.MIN, null, false);
+        assertTrue(((SortedNumericSortField) sortField).getNumericType() == SortField.Type.FLOAT);
+
     }
 
     protected abstract void fillSingleValueWithMissing() throws Exception;
@@ -203,14 +225,14 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
             sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
@@ -267,7 +289,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-        assertThat(topDocs.totalHits.value, equalTo(8L));
+        assertThat(topDocs.totalHits.value(), equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("!08"));
@@ -288,7 +310,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
         sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
         topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-        assertThat(topDocs.totalHits.value, equalTo(8L));
+        assertThat(topDocs.totalHits.value(), equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(6));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("10"));

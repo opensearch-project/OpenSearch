@@ -27,3 +27,23 @@
         index: test
         max_num_segments: 10
         only_expunge_deletes: true
+
+---
+"Test primary_only parameter":
+  - skip:
+      version: " - 2.12.99"
+      reason: "primary_only is available in 2.13.0+"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.number_of_shards: 2
+            index.number_of_replicas: 1
+
+  - do:
+      indices.forcemerge:
+        index: test
+        primary_only: true
+  - match: { _shards.total: 2 }

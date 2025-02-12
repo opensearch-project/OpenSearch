@@ -1,0 +1,95 @@
+---
+setup:
+  - skip:
+      version: " - 2.9.99"
+      reason: "termFreq functions for script_score was introduced in 2.10.0"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              f1:
+                type: keyword
+              f2:
+                type: text
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test", "_id": "doc1"}}'
+          - '{"f1": "v0", "f2": "v1"}'
+          - '{"index": {"_index": "test", "_id": "doc2"}}'
+          - '{"f2": "v2"}'
+
+---
+"Script score function using the termFreq function":
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          query:
+            function_score:
+              query:
+                match_all: {}
+              script_score:
+                script:
+                  source: "termFreq(params.field, params.term)"
+                  params:
+                    field: "f1"
+                    term: "v0"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "doc1" }
+  - match: { hits.hits.1._id: "doc2" }
+  - match: { hits.hits.0._score: 1.0 }
+  - match: { hits.hits.1._score: 0.0 }
+
+---
+"Script score function using the totalTermFreq function":
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          query:
+            function_score:
+              query:
+                match_all: {}
+              script_score:
+                script:
+                  source: "if (doc[params.field].size() == 0) return params.default_value; else { return totalTermFreq(params.field, params.term); }"
+                  params:
+                    default_value: 0.5
+                    field: "f1"
+                    term: "v0"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "doc1" }
+  - match: { hits.hits.1._id: "doc2" }
+  - match: { hits.hits.0._score: 1.0 }
+  - match: { hits.hits.1._score: 0.5 }
+
+---
+"Script score function using the sumTotalTermFreq function":
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          query:
+            function_score:
+              query:
+                match_all: {}
+              script_score:
+                script:
+                  source: "if (doc[params.field].size() == 0) return params.default_value; else { return sumTotalTermFreq(params.field); }"
+                  params:
+                    default_value: 0.5
+                    field: "f1"
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "doc1" }
+  - match: { hits.hits.1._id: "doc2" }
+  - match: { hits.hits.0._score: 1.0 }
+  - match: { hits.hits.1._score: 0.5 }

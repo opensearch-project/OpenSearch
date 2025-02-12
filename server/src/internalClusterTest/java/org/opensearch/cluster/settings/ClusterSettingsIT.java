@@ -42,11 +42,10 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
 import org.junit.After;
 
 import java.util.Arrays;
@@ -379,6 +378,114 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
             assertThat(e.getMessage(), containsString("[index.refresh_interval] with value [10]"));
             assertThat(e.getMessage(), containsString("unit is missing or unrecognized"));
         }
+    }
+
+    public void testThreadPoolSettings() {
+        // wrong threadpool
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.wrong.max", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertTrue(ex.getCause().getMessage().contains("illegal thread_pool name : "));
+        }
+
+        // Scaling threadpool - negative value
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.snapshot.max", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal value for [cluster.thread_pool.snapshot], has to be positive value");
+        }
+
+        // Scaling threadpool - Other than max and core
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.snapshot.wrong", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal thread_pool config : [wrong] should only have [core, max]");
+        }
+
+        // Scaling threadpool - core > max
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder().put("cluster.thread_pool.snapshot.core", "2").put("cluster.thread_pool.snapshot.max", "1").build()
+                )
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "core threadpool size cannot be greater than max");
+        }
+
+        // Scaling threadpool - Max value lesser than default value of 4
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.generic.max", "1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "core threadpool size cannot be greater than max");
+        }
+
+        // Scaling threadpool - happy case - transient overrides persistent
+        ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put("cluster.thread_pool.snapshot.core", "2").put("cluster.thread_pool.snapshot.max", "2").build()
+            )
+            .setPersistentSettings(Settings.builder().put("cluster.thread_pool.snapshot.max", "1").build())
+            .get();
+        assertTrue(clusterUpdateSettingsResponse.isAcknowledged());
+
+        // Fixed threadpool - Other than size
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.get.wrong", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal thread_pool config : [wrong] should only have [size]");
+        }
+
+        // Fixed threadpool - 0 value
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.get.size", "0").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal value for [cluster.thread_pool.get], has to be positive value");
+        }
+
+        // Fixed threadpool - happy case
+        clusterUpdateSettingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.thread_pool.get.size", "1").build())
+            .setPersistentSettings(Settings.builder().put("cluster.thread_pool.get.size", "1").build())
+            .get();
+        assertTrue(clusterUpdateSettingsResponse.isAcknowledged());
     }
 
     public void testLoggerLevelUpdate() {

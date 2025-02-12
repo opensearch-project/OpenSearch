@@ -10,6 +10,8 @@
  */
 
 dependencies {
+  api project(':libs:opensearch-common')
+
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"

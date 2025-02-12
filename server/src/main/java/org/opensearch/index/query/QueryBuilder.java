@@ -33,6 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.xcontent.ToXContentObject;
 
@@ -41,8 +42,9 @@ import java.io.IOException;
 /**
  * Foundation class for all OpenSearch query builders
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
 
     /**
@@ -95,4 +97,13 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
     default QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
     }
+
+    /**
+     * Recurse through the QueryBuilder tree, visiting any child QueryBuilder.
+     * @param visitor a query builder visitor to be called by each query builder in the tree.
+     */
+    default void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+    };
+
 }

@@ -8,18 +8,18 @@
 
 package org.opensearch.index.store.remote.file;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.apache.lucene.store.IndexInput;
+import org.opensearch.test.OpenSearchTestCase;
+import org.hamcrest.MatcherAssert;
+import org.junit.After;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-
-import org.apache.lucene.store.IndexInput;
-import org.hamcrest.MatcherAssert;
-import org.junit.After;
-import org.opensearch.test.OpenSearchTestCase;
-
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import static org.hamcrest.Matchers.hasSize;
 

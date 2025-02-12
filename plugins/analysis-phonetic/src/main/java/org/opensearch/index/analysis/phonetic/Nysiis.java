@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
 /**
  *
  * Taken from commons-codec trunk (unreleased yet)
- *
+ * <p>
  * Encodes a string into a NYSIIS value. NYSIIS is an encoding used to relate
  * similar names, but can also be used as a general purpose scheme to find word
  * with similar phonemes.

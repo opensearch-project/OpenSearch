@@ -33,13 +33,15 @@
 package org.opensearch.action.admin.indices.upgrade.get;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport Request Builder for retrieving status of upgrading an Index
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class UpgradeStatusRequestBuilder extends BroadcastOperationRequestBuilder<
     UpgradeStatusRequest,
     UpgradeStatusResponse,

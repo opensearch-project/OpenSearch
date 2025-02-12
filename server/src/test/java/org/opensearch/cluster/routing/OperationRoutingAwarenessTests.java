@@ -8,13 +8,13 @@
 
 package org.opensearch.cluster.routing;
 
-import org.junit.After;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.After;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.cluster.routing.OperationRouting.IGNORE_AWARENESS_ATTRIBUTES;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 public class OperationRoutingAwarenessTests extends OpenSearchIntegTestCase {
 

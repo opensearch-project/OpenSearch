@@ -305,6 +305,7 @@ public class Sniffer implements Closeable {
         }
     }
 
+    @SuppressWarnings("removal")
     static class SnifferThreadFactory implements ThreadFactory {
         private final AtomicInteger threadNumber = new AtomicInteger(1);
         private final String namePrefix;

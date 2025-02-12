@@ -36,7 +36,7 @@ import java.util.List;
 
 /**
  * An extension point for {@link Plugin} implementations to be themselves extensible.
- *
+ * <p>
  * This class provides a callback for extensible plugins to be informed of other plugins
  * which extend them.
  *
@@ -62,7 +62,7 @@ public interface ExtensiblePlugin {
 
     /**
      * Allow this plugin to load extensions from other plugins.
-     *
+     * <p>
      * This method is called once only, after initializing this plugin and all plugins extending this plugin. It is called before
      * any other methods on this Plugin instance are called.
      */

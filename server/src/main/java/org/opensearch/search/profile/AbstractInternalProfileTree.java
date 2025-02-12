@@ -70,7 +70,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * Returns a {@link QueryProfileBreakdown} for a scoring query.  Scoring queries (e.g. those
      * that are past the rewrite phase and are now being wrapped by createWeight() ) follow
      * a recursive progression.  We can track the dependency tree by a simple stack
-     *
+     * <p>
      * The only hiccup is that the first scoring query will be identical to the last rewritten
      * query, so we need to take special care to fix that
      *
@@ -109,7 +109,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
 
     /**
      * Helper method to add a new node to the dependency tree.
-     *
+     * <p>
      * Initializes a new list in the dependency tree, saves the query and
      * generates a new {@link AbstractProfileBreakdown} to track the timings
      * of this element.
@@ -180,6 +180,10 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // calculating the same times over and over...but worth the effort?
         String type = getTypeFromElement(element);
         String description = getDescriptionFromElement(element);
+        return createProfileResult(type, description, breakdown, childrenProfileResults);
+    }
+
+    protected ProfileResult createProfileResult(String type, String description, PB breakdown, List<ProfileResult> childrenProfileResults) {
         return new ProfileResult(
             type,
             description,

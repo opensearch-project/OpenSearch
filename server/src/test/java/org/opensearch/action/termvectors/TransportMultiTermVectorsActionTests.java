@@ -33,12 +33,10 @@
 package org.opensearch.action.termvectors;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.get.TransportMultiGetActionTests;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -48,24 +46,27 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -80,8 +81,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.nullable;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.nullable;
 import static org.mockito.Mockito.when;
 
 public class TransportMultiTermVectorsActionTests extends OpenSearchTestCase {
@@ -107,7 +108,8 @@ public class TransportMultiTermVectorsActionTests extends OpenSearchTestCase {
                 randomBase64UUID()
             ),
             null,
-            emptySet()
+            emptySet(),
+            NoopTracer.INSTANCE
         ) {
             @Override
             public TaskManager getTaskManager() {
@@ -140,7 +142,7 @@ public class TransportMultiTermVectorsActionTests extends OpenSearchTestCase {
                                         .endObject()
                                 ),
                                 true,
-                                XContentType.JSON
+                                MediaTypeRegistry.JSON
                             )
                         )
                 )
@@ -165,7 +167,7 @@ public class TransportMultiTermVectorsActionTests extends OpenSearchTestCase {
                                             .endObject()
                                     ),
                                     true,
-                                    XContentType.JSON
+                                    MediaTypeRegistry.JSON
                                 )
                             )
                     )

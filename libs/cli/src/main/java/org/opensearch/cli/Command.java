@@ -119,7 +119,7 @@ public abstract class Command implements Closeable {
     /**
      * Executes the command, but all errors are thrown.
      */
-    void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
+    protected void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
         final OptionSet options = parser.parse(args);
 
         if (options.has(helpOption)) {
@@ -162,7 +162,7 @@ public abstract class Command implements Closeable {
 
     /**
      * Executes this command.
-     *
+     * <p>
      * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}. */
     protected abstract void execute(Terminal terminal, OptionSet options) throws Exception;
 

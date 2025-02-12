@@ -36,19 +36,19 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Table;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.UTF8StreamWriter;
-import org.opensearch.core.common.io.stream.BytesStream;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.BytesStream;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +58,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+
+import static org.opensearch.action.pagination.PageToken.PAGINATED_RESPONSE_NEXT_TOKEN_KEY;
 
 /**
  * a REST table
@@ -69,8 +72,8 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        MediaType xContentType = getXContentType(request);
-        if (xContentType != null) {
+        MediaType mediaType = getXContentType(request);
+        if (mediaType != null) {
             return buildXContentBuilder(table, channel);
         }
         return buildTextPlainResponse(table, channel);
@@ -87,8 +90,37 @@ public class RestTable {
         RestRequest request = channel.request();
         XContentBuilder builder = channel.newBuilder();
         List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
+        if (Objects.nonNull(table.getPageToken())) {
+            buildPaginatedXContentBuilder(table, request, builder, displayHeaders);
+        } else {
+            builder.startArray();
+            addRowsToXContentBuilder(table, request, builder, displayHeaders);
+            builder.endArray();
+        }
+        return new BytesRestResponse(RestStatus.OK, builder);
+    }
 
-        builder.startArray();
+    private static void buildPaginatedXContentBuilder(
+        Table table,
+        RestRequest request,
+        XContentBuilder builder,
+        List<DisplayHeader> displayHeaders
+    ) throws Exception {
+        assert Objects.nonNull(table.getPageToken().getPaginatedEntity()) : "Paginated element is required in-case of paginated responses";
+        builder.startObject();
+        builder.field(PAGINATED_RESPONSE_NEXT_TOKEN_KEY, table.getPageToken().getNextToken());
+        builder.startArray(table.getPageToken().getPaginatedEntity());
+        addRowsToXContentBuilder(table, request, builder, displayHeaders);
+        builder.endArray();
+        builder.endObject();
+    }
+
+    private static void addRowsToXContentBuilder(
+        Table table,
+        RestRequest request,
+        XContentBuilder builder,
+        List<DisplayHeader> displayHeaders
+    ) throws Exception {
         List<Integer> rowOrder = getRowOrder(table, request);
         for (Integer row : rowOrder) {
             builder.startObject();
@@ -97,8 +129,6 @@ public class RestTable {
             }
             builder.endObject();
         }
-        builder.endArray();
-        return new BytesRestResponse(RestStatus.OK, builder);
     }
 
     public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
@@ -134,6 +164,11 @@ public class RestTable {
                     out.append(" ");
                 }
             }
+            out.append("\n");
+        }
+        // Adding a new row for next_token, in the response if the table is paginated.
+        if (Objects.nonNull(table.getPageToken())) {
+            out.append("next_token" + " " + table.getPageToken().getNextToken());
             out.append("\n");
         }
         out.close();

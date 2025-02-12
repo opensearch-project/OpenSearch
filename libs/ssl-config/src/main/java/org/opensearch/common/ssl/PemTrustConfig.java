@@ -34,6 +34,7 @@ package org.opensearch.common.ssl;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;

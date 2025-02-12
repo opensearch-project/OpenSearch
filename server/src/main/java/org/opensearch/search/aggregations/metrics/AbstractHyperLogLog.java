@@ -34,9 +34,9 @@ package org.opensearch.search.aggregations.metrics;
 
 /**
  * Hyperloglog counter, implemented based on pseudo code from
- * http://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf and its appendix
- * https://docs.google.com/document/d/1gyjfMHy43U9OWBXxfaeG-3MjGzejW1dlpyMwEYAAWEI/view?fullscreen
- *
+ * <a href="http://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf">40671.pdf</a> and its
+ * <a href="https://docs.google.com/document/d/1gyjfMHy43U9OWBXxfaeG-3MjGzejW1dlpyMwEYAAWEI/view?fullscreen">appendix</a>
+ * <p>
  * Trying to understand what this class does without having read the paper is considered adventurous.
  *
  * @opensearch.internal

@@ -32,6 +32,7 @@
 
 package org.opensearch.script;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -60,8 +61,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 /**
  * Information about a script context
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ScriptContextInfo implements ToXContentObject, Writeable {
     public final String name;
     public final ScriptMethodInfo execute;
@@ -202,8 +204,9 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
     /**
      * Script method information
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ScriptMethodInfo implements ToXContentObject, Writeable {
         public final String name, returnType;
         public final List<ParameterInfo> parameters;

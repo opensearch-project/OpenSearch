@@ -31,7 +31,6 @@
 
 package org.opensearch.common.geo;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.builders.CircleBuilder;
 import org.opensearch.common.geo.builders.CoordinatesBuilder;
@@ -46,14 +45,16 @@ import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.opensearch.common.geo.parsers.CoordinateNode;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry.Entry;
 import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry.Entry;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import org.locationtech.jts.geom.Coordinate;
 
 /**
  * Enumeration that lists all {@link GeoShapeType}s that can be parsed and indexed
@@ -220,11 +221,11 @@ public enum GeoShapeType {
 
         @Override
         CoordinateNode validate(CoordinateNode coordinates, boolean coerce) {
-            /**
-             * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
-             * A LinearRing is closed LineString with 4 or more positions. The first and last positions
-             * are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
-             * represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
+            /*
+              Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
+              A LinearRing is closed LineString with 4 or more positions. The first and last positions
+              are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
+              represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
              */
             if (coordinates.children == null || coordinates.children.isEmpty()) {
                 throw new OpenSearchParseException(

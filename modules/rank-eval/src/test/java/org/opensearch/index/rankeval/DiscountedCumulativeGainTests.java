@@ -33,17 +33,17 @@
 package org.opensearch.index.rankeval;
 
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.OpenSearchTestCase;
@@ -67,7 +67,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
 
     /**
      * Assuming the docs are ranked in the following order:
-     *
+     * <p>
      * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
      * 1 | 3 | 7.0 | 1.0 | 7.0 | 7.0 | 
@@ -76,7 +76,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
      * 4 | 0 | 0.0 | 2.321928094887362 | 0.0
      * 5 | 1 | 1.0 | 2.584962500721156 | 0.38685280723454163
      * 6 | 2 | 3.0 | 2.807354922057604 | 1.0686215613240666
-     *
+     * <p>
      * dcg = 13.84826362927298 (sum of last column)
      */
     public void testDCGAt() {
@@ -91,20 +91,20 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         assertEquals(EXPECTED_DCG, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
 
-        /**
-         * Check with normalization: to get the maximal possible dcg, sort documents by
-         * relevance in descending order
-         *
-         * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
-         * ---------------------------------------------------------------------------------------
-         * 1 | 3 | 7.0 | 1.0  | 7.0
-         * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
-         * 3 | 2 | 3.0 | 2.0  | 1.5
-         * 4 | 2 | 3.0 | 2.321928094887362 | 1.2920296742201793
-         * 5 | 1 | 1.0 | 2.584962500721156  | 0.38685280723454163
-         * 6 | 0 | 0.0 | 2.807354922057604  | 0.0
-         *
-         * idcg = 14.595390756454922 (sum of last column)
+        /*
+          Check with normalization: to get the maximal possible dcg, sort documents by
+          relevance in descending order
+
+          rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
+          ---------------------------------------------------------------------------------------
+          1 | 3 | 7.0 | 1.0  | 7.0
+          2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
+          3 | 2 | 3.0 | 2.0  | 1.5
+          4 | 2 | 3.0 | 2.321928094887362 | 1.2920296742201793
+          5 | 1 | 1.0 | 2.584962500721156  | 0.38685280723454163
+          6 | 0 | 0.0 | 2.807354922057604  | 0.0
+
+          idcg = 14.595390756454922 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
         assertEquals(EXPECTED_NDCG, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
@@ -113,7 +113,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
     /**
      * This tests metric when some documents in the search result don't have a
      * rating provided by the user.
-     *
+     * <p>
      * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
      * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 
@@ -122,7 +122,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
      * 4 | n/a | n/a | n/a | n/a
      * 5 | 1 | 1.0 | 2.584962500721156 | 0.38685280723454163
      * 6 | n/a | n/a | n/a | n/a
-     *
+     * <p>
      * dcg = 12.779642067948913 (sum of last column)
      */
     public void testDCGAtSixMissingRatings() {
@@ -143,20 +143,20 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
         assertEquals(12.779642067948913, result.metricScore(), DELTA);
         assertEquals(2, filterUnratedDocuments(result.getHitsAndRatings()).size());
 
-        /**
-         * Check with normalization: to get the maximal possible dcg, sort documents by
-         * relevance in descending order
-         *
-         * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
-         * ----------------------------------------------------------------------------------------
-         * 1 | 3 | 7.0 | 1.0  | 7.0
-         * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
-         * 3 | 2 | 3.0 | 2.0  | 1.5
-         * 4 | 1 | 1.0 | 2.321928094887362   | 0.43067655807339
-         * 5 | n.a | n.a | n.a.  | n.a.
-         * 6 | n.a | n.a | n.a  | n.a
-         *
-         * idcg = 13.347184833073591 (sum of last column)
+        /*
+          Check with normalization: to get the maximal possible dcg, sort documents by
+          relevance in descending order
+
+          rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
+          ----------------------------------------------------------------------------------------
+          1 | 3 | 7.0 | 1.0  | 7.0
+          2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
+          3 | 2 | 3.0 | 2.0  | 1.5
+          4 | 1 | 1.0 | 2.321928094887362   | 0.43067655807339
+          5 | n.a | n.a | n.a.  | n.a.
+          6 | n.a | n.a | n.a  | n.a
+
+          idcg = 13.347184833073591 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
         assertEquals(12.779642067948913 / 13.347184833073591, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
@@ -166,7 +166,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
      * This tests that normalization works as expected when there are more rated
      * documents than search hits because we restrict DCG to be calculated at the
      * fourth position
-     *
+     * <p>
      * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
      * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 
@@ -176,7 +176,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
      * -----------------------------------------------------------------
      * 5 | 1 | 1.0 | 2.584962500721156 | 0.38685280723454163
      * 6 | n/a | n/a | n/a | n/a
-     *
+     * <p>
      * dcg = 12.392789260714371 (sum of last column until position 4)
      */
     public void testDCGAtFourMoreRatings() {
@@ -200,21 +200,21 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
         assertEquals(12.392789260714371, result.metricScore(), DELTA);
         assertEquals(1, filterUnratedDocuments(result.getHitsAndRatings()).size());
 
-        /**
-         * Check with normalization: to get the maximal possible dcg, sort documents by
-         * relevance in descending order
-         *
-         * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
-         * ---------------------------------------------------------------------------------------
-         * 1 | 3 | 7.0 | 1.0  | 7.0
-         * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
-         * 3 | 2 | 3.0 | 2.0  | 1.5
-         * 4 | 1 | 1.0 | 2.321928094887362   | 0.43067655807339
-         * ---------------------------------------------------------------------------------------
-         * 5 | n.a | n.a | n.a.  | n.a.
-         * 6 | n.a | n.a | n.a  | n.a
-         *
-         * idcg = 13.347184833073591 (sum of last column)
+        /*
+          Check with normalization: to get the maximal possible dcg, sort documents by
+          relevance in descending order
+
+          rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
+          ---------------------------------------------------------------------------------------
+          1 | 3 | 7.0 | 1.0  | 7.0
+          2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
+          3 | 2 | 3.0 | 2.0  | 1.5
+          4 | 1 | 1.0 | 2.321928094887362   | 0.43067655807339
+          ---------------------------------------------------------------------------------------
+          5 | n.a | n.a | n.a.  | n.a.
+          6 | n.a | n.a | n.a  | n.a
+
+          idcg = 13.347184833073591 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
         assertEquals(12.392789260714371 / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).metricScore(), DELTA);
@@ -323,12 +323,12 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
                     + ",\"unrated_docs\":"
                     + unratedDocs
                     + "}}",
-                Strings.toString(XContentType.JSON, detail)
+                Strings.toString(MediaTypeRegistry.JSON, detail)
             );
         } else {
             assertEquals(
                 "{\"dcg\":{\"dcg\":" + dcg + ",\"unrated_docs\":" + unratedDocs + "}}",
-                Strings.toString(XContentType.JSON, detail)
+                Strings.toString(MediaTypeRegistry.JSON, detail)
             );
         }
     }

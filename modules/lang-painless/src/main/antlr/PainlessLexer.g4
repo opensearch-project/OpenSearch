@@ -25,7 +25,7 @@ protected abstract boolean isSlashRegex();
 }
 
 WS: [ \t\n\r]+ -> skip;
-COMMENT: ( '//' .*? [\n\r] | '/*' .*? '*/' ) -> skip;
+COMMENT: ( '//' ~[\n\r]* | '/*' .*? '*/' ) -> skip;
 
 LBRACK:    '{';
 RBRACK:    '}';

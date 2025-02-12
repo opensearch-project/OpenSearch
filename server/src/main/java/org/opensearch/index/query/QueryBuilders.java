@@ -34,10 +34,10 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
@@ -50,6 +50,7 @@ import org.opensearch.script.Script;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Utility class to create search queries.
@@ -779,5 +780,14 @@ public final class QueryBuilders {
      */
     public static ExistsQueryBuilder existsQuery(String name) {
         return new ExistsQueryBuilder(name);
+    }
+
+    /**
+     *  A query that contains a template with holder that should be resolved by search processors
+     *
+     * @param content The content of the template
+     */
+    public static TemplateQueryBuilder templateQuery(Map<String, Object> content) {
+        return new TemplateQueryBuilder(content);
     }
 }

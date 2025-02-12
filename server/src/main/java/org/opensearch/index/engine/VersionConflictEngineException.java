@@ -32,9 +32,9 @@
 package org.opensearch.index.engine;
 
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 

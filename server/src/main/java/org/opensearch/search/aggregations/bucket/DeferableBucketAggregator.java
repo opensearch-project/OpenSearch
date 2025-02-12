@@ -34,8 +34,8 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
-import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.BucketCollector;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.internal.SearchContext;
 

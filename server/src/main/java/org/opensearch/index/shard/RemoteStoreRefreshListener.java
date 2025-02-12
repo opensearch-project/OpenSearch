@@ -17,21 +17,24 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.threadpool.ThreadPool;
@@ -40,9 +43,11 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -53,7 +58,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
  *
  * @opensearch.internal
  */
-public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshListener {
+public final class RemoteStoreRefreshListener extends ReleasableRetryableRefreshListener {
 
     private final Logger logger;
 
@@ -78,23 +83,22 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     );
 
     public static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
-    // Visible for testing
-    public static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final RemoteSegmentTransferTracker segmentTracker;
     private final Map<String, String> localSegmentChecksumMap;
-    private long primaryTerm;
+    private volatile long primaryTerm;
     private volatile Iterator<TimeValue> backoffDelayIterator;
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
-    private final UploadListener statsListener;
+    private final RemoteStoreSettings remoteStoreSettings;
 
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
-        RemoteSegmentTransferTracker segmentTracker
+        RemoteSegmentTransferTracker segmentTracker,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         super(indexShard.getThreadPool());
         logger = Loggers.getLogger(getClass(), indexShard.shardId());
@@ -117,26 +121,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         this.segmentTracker = segmentTracker;
         resetBackOffDelayIterator();
         this.checkpointPublisher = checkpointPublisher;
-        this.statsListener = new UploadListener() {
-            @Override
-            public void beforeUpload(String file) {
-                // Start tracking the upload bytes started
-                segmentTracker.addUploadBytesStarted(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-            }
-
-            @Override
-            public void onSuccess(String file) {
-                // Track upload success
-                segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-                segmentTracker.addToLatestUploadedFiles(file);
-            }
-
-            @Override
-            public void onFailure(String file) {
-                // Track upload failure
-                segmentTracker.addUploadBytesFailed(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-            }
-        };
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     @Override
@@ -144,13 +129,12 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
     @Override
     protected void runAfterRefreshExactlyOnce(boolean didRefresh) {
-        if (shouldSync(didRefresh)) {
-            segmentTracker.updateLocalRefreshTimeAndSeqNo();
+        // We have 2 separate methods to check if sync needs to be done or not. This is required since we use the return boolean
+        // from isReadyForUpload to schedule refresh retries as the index shard or the primary mode are not in complete
+        // ready state.
+        if (shouldSync(didRefresh, true) && isReadyForUpload()) {
             try {
-                if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
-                    this.primaryTerm = indexShard.getOperationPrimaryTerm();
-                    this.remoteDirectory.init();
-                }
+                segmentTracker.updateLocalRefreshTimeAndSeqNo();
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     Collection<String> localSegmentsPostRefresh = segmentInfosGatedCloseable.get().files(true);
                     updateLocalSizeMapAndTracker(localSegmentsPostRefresh);
@@ -171,9 +155,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     @Override
     protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
         boolean successful;
-        // The third condition exists for uploading the zero state segments where the refresh has not changed the reader reference, but it
-        // is important to upload the zero state segments so that the restore does not break.
-        if (shouldSync(didRefresh)) {
+        if (shouldSync(didRefresh, false)) {
             successful = syncSegments();
         } else {
             successful = true;
@@ -181,22 +163,67 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         return successful;
     }
 
-    private boolean shouldSync(boolean didRefresh) {
-        return this.primaryTerm != indexShard.getOperationPrimaryTerm()
-            || didRefresh
-            || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty();
+    /**
+     * This checks if there is a sync required to remote.
+     *
+     * @param didRefresh             if the readers changed.
+     * @param skipPrimaryTermCheck consider change in primary term or not for should sync
+     * @return true if sync is needed
+     */
+    private boolean shouldSync(boolean didRefresh, boolean skipPrimaryTermCheck) {
+        // Ignore syncing segments if the underlying shard is closed
+        // This also makes sure that retries are not scheduled for shards
+        // with failed syncSegments invocation after they are closed
+        if (shardClosed()) {
+            logger.info("Shard is already closed. Not attempting sync to remote store");
+            return false;
+        }
+        boolean shouldSync = didRefresh // If the readers change, didRefresh is always true.
+            // The third condition exists for uploading the zero state segments where the refresh has not changed the reader
+            // reference, but it is important to upload the zero state segments so that the restore does not break.
+            || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()
+            // When the shouldSync is called the first time, then 1st condition on primary term is true. But after that
+            // we update the primary term and the same condition would not evaluate to true again in syncSegments.
+            // Below check ensures that if there is commit, then that gets picked up by both 1st and 2nd shouldSync call.
+            || isRefreshAfterCommitSafe()
+            || isRemoteSegmentStoreInSync() == false;
+        if (shouldSync || skipPrimaryTermCheck) {
+            return shouldSync;
+        }
+        return this.primaryTerm != indexShard.getOperationPrimaryTerm();
     }
 
-    private boolean syncSegments() {
-        if (indexShard.getReplicationTracker().isPrimaryMode() == false || indexShard.state() == IndexShardState.CLOSED) {
-            logger.info(
-                "Skipped syncing segments with primaryMode={} indexShardState={}",
-                indexShard.getReplicationTracker().isPrimaryMode(),
-                indexShard.state()
-            );
-            return true;
+    /**
+     * Checks if all files present in local store are uploaded to remote store or part of excluded files.
+     *
+     * Different from IndexShard#isRemoteSegmentStoreInSync as
+     *  it uses files uploaded cache in RemoteDirector and it doesn't make a remote store call.
+     *  Doesn't throw an exception on store getting closed as store will be open
+     *
+     *
+     * @return true iff all the local files are uploaded to remote store.
+     */
+    boolean isRemoteSegmentStoreInSync() {
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
+            return segmentInfosGatedCloseable.get().files(true).stream().allMatch(this::skipUpload);
+        } catch (Throwable throwable) {
+            logger.error("Throwable thrown during isRemoteSegmentStoreInSync", throwable);
         }
-        ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
+        return false;
+    }
+
+    /*
+     @return false if retry is needed
+     */
+    private boolean syncSegments() {
+        if (isReadyForUpload() == false) {
+            // Following check is required to enable retry and make sure that we do not lose this refresh event
+            // When primary shard is restored from remote store, the recovery happens first followed by changing
+            // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
+            // if following condition does not exist. The segments created as part of translog replay will not be present
+            // in the remote store.
+            return indexShard.state() != IndexShardState.STARTED || !(indexShard.getEngine() instanceof InternalEngine);
+        }
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
@@ -205,39 +232,52 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
         try {
             try {
+                initializeRemoteDirectoryOnTermUpdate();
                 // if a new segments_N file is present in local that is not uploaded to remote store yet, it
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
                 if (isRefreshAfterCommit()) {
-                    remoteDirectory.deleteStaleSegmentsAsync(LAST_N_METADATA_FILES_TO_KEEP);
+                    remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
                 }
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
-                    assert segmentInfos.getGeneration() == checkpoint.getSegmentsGen() : "SegmentInfos generation: "
-                        + segmentInfos.getGeneration()
-                        + " does not match metadata generation: "
-                        + checkpoint.getSegmentsGen();
+                    final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(segmentInfos);
+                    if (checkpoint.getPrimaryTerm() != indexShard.getOperationPrimaryTerm()) {
+                        throw new IllegalStateException(
+                            String.format(
+                                Locale.ROOT,
+                                "primaryTerm mismatch during segments upload to remote store [%s] != [%s]",
+                                checkpoint.getPrimaryTerm(),
+                                indexShard.getOperationPrimaryTerm()
+                            )
+                        );
+                    }
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
                     // Create a map of file name to size and update the refresh segment tracker
-                    updateLocalSizeMapAndTracker(localSegmentsPostRefresh);
+                    Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                     CountDownLatch latch = new CountDownLatch(1);
                     ActionListener<Void> segmentUploadsCompletedListener = new LatchedActionListener<>(new ActionListener<>() {
                         @Override
                         public void onResponse(Void unused) {
                             try {
+                                logger.debug("New segments upload successful");
                                 // Start metadata file upload
                                 uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+                                logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
                                     refreshClockTimeMs,
                                     refreshSeqNo,
                                     lastRefreshedCheckpoint,
+                                    localSegmentsSizeMap,
                                     checkpoint
                                 );
                                 // At this point since we have uploaded new segments, segment infos and segment metadata file,
@@ -258,8 +298,13 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                     }, latch);
 
                     // Start the segments files upload
-                    uploadNewSegments(localSegmentsPostRefresh, segmentUploadsCompletedListener);
-                    latch.await();
+                    uploadNewSegments(localSegmentsPostRefresh, localSegmentsSizeMap, segmentUploadsCompletedListener);
+                    if (latch.await(
+                        remoteStoreSettings.getClusterRemoteSegmentTransferTimeout().millis(),
+                        TimeUnit.MILLISECONDS
+                    ) == false) {
+                        throw new SegmentUploadFailedException("Timeout while waiting for remote segment transfer to complete");
+                    }
                 } catch (EngineException e) {
                     logger.warn("Exception while reading SegmentInfosSnapshot", e);
                 }
@@ -275,6 +320,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         updateFinalStatusInSegmentTracker(successful.get(), bytesBeforeUpload, startTimeInNS);
         // If there are failures in uploading segments, then we should retry as search idle can lead to
         // refresh not occurring until write happens.
+        logger.debug("syncSegments runStatus={}", successful.get());
         return successful.get();
     }
 
@@ -301,10 +347,11 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         long refreshClockTimeMs,
         long refreshSeqNo,
         long lastRefreshedCheckpoint,
+        Map<String, Long> localFileSizeMap,
         ReplicationCheckpoint checkpoint
     ) {
         // Update latest uploaded segment files name in segment tracker
-        segmentTracker.setLatestUploadedFiles(segmentTracker.getLatestLocalFileNameLengthMap().keySet());
+        segmentTracker.setLatestUploadedFiles(localFileSizeMap.keySet());
         // Update the remote refresh time and refresh seq no
         updateRemoteRefreshTimeAndSeqNo(refreshTimeMs, refreshClockTimeMs, refreshSeqNo);
         // Reset the backoffDelayIterator for the future failures
@@ -313,6 +360,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
+        logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
     }
 
     /**
@@ -338,6 +386,19 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             && !remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)));
     }
 
+    /**
+     * Returns if the current refresh has happened after a commit.
+     * @return true if this refresh has happened on account of a commit. If otherwise or exception, returns false.
+     */
+    private boolean isRefreshAfterCommitSafe() {
+        try {
+            return isRefreshAfterCommit();
+        } catch (Exception e) {
+            logger.info("Exception occurred in isRefreshAfterCommitSafe", e);
+        }
+        return false;
+    }
+
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
         final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
@@ -357,25 +418,38 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 segmentInfosSnapshot,
                 storeDirectory,
                 translogFileGeneration,
-                replicationCheckpoint
+                replicationCheckpoint,
+                indexShard.getNodeId()
             );
         }
     }
 
-    private void uploadNewSegments(Collection<String> localSegmentsPostRefresh, ActionListener<Void> listener) {
+    private void uploadNewSegments(
+        Collection<String> localSegmentsPostRefresh,
+        Map<String, Long> localSegmentsSizeMap,
+        ActionListener<Void> listener
+    ) {
         Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
         if (filteredFiles.size() == 0) {
+            logger.debug("No new segments to upload in uploadNewSegments");
             listener.onResponse(null);
             return;
         }
 
+        logger.debug("Effective new segments files to upload {}", filteredFiles);
         ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, filteredFiles.size());
+        Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
 
         for (String src : filteredFiles) {
+            // Initializing listener here to ensure that the stats increment operations are thread-safe
+            UploadListener statsListener = createUploadListener(localSegmentsSizeMap);
             ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
                 statsListener.onSuccess(src);
                 batchUploadListener.onResponse(resp);
+                if (directory instanceof CompositeDirectory) {
+                    ((CompositeDirectory) directory).afterSyncToRemote(src);
+                }
             }, ex -> {
                 logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
                 if (ex instanceof CorruptIndexException) {
@@ -385,8 +459,12 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 batchUploadListener.onFailure(ex);
             });
             statsListener.beforeUpload(src);
-            remoteDirectory.copyFrom(storeDirectory, src, IOContext.DEFAULT, aggregatedListener);
+            remoteDirectory.copyFrom(storeDirectory, src, IOContext.READONCE, aggregatedListener, isLowPriorityUpload());
         }
+    }
+
+    boolean isLowPriorityUpload() {
+        return isLocalOrSnapshotRecoveryOrSeeding();
     }
 
     /**
@@ -410,7 +488,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
     private String getChecksumOfLocalFile(String file) throws IOException {
         if (!localSegmentChecksumMap.containsKey(file)) {
-            try (IndexInput indexInput = storeDirectory.openInput(file, IOContext.DEFAULT)) {
+            try (IndexInput indexInput = storeDirectory.openInput(file, IOContext.READONCE)) {
                 String checksum = Long.toString(CodecUtil.retrieveChecksum(indexInput));
                 localSegmentChecksumMap.put(file, checksum);
             }
@@ -431,9 +509,11 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
      * Updates map of file name to size of the input segment files in the segment tracker. Uses {@code storeDirectory.fileLength(file)} to get the size.
      *
      * @param segmentFiles list of segment files that are part of the most recent local refresh.
+     *
+     * @return updated map of local segment files and filesize
      */
-    private void updateLocalSizeMapAndTracker(Collection<String> segmentFiles) {
-        segmentTracker.updateLatestLocalFileNameLengthMap(segmentFiles, storeDirectory::fileLength);
+    private Map<String, Long> updateLocalSizeMapAndTracker(Collection<String> segmentFiles) {
+        return segmentTracker.updateLatestLocalFileNameLengthMap(segmentFiles, storeDirectory::fileLength);
     }
 
     private void updateFinalStatusInSegmentTracker(boolean uploadStatus, long bytesBeforeUpload, long startTimeInNS) {
@@ -441,12 +521,112 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             long bytesUploaded = segmentTracker.getUploadBytesSucceeded() - bytesBeforeUpload;
             long timeTakenInMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeInNS);
             segmentTracker.incrementTotalUploadsSucceeded();
-            segmentTracker.addUploadBytes(bytesUploaded);
-            segmentTracker.addUploadBytesPerSec((bytesUploaded * 1_000L) / Math.max(1, timeTakenInMS));
-            segmentTracker.addUploadTimeMs(timeTakenInMS);
+            segmentTracker.updateUploadBytesMovingAverage(bytesUploaded);
+            segmentTracker.updateUploadBytesPerSecMovingAverage((bytesUploaded * 1_000L) / Math.max(1, timeTakenInMS));
+            segmentTracker.updateUploadTimeMovingAverage(timeTakenInMS);
         } else {
             segmentTracker.incrementTotalUploadsFailed();
         }
+    }
+
+    /**
+     * On primary term update, we (re)initialise the remote segment directory to reflect the latest metadata file that
+     * has been uploaded to remote store successfully. This method also updates the segment tracker about the latest
+     * uploaded segment files onto remote store.
+     */
+    private void initializeRemoteDirectoryOnTermUpdate() throws IOException {
+        if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
+            logger.trace("primaryTerm update from={} to={}", primaryTerm, indexShard.getOperationPrimaryTerm());
+            this.primaryTerm = indexShard.getOperationPrimaryTerm();
+            RemoteSegmentMetadata uploadedMetadata = this.remoteDirectory.init();
+
+            // During failover, the uploaded metadata would have names of files that have been uploaded to remote store.
+            // Here we update the tracker with latest remote uploaded files.
+            if (uploadedMetadata != null) {
+                segmentTracker.setLatestUploadedFiles(uploadedMetadata.getMetadata().keySet());
+            }
+        }
+    }
+
+    /**
+     * This checks for readiness of the index shard and primary mode. This has separated from shouldSync since we use the
+     * returned value of this method for scheduling retries in syncSegments method.
+     * @return true iff the shard is a started with primary mode true or it is local or snapshot recovery.
+     */
+    private boolean isReadyForUpload() {
+        boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecoveryOrSeeding();
+
+        if (isReady == false) {
+            StringBuilder sb = new StringBuilder("Skipped syncing segments with");
+            if (indexShard.getReplicationTracker() != null) {
+                sb.append(" primaryMode=").append(indexShard.getReplicationTracker().isPrimaryMode());
+            }
+            if (indexShard.state() != null) {
+                sb.append(" indexShardState=").append(indexShard.state());
+            }
+            if (indexShard.getEngineOrNull() != null) {
+                sb.append(" engineType=").append(indexShard.getEngine().getClass().getSimpleName());
+            }
+            if (indexShard.recoveryState() != null) {
+                sb.append(" recoverySourceType=").append(indexShard.recoveryState().getRecoverySource().getType());
+                sb.append(" primary=").append(indexShard.shardRouting.primary());
+            }
+            logger.info(sb.toString());
+        }
+        return isReady;
+    }
+
+    boolean isLocalOrSnapshotRecoveryOrSeeding() {
+        // In this case when the primary mode is false, we need to upload segments to Remote Store
+        // This is required in case of remote migration seeding/snapshots/shrink/ split/clone where we need to durable persist
+        // all segments to remote before completing the recovery to ensure durability.
+        return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
+            && indexShard.recoveryState() != null
+            && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                || indexShard.shouldSeedRemoteStore());
+    }
+
+    /**
+     * Creates an {@link UploadListener} containing the stats population logic which would be triggered before and after segment upload events
+     *
+     * @param fileSizeMap updated map of current snapshot of local segments to their sizes
+     */
+    private UploadListener createUploadListener(Map<String, Long> fileSizeMap) {
+        return new UploadListener() {
+            private long uploadStartTime = 0;
+
+            @Override
+            public void beforeUpload(String file) {
+                // Start tracking the upload bytes started
+                segmentTracker.addUploadBytesStarted(fileSizeMap.get(file));
+                uploadStartTime = System.currentTimeMillis();
+            }
+
+            @Override
+            public void onSuccess(String file) {
+                // Track upload success
+                segmentTracker.addUploadBytesSucceeded(fileSizeMap.get(file));
+                segmentTracker.addToLatestUploadedFiles(file);
+                segmentTracker.addUploadTimeInMillis(Math.max(1, System.currentTimeMillis() - uploadStartTime));
+            }
+
+            @Override
+            public void onFailure(String file) {
+                // Track upload failure
+                segmentTracker.addUploadBytesFailed(fileSizeMap.get(file));
+                segmentTracker.addUploadTimeInMillis(Math.max(1, System.currentTimeMillis() - uploadStartTime));
+            }
+        };
+    }
+
+    /**
+     * Checks if the underlying IndexShard instance is closed
+     *
+     * @return true if it is closed, false otherwise
+     */
+    private boolean shardClosed() {
+        return indexShard.state() == IndexShardState.CLOSED;
     }
 
     @Override

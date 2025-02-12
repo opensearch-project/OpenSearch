@@ -67,8 +67,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.env.Environment;
 import org.opensearch.core.index.Index;
+import org.opensearch.env.Environment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -81,6 +81,7 @@ import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
@@ -110,10 +111,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -738,7 +739,9 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 null,
                 systemIndices,
                 false,
-                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                null
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -876,7 +879,9 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 null,
                 systemIndices,
                 false,
-                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                null
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -1054,7 +1059,9 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             null,
             new SystemIndices(emptyMap()),
             false,
-            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+            DefaultRemoteStoreSettings.INSTANCE,
+            null
         );
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
             clusterService,

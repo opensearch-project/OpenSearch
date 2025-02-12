@@ -10,6 +10,7 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
+import org.opensearch.search.aggregations.AggregationCollectorManager;
 import org.opensearch.search.query.EarlyTerminatingListener;
 import org.opensearch.search.query.ReduceableSearchResult;
 
@@ -38,6 +39,7 @@ public class InternalProfileCollectorManager
     private long minSliceTime = Long.MAX_VALUE;
     private long avgSliceTime = 0;
     private int sliceCount = 0;
+    private String collectorManagerName;
 
     public InternalProfileCollectorManager(
         CollectorManager<? extends Collector, ReduceableSearchResult> manager,
@@ -46,7 +48,27 @@ public class InternalProfileCollectorManager
     ) {
         this.manager = manager;
         this.reason = reason;
+        this.collectorManagerName = deriveCollectorManagerName(manager);
         this.children = children;
+    }
+
+    /**
+     * Creates a human-friendly representation of the CollectorManager name.
+     *
+     * @param manager The CollectorManager to derive a name from
+     * @return  A (hopefully) prettier name
+     */
+    private String deriveCollectorManagerName(CollectorManager<? extends Collector, ReduceableSearchResult> manager) {
+        String name = manager.getClass().getSimpleName();
+        if (name.equals("")) {
+            name = manager.getClass().getEnclosingClass().getSimpleName();
+        }
+
+        // Include the user-defined agg name
+        if (manager instanceof AggregationCollectorManager) {
+            name += ": [" + ((AggregationCollectorManager) manager).getCollectorName() + "]";
+        }
+        return name;
     }
 
     @Override
@@ -117,7 +139,7 @@ public class InternalProfileCollectorManager
 
     @Override
     public String getName() {
-        return manager.getClass().getSimpleName();
+        return collectorManagerName;
     }
 
     @Override

@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject.spi;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Binding;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
@@ -40,8 +41,9 @@ import org.opensearch.common.inject.Provider;
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ProviderBinding<T extends Provider<?>> extends Binding<T> {
 
     /**

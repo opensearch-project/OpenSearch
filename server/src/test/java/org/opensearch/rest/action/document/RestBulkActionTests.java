@@ -33,19 +33,19 @@
 package org.opensearch.rest.action.document;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.update.UpdateRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.SetOnce;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -82,7 +82,7 @@ public class RestBulkActionTests extends OpenSearchTestCase {
                                 + "{\"update\":{\"_id\":\"2\"}}\n"
                                 + "{\"script\":{\"source\":\"ctx._source.counter++;\"},\"upsert\":{\"field1\":\"upserted_val\"}}\n"
                         ),
-                        XContentType.JSON
+                        MediaTypeRegistry.JSON
                     )
                     .withMethod(RestRequest.Method.POST)
                     .build(),

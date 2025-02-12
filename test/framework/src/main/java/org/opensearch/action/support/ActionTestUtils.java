@@ -32,10 +32,10 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.tasks.Task;
 
 import static org.opensearch.action.support.PlainActionFuture.newFuture;
@@ -55,7 +55,7 @@ public class ActionTestUtils {
 
     /**
      * Executes the given action.
-     *
+     * <p>
      * This is a shim method to make execution publicly available in tests.
      */
     public static <Request extends ActionRequest, Response extends ActionResponse> void execute(

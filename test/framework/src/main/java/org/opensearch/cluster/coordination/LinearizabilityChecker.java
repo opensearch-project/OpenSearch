@@ -476,22 +476,22 @@ public class LinearizabilityChecker {
 
     /**
      * A cache optimized for small bit-counts (less than 64) and small number of unique permutations of state objects.
-     *
+     * <p>
      * Each combination of states is kept once only, building on the
      * assumption that the number of permutations is small compared to the
      * number of bits permutations. For those histories that are difficult to check
      * we will have many bits combinations that use the same state permutations.
-     *
+     * <p>
      * The smallMap optimization allows us to avoid object overheads for bit-sets up to 64 bit large.
-     *
+     * <p>
      * Comparing set of (bits, state) to smallMap:
      * (bits, state) : 24 (tuple) + 24 (FixedBitSet) + 24 (bits) + 5 (hash buckets) + 24 (hashmap node).
      * smallMap bits to {state} : 10 (bits) + 5 (hash buckets) + avg-size of unique permutations.
-     *
+     * <p>
      * The avg-size of the unique permutations part is very small compared to the
      * sometimes large number of bits combinations (which are the cases where
      * we run into trouble).
-     *
+     * <p>
      * set of (bits, state) totals 101 bytes compared to smallMap bits to { state }
      * which totals 15 bytes, ie. a 6x improvement in memory usage.
      */

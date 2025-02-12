@@ -36,10 +36,10 @@ import org.opensearch.search.aggregations.bucket.composite.InternalComposite;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilters;
 import org.opensearch.search.aggregations.bucket.global.InternalGlobal;
-import org.opensearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
 import org.opensearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.opensearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.opensearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
 import org.opensearch.search.aggregations.bucket.missing.InternalMissing;
 import org.opensearch.search.aggregations.bucket.nested.InternalNested;
 import org.opensearch.search.aggregations.bucket.nested.InternalReverseNested;
@@ -78,9 +78,9 @@ import java.util.stream.StreamSupport;
  * Provides a set of static helpers to determine if a particular type of InternalAggregation "has a value"
  * or not.  This can be difficult to determine from an external perspective because each agg uses
  * different internal bookkeeping to determine if it is empty or not (NaN, +/-Inf, 0.0, etc).
- *
+ * <p>
  * This set of helpers aim to ease that task by codifying what "empty" is for each agg.
- *
+ * <p>
  * It is not entirely accurate for all aggs, since some do not expose or track the needed state
  * (e.g. sum doesn't record count, so it's not clear if the sum is 0.0 because it is empty
  * or because of summing to zero).  Pipeline aggs in particular are not well supported

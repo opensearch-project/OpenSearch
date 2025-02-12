@@ -32,14 +32,17 @@
 
 package org.opensearch.search.fetch;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -48,12 +51,13 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -62,13 +66,27 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.opensearch.client.Requests.indexRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.opensearch.transport.client.Requests.indexRequest;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2)
-public class FetchSubPhasePluginIT extends OpenSearchIntegTestCase {
+public class FetchSubPhasePluginIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public FetchSubPhasePluginIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(FetchTermVectorsPlugin.class);
@@ -95,6 +113,7 @@ public class FetchSubPhasePluginIT extends OpenSearchIntegTestCase {
             .actionGet();
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch()
             .setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test"))))
@@ -157,7 +176,7 @@ public class FetchSubPhasePluginIT extends OpenSearchIntegTestCase {
                 hitField = new DocumentField(NAME, new ArrayList<>(1));
                 hitContext.hit().setDocumentField(NAME, hitField);
             }
-            Terms terms = hitContext.reader().getTermVector(hitContext.docId(), field);
+            Terms terms = hitContext.reader().termVectors().get(hitContext.docId(), field);
             if (terms != null) {
                 TermsEnum te = terms.iterator();
                 Map<String, Integer> tv = new HashMap<>();

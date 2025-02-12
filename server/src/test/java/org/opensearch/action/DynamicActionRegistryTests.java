@@ -12,13 +12,16 @@ import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.main.MainAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.extensions.action.ExtensionAction;
 import org.opensearch.extensions.action.ExtensionTransportAction;
-import org.opensearch.rest.NamedRoute;
-import org.opensearch.rest.RestRequest;
 import org.opensearch.extensions.rest.RestSendToExtensionAction;
+import org.opensearch.rest.NamedRoute;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
@@ -83,13 +86,17 @@ public class DynamicActionRegistryTests extends OpenSearchTestCase {
         RestSendToExtensionAction action2 = mock(RestSendToExtensionAction.class);
         NamedRoute r1 = new NamedRoute.Builder().method(RestRequest.Method.GET).path("/foo").uniqueName("foo").build();
         NamedRoute r2 = new NamedRoute.Builder().method(RestRequest.Method.PUT).path("/bar").uniqueName("bar").build();
+        RestHandler.Route r3 = new RestHandler.Route(RestRequest.Method.DELETE, "/foo");
 
         DynamicActionRegistry registry = new DynamicActionRegistry();
         registry.registerDynamicRoute(r1, action);
         registry.registerDynamicRoute(r2, action2);
 
         assertTrue(registry.isActionRegistered("foo"));
+        assertEquals(action, registry.get(r1));
         assertTrue(registry.isActionRegistered("bar"));
+        assertEquals(action2, registry.get(r2));
+        assertNull(registry.get(r3));
 
         registry.unregisterDynamicRoute(r2);
 

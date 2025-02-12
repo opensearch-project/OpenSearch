@@ -33,6 +33,8 @@
 package org.opensearch.percolator;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -44,13 +46,11 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.util.List;
@@ -134,7 +134,7 @@ final class PercolateQuery extends Query implements Accountable {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext leafReaderContext) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext leafReaderContext) throws IOException {
                 final Scorer approximation = candidateMatchesWeight.scorer(leafReaderContext);
                 if (approximation == null) {
                     return null;
@@ -142,7 +142,7 @@ final class PercolateQuery extends Query implements Accountable {
 
                 final CheckedFunction<Integer, Query, IOException> percolatorQueries = queryStore.getQueries(leafReaderContext);
                 if (scoreMode.needsScores()) {
-                    return new BaseScorer(this, approximation) {
+                    return new DefaultScorerSupplier(new BaseScorer(this, approximation) {
 
                         float score;
 
@@ -171,11 +171,11 @@ final class PercolateQuery extends Query implements Accountable {
                         public float score() throws IOException {
                             return score;
                         }
-                    };
+                    });
                 } else {
                     ScorerSupplier verifiedDocsScorer = verifiedMatchesWeight.scorerSupplier(leafReaderContext);
                     Bits verifiedDocsBits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), verifiedDocsScorer);
-                    return new BaseScorer(this, approximation) {
+                    return new DefaultScorerSupplier(new BaseScorer(this, approximation) {
 
                         @Override
                         public float score() throws IOException {
@@ -200,7 +200,7 @@ final class PercolateQuery extends Query implements Accountable {
                             }
                             return Lucene.exists(percolatorIndexSearcher, query);
                         }
-                    };
+                    });
                 }
             }
 
@@ -290,7 +290,7 @@ final class PercolateQuery extends Query implements Accountable {
         final Scorer approximation;
 
         BaseScorer(Weight weight, Scorer approximation) {
-            super(weight);
+            super();
             this.approximation = approximation;
         }
 

@@ -18,7 +18,7 @@ import java.io.IOException;
 
 /**
  * Information about a search pipeline  processor
- *
+ * <p>
  * TODO: This is copy/pasted from the ingest ProcessorInfo.
  * Can/should we share implementation or is this just boilerplate?
  *

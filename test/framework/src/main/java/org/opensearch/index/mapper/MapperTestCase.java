@@ -37,22 +37,21 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.SetOnce;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -113,14 +112,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
         if (fieldType.hasDocValues()) {
-            assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
-            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
+            assertThat(query, instanceOf(FieldExistsQuery.class));
+            FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
             assertEquals("field", fieldExistsQuery.getField());
             assertDocValuesField(fields, "field");
             assertNoFieldNamesField(fields);
         } else if (fieldType.getTextSearchInfo().hasNorms()) {
-            assertThat(query, instanceOf(NormsFieldExistsQuery.class));
-            NormsFieldExistsQuery normsFieldExistsQuery = (NormsFieldExistsQuery) query;
+            assertThat(query, instanceOf(FieldExistsQuery.class));
+            FieldExistsQuery normsFieldExistsQuery = (FieldExistsQuery) query;
             assertEquals("field", normsFieldExistsQuery.getField());
             assertHasNorms(fields, "field");
             assertNoDocValuesField(fields, "field");
@@ -174,7 +173,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    public final void testEmptyName() {
+    public void testEmptyName() {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
             b.startObject("");
             minimalMapping(b);
@@ -293,7 +292,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
+            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup, SearchLookup.UNKNOWN_SHARD_ID);
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);

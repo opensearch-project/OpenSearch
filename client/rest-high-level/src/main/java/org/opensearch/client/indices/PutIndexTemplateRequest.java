@@ -39,20 +39,20 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -217,10 +217,10 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      * Adds mapping that will be added when the index gets created.
      *
      * @param source The mapping source
-     * @param xContentType The type of content contained within the source
+     * @param mediaType The type of content contained within the source
      */
-    public PutIndexTemplateRequest mapping(String source, XContentType xContentType) {
-        internalMapping(XContentHelper.convertToMap(new BytesArray(source), true, xContentType).v2());
+    public PutIndexTemplateRequest mapping(String source, MediaType mediaType) {
+        internalMapping(XContentHelper.convertToMap(new BytesArray(source), true, mediaType).v2());
         return this;
     }
 
@@ -268,7 +268,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
 
     private PutIndexTemplateRequest internalMapping(Map<String, Object> source) {
         try {
-            XContentBuilder builder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
             builder.map(source);
             MediaType mediaType = builder.contentType();
             Objects.requireNonNull(mediaType);

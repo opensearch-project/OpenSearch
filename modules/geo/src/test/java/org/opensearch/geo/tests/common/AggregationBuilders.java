@@ -8,10 +8,10 @@
 
 package org.opensearch.geo.tests.common;
 
-import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
-import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGrid;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGrid;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.metrics.GeoBounds;
 import org.opensearch.geo.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 

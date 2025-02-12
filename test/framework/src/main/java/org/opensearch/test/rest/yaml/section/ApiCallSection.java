@@ -31,13 +31,13 @@
 
 package org.opensearch.test.rest.yaml.section;
 
+import org.opensearch.client.NodeSelector;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.opensearch.client.NodeSelector;
 
 import static java.util.Collections.unmodifiableMap;
 

@@ -89,15 +89,15 @@ import java.util.concurrent.CountDownLatch;
  * You need to wrap your code between two tags like:
  * // tag::example[]
  * // end::example[]
- *
+ * <p>
  * Where example is your tag name.
- *
+ * <p>
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
  * include-tagged::{doc-tests}/RestClientDocumentation.java[example]
  * --------------------------------------------------
- *
+ * <p>
  * Note that this is not a test class as we are only interested in testing that docs snippets compile. We don't want
  * to send requests to a node and we don't even have the tools to do it.
  */
@@ -375,6 +375,24 @@ public class RestClientDocumentation {
                     }
                 });
             //end::rest-client-config-threads
+        }
+        {
+            //tag::rest-client-config-tcpKeepIdle/tcpKeepInterval/tcpKeepCount
+            RestClientBuilder builder = RestClient.builder(
+                    new HttpHost("localhost", 9200))
+                    .setHttpClientConfigCallback(new HttpClientConfigCallback() {
+                        @Override
+                        public HttpAsyncClientBuilder customizeHttpClient(
+                                HttpAsyncClientBuilder httpClientBuilder) {
+                            return httpClientBuilder.setIOReactorConfig(
+                                    IOReactorConfig.custom()
+                                            .setTcpKeepIdle(200)
+                                            .setTcpKeepInterval(10)
+                                            .setTcpKeepCount(10)
+                                            .build());
+                        }
+                    });
+            //end::rest-client-config-tcpKeepIdle/tcpKeepInterval/tcpKeepCount
         }
         {
             //tag::rest-client-config-basic-auth

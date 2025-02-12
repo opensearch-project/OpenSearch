@@ -56,7 +56,7 @@ import java.util.Map;
 public class FilterAggregatorFactory extends AggregatorFactory {
 
     private Weight weight;
-    private Query filter;
+    private final Query filter;
 
     public FilterAggregatorFactory(
         String name,
@@ -75,7 +75,7 @@ public class FilterAggregatorFactory extends AggregatorFactory {
      * necessary. This is done lazily so that the {@link Weight} is only created
      * if the aggregation collects documents reducing the overhead of the
      * aggregation in the case where no documents are collected.
-     *
+     * <p>
      * Note that as aggregations are initialsed and executed in a serial manner,
      * no concurrency considerations are necessary here.
      */
@@ -85,7 +85,7 @@ public class FilterAggregatorFactory extends AggregatorFactory {
             try {
                 weight = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } catch (IOException e) {
-                throw new AggregationInitializationException("Failed to initialse filter", e);
+                throw new AggregationInitializationException("Failed to initialise filter", e);
             }
         }
         return weight;
@@ -98,7 +98,11 @@ public class FilterAggregatorFactory extends AggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, cardinality, metadata);
+        return new FilterAggregator(name, this::getWeight, factories, searchContext, parent, cardinality, metadata);
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

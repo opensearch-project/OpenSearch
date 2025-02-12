@@ -35,7 +35,6 @@ package org.opensearch.env;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
@@ -53,23 +52,26 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.gateway.PersistedClusterStateService;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
@@ -108,14 +110,16 @@ import static java.util.Collections.unmodifiableSet;
 /**
  * A component that holds all data paths for a single node.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class NodeEnvironment implements Closeable {
     /**
      * A node path.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -195,6 +199,8 @@ public final class NodeEnvironment implements Closeable {
     private final Map<ShardId, InternalShardLock> shardLocks = new HashMap<>();
 
     private final NodeMetadata nodeMetadata;
+
+    private final IndexStoreListener indexStoreListener;
 
     /**
      * Maximum number of data nodes that should run in an environment.
@@ -292,18 +298,23 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
+    public NodeEnvironment(Settings settings, Environment environment) throws IOException {
+        this(settings, environment, IndexStoreListener.EMPTY);
+    }
+
     /**
      * Setup the environment.
      * @param settings settings from opensearch.yml
      */
-    public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-        if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
+    public NodeEnvironment(Settings settings, Environment environment, IndexStoreListener indexStoreListener) throws IOException {
+        if (DiscoveryNode.nodeRequiresLocalStorage(settings) == false) {
             nodePaths = null;
             fileCacheNodePath = null;
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
             nodeMetadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT);
+            this.indexStoreListener = IndexStoreListener.EMPTY;
             return;
         }
         boolean success = false;
@@ -382,6 +393,7 @@ public final class NodeEnvironment implements Closeable {
             }
 
             this.nodeMetadata = loadNodeMetadata(settings, logger, nodePaths);
+            this.indexStoreListener = indexStoreListener;
             success = true;
         } finally {
             if (success == false) {
@@ -574,6 +586,9 @@ public final class NodeEnvironment implements Closeable {
     public void deleteShardDirectoryUnderLock(ShardLock lock, IndexSettings indexSettings) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
+
+        indexStoreListener.beforeShardPathDeleted(shardId, indexSettings, this);
+
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
         acquireFSLockForPaths(indexSettings, paths);
@@ -650,6 +665,8 @@ public final class NodeEnvironment implements Closeable {
      * @param indexSettings settings for the index being deleted
      */
     public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings) throws IOException {
+        indexStoreListener.beforeIndexPathDeleted(index, indexSettings, this);
+
         final Path[] indexPaths = indexPaths(index);
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
         IOUtils.rm(indexPaths);
@@ -657,6 +674,18 @@ public final class NodeEnvironment implements Closeable {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
             IOUtils.rm(customLocation);
+        }
+    }
+
+    private void deleteIndexFileCacheDirectory(Index index) {
+        final Path indexCachePath = fileCacheNodePath().fileCachePath.resolve(index.getUUID());
+        logger.trace("deleting index {} file cache directory, path: [{}]", index, indexCachePath);
+        if (Files.exists(indexCachePath)) {
+            try {
+                IOUtils.rm(indexCachePath);
+            } catch (IOException e) {
+                logger.error(() -> new ParameterizedMessage("Failed to delete cache path for index {}", index), e);
+            }
         }
     }
 
@@ -702,7 +731,7 @@ public final class NodeEnvironment implements Closeable {
      * write operation on a shards data directory like deleting files, creating a new index writer
      * or recover from a different shard instance into it. If the shard lock can not be acquired
      * a {@link ShardLockObtainFailedException} is thrown.
-     *
+     * <p>
      * Note: this method will return immediately if the lock can't be acquired.
      *
      * @param id the shard ID to lock
@@ -767,15 +796,18 @@ public final class NodeEnvironment implements Closeable {
 
     /**
      * A functional interface that people can use to reference {@link #shardLock(ShardId, String, long)}
+     *
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface ShardLocker {
         ShardLock lock(ShardId shardId, String lockDetails, long lockTimeoutMS) throws ShardLockObtainFailedException;
     }
 
     /**
      * Returns all currently lock shards.
-     *
+     * <p>
      * Note: the shard ids return do not contain a valid Index UUID
      */
     public Set<ShardId> lockedShards() {
@@ -1269,7 +1301,7 @@ public final class NodeEnvironment implements Closeable {
      * Resolve the custom path for a index's shard.
      */
     public static Path resolveBaseCustomLocation(String customDataPath, Path sharedDataPath, int nodeLockId) {
-        if (Strings.isNotEmpty(customDataPath)) {
+        if (!Strings.isNullOrEmpty(customDataPath)) {
             // This assert is because this should be caught by MetadataCreateIndexService
             assert sharedDataPath != null;
             return sharedDataPath.resolve(customDataPath).resolve(Integer.toString(nodeLockId));

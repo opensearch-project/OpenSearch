@@ -34,7 +34,7 @@ package org.opensearch.index.codec;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
@@ -48,21 +48,22 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
-import org.opensearch.index.codec.customcodecs.Lucene95CustomCodec;
-import org.opensearch.index.codec.customcodecs.Lucene95CustomStoredFieldsFormat;
+import org.opensearch.index.codec.composite.composite101.Composite101Codec;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.instanceOf;
+import org.mockito.Mockito;
+
 import static org.opensearch.index.engine.EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING;
+import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends OpenSearchTestCase {
@@ -70,62 +71,61 @@ public class CodecTests extends OpenSearchTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService(false);
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene95Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene101Codec.class));
     }
 
     public void testDefault() throws Exception {
         Codec codec = createCodecService(false).codec("default");
-        assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_SPEED, codec);
+        assertStoredFieldsCompressionEquals(Lucene101Codec.Mode.BEST_SPEED, codec);
+    }
+
+    public void testDefaultWithCompositeIndex() throws Exception {
+        Codec codec = createCodecService(false, true).codec("default");
+        assertStoredFieldsCompressionEquals(Lucene101Codec.Mode.BEST_SPEED, codec);
+        assert codec instanceof Composite101Codec;
     }
 
     public void testBestCompression() throws Exception {
         Codec codec = createCodecService(false).codec("best_compression");
-        assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_COMPRESSION, codec);
+        assertStoredFieldsCompressionEquals(Lucene101Codec.Mode.BEST_COMPRESSION, codec);
     }
 
-    public void testZstd() throws Exception {
-        Codec codec = createCodecService(false).codec("zstd");
-        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD, codec);
-        Lucene95CustomStoredFieldsFormat storedFieldsFormat = (Lucene95CustomStoredFieldsFormat) codec.storedFieldsFormat();
-        assertEquals(Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL, storedFieldsFormat.getCompressionLevel());
+    public void testBestCompressionWithCompositeIndex() throws Exception {
+        Codec codec = createCodecService(false, true).codec("best_compression");
+        assertStoredFieldsCompressionEquals(Lucene101Codec.Mode.BEST_COMPRESSION, codec);
+        assert codec instanceof Composite101Codec;
     }
 
-    public void testZstdNoDict() throws Exception {
-        Codec codec = createCodecService(false).codec("zstd_no_dict");
-        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD_NO_DICT, codec);
-        Lucene95CustomStoredFieldsFormat storedFieldsFormat = (Lucene95CustomStoredFieldsFormat) codec.storedFieldsFormat();
-        assertEquals(Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL, storedFieldsFormat.getCompressionLevel());
+    public void testLZ4() throws Exception {
+        Codec codec = createCodecService(false).codec("lz4");
+        assertStoredFieldsCompressionEquals(Lucene101Codec.Mode.BEST_SPEED, codec);
+        assert codec instanceof PerFieldMappingPostingFormatCodec;
     }
 
-    public void testZstdWithCompressionLevel() throws Exception {
-        int randomCompressionLevel = randomIntBetween(1, 6);
-        Codec codec = createCodecService(randomCompressionLevel, "zstd").codec("zstd");
-        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD, codec);
-        Lucene95CustomStoredFieldsFormat storedFieldsFormat = (Lucene95CustomStoredFieldsFormat) codec.storedFieldsFormat();
-        assertEquals(randomCompressionLevel, storedFieldsFormat.getCompressionLevel());
+    public void testLZ4WithCompositeIndex() throws Exception {
+        Codec codec = createCodecService(false, true).codec("lz4");
+        assertStoredFieldsCompressionEquals(Lucene101Codec.Mode.BEST_SPEED, codec);
+        assert codec instanceof Composite101Codec;
     }
 
-    public void testZstdNoDictWithCompressionLevel() throws Exception {
-        int randomCompressionLevel = randomIntBetween(1, 6);
-        Codec codec = createCodecService(randomCompressionLevel, "zstd_no_dict").codec("zstd_no_dict");
-        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD_NO_DICT, codec);
-        Lucene95CustomStoredFieldsFormat storedFieldsFormat = (Lucene95CustomStoredFieldsFormat) codec.storedFieldsFormat();
-        assertEquals(randomCompressionLevel, storedFieldsFormat.getCompressionLevel());
+    public void testZlib() throws Exception {
+        Codec codec = createCodecService(false).codec("zlib");
+        assertStoredFieldsCompressionEquals(Lucene101Codec.Mode.BEST_COMPRESSION, codec);
+        assert codec instanceof PerFieldMappingPostingFormatCodec;
+    }
+
+    public void testZlibWithCompositeIndex() throws Exception {
+        Codec codec = createCodecService(false, true).codec("zlib");
+        assertStoredFieldsCompressionEquals(Lucene101Codec.Mode.BEST_COMPRESSION, codec);
+        assert codec instanceof Composite101Codec;
+    }
+
+    public void testResolveDefaultCodecsWithCompositeIndex() throws Exception {
+        CodecService codecService = createCodecService(false, true);
+        assertThat(codecService.codec("default"), instanceOf(Composite101Codec.class));
     }
 
     public void testBestCompressionWithCompressionLevel() {
-        final Settings zstdSettings = Settings.builder()
-            .put(INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomFrom(CodecService.ZSTD_CODEC, CodecService.ZSTD_NO_DICT_CODEC))
-            .build();
-
-        // able to validate zstd
-        final IndexScopedSettings zstdIndexScopedSettings = new IndexScopedSettings(
-            zstdSettings,
-            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
-        );
-        zstdIndexScopedSettings.validate(zstdSettings, true);
-
         final Settings settings = Settings.builder()
             .put(INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC))
@@ -139,17 +139,6 @@ public class CodecTests extends OpenSearchTestCase {
     public void testLuceneCodecsWithCompressionLevel() {
         String codecName = randomFrom(Codec.availableCodecs());
         Codec codec = Codec.forName(codecName);
-
-        final Settings customCodecSettings = Settings.builder()
-            .put(INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), "Lucene95CustomCodec")
-            .build();
-
-        final IndexScopedSettings customCodecIndexScopedSettings = new IndexScopedSettings(
-            customCodecSettings,
-            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
-        );
-        customCodecIndexScopedSettings.validate(customCodecSettings, true);
 
         final Settings settings = Settings.builder()
             .put(INDEX_CODEC_COMPRESSION_LEVEL_SETTING.getKey(), randomIntBetween(1, 6))
@@ -166,36 +155,14 @@ public class CodecTests extends OpenSearchTestCase {
         }
     }
 
-    public void testZstandardCompressionLevelSupport() throws Exception {
-        CodecService codecService = createCodecService(false);
-        CodecSettings zstdCodec = (CodecSettings) codecService.codec("zstd");
-        CodecSettings zstdNoDictCodec = (CodecSettings) codecService.codec("zstd_no_dict");
-        assertTrue(zstdCodec.supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING));
-        assertTrue(zstdNoDictCodec.supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING));
-    }
-
     public void testDefaultMapperServiceNull() throws Exception {
         Codec codec = createCodecService(true).codec("default");
-        assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_SPEED, codec);
+        assertStoredFieldsCompressionEquals(Lucene101Codec.Mode.BEST_SPEED, codec);
     }
 
     public void testBestCompressionMapperServiceNull() throws Exception {
         Codec codec = createCodecService(true).codec("best_compression");
-        assertStoredFieldsCompressionEquals(Lucene95Codec.Mode.BEST_COMPRESSION, codec);
-    }
-
-    public void testZstdMapperServiceNull() throws Exception {
-        Codec codec = createCodecService(true).codec("zstd");
-        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD, codec);
-        Lucene95CustomStoredFieldsFormat storedFieldsFormat = (Lucene95CustomStoredFieldsFormat) codec.storedFieldsFormat();
-        assertEquals(Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL, storedFieldsFormat.getCompressionLevel());
-    }
-
-    public void testZstdNoDictMapperServiceNull() throws Exception {
-        Codec codec = createCodecService(true).codec("zstd_no_dict");
-        assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode.ZSTD_NO_DICT, codec);
-        Lucene95CustomStoredFieldsFormat storedFieldsFormat = (Lucene95CustomStoredFieldsFormat) codec.storedFieldsFormat();
-        assertEquals(Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL, storedFieldsFormat.getCompressionLevel());
+        assertStoredFieldsCompressionEquals(Lucene101Codec.Mode.BEST_COMPRESSION, codec);
     }
 
     public void testExceptionCodecNull() {
@@ -207,34 +174,25 @@ public class CodecTests extends OpenSearchTestCase {
     }
 
     // write some docs with it, inspect .si to see this was the used compression
-    private void assertStoredFieldsCompressionEquals(Lucene95Codec.Mode expected, Codec actual) throws Exception {
+    private void assertStoredFieldsCompressionEquals(Lucene101Codec.Mode expected, Codec actual) throws Exception {
         SegmentReader sr = getSegmentReader(actual);
         String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
-        assertEquals(expected, Lucene95Codec.Mode.valueOf(v));
-    }
-
-    private void assertStoredFieldsCompressionEquals(Lucene95CustomCodec.Mode expected, Codec actual) throws Exception {
-        SegmentReader sr = getSegmentReader(actual);
-        String v = sr.getSegmentInfo().info.getAttribute(Lucene95CustomStoredFieldsFormat.MODE_KEY);
-        assertNotNull(v);
-        assertEquals(expected, Lucene95CustomCodec.Mode.valueOf(v));
+        assertEquals(expected, Lucene101Codec.Mode.valueOf(v));
     }
 
     private CodecService createCodecService(boolean isMapperServiceNull) throws IOException {
+        return createCodecService(isMapperServiceNull, false);
+    }
+
+    private CodecService createCodecService(boolean isMapperServiceNull, boolean isCompositeIndexPresent) throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         if (isMapperServiceNull) {
             return new CodecService(null, IndexSettingsModule.newIndexSettings("_na", nodeSettings), LogManager.getLogger("test"));
         }
-        return buildCodecService(nodeSettings);
-    }
-
-    private CodecService createCodecService(int randomCompressionLevel, String codec) throws IOException {
-        Settings nodeSettings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put("index.codec", codec)
-            .put("index.codec.compression_level", randomCompressionLevel)
-            .build();
+        if (isCompositeIndexPresent) {
+            return buildCodecServiceWithCompositeIndex(nodeSettings);
+        }
         return buildCodecService(nodeSettings);
     }
 
@@ -254,6 +212,14 @@ public class CodecTests extends OpenSearchTestCase {
             () -> false,
             null
         );
+        return new CodecService(service, indexSettings, LogManager.getLogger("test"));
+    }
+
+    private CodecService buildCodecServiceWithCompositeIndex(Settings nodeSettings) throws IOException {
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
+        MapperService service = Mockito.mock(MapperService.class);
+        Mockito.when(service.isCompositeIndexPresent()).thenReturn(true);
         return new CodecService(service, indexSettings, LogManager.getLogger("test"));
     }
 

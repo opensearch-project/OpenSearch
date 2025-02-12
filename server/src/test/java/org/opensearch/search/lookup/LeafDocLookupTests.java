@@ -31,8 +31,8 @@
 
 package org.opensearch.search.lookup;
 
-import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;

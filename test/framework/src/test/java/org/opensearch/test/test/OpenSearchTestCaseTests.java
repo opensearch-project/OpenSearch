@@ -32,13 +32,11 @@
 
 package org.opensearch.test.test;
 
-import junit.framework.AssertionFailedError;
-
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 
@@ -53,6 +51,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+
+import junit.framework.AssertionFailedError;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

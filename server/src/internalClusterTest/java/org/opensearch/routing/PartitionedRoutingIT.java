@@ -38,12 +38,13 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.mockito.internal.util.collections.Sets;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import org.mockito.internal.util.collections.Sets;
 
 public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
 
@@ -186,7 +187,7 @@ public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
                     + "] shards for routing ["
                     + routing
                     + "] and got hits ["
-                    + response.getHits().getTotalHits().value
+                    + response.getHits().getTotalHits().value()
                     + "]"
             );
 
@@ -194,7 +195,7 @@ public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
                 response.getTotalShards() + " was not in " + expectedShards + " for " + index,
                 expectedShards.contains(response.getTotalShards())
             );
-            assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+            assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
             Set<String> found = new HashSet<>();
             response.getHits().forEach(h -> found.add(h.getId()));
@@ -216,7 +217,7 @@ public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
                 .actionGet();
 
             assertEquals(expectedShards, response.getTotalShards());
-            assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+            assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
             Set<String> found = new HashSet<>();
             response.getHits().forEach(h -> found.add(h.getId()));

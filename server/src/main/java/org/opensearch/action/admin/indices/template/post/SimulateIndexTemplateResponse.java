@@ -32,10 +32,11 @@
 
 package org.opensearch.action.admin.indices.template.post;
 
-import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -50,8 +51,9 @@ import java.util.Objects;
 /**
  * Contains the information on what V2 templates would match a given index.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SimulateIndexTemplateResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField TEMPLATE = new ParseField("template");

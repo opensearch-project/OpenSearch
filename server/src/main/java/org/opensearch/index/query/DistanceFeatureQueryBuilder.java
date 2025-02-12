@@ -33,13 +33,13 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -57,7 +57,7 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
  *
  * @opensearch.internal
  */
-public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFeatureQueryBuilder> {
+public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFeatureQueryBuilder> implements WithFieldName {
     public static final String NAME = "distance_feature";
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -136,7 +136,8 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         return fieldType.distanceFeatureQuery(origin.origin(), pivot, 1.0f, context);
     }
 
-    String fieldName() {
+    @Override
+    public String fieldName() {
         return field;
     }
 

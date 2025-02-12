@@ -38,11 +38,13 @@ import org.opensearch.cluster.node.DiscoveryNodeFilters;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.util.Map;
 
@@ -102,14 +104,32 @@ public class FilterAllocationDecider extends AllocationDecider {
     private volatile DiscoveryNodeFilters clusterRequireFilters;
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
     private volatile DiscoveryNodeFilters clusterExcludeFilters;
+    private volatile RemoteStoreNodeService.Direction migrationDirection;
+    private volatile RemoteStoreNodeService.CompatibilityMode compatibilityMode;
 
     public FilterAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings));
         setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));
         setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));
+        this.migrationDirection = RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.get(settings);
+        this.compatibilityMode = RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(settings);
+
         clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a, b) -> {});
         clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a, b) -> {});
         clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a, b) -> {});
+        clusterSettings.addSettingsUpdateConsumer(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING, this::setMigrationDirection);
+        clusterSettings.addSettingsUpdateConsumer(
+            RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
+            this::setCompatibilityMode
+        );
+    }
+
+    private void setMigrationDirection(RemoteStoreNodeService.Direction migrationDirection) {
+        this.migrationDirection = migrationDirection;
+    }
+
+    private void setCompatibilityMode(RemoteStoreNodeService.CompatibilityMode compatibilityMode) {
+        this.compatibilityMode = compatibilityMode;
     }
 
     @Override
@@ -127,8 +147,26 @@ public class FilterAllocationDecider extends AllocationDecider {
                     "initial allocation of the shrunken index is only allowed on nodes [%s] that hold a copy of every shard in the index";
                 return allocation.decision(Decision.NO, NAME, explanation, initialRecoveryFilters);
             }
+
+            Decision decision = isRemoteStoreMigrationReplicaDecision(shardRouting, allocation);
+            if (decision != null) return decision;
         }
         return shouldFilter(shardRouting, node.node(), allocation);
+    }
+
+    public Decision isRemoteStoreMigrationReplicaDecision(ShardRouting shardRouting, RoutingAllocation allocation) {
+        assert shardRouting.unassigned();
+        boolean primaryOnRemote = RemoteStoreMigrationAllocationDecider.isPrimaryOnRemote(shardRouting.shardId(), allocation);
+        if (shardRouting.primary() == false
+            && shardRouting.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED
+            && (compatibilityMode.equals(RemoteStoreNodeService.CompatibilityMode.MIXED))
+            && (migrationDirection.equals(RemoteStoreNodeService.Direction.REMOTE_STORE))
+            && primaryOnRemote == false) {
+            String explanation =
+                "in  remote store migration, allocation filters are not applicable for replica copies whose primary is on doc rep node";
+            return allocation.decision(Decision.YES, NAME, explanation);
+        }
+        return null;
     }
 
     @Override

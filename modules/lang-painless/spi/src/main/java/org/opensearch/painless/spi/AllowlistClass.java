@@ -45,12 +45,12 @@ import java.util.stream.Collectors;
  * classes. Though, since multiple allowlists may be combined into a single allowlist for a
  * specific context, as long as multiple classes representing the same Java class have the same
  * class name and have legal constructor/method overloading they can be merged together.
- *
+ * <p>
  * Classes in Painless allow for arity overloading for constructors and methods. Arity overloading
  * means that multiple constructors are allowed for a single class as long as they have a different
  * number of parameters, and multiples methods with the same name are allowed for a single class
  * as long as they have the same return type and a different number of parameters.
- *
+ * <p>
  * Classes will automatically extend other allowlisted classes if the Java class they represent is a
  * subclass of other classes including Java interfaces.
  */

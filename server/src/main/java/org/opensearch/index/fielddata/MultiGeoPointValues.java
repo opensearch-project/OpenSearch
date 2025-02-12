@@ -73,7 +73,7 @@ public abstract class MultiGeoPointValues {
     /**
      * Return the next value associated with the current document. This must not be
      * called more than {@link #docValueCount()} times.
-     *
+     * <p>
      * Note: the returned {@link GeoPoint} might be shared across invocations.
      *
      * @return the next value for the current docID set to {@link #advanceExact(int)}.

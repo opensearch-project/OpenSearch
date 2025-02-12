@@ -38,11 +38,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchPhaseResult;
@@ -51,8 +51,8 @@ import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 
 import java.io.IOException;
@@ -155,11 +155,11 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
         assertNotNull(responseRef.get());
         assertNotNull(responseRef.get().get(0));
         assertNull(responseRef.get().get(0).fetchResult());
-        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value());
         assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
         assertNotNull(responseRef.get().get(1));
         assertNull(responseRef.get().get(1).fetchResult());
-        assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value());
         assertEquals(84, responseRef.get().get(1).queryResult().topDocs().topDocs.scoreDocs[0].doc);
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
         assertEquals(2, mockSearchPhaseContext.numSuccess.get());
@@ -240,7 +240,7 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
         assertNotNull(responseRef.get());
         assertNotNull(responseRef.get().get(0));
         assertNull(responseRef.get().get(0).fetchResult());
-        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+        assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value());
         assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
         assertNull(responseRef.get().get(1));
 

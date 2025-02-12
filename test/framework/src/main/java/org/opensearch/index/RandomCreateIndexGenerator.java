@@ -35,11 +35,13 @@ package org.opensearch.index;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -54,7 +56,7 @@ public final class RandomCreateIndexGenerator {
 
     /**
      * Returns a random {@link CreateIndexRequest}.
-     *
+     * <p>
      * Randomizes the index name, the aliases, mappings and settings associated with the
      * index. If present, the mapping definition will be nested under a type name.
      */
@@ -112,8 +114,12 @@ public final class RandomCreateIndexGenerator {
         builder.startObject("properties");
 
         int fieldsNo = randomIntBetween(0, 5);
-        for (int i = 0; i < fieldsNo; i++) {
-            builder.startObject(randomAlphaOfLength(5));
+        Set<String> uniqueFields = new HashSet<>();
+        while (uniqueFields.size() < fieldsNo) {
+            uniqueFields.add(randomAlphaOfLength(5));
+        }
+        for (String uniqueField : uniqueFields) {
+            builder.startObject(uniqueField);
 
             if (allowObjectField && randomBoolean()) {
                 randomMappingFields(builder, false);

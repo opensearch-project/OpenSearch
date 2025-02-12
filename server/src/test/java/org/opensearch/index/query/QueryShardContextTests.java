@@ -35,7 +35,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -46,13 +45,14 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.TriFunction;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
@@ -63,6 +63,8 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.opensearch.index.mapper.DerivedFieldResolver;
+import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -91,6 +93,8 @@ import static org.mockito.Mockito.when;
 
 public class QueryShardContextTests extends OpenSearchTestCase {
 
+    private static final int SHARD_ID = 0;
+
     public void testFailIfFieldMappingNotFound() {
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         context.setAllowUnmappedFields(false);
@@ -114,6 +118,18 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(TextFieldMapper.TextFieldType.class));
         assertThat(result.name(), equalTo("name"));
+    }
+
+    public void testDerivedFieldMapping() {
+        QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
+        assertNull(context.failIfFieldMappingNotFound("derived_field_search_req", null));
+        DerivedFieldResolver derivedFieldResolver = mock(DerivedFieldResolver.class);
+        context.setDerivedFieldResolver(derivedFieldResolver);
+        DerivedFieldType mockDerivedFieldType = mock(DerivedFieldType.class);
+        when(derivedFieldResolver.resolve("derived_field_search_req")).thenReturn(mockDerivedFieldType);
+        assertEquals(mockDerivedFieldType, context.failIfFieldMappingNotFound("derived_field_search_req", null));
+        when(derivedFieldResolver.resolve("field_missing")).thenReturn(null);
+        assertNull(context.failIfFieldMappingNotFound("field_missing", null));
     }
 
     public void testToQueryFails() {
@@ -307,6 +323,11 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         assertEquals(Arrays.asList(expectedFirstDoc.toString(), expectedSecondDoc.toString()), collect("field", queryShardContext));
     }
 
+    public void testSearchLookupShardId() {
+        SearchLookup searchLookup = createQueryShardContext("uuid", null, null).lookup();
+        assertEquals(SHARD_ID, searchLookup.shardId());
+    }
+
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
         return createQueryShardContext(indexUuid, clusterAlias, null);
     }
@@ -343,7 +364,7 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         }
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
-            0,
+            SHARD_ID,
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE,
             null,

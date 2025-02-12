@@ -32,14 +32,15 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 
 import java.io.IOException;
@@ -123,18 +124,17 @@ public class MultiBucketConsumerService {
      * It is used by aggregators to limit the number of bucket creation during
      * {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class MultiBucketConsumer implements IntConsumer {
         private final int limit;
         private final CircuitBreaker breaker;
 
-        // aggregations execute in a single thread for both sequential
-        // and concurrent search, so no atomic here
+        // count is currently only updated in final reduce phase which is executed in single thread for both concurrent and non-concurrent
+        // search
         private int count;
-
-        // will be updated by multiple threads in concurrent search
-        // hence making it as LongAdder
+        // will be updated by multiple threads in concurrent search hence making it as LongAdder
         private final LongAdder callCount;
         private volatile boolean circuitBreakerTripped;
         private final int availProcessors;

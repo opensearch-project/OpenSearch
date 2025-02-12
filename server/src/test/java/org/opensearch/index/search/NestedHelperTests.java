@@ -43,8 +43,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
@@ -56,6 +56,8 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+
+import static org.opensearch.index.mapper.FieldTypeTestCase.MOCK_QSC_ENABLE_INDEX_DOC_VALUES;
 
 public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
 
@@ -132,28 +134,28 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testTermsQuery() {
-        Query termsQuery = mapperService.fieldType("foo").termsQuery(Collections.singletonList("bar"), null);
+        Query termsQuery = mapperService.fieldType("foo").termsQuery(Collections.singletonList("bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES);
         assertFalse(new NestedHelper(mapperService).mightMatchNestedDocs(termsQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested_missing"));
 
-        termsQuery = mapperService.fieldType("nested1.foo").termsQuery(Collections.singletonList("bar"), null);
+        termsQuery = mapperService.fieldType("nested1.foo").termsQuery(Collections.singletonList("bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(termsQuery));
         assertFalse(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested_missing"));
 
-        termsQuery = mapperService.fieldType("nested2.foo").termsQuery(Collections.singletonList("bar"), null);
+        termsQuery = mapperService.fieldType("nested2.foo").termsQuery(Collections.singletonList("bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(termsQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested_missing"));
 
-        termsQuery = mapperService.fieldType("nested3.foo").termsQuery(Collections.singletonList("bar"), null);
+        termsQuery = mapperService.fieldType("nested3.foo").termsQuery(Collections.singletonList("bar"), MOCK_QSC_ENABLE_INDEX_DOC_VALUES);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(termsQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested2"));

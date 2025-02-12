@@ -33,7 +33,9 @@
 package org.opensearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.index.query.IntervalFilterScript;
 import org.opensearch.index.similarity.ScriptedSimilarity.Doc;
 import org.opensearch.index.similarity.ScriptedSimilarity.Field;
@@ -42,8 +44,10 @@ import org.opensearch.index.similarity.ScriptedSimilarity.Term;
 import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -57,14 +61,14 @@ import static java.util.Collections.emptyMap;
 
 /**
  * A mocked script engine that can be used for testing purpose.
- *
+ * <p>
  * This script engine allows to define a set of predefined scripts that basically a combination of a key and a
  * function:
- *
+ * <p>
  * The key can be anything as long as it is a {@link String} and is used to resolve the scripts
  * at compilation time. For inline scripts, the key can be a description of the script. For stored and file scripts,
  * the source must match a key in the predefined set of scripts.
- *
+ * <p>
  * The function is used to provide the result of the script execution and can return anything.
  */
 public class MockScriptEngine implements ScriptEngine {
@@ -280,7 +284,45 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(IntervalFilterScript.class)) {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(DerivedFieldScript.class)) {
+            DerivedFieldScript.Factory factory = new DerivedFieldScript.Factory() {
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+
+                @Override
+                public DerivedFieldScript.LeafFactory newFactory(Map<String, Object> derivedFieldParams, SearchLookup lookup) {
+                    return ctx -> new DerivedFieldScript(derivedFieldParams, lookup, ctx) {
+                        @Override
+                        public void execute() {
+                            Map<String, Object> vars = new HashMap<>(derivedFieldParams);
+                            SourceLookup sourceLookup = lookup.source();
+                            vars.put("params", derivedFieldParams);
+                            vars.put("_source", sourceLookup.loadSourceIfNeeded());
+                            Object result = script.apply(vars);
+                            if (result instanceof ArrayList) {
+                                for (Object v : ((ArrayList<?>) result)) {
+                                    if (v instanceof HashMap) {
+                                        addEmittedValue(new Tuple(((HashMap<?, ?>) v).get("lat"), ((HashMap<?, ?>) v).get("lon")));
+                                    } else {
+                                        addEmittedValue(v);
+                                    }
+                                }
+                            } else {
+                                if (result instanceof HashMap) {
+                                    addEmittedValue(new Tuple(((HashMap<?, ?>) result).get("lat"), ((HashMap<?, ?>) result).get("lon")));
+                                } else {
+                                    addEmittedValue(result);
+                                }
+                            }
+                        }
+                    };
+                }
+            };
+            return context.factoryClazz.cast(factory);
         }
+
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {
             return context.factoryClazz.cast(compiler.compile(script::apply, params));
@@ -624,7 +666,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+        public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup, IndexSearcher indexSearcher) {
             return new ScoreScript.LeafFactory() {
                 @Override
                 public boolean needs_score() {
@@ -634,7 +676,7 @@ public class MockScriptEngine implements ScriptEngine {
                 @Override
                 public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
                     Scorable[] scorerHolder = new Scorable[1];
-                    return new ScoreScript(params, lookup, ctx) {
+                    return new ScoreScript(params, lookup, indexSearcher, ctx) {
                         @Override
                         public double execute(ExplanationHolder explanation) {
                             Map<String, Object> vars = new HashMap<>(getParams());

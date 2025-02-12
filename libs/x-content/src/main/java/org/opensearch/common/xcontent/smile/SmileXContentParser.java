@@ -33,10 +33,11 @@
 package org.opensearch.common.xcontent.smile;
 
 import com.fasterxml.jackson.core.JsonParser;
-import org.opensearch.core.xcontent.DeprecationHandler;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
+
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContentParser;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 
 public class SmileXContentParser extends JsonXContentParser {
 

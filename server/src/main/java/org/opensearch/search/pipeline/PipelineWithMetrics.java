@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
-import static org.opensearch.ingest.ConfigurationUtils.TAG_KEY;
 import static org.opensearch.ingest.ConfigurationUtils.IGNORE_FAILURE_KEY;
+import static org.opensearch.ingest.ConfigurationUtils.TAG_KEY;
 import static org.opensearch.ingest.Pipeline.DESCRIPTION_KEY;
 import static org.opensearch.ingest.Pipeline.VERSION_KEY;
 

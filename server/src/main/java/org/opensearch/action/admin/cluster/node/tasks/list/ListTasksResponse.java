@@ -38,17 +38,18 @@ import org.opensearch.action.support.tasks.BaseTasksResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.core.ParseField;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
@@ -64,8 +65,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
 /**
  * Returns the list of tasks currently running on the nodes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ListTasksResponse extends BaseTasksResponse implements ToXContentObject {
     private static final String TASKS = "tasks";
 
@@ -262,6 +264,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 }

@@ -40,13 +40,13 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
@@ -101,9 +101,9 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
-        /**
-         * Check if we can use a simple {@link SortedSetSortField} compatible with index sorting and
-         * returns a custom sort field otherwise.
+        /*
+          Check if we can use a simple {@link SortedSetSortField} compatible with index sorting and
+          returns a custom sort field otherwise.
          */
         if (nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)

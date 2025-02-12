@@ -31,47 +31,41 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.action.ActionFuture;
+import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.Client;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
 import org.opensearch.index.snapshots.blobstore.IndexShardSnapshot;
+import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
+import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.RepositoryShardId;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
-
-import org.opensearch.action.ActionRunnable;
-import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.common.UUIDs;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
-import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
-import org.opensearch.repositories.IndexId;
-import org.opensearch.repositories.RepositoryShardId;
-import org.opensearch.repositories.blobstore.BlobStoreRepository;
-
-import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
 
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -132,7 +126,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCloneSnapshotIndex() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         createRepository(repoName, "fs");
@@ -162,10 +156,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testCloneShallowSnapshotIndex() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final String remoteStoreRepoName = "remote-store-repo-name";
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName));
-        internalCluster().startDataOnlyNode();
+        final Path remoteStoreRepoPath = randomRepoPath();
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName, remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName, remoteStoreRepoPath));
 
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
@@ -174,9 +168,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
         final Path shallowSnapshotRepoPath = randomRepoPath();
         createRepository(shallowSnapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(shallowSnapshotRepoPath));
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
@@ -209,19 +200,19 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testShallowCloneNameAvailability() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final String remoteStoreRepoName = "remote-store-repo-name";
+        final Path remoteStorePath = randomRepoPath().toAbsolutePath();
         internalCluster().startClusterManagerOnlyNode(
-            Settings.builder().put(LARGE_SNAPSHOT_POOL_SETTINGS).put(remoteStoreClusterSettings(remoteStoreRepoName)).build()
+            Settings.builder()
+                .put(LARGE_SNAPSHOT_POOL_SETTINGS)
+                .put(remoteStoreClusterSettings(remoteStoreRepoName, remoteStorePath))
+                .build()
         );
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName, remoteStorePath));
 
         final String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
         final Path shallowSnapshotRepoPath = randomRepoPath();
         createRepository(shallowSnapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(shallowSnapshotRepoPath));
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
@@ -246,17 +237,14 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testCloneAfterRepoShallowSettingEnabled() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final String remoteStoreRepoName = "remote-store-repo-name";
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName));
-        internalCluster().startDataOnlyNode();
+        final Path remoteStoreRepoPath = randomRepoPath();
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName, remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName, remoteStoreRepoPath));
 
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
         createRepository(snapshotRepoName, "fs", snapshotRepoPath);
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
@@ -283,17 +271,14 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testCloneAfterRepoShallowSettingDisabled() throws Exception {
         disableRepoConsistencyCheck("This test uses remote store repository");
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         final String remoteStoreRepoName = "remote-store-repo-name";
-        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName));
-        internalCluster().startDataOnlyNode();
+        final Path remoteStoreRepoPath = randomRepoPath();
+        internalCluster().startClusterManagerOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName, remoteStoreRepoPath));
+        internalCluster().startDataOnlyNode(remoteStoreClusterSettings(remoteStoreRepoName, remoteStoreRepoPath));
 
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
         createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(snapshotRepoPath));
-
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
 
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
@@ -332,7 +317,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexRandomDocs(indexName, randomIntBetween(20, 100));
 
         final String targetSnapshot = "target-snapshot";
-        blockNodeOnAnyFiles(repoName, clusterManagerName);
+        blockClusterManagerOnWriteIndexFile(repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, targetSnapshot, indexName);
         waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
         assertFalse(cloneFuture.isDone());
@@ -440,7 +425,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testDeletePreventsClone() throws Exception {
-        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
@@ -453,7 +438,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexRandomDocs(indexName, randomIntBetween(20, 100));
 
         final String targetSnapshot = "target-snapshot";
-        blockNodeOnAnyFiles(repoName, clusterManagerName);
+        blockClusterManagerOnWriteIndexFile(repoName);
         final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, sourceSnapshot);
         waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
         assertFalse(deleteFuture.isDone());
@@ -605,7 +590,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testExceptionDuringShardClone() throws Exception {
         // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
-        internalCluster().startClusterManagerOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -616,7 +601,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repoName, sourceSnapshot);
 
         final String targetSnapshot = "target-snapshot";
-        blockClusterManagerFromFinalizingSnapshotOnSnapFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture = startCloneFromDataNode(repoName, sourceSnapshot, targetSnapshot, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
         final String clusterManagerNode = internalCluster().getClusterManagerName();
@@ -694,7 +679,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartCloneWithSuccessfulShardClonePendingFinalization() throws Exception {
-        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");

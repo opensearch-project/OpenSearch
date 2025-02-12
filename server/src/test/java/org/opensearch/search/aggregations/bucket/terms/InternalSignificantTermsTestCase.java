@@ -114,7 +114,7 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
     @Override
     protected InternalSignificantTerms createUnmappedInstance(String name, Map<String, Object> metadata) {
         InternalSignificantTerms<?, ?> testInstance = createTestInstance(name, metadata);
-        return new UnmappedSignificantTerms(name, testInstance.requiredSize, testInstance.minDocCount, metadata);
+        return new UnmappedSignificantTerms(name, testInstance.bucketCountThresholds, metadata);
     }
 
     @Override

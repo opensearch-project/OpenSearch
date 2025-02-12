@@ -32,8 +32,8 @@
 
 package org.opensearch.common.xcontent;
 
-import org.opensearch.core.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.XContentLocation;
 
@@ -54,7 +54,7 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
     /**
      * The logger to which to send deprecation messages.
-     *
+     * <p>
      * This uses ParseField's logger because that is the logger that
      * we have been using for many releases for deprecated fields.
      * Changing that will require some research to make super duper

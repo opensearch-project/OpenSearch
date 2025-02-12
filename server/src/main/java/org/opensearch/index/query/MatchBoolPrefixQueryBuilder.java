@@ -34,13 +34,13 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.support.QueryParsers;
@@ -61,7 +61,7 @@ import static org.opensearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
  *
  * @opensearch.internal
  */
-public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolPrefixQueryBuilder> {
+public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolPrefixQueryBuilder> implements WithFieldName {
 
     public static final String NAME = "match_bool_prefix";
 
@@ -127,6 +127,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     /** Returns the field name used in this query. */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }
@@ -176,7 +177,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     @Deprecated
-    /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
+    /* Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
     public MatchBoolPrefixQueryBuilder fuzziness(Object fuzziness) {
         this.fuzziness = Fuzziness.build(fuzziness);
         return this;

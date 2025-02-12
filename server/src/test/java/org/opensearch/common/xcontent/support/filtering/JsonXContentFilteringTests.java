@@ -32,8 +32,8 @@
 
 package org.opensearch.common.xcontent.support.filtering;
 
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class JsonXContentFilteringTests extends AbstractXContentFilteringTestCase {

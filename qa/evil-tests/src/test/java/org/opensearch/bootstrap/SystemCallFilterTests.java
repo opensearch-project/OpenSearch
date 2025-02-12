@@ -41,6 +41,7 @@ public class SystemCallFilterTests extends OpenSearchTestCase {
     /** command to try to run in tests */
     static final String EXECUTABLE = Constants.WINDOWS ? "calc" : "ls";
 
+    @SuppressWarnings("removal")
     @Override
     public void setUp() throws Exception {
         super.setUp();

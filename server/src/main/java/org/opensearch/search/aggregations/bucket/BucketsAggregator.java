@@ -32,9 +32,9 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorBase;
@@ -43,6 +43,7 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.AggregationPath;
@@ -130,9 +131,23 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
+     * Utility method to collect doc count in the given bucket (identified by the bucket ordinal)
+     * After collecting doc count, invoke collectStarTreeEntry() for sub-collectors to update their relevant buckets
+     */
+    public final void collectStarTreeBucket(StarTreeBucketCollector collector, long docCount, long bucketOrd, int entryBit)
+        throws IOException {
+        if (docCounts.increment(bucketOrd, docCount) == docCount) {
+            multiBucketConsumer.accept(0);
+        }
+        for (StarTreeBucketCollector subCollector : collector.getSubCollectors()) {
+            subCollector.collectStarTreeEntry(entryBit, bucketOrd);
+        }
+    }
+
+    /**
      * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}  to merge the actual
      * ordinals and doc ID deltas.
-     *
+     * <p>
      * Refer to that method for documentation about the merge map.
      *
      * @deprecated use {@link mergeBuckets(long, LongUnaryOperator)}
@@ -146,7 +161,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *
      *  @param mergeMap a unary operator which maps a bucket's ordinal to the ordinal it should be merged with.
      *  If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
-     *
+     * <p>
      * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(LongUnaryOperator)} to
      * merge the actual ordinals and doc ID deltas.
      */
@@ -221,10 +236,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
         InternalAggregations[] result = new InternalAggregations[bucketOrdsToCollect.length];
         for (int ord = 0; ord < bucketOrdsToCollect.length; ord++) {
-            InternalAggregation[] slice = new InternalAggregation[subAggregators.length];
-            for (int i = 0; i < subAggregators.length; i++) {
-                slice[i] = aggregations[i][ord];
-            }
             final int thisOrd = ord;
             result[ord] = InternalAggregations.from(new AbstractList<InternalAggregation>() {
                 @Override

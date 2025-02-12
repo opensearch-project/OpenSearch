@@ -35,8 +35,8 @@ package org.opensearch.client.sniff.documentation;
 import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.Node;
 import org.opensearch.client.RestClient;
-import org.opensearch.client.sniff.OpenSearchNodesSniffer;
 import org.opensearch.client.sniff.NodesSniffer;
+import org.opensearch.client.sniff.OpenSearchNodesSniffer;
 import org.opensearch.client.sniff.SniffOnFailureListener;
 import org.opensearch.client.sniff.Sniffer;
 
@@ -49,15 +49,15 @@ import java.util.concurrent.TimeUnit;
  * You need to wrap your code between two tags like:
  * // tag::example[]
  * // end::example[]
- *
+ * <p>
  * Where example is your tag name.
- *
+ * <p>
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
  * include-tagged::{doc-tests}/SnifferDocumentation.java[example]
  * --------------------------------------------------
- *
+ * <p>
  * Note that this is not a test class as we are only interested in testing that docs snippets compile. We don't want
  * to send requests to a node and we don't even have the tools to do it.
  */

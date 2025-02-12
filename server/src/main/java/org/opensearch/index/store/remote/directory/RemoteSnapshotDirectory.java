@@ -8,13 +8,6 @@
 
 package org.opensearch.index.store.remote.directory;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
@@ -30,6 +23,13 @@ import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * a Directory implementation that can read directly from index snapshot stored remotely in a blob store repository.
  * This implementation is following this design https://github.com/opensearch-project/OpenSearch/issues/4033
@@ -38,7 +38,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
  */
 public final class RemoteSnapshotDirectory extends Directory {
 
-    public static final Version SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION = LegacyESVersion.V_6_0_0;
+    public static final Version SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION = LegacyESVersion.V_7_2_0;
 
     private static final String VIRTUAL_FILE_PREFIX = BlobStoreRepository.VIRTUAL_DATA_BLOB_PREFIX;
 

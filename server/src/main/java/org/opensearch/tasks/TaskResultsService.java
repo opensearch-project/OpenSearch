@@ -37,15 +37,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.client.Client;
-import org.opensearch.client.OriginSettingClient;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -53,13 +49,16 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.Streams;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.util.io.Streams;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.OriginSettingClient;
+import org.opensearch.transport.client.Requests;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -86,7 +85,7 @@ public class TaskResultsService {
 
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
 
-    public static final int TASK_RESULT_MAPPING_VERSION = 4; // must match version in task-index-mapping.json
+    public static final int TASK_RESULT_MAPPING_VERSION = 5; // must match version in task-index-mapping.json
 
     /**
      * The backoff policy to use when saving a task result fails. The total wait
@@ -146,7 +145,7 @@ public class TaskResultsService {
                 client.admin()
                     .indices()
                     .preparePutMapping(TASK_INDEX)
-                    .setSource(taskResultIndexMapping(), XContentType.JSON)
+                    .setSource(taskResultIndexMapping(), MediaTypeRegistry.JSON)
                     .execute(ActionListener.delegateFailure(listener, (l, r) -> doStoreResult(taskResult, listener)));
             } else {
                 doStoreResult(taskResult, listener);

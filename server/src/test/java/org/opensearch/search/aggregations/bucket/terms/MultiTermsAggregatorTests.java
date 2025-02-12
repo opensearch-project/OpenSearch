@@ -17,19 +17,19 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.hamcrest.MatcherAssert;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.mapper.BooleanFieldMapper;
@@ -41,7 +41,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
@@ -65,6 +64,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.LeafDocLookup;
 import org.opensearch.test.TestSearchContext;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -125,6 +125,19 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     };
 
     private static final Consumer<MultiTermsAggregationBuilder> NONE_DECORATOR = null;
+
+    private static final Consumer<InternalMultiTerms> IP_AND_KEYWORD_DESC_ORDER_VERIFY = h -> {
+        MatcherAssert.assertThat(h.getBuckets(), hasSize(3));
+        MatcherAssert.assertThat(h.getBuckets().get(0).getKey(), contains(equalTo("a"), equalTo("192.168.0.0")));
+        MatcherAssert.assertThat(h.getBuckets().get(0).getKeyAsString(), equalTo("a|192.168.0.0"));
+        MatcherAssert.assertThat(h.getBuckets().get(0).getDocCount(), equalTo(2L));
+        MatcherAssert.assertThat(h.getBuckets().get(1).getKey(), contains(equalTo("b"), equalTo("192.168.0.1")));
+        MatcherAssert.assertThat(h.getBuckets().get(1).getKeyAsString(), equalTo("b|192.168.0.1"));
+        MatcherAssert.assertThat(h.getBuckets().get(1).getDocCount(), equalTo(1L));
+        MatcherAssert.assertThat(h.getBuckets().get(2).getKey(), contains(equalTo("c"), equalTo("192.168.0.2")));
+        MatcherAssert.assertThat(h.getBuckets().get(2).getKeyAsString(), equalTo("c|192.168.0.2"));
+        MatcherAssert.assertThat(h.getBuckets().get(2).getDocCount(), equalTo(1L));
+    };
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
@@ -672,8 +685,48 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    public void testIpAndKeyword() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), fieldConfigs(asList(KEYWORD_FIELD, IP_FIELD)), NONE_DECORATOR, iw -> {
+    public void testIpAndKeywordDefaultDescOrder() throws IOException {
+        ipAndKeywordTest(NONE_DECORATOR, IP_AND_KEYWORD_DESC_ORDER_VERIFY);
+    }
+
+    public void testIpAndKeywordWithBucketCountSameAsSize() throws IOException {
+        ipAndKeywordTest(multiTermsAggregationBuilder -> {
+            multiTermsAggregationBuilder.minDocCount(0);
+            multiTermsAggregationBuilder.size(3);
+            multiTermsAggregationBuilder.order(BucketOrder.compound(BucketOrder.count(false)));
+        }, IP_AND_KEYWORD_DESC_ORDER_VERIFY);
+    }
+
+    public void testIpAndKeywordWithBucketCountGreaterThanSize() throws IOException {
+        ipAndKeywordTest(multiTermsAggregationBuilder -> {
+            multiTermsAggregationBuilder.minDocCount(0);
+            multiTermsAggregationBuilder.size(10);
+            multiTermsAggregationBuilder.order(BucketOrder.compound(BucketOrder.count(false)));
+        }, IP_AND_KEYWORD_DESC_ORDER_VERIFY);
+    }
+
+    public void testIpAndKeywordAscOrder() throws IOException {
+        ipAndKeywordTest(multiTermsAggregationBuilder -> {
+            multiTermsAggregationBuilder.minDocCount(0);
+            multiTermsAggregationBuilder.size(3);
+            multiTermsAggregationBuilder.order(BucketOrder.compound(BucketOrder.count(true)));
+        }, h -> {
+            MatcherAssert.assertThat(h.getBuckets(), hasSize(3));
+            MatcherAssert.assertThat(h.getBuckets().get(0).getKey(), contains(equalTo("b"), equalTo("192.168.0.1")));
+            MatcherAssert.assertThat(h.getBuckets().get(0).getKeyAsString(), equalTo("b|192.168.0.1"));
+            MatcherAssert.assertThat(h.getBuckets().get(0).getDocCount(), equalTo(1L));
+            MatcherAssert.assertThat(h.getBuckets().get(1).getKey(), contains(equalTo("c"), equalTo("192.168.0.2")));
+            MatcherAssert.assertThat(h.getBuckets().get(1).getKeyAsString(), equalTo("c|192.168.0.2"));
+            MatcherAssert.assertThat(h.getBuckets().get(1).getDocCount(), equalTo(1L));
+            MatcherAssert.assertThat(h.getBuckets().get(2).getKey(), contains(equalTo("a"), equalTo("192.168.0.0")));
+            MatcherAssert.assertThat(h.getBuckets().get(2).getKeyAsString(), equalTo("a|192.168.0.0"));
+            MatcherAssert.assertThat(h.getBuckets().get(2).getDocCount(), equalTo(2L));
+        });
+    }
+
+    private void ipAndKeywordTest(Consumer<MultiTermsAggregationBuilder> builderDecorator, Consumer<InternalMultiTerms> verify)
+        throws IOException {
+        testAggregation(new MatchAllDocsQuery(), fieldConfigs(asList(KEYWORD_FIELD, IP_FIELD)), builderDecorator, iw -> {
             iw.addDocument(
                 asList(
                     new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
@@ -698,18 +751,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                     new SortedDocValuesField(IP_FIELD, new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.0.0"))))
                 )
             );
-        }, h -> {
-            MatcherAssert.assertThat(h.getBuckets(), hasSize(3));
-            MatcherAssert.assertThat(h.getBuckets().get(0).getKey(), contains(equalTo("a"), equalTo("192.168.0.0")));
-            MatcherAssert.assertThat(h.getBuckets().get(0).getKeyAsString(), equalTo("a|192.168.0.0"));
-            MatcherAssert.assertThat(h.getBuckets().get(0).getDocCount(), equalTo(2L));
-            MatcherAssert.assertThat(h.getBuckets().get(1).getKey(), contains(equalTo("b"), equalTo("192.168.0.1")));
-            MatcherAssert.assertThat(h.getBuckets().get(1).getKeyAsString(), equalTo("b|192.168.0.1"));
-            MatcherAssert.assertThat(h.getBuckets().get(1).getDocCount(), equalTo(1L));
-            MatcherAssert.assertThat(h.getBuckets().get(2).getKey(), contains(equalTo("c"), equalTo("192.168.0.2")));
-            MatcherAssert.assertThat(h.getBuckets().get(2).getKeyAsString(), equalTo("c|192.168.0.2"));
-            MatcherAssert.assertThat(h.getBuckets().get(2).getDocCount(), equalTo(1L));
-        });
+        }, verify);
     }
 
     public void testEmpty() throws IOException {

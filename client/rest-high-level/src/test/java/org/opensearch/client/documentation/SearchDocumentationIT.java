@@ -34,7 +34,6 @@ package org.opensearch.client.documentation;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
@@ -65,13 +64,15 @@ import org.opensearch.client.core.CountRequest;
 import org.opensearch.client.core.CountResponse;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.client.indices.CreateIndexResponse;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
-import org.opensearch.core.common.text.Text;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.text.Text;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -86,7 +87,6 @@ import org.opensearch.index.rankeval.RankEvalSpec;
 import org.opensearch.index.rankeval.RatedDocument;
 import org.opensearch.index.rankeval.RatedRequest;
 import org.opensearch.index.rankeval.RatedSearchHit;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
 import org.opensearch.script.mustache.MultiSearchTemplateResponse;
@@ -252,9 +252,9 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             // tag::search-hits-info
             TotalHits totalHits = hits.getTotalHits();
             // the total number of hits, must be interpreted in the context of totalHits.relation
-            long numHits = totalHits.value;
+            long numHits = totalHits.value();
             // whether the number of hits is accurate (EQUAL_TO) or a lower bound of the total (GREATER_THAN_OR_EQUAL_TO)
-            TotalHits.Relation relation = totalHits.relation;
+            TotalHits.Relation relation = totalHits.relation();
             float maxScore = hits.getMaxScore();
             // end::search-hits-info
             // tag::search-hits-singleHit
@@ -319,9 +319,9 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "company", "OpenSearch", "age", 20));
-            request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "company", "OpenSearch", "age", 30));
-            request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "company", "OpenSearch", "age", 40));
+            request.add(new IndexRequest("posts").id("1").source(MediaTypeRegistry.JSON, "company", "OpenSearch", "age", 20));
+            request.add(new IndexRequest("posts").id("2").source(MediaTypeRegistry.JSON, "company", "OpenSearch", "age", 30));
+            request.add(new IndexRequest("posts").id("3").source(MediaTypeRegistry.JSON, "company", "OpenSearch", "age", 40));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -392,10 +392,10 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "user", "foobar"));
-            request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "user", "quxx"));
-            request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "user", "quzz"));
-            request.add(new IndexRequest("posts").id("4").source(XContentType.JSON, "user", "corge"));
+            request.add(new IndexRequest("posts").id("1").source(MediaTypeRegistry.JSON, "user", "foobar"));
+            request.add(new IndexRequest("posts").id("2").source(MediaTypeRegistry.JSON, "user", "quxx"));
+            request.add(new IndexRequest("posts").id("3").source(MediaTypeRegistry.JSON, "user", "quzz"));
+            request.add(new IndexRequest("posts").id("4").source(MediaTypeRegistry.JSON, "user", "corge"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -438,7 +438,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             request.add(
                 new IndexRequest("posts").id("1")
                     .source(
-                        XContentType.JSON,
+                        MediaTypeRegistry.JSON,
                         "title",
                         "In which order are my OpenSearch queries executed?",
                         "user",
@@ -450,7 +450,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             request.add(
                 new IndexRequest("posts").id("2")
                     .source(
-                        XContentType.JSON,
+                        MediaTypeRegistry.JSON,
                         "title",
                         "Current status and upcoming changes in OpenSearch",
                         "user",
@@ -462,7 +462,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             request.add(
                 new IndexRequest("posts").id("3")
                     .source(
-                        XContentType.JSON,
+                        MediaTypeRegistry.JSON,
                         "title",
                         "The Future of Federated Search in OpenSearch",
                         "user",
@@ -525,7 +525,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
     public void testSearchRequestProfiling() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
-            IndexRequest request = new IndexRequest("posts").id("1").source(XContentType.JSON, "tags", "opensearch", "comments", 123);
+            IndexRequest request = new IndexRequest("posts").id("1").source(MediaTypeRegistry.JSON, "tags", "opensearch", "comments", 123);
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
             IndexResponse indexResponse = client.index(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
@@ -597,13 +597,15 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         {
             BulkRequest request = new BulkRequest();
             request.add(
-                new IndexRequest("posts").id("1").source(XContentType.JSON, "title", "In which order are my OpenSearch queries executed?")
+                new IndexRequest("posts").id("1")
+                    .source(MediaTypeRegistry.JSON, "title", "In which order are my OpenSearch queries executed?")
             );
             request.add(
-                new IndexRequest("posts").id("2").source(XContentType.JSON, "title", "Current status and upcoming changes in OpenSearch")
+                new IndexRequest("posts").id("2")
+                    .source(MediaTypeRegistry.JSON, "title", "Current status and upcoming changes in OpenSearch")
             );
             request.add(
-                new IndexRequest("posts").id("3").source(XContentType.JSON, "title", "The Future of Federated Search in OpenSearch")
+                new IndexRequest("posts").id("3").source(MediaTypeRegistry.JSON, "title", "The Future of Federated Search in OpenSearch")
             );
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
@@ -623,7 +625,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             String scrollId = searchResponse.getScrollId(); // <3>
             SearchHits hits = searchResponse.getHits();  // <4>
             // end::search-scroll-init
-            assertEquals(3, hits.getTotalHits().value);
+            assertEquals(3, hits.getTotalHits().value());
             assertEquals(1, hits.getHits().length);
             assertNotNull(scrollId);
 
@@ -633,7 +635,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             SearchResponse searchScrollResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
             scrollId = searchScrollResponse.getScrollId();  // <2>
             hits = searchScrollResponse.getHits(); // <3>
-            assertEquals(3, hits.getTotalHits().value);
+            assertEquals(3, hits.getTotalHits().value());
             assertEquals(1, hits.getHits().length);
             assertNotNull(scrollId);
             // end::search-scroll2
@@ -663,7 +665,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             // end::search-scroll-execute-sync
 
             assertEquals(0, searchResponse.getFailedShards());
-            assertEquals(3L, searchResponse.getHits().getTotalHits().value);
+            assertEquals(3L, searchResponse.getHits().getTotalHits().value());
 
             // tag::search-scroll-execute-listener
             ActionListener<SearchResponse> scrollListener =
@@ -800,7 +802,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         // end::search-template-response
 
         assertNotNull(searchResponse);
-        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value() > 0);
 
         // tag::render-search-template-request
         request.setSimulate(true); // <1>
@@ -850,7 +852,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
 
         SearchResponse searchResponse = response.getResponse();
         assertNotNull(searchResponse);
-        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value() > 0);
 
         // tag::search-template-execute-listener
         ActionListener<SearchTemplateResponse> listener = new ActionListener<SearchTemplateResponse>() {
@@ -927,7 +929,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         assertEquals(searchTerms.length, multiResponse.getResponses().length);
         assertNotNull(multiResponse.getResponses()[0]);
         SearchResponse searchResponse = multiResponse.getResponses()[0].getResponse().getResponse();
-        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value() > 0);
 
     }
 
@@ -967,7 +969,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         assertEquals(searchTerms.length, multiResponse.getResponses().length);
         assertNotNull(multiResponse.getResponses()[0]);
         SearchResponse searchResponse = multiResponse.getResponses()[0].getResponse().getResponse();
-        assertTrue(searchResponse.getHits().getTotalHits().value > 0);
+        assertTrue(searchResponse.getHits().getTotalHits().value() > 0);
 
         // tag::multi-search-template-execute-listener
         ActionListener<MultiSearchTemplateResponse> listener = new ActionListener<MultiSearchTemplateResponse>() {
@@ -996,7 +998,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
 
     protected void registerQueryScript(RestClient restClient) throws IOException {
         // tag::register-script
-        Request scriptRequest = new Request("POST", "_scripts/title_search");
+        Request scriptRequest = new Request("POST", "/_scripts/title_search");
         scriptRequest.setJsonEntity(
             "{" +
             "  \"script\": {" +
@@ -1248,11 +1250,11 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             MultiSearchResponse.Item firstResponse = response.getResponses()[0];   // <1>
             assertNull(firstResponse.getFailure());                                // <2>
             SearchResponse searchResponse = firstResponse.getResponse();           // <3>
-            assertEquals(4, searchResponse.getHits().getTotalHits().value);
+            assertEquals(4, searchResponse.getHits().getTotalHits().value());
             MultiSearchResponse.Item secondResponse = response.getResponses()[1];  // <4>
             assertNull(secondResponse.getFailure());
             searchResponse = secondResponse.getResponse();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+            assertEquals(1, searchResponse.getHits().getTotalHits().value());
             // end::multi-search-response
 
             // tag::multi-search-execute-listener
@@ -1320,7 +1322,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         bulkRequest.add(
             new IndexRequest("posts").id("1")
                 .source(
-                    XContentType.JSON,
+                    MediaTypeRegistry.JSON,
                     "id",
                     1,
                     "title",
@@ -1334,7 +1336,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         bulkRequest.add(
             new IndexRequest("posts").id("2")
                 .source(
-                    XContentType.JSON,
+                    MediaTypeRegistry.JSON,
                     "id",
                     2,
                     "title",
@@ -1348,7 +1350,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         bulkRequest.add(
             new IndexRequest("posts").id("3")
                 .source(
-                    XContentType.JSON,
+                    MediaTypeRegistry.JSON,
                     "id",
                     3,
                     "title",
@@ -1360,8 +1362,8 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
                 )
         );
 
-        bulkRequest.add(new IndexRequest("authors").id("1").source(XContentType.JSON, "id", 1, "user", "foobar"));
-        bulkRequest.add(new IndexRequest("contributors").id("1").source(XContentType.JSON, "id", 1, "user", "quuz"));
+        bulkRequest.add(new IndexRequest("authors").id("1").source(MediaTypeRegistry.JSON, "id", 1, "user", "foobar"));
+        bulkRequest.add(new IndexRequest("contributors").id("1").source(MediaTypeRegistry.JSON, "id", 1, "user", "quuz"));
 
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -1472,7 +1474,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         bulkRequest.add(
             new IndexRequest("blog").id("1")
                 .source(
-                    XContentType.JSON,
+                    MediaTypeRegistry.JSON,
                     "title",
                     "Doubling Down on Open?",
                     "user",
@@ -1484,7 +1486,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         bulkRequest.add(
             new IndexRequest("blog").id("2")
                 .source(
-                    XContentType.JSON,
+                    MediaTypeRegistry.JSON,
                     "title",
                     "XYZ Joins Forces with OpenSearch",
                     "user",
@@ -1496,7 +1498,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
         bulkRequest.add(
             new IndexRequest("blog").id("3")
                 .source(
-                    XContentType.JSON,
+                    MediaTypeRegistry.JSON,
                     "title",
                     "On Net Neutrality",
                     "user",
@@ -1506,7 +1508,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
                 )
         );
 
-        bulkRequest.add(new IndexRequest("author").id("1").source(XContentType.JSON, "user", "foobar"));
+        bulkRequest.add(new IndexRequest("author").id("1").source(MediaTypeRegistry.JSON, "user", "foobar"));
 
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);

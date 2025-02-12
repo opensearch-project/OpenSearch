@@ -33,8 +33,8 @@ package org.opensearch.lucene.queries;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.tests.search.BaseRangeFieldQueryTestCase;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.tests.search.BaseRangeFieldQueryTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
@@ -43,10 +43,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CONTAINS;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROSSES;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
+import static org.opensearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CONTAINS;
+import static org.opensearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROSSES;
+import static org.opensearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
+import static org.opensearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
 
 public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRangeFieldQueryTestCase {
 

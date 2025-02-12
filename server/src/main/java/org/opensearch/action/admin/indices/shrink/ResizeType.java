@@ -32,11 +32,14 @@
 
 package org.opensearch.action.admin.indices.shrink;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * The type of the resize operation
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum ResizeType {
     SHRINK,
     SPLIT,

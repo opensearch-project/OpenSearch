@@ -33,9 +33,9 @@ package org.opensearch.search.aggregations.matrix.stats;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ObjectArray;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.Aggregator;
@@ -43,9 +43,9 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
+import org.opensearch.search.aggregations.support.ArrayValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.aggregations.support.ArrayValuesSource;
 
 import java.io.IOException;
 import java.util.Map;

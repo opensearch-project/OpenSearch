@@ -32,6 +32,7 @@
 package org.opensearch.cluster.routing;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;

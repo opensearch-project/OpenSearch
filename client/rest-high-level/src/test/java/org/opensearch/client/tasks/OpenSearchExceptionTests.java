@@ -32,8 +32,8 @@
 package org.opensearch.client.tasks;
 
 import org.opensearch.client.AbstractResponseTestCase;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;

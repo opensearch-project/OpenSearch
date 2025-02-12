@@ -39,6 +39,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -69,6 +70,11 @@ public final class RepositoriesModule {
         factories.put(
             FsRepository.TYPE,
             metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings)
+        );
+
+        factories.put(
+            ReloadableFsRepository.TYPE,
+            metadata -> new ReloadableFsRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings)
         );
 
         for (RepositoryPlugin repoPlugin : repoPlugins) {

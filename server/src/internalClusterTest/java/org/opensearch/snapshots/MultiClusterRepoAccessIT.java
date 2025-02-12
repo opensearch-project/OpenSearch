@@ -37,11 +37,11 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.NodeConfigurationSource;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
@@ -115,13 +115,15 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
         secondCluster.startClusterManagerOnlyNode();
         secondCluster.startDataOnlyNode();
-        secondCluster.client()
-            .admin()
-            .cluster()
-            .preparePutRepository(repoNameOnSecondCluster)
-            .setType("fs")
-            .setSettings(Settings.builder().put("location", repoPath))
-            .get();
+        OpenSearchIntegTestCase.putRepositoryRequestBuilder(
+            secondCluster.client().admin().cluster(),
+            repoNameOnSecondCluster,
+            "fs",
+            true,
+            Settings.builder().put("location", repoPath),
+            null,
+            false
+        ).get();
 
         createIndexWithRandomDocs("test-idx-1", randomIntBetween(1, 100));
         createFullSnapshot(repoNameOnFirstCluster, "snap-1");

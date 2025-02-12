@@ -34,9 +34,9 @@ package org.opensearch.index.query.functionscore;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.tests.search.SearchEquivalenceTestBase;
-import org.apache.lucene.search.TermQuery;
 import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 

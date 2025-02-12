@@ -33,10 +33,12 @@
 package org.opensearch.action;
 
 import org.opensearch.common.ValidationException;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Base exception for an action request validation extendable by plugins
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ActionRequestValidationException extends ValidationException {}

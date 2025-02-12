@@ -10,6 +10,7 @@ package org.opensearch.telemetry.tracing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
@@ -24,7 +25,10 @@ import java.util.Optional;
  * <p>
  * The Tracer singleton object can be retrieved using tracerManager.getTracer(). The TracerManager object
  * is created during class initialization and cannot subsequently be changed.
+ *
+ * @opensearch.internal
  */
+@InternalApi
 public class TracerFactory implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(TracerFactory.class);
@@ -58,6 +62,13 @@ public class TracerFactory implements Closeable {
         }
     }
 
+    protected TracerContextStorage<String, Span> createTracerContextStorage(
+        TracingTelemetry tracingTelemetry,
+        ThreadContext threadContext
+    ) {
+        return new ThreadContextBasedTracerContextStorage(threadContext, tracingTelemetry);
+    }
+
     private Tracer tracer(Optional<Telemetry> telemetry, ThreadContext threadContext) {
         return telemetry.map(Telemetry::getTracingTelemetry)
             .map(tracingTelemetry -> createDefaultTracer(tracingTelemetry, threadContext))
@@ -66,10 +77,7 @@ public class TracerFactory implements Closeable {
     }
 
     private Tracer createDefaultTracer(TracingTelemetry tracingTelemetry, ThreadContext threadContext) {
-        TracerContextStorage<String, Span> tracerContextStorage = new ThreadContextBasedTracerContextStorage(
-            threadContext,
-            tracingTelemetry
-        );
+        TracerContextStorage<String, Span> tracerContextStorage = createTracerContextStorage(tracingTelemetry, threadContext);
         return new DefaultTracer(tracingTelemetry, tracerContextStorage);
     }
 

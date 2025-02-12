@@ -38,14 +38,14 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
@@ -84,6 +84,10 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<
         for (int i = 0; i < 4; i++) {
             boolean cancellable = randomBoolean();
             boolean cancelled = cancellable == true ? randomBoolean() : false;
+            Long cancellationStartTime = null;
+            if (cancelled) {
+                cancellationStartTime = randomNonNegativeLong();
+            }
             tasks.add(
                 new org.opensearch.tasks.TaskInfo(
                     new TaskId(NODE_ID, (long) i),
@@ -97,7 +101,8 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<
                     cancelled,
                     new TaskId("node1", randomLong()),
                     Collections.singletonMap("x-header-of", "some-value"),
-                    null
+                    null,
+                    cancellationStartTime
                 )
             );
         }
@@ -135,6 +140,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<
             assertEquals(ti.isCancelled(), taskInfo.isCancelled());
             assertEquals(ti.getParentTaskId().getNodeId(), taskInfo.getParentTaskId().getNodeId());
             assertEquals(ti.getParentTaskId().getId(), taskInfo.getParentTaskId().getId());
+            assertEquals(ti.getCancellationStartTime(), taskInfo.getCancellationStartTime());
             FakeTaskStatus status = (FakeTaskStatus) ti.getStatus();
             assertEquals(status.code, taskInfo.getStatus().get("code"));
             assertEquals(status.status, taskInfo.getStatus().get("status"));

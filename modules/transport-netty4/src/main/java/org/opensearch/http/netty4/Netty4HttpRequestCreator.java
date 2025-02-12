@@ -32,13 +32,14 @@
 
 package org.opensearch.http.netty4;
 
+import org.opensearch.ExceptionsHelper;
+
+import java.util.List;
+
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.http.FullHttpRequest;
-import org.opensearch.ExceptionsHelper;
-
-import java.util.List;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestCreator extends MessageToMessageDecoder<FullHttpRequest> {

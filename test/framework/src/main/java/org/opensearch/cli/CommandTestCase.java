@@ -54,7 +54,7 @@ public abstract class CommandTestCase extends OpenSearchTestCase {
 
     /**
      * Runs a command with the given args.
-     *
+     * <p>
      * Output can be found in {@link #terminal}.
      */
     public String execute(String... args) throws Exception {

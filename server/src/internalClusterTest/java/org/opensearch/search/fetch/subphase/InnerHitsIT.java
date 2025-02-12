@@ -32,6 +32,8 @@
 
 package org.opensearch.search.fetch.subphase;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -54,8 +56,8 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,6 +74,7 @@ import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.nestedQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -84,7 +87,19 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class InnerHitsIT extends OpenSearchIntegTestCase {
+public class InnerHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public InnerHitsIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -173,7 +188,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         assertSearchHit(response, 1, hasId("1"));
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits().value, equalTo(2L));
+        assertThat(innerHits.getTotalHits().value(), equalTo(2L));
         assertThat(innerHits.getHits().length, equalTo(2));
         assertThat(innerHits.getAt(0).getId(), equalTo("1"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -193,7 +208,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(0).getShard(), notNullValue());
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
-        assertThat(innerHits.getTotalHits().value, equalTo(3L));
+        assertThat(innerHits.getTotalHits().value(), equalTo(3L));
         assertThat(innerHits.getHits().length, equalTo(3));
         assertThat(innerHits.getAt(0).getId(), equalTo("2"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -218,7 +233,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(response);
         innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
-        assertThat(innerHits.getTotalHits().value, equalTo(2L));
+        assertThat(innerHits.getTotalHits().value(), equalTo(2L));
         assertThat(innerHits.getHits().length, equalTo(1));
         assertThat(
             innerHits.getAt(0).getHighlightFields().get("comments.message").getFragments()[0].string(),
@@ -289,7 +304,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             SearchHit searchHit = searchResponse.getHits().getAt(i);
             assertThat(searchHit.getShard(), notNullValue());
             SearchHits inner = searchHit.getInnerHits().get("a");
-            assertThat(inner.getTotalHits().value, equalTo((long) field1InnerObjects[i]));
+            assertThat(inner.getTotalHits().value(), equalTo((long) field1InnerObjects[i]));
             for (int j = 0; j < field1InnerObjects[i] && j < size; j++) {
                 SearchHit innerHit = inner.getAt(j);
                 assertThat(innerHit.getNestedIdentity().getField().string(), equalTo("field1"));
@@ -298,7 +313,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             }
 
             inner = searchHit.getInnerHits().get("b");
-            assertThat(inner.getTotalHits().value, equalTo((long) field2InnerObjects[i]));
+            assertThat(inner.getTotalHits().value(), equalTo((long) field2InnerObjects[i]));
             for (int j = 0; j < field2InnerObjects[i] && j < size; j++) {
                 SearchHit innerHit = inner.getAt(j);
                 assertThat(innerHit.getNestedIdentity().getField().string(), equalTo("field2"));
@@ -403,13 +418,13 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         assertSearchHit(response, 1, hasId("1"));
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
+        assertThat(innerHits.getTotalHits().value(), equalTo(1L));
         assertThat(innerHits.getHits().length, equalTo(1));
         assertThat(innerHits.getAt(0).getId(), equalTo("1"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
+        assertThat(innerHits.getTotalHits().value(), equalTo(1L));
         assertThat(innerHits.getHits().length, equalTo(1));
         assertThat(innerHits.getAt(0).getId(), equalTo("1"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -434,13 +449,13 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         assertSearchHit(response, 1, hasId("1"));
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
+        assertThat(innerHits.getTotalHits().value(), equalTo(1L));
         assertThat(innerHits.getHits().length, equalTo(1));
         assertThat(innerHits.getAt(0).getId(), equalTo("1"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
         innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
+        assertThat(innerHits.getTotalHits().value(), equalTo(1L));
         assertThat(innerHits.getHits().length, equalTo(1));
         assertThat(innerHits.getAt(0).getId(), equalTo("1"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -461,7 +476,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         assertSearchHit(response, 1, hasId("2"));
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         innerHits = response.getHits().getAt(0).getInnerHits().get("comments.remarks");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
+        assertThat(innerHits.getTotalHits().value(), equalTo(1L));
         assertThat(innerHits.getHits().length, equalTo(1));
         assertThat(innerHits.getAt(0).getId(), equalTo("2"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -485,13 +500,13 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         assertSearchHit(response, 1, hasId("2"));
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
+        assertThat(innerHits.getTotalHits().value(), equalTo(1L));
         assertThat(innerHits.getHits().length, equalTo(1));
         assertThat(innerHits.getAt(0).getId(), equalTo("2"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         innerHits = innerHits.getAt(0).getInnerHits().get("remark");
-        assertThat(innerHits.getTotalHits().value, equalTo(1L));
+        assertThat(innerHits.getTotalHits().value(), equalTo(1L));
         assertThat(innerHits.getHits().length, equalTo(1));
         assertThat(innerHits.getAt(0).getId(), equalTo("2"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
@@ -561,7 +576,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getId(), equalTo("1"));
         assertThat(
             response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(),
@@ -668,7 +683,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         SearchHit hit = response.getHits().getAt(0);
         assertThat(hit.getId(), equalTo("1"));
         SearchHits messages = hit.getInnerHits().get("comments.messages");
-        assertThat(messages.getTotalHits().value, equalTo(2L));
+        assertThat(messages.getTotalHits().value(), equalTo(2L));
         assertThat(messages.getAt(0).getId(), equalTo("1"));
         assertThat(messages.getAt(0).getNestedIdentity().getField().string(), equalTo("comments.messages"));
         assertThat(messages.getAt(0).getNestedIdentity().getOffset(), equalTo(2));
@@ -690,7 +705,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         hit = response.getHits().getAt(0);
         assertThat(hit.getId(), equalTo("1"));
         messages = hit.getInnerHits().get("comments.messages");
-        assertThat(messages.getTotalHits().value, equalTo(1L));
+        assertThat(messages.getTotalHits().value(), equalTo(1L));
         assertThat(messages.getAt(0).getId(), equalTo("1"));
         assertThat(messages.getAt(0).getNestedIdentity().getField().string(), equalTo("comments.messages"));
         assertThat(messages.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
@@ -725,7 +740,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         hit = response.getHits().getAt(0);
         assertThat(hit.getId(), equalTo("1"));
         messages = hit.getInnerHits().get("comments.messages");
-        assertThat(messages.getTotalHits().value, equalTo(1L));
+        assertThat(messages.getTotalHits().value(), equalTo(1L));
         assertThat(messages.getAt(0).getId(), equalTo("1"));
         assertThat(messages.getAt(0).getNestedIdentity().getField().string(), equalTo("comments.messages"));
         assertThat(messages.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
@@ -830,22 +845,22 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
         assertAllSuccessful(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocs));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("0"));
-        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getTotalHits().value(), equalTo(2L));
         assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test1"));
         assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(1).getMatchedQueries().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getInnerHits().get("nested1").getAt(1).getMatchedQueries()[0], equalTo("test3"));
 
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getTotalHits().value(), equalTo(1L));
         assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(1).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test2"));
 
         for (int i = 2; i < numDocs; i++) {
             assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(String.valueOf(i)));
-            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getTotalHits().value, equalTo(1L));
+            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getTotalHits().value(), equalTo(1L));
             assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries().length, equalTo(1));
             assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries()[0], equalTo("test3"));
         }
@@ -876,6 +891,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("index1");
 
         // the field name (comments.message) used for source filtering should be the same as when using that field for
         // other features (like in the query dsl or aggs) in order for consistency:
@@ -889,7 +905,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         assertNoFailures(response);
         assertHitCount(response, 1);
 
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(2L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(2L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(
             response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().get("message"),
@@ -907,7 +923,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         assertNoFailures(response);
         assertHitCount(response, 1);
 
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(2L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(2L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(2));
         assertThat(
             response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().get("message"),
@@ -932,7 +948,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(0));
 
         // Check that inner hits contain _source even when it's disabled on the root request.
@@ -942,7 +958,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(2L));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value(), equalTo(2L));
         assertFalse(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().isEmpty());
     }
 
@@ -952,6 +968,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
         client().prepareIndex("index1").setId("1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
         client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
+        indexRandomForConcurrentSearch("index1", "index2");
 
         SearchResponse response = client().prepareSearch("index1", "index2")
             .setQuery(
@@ -981,6 +998,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
+        indexRandomForConcurrentSearch("index2");
         QueryBuilder query = nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
             new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)
         );
@@ -998,6 +1016,7 @@ public class InnerHitsIT extends OpenSearchIntegTestCase {
             )
             .setRefreshPolicy(IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("index2");
         SearchResponse response = client().prepareSearch("index2")
             .setQuery(
                 nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(

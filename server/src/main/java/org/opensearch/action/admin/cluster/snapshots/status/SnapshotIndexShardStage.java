@@ -32,11 +32,14 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Stage for snapshotting an Index Shard
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum SnapshotIndexShardStage {
 
     /**

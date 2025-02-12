@@ -34,9 +34,9 @@ package org.opensearch.painless;
 
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.painless.action.PainlessContextClassBindingInfo;
 import org.opensearch.painless.action.PainlessContextClassInfo;
 import org.opensearch.painless.action.PainlessContextConstructorInfo;

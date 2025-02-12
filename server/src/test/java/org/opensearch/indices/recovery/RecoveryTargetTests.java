@@ -41,11 +41,11 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.indices.replication.common.ReplicationLuceneIndex.FileMetadata;
-import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.recovery.RecoveryState.Stage;
 import org.opensearch.indices.recovery.RecoveryState.Translog;
 import org.opensearch.indices.recovery.RecoveryState.VerifyIndex;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex.FileMetadata;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.test.OpenSearchTestCase;
 

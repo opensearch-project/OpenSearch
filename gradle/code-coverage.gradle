@@ -13,13 +13,13 @@ repositories {
   gradlePluginPortal()
   // TODO: Find the way to use the repositories from RepositoriesSetupPlugin
   maven {
-    url = "https://d1nvenhzbhpy0q.cloudfront.net/snapshots/lucene/"
+    url = "https://ci.opensearch.org/ci/dbc/snapshots/lucene/"
   }
 }
 
 allprojects {
   plugins.withId('jacoco') {
-    jacoco.toolVersion = '0.8.10'
+    jacoco.toolVersion = '0.8.12'
   }
 }
 
@@ -37,7 +37,7 @@ tasks.withType(JacocoReport).configureEach {
 if (System.getProperty("tests.coverage")) {
   reporting {
     reports {
-      testCodeCoverageReport(JacocoCoverageReport) { 
+      testCodeCoverageReport(JacocoCoverageReport) {
         testType = TestSuiteType.UNIT_TEST
       }
     }
@@ -45,6 +45,6 @@ if (System.getProperty("tests.coverage")) {
 
   // Attach code coverage report task to Gradle check task
   project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
-    dependsOn tasks.named('testCodeCoverageReport', JacocoReport) 
+    dependsOn tasks.named('testCodeCoverageReport', JacocoReport)
   }
 }

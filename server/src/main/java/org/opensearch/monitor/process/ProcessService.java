@@ -39,7 +39,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.SingleObjectCache;
-import org.opensearch.node.ReportingService;
+import org.opensearch.core.service.ReportingService;
 
 /**
  * The service for the process

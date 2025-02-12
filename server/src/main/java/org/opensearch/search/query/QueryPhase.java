@@ -48,9 +48,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.EWMATrackingThreadPoolExecutor;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
@@ -67,7 +69,6 @@ import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.rescore.RescoreProcessor;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestProcessor;
-import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -88,8 +89,9 @@ import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsC
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
     // TODO: remove this property
@@ -333,13 +335,12 @@ public class QueryPhase {
         ContextIndexSearcher searcher,
         Query query,
         LinkedList<QueryCollectorContext> collectors,
+        QueryCollectorContext queryCollectorContext,
         boolean hasFilterCollector,
         boolean timeoutSet
     ) throws IOException {
-        // create the top docs collector last when the other collectors are known
-        final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-        // add the top docs collector, the first collector context in the chain
-        collectors.addFirst(topDocsFactory);
+        // add passed collector, the first collector context in the chain
+        collectors.addFirst(Objects.requireNonNull(queryCollectorContext));
 
         final Collector queryCollector;
         if (searchContext.getProfilers() != null) {
@@ -353,6 +354,9 @@ public class QueryPhase {
         try {
             searcher.search(query, queryCollector);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
+            // EarlyTerminationException is not caught in ContextIndexSearcher to allow force termination of collection. Postcollection
+            // still needs to be processed for Aggregations when early termination takes place.
+            searchContext.bucketCollectorProcessor().processPostCollection(queryCollector);
             queryResult.terminatedEarly(true);
         }
         if (searchContext.isSearchTimedOut()) {
@@ -368,7 +372,10 @@ public class QueryPhase {
         for (QueryCollectorContext ctx : collectors) {
             ctx.postProcess(queryResult);
         }
-        return topDocsFactory.shouldRescore();
+        if (queryCollectorContext instanceof RescoringQueryCollectorContext) {
+            return ((RescoringQueryCollectorContext) queryCollectorContext).shouldRescore();
+        }
+        return false;
     }
 
     /**
@@ -381,7 +388,7 @@ public class QueryPhase {
         }
         final Sort sort = sortAndFormats.sort;
         for (LeafReaderContext ctx : reader.leaves()) {
-            Sort indexSort = ctx.reader().getMetaData().getSort();
+            Sort indexSort = ctx.reader().getMetaData().sort();
             if (indexSort == null || Lucene.canEarlyTerminate(sort, indexSort) == false) {
                 return false;
             }
@@ -438,7 +445,29 @@ public class QueryPhase {
             boolean hasFilterCollector,
             boolean hasTimeout
         ) throws IOException {
-            return QueryPhase.searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+            // create the top docs collector last when the other collectors are known
+            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
+            return searchWithCollector(searchContext, searcher, query, collectors, topDocsFactory, hasFilterCollector, hasTimeout);
+        }
+
+        protected boolean searchWithCollector(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            QueryCollectorContext queryCollectorContext,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
+            return QueryPhase.searchWithCollector(
+                searchContext,
+                searcher,
+                query,
+                collectors,
+                queryCollectorContext,
+                hasFilterCollector,
+                hasTimeout
+            );
         }
     }
 }

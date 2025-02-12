@@ -8,7 +8,6 @@
 
 package org.opensearch.geo.search.aggregations.common;
 
-import org.junit.Assert;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
@@ -20,6 +19,7 @@ import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.geometry.ShapeType;
+import org.junit.Assert;
 
 import java.util.Locale;
 

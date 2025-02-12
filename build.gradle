@@ -54,8 +54,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.19.0" apply false
-  id "org.gradle.test-retry" version "1.5.4" apply false
+  id "com.diffplug.spotless" version "6.25.0" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -70,6 +69,13 @@ apply from: 'gradle/fips.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
+
+// Disable unconditional publishing of build scans
+develocity {
+  buildScan {
+    publishing.onlyIf { false }
+  }
+}
 
 // common maven publishing configuration
 allprojects {
@@ -121,8 +127,8 @@ subprojects {
           name = 'Snapshots'
           url = 'https://aws.oss.sonatype.org/content/repositories/snapshots'
           credentials {
-            username "$System.env.SONATYPE_USERNAME"
-            password "$System.env.SONATYPE_PASSWORD"
+            username = "$System.env.SONATYPE_USERNAME"
+            password = "$System.env.SONATYPE_PASSWORD"
           }
         }
       }
@@ -156,14 +162,20 @@ Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectE
   return [key, value]
 }
 
-    /**
-     * Using 'git' command line (if available), tries to fetch the commit date of the current revision
-     * @return commit date of the current revision or 0 if it is not available
-     */
+// See please https://docs.gradle.org/8.11/userguide/service_injection.html#execoperations
+interface InjectedExecOps {
+  @Inject ExecOperations getExecOps()
+}
+
+/**
+ * Using 'git' command line (if available), tries to fetch the commit date of the current revision
+ * @return commit date of the current revision or 0 if it is not available
+ */
 long gitRevisionDate = {
+  def execOps = project.objects.newInstance(InjectedExecOps)
   // Try to get last commit date as Unix timestamp
   try (ByteArrayOutputStream stdout = new ByteArrayOutputStream()) {
-     ExecResult result = project.exec(spec -> {
+     ExecResult result = execOps.execOps.exec(spec -> {
         spec.setIgnoreExitValue(true);
         spec.setStandardOutput(stdout);
         spec.commandLine("git", "log", "-1", "--format=%ct");
@@ -356,7 +368,7 @@ allprojects {
         if ((dep instanceof ProjectDependency) == false) {
           return
         }
-        Project upstreamProject = dep.dependencyProject
+        Project upstreamProject = project.project(dep.path)
         if (upstreamProject == null) {
           return
         }
@@ -375,7 +387,7 @@ allprojects {
         } else {
           // Link to non-shadowed dependant projects
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-          String externalLinkName = upstreamProject.base.archivesBaseName
+          String externalLinkName = upstreamProject.base.archivesName
           String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
           String projectRelativePath = project.relativePath(upstreamProject.buildDir)
           project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${projectRelativePath}/docs/javadoc/"
@@ -408,7 +420,7 @@ allprojects {
 gradle.projectsEvaluated {
   allprojects {
     project.tasks.withType(JavaForkOptions) {
-      maxHeapSize project.property('options.forkOptions.memoryMaximumSize')
+      maxHeapSize = project.property('options.forkOptions.memoryMaximumSize')
     }
 
     if (project.path == ':test:framework') {
@@ -432,7 +444,7 @@ gradle.projectsEvaluated {
 
     configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
-        Project upstreamProject = dep.dependencyProject
+        Project upstreamProject = project.project(dep.path)
         if (upstreamProject != null) {
           if (project.path == upstreamProject.path) {
             // TODO: distribution integ tests depend on themselves (!), fix that
@@ -462,9 +474,8 @@ gradle.projectsEvaluated {
 
 // test retry configuration
 subprojects {
-  apply plugin: "org.gradle.test-retry"
   tasks.withType(Test).configureEach {
-    retry {
+    develocity.testRetry {
       if (BuildParams.isCi()) {
         maxRetries = 3
         maxFailures = 10
@@ -501,6 +512,7 @@ subprojects {
         includeClasses.add("org.opensearch.index.reindex.DeleteByQueryBasicTests")
         includeClasses.add("org.opensearch.index.reindex.UpdateByQueryBasicTests")
         includeClasses.add("org.opensearch.index.shard.IndexShardIT")
+        includeClasses.add("org.opensearch.index.shard.RemoteIndexShardTests")
         includeClasses.add("org.opensearch.index.shard.RemoteStoreRefreshListenerTests")
         includeClasses.add("org.opensearch.index.translog.RemoteFSTranslogTests")
         includeClasses.add("org.opensearch.indices.DateMathIndexExpressionsIntegrationIT")
@@ -515,7 +527,6 @@ subprojects {
         includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexClusterDefaultDocRep")
         includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexIT")
         includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexTranslogDisabledIT")
-        includeClasses.add("org.opensearch.remotestore.RemoteIndexPrimaryRelocationIT")
         includeClasses.add("org.opensearch.remotestore.RemoteStoreBackpressureIT")
         includeClasses.add("org.opensearch.remotestore.RemoteStoreIT")
         includeClasses.add("org.opensearch.remotestore.RemoteStoreRefreshListenerIT")
@@ -544,6 +555,7 @@ subprojects {
         includeClasses.add("org.opensearch.snapshots.SnapshotStatusApisIT")
         includeClasses.add("org.opensearch.test.rest.ClientYamlTestSuiteIT")
         includeClasses.add("org.opensearch.upgrade.DetectEsInstallationTaskTests")
+        includeClasses.add("org.opensearch.cluster.MinimumClusterManagerNodesIT")
       }
     }
   }
@@ -724,7 +736,7 @@ tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
 }
 
 tasks.register('checkCompatibility', CheckCompatibilityTask) {
-  description('Checks the compatibility with child components')
+  description = 'Checks the compatibility with child components'
 }
 
 allprojects { project ->

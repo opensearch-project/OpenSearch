@@ -41,9 +41,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.reindex.BulkByScrollTask.Status;
 import org.opensearch.test.AbstractXContentTestCase;
 import org.hamcrest.Matchers;
-import org.opensearch.index.reindex.BulkByScrollTask.Status;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -55,8 +55,8 @@ import java.util.stream.IntStream;
 
 import static java.lang.Math.abs;
 import static java.util.stream.Collectors.toList;
-import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 
 public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkByScrollTask.Status> {
 

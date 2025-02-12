@@ -36,7 +36,6 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -47,6 +46,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,9 +54,9 @@ import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
+import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.HEAD;
-import static org.opensearch.core.rest.RestStatus.OK;
 
 /**
  * The REST handler for get source and head source APIs.

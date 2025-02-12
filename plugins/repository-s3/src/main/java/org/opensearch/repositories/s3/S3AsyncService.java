@@ -8,6 +8,32 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.core.client.config.ClientAsyncConfiguration;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
+import software.amazon.awssdk.core.retry.RetryMode;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
+import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+import software.amazon.awssdk.http.nio.netty.ProxyConfiguration;
+import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.StsClientBuilder;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
+import software.amazon.awssdk.services.sts.auth.StsWebIdentityTokenFileCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -19,31 +45,6 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
-import software.amazon.awssdk.auth.credentials.AwsCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.SdkSystemSetting;
-import software.amazon.awssdk.core.client.config.ClientAsyncConfiguration;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
-import software.amazon.awssdk.core.retry.RetryPolicy;
-import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
-import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
-import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
-import software.amazon.awssdk.http.nio.netty.ProxyConfiguration;
-import software.amazon.awssdk.http.nio.netty.SdkEventLoopGroup;
-import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
-import software.amazon.awssdk.services.sts.StsClient;
-import software.amazon.awssdk.services.sts.StsClientBuilder;
-import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
-import software.amazon.awssdk.services.sts.auth.StsWebIdentityTokenFileCredentialsProvider;
-import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -102,6 +103,7 @@ class S3AsyncService implements Closeable {
      */
     public AmazonAsyncS3Reference client(
         RepositoryMetadata repositoryMetadata,
+        AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
         AsyncExecutorContainer normalExecutorBuilder
     ) {
@@ -117,8 +119,9 @@ class S3AsyncService implements Closeable {
             if (existing != null && existing.tryIncRef()) {
                 return existing;
             }
+
             final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(
-                buildClient(clientSettings, priorityExecutorBuilder, normalExecutorBuilder)
+                buildClient(clientSettings, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder)
             );
             clientReference.incRef();
             clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientSettings, clientReference).immutableMap();
@@ -164,6 +167,7 @@ class S3AsyncService implements Closeable {
     // proxy for testing
     synchronized AmazonAsyncS3WithCredentials buildClient(
         final S3ClientSettings clientSettings,
+        AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
         AsyncExecutorContainer normalExecutorBuilder
     ) {
@@ -194,6 +198,17 @@ class S3AsyncService implements Closeable {
             builder.forcePathStyle(true);
         }
 
+        builder.httpClient(buildHttpClient(clientSettings, urgentExecutorBuilder.getAsyncTransferEventLoopGroup()));
+        builder.asyncConfiguration(
+            ClientAsyncConfiguration.builder()
+                .advancedOption(
+                    SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                    urgentExecutorBuilder.getFutureCompletionExecutor()
+                )
+                .build()
+        );
+        final S3AsyncClient urgentClient = SocketAccess.doPrivileged(builder::build);
+
         builder.httpClient(buildHttpClient(clientSettings, priorityExecutorBuilder.getAsyncTransferEventLoopGroup()));
         builder.asyncConfiguration(
             ClientAsyncConfiguration.builder()
@@ -216,19 +231,21 @@ class S3AsyncService implements Closeable {
         );
         final S3AsyncClient client = SocketAccess.doPrivileged(builder::build);
 
-        return AmazonAsyncS3WithCredentials.create(client, priorityClient, credentials);
+        return AmazonAsyncS3WithCredentials.create(client, priorityClient, urgentClient, credentials);
     }
 
     static ClientOverrideConfiguration buildOverrideConfiguration(final S3ClientSettings clientSettings) {
+        RetryPolicy retryPolicy = SocketAccess.doPrivileged(
+            () -> RetryPolicy.builder()
+                .numRetries(clientSettings.maxRetries)
+                .throttlingBackoffStrategy(
+                    clientSettings.throttleRetries ? BackoffStrategy.defaultThrottlingStrategy(RetryMode.STANDARD) : BackoffStrategy.none()
+                )
+                .build()
+        );
+
         return ClientOverrideConfiguration.builder()
-            .retryPolicy(
-                RetryPolicy.builder()
-                    .numRetries(clientSettings.maxRetries)
-                    .throttlingBackoffStrategy(
-                        clientSettings.throttleRetries ? BackoffStrategy.defaultThrottlingStrategy() : BackoffStrategy.none()
-                    )
-                    .build()
-            )
+            .retryPolicy(retryPolicy)
             .apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis))
             .build();
     }
@@ -329,12 +346,7 @@ class S3AsyncService implements Closeable {
     // valid paths.
     @SuppressForbidden(reason = "Need to provide this override to v2 SDK so that path does not default to home path")
     private static void setDefaultAwsProfilePath() {
-        if (ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.getStringValue().isEmpty()) {
-            System.setProperty(ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.property(), System.getProperty("opensearch.path.conf"));
-        }
-        if (ProfileFileSystemSetting.AWS_CONFIG_FILE.getStringValue().isEmpty()) {
-            System.setProperty(ProfileFileSystemSetting.AWS_CONFIG_FILE.property(), System.getProperty("opensearch.path.conf"));
-        }
+        S3Service.setDefaultAwsProfilePath();
     }
 
     private static IrsaCredentials buildFromEnvironment(IrsaCredentials defaults) {
@@ -360,7 +372,7 @@ class S3AsyncService implements Closeable {
         return new IrsaCredentials(webIdentityTokenFile, roleArn, roleSessionName);
     }
 
-    private synchronized void releaseCachedClients() {
+    public synchronized void releaseCachedClients() {
         // the clients will shutdown when they will not be used anymore
         for (final AmazonAsyncS3Reference clientReference : clientsCache.values()) {
             clientReference.decRef();
@@ -426,5 +438,6 @@ class S3AsyncService implements Closeable {
     @Override
     public void close() {
         releaseCachedClients();
+
     }
 }

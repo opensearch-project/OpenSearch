@@ -75,6 +75,10 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class HDRPercentilesIT extends AbstractNumericTestCase {
 
+    public HDRPercentilesIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(AggregationTestScriptsPlugin.class);
@@ -147,7 +151,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -173,7 +177,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
 
         Percentiles percentiles = searchResponse.getAggregations().get("percentiles");
         assertThat(percentiles, notNullValue());
@@ -687,6 +691,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        internalCluster().wipeIndices("cache_test_idx");
     }
 
 }

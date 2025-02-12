@@ -32,6 +32,7 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -42,8 +43,9 @@ import java.util.Objects;
 /**
  * Basic information about a snapshot - a SnapshotId and the repository that the snapshot belongs to.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class Snapshot implements Writeable {
 
     private final String repository;

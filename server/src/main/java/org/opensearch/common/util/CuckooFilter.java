@@ -31,10 +31,8 @@
 
 package org.opensearch.common.util;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
-import org.apache.lucene.util.packed.XPackedInts;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -46,33 +44,33 @@ import java.util.Random;
 
 /**
  * An approximate set membership datastructure
- *
+ * <p>
  * CuckooFilters are similar to Bloom Filters in usage; values are inserted, and the Cuckoo
  * can be asked if it has seen a particular value before.  Because the structure is approximate,
  * it can return false positives (says it has seen an item when it has not).  False negatives
  * are not possible though; if the structure says it _has not_ seen an item, that can be
  * trusted.
- *
+ * <p>
  * The filter can "saturate" at which point the map has hit it's configured load factor (or near enough
  * that a large number of evictions are not able to find a free slot) and will refuse to accept
  * any new insertions.
- *
+ * <p>
  * NOTE: this version does not support deletions, and as such does not save duplicate
  * fingerprints (e.g. when inserting, if the fingerprint is already present in the
  * candidate buckets, it is not inserted).  By not saving duplicates, the CuckooFilter
  * loses the ability to delete values.  But not by allowing deletions, we can save space
  * (do not need to waste slots on duplicate fingerprints), and we do not need to worry
  * about inserts "overflowing" a bucket because the same item has been repeated repeatedly
- *
+ * <p>
  * NOTE: this CuckooFilter exposes a number of Expert APIs which assume the caller has
  * intimate knowledge about how the algorithm works.  It is recommended to use
  * {@link SetBackedScalingCuckooFilter} instead.
- *
+ * <p>
  * Based on the paper:
- *
+ * <p>
  * Fan, Bin, et al. "Cuckoo filter: Practically better than bloom."
  * Proceedings of the 10th ACM International on Conference on emerging Networking Experiments and Technologies. ACM, 2014.
- *
+ * <p>
  * https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf
  *
  * @opensearch.internal
@@ -83,7 +81,7 @@ public class CuckooFilter implements Writeable {
     private static final int MAX_EVICTIONS = 500;
     static final int EMPTY = 0;
 
-    private final XPackedInts.Mutable data;
+    private final Packed64 data;
     private final int numBuckets;
     private final int bitsPerEntry;
     private final int fingerprintMask;
@@ -110,7 +108,7 @@ public class CuckooFilter implements Writeable {
                 "Attempted to create [" + numBuckets * entriesPerBucket + "] entries which is > Integer.MAX_VALUE"
             );
         }
-        this.data = XPackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
+        this.data = new Packed64(numBuckets * entriesPerBucket, bitsPerEntry);
 
         // puts the bits at the right side of the mask, e.g. `0000000000001111` for bitsPerEntry = 4
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
@@ -135,7 +133,7 @@ public class CuckooFilter implements Writeable {
             );
         }
         // TODO this is probably super slow, but just used for testing atm
-        this.data = XPackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
+        this.data = new Packed64(numBuckets * entriesPerBucket, bitsPerEntry);
         for (int i = 0; i < other.data.size(); i++) {
             data.set(i, other.data.get(i));
         }
@@ -151,22 +149,7 @@ public class CuckooFilter implements Writeable {
 
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
 
-        data = (XPackedInts.Mutable) XPackedInts.getReader(new DataInput() {
-            @Override
-            public byte readByte() throws IOException {
-                return in.readByte();
-            }
-
-            @Override
-            public void readBytes(byte[] b, int offset, int len) throws IOException {
-                in.readBytes(b, offset, len);
-            }
-
-            @Override
-            public void skipBytes(long numBytes) throws IOException {
-                in.skip(numBytes);
-            }
-        });
+        this.data = new Packed64(in);
     }
 
     @Override
@@ -176,18 +159,7 @@ public class CuckooFilter implements Writeable {
         out.writeVInt(entriesPerBucket);
         out.writeVInt(count);
         out.writeVInt(evictedFingerprint);
-
-        data.save(new DataOutput() {
-            @Override
-            public void writeByte(byte b) throws IOException {
-                out.writeByte(b);
-            }
-
-            @Override
-            public void writeBytes(byte[] b, int offset, int length) throws IOException {
-                out.writeBytes(b, offset, length);
-            }
-        });
+        this.data.save(out);
     }
 
     /**
@@ -200,7 +172,7 @@ public class CuckooFilter implements Writeable {
     /**
      * Returns the number of buckets that has been chosen based
      * on the initial configuration
-     *
+     * <p>
      * Expert-level API
      */
     int getNumBuckets() {
@@ -209,7 +181,7 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Returns the number of bits used per entry
-     *
+     * <p>
      * Expert-level API
      */
     int getBitsPerEntry() {
@@ -220,7 +192,7 @@ public class CuckooFilter implements Writeable {
      * Returns the cached fingerprint mask.  This is simply a mask for the
      * first bitsPerEntry bits, used by {@link CuckooFilter#fingerprint(int, int, int)}
      * to generate the fingerprint of a hash
-     *
+     * <p>
      * Expert-level API
      */
     int getFingerprintMask() {
@@ -230,7 +202,7 @@ public class CuckooFilter implements Writeable {
     /**
      * Returns an iterator that returns the long[] representation of each bucket.  The value
      * inside each long will be a fingerprint (or 0L, representing empty).
-     *
+     * <p>
      * Expert-level API
      */
     Iterator<long[]> getBuckets() {
@@ -267,7 +239,7 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Returns true if the bucket or it's alternate bucket contains the fingerprint.
-     *
+     * <p>
      * Expert-level API, use {@link CuckooFilter#mightContain(long)} to check if
      * a value is in the filter.
      */
@@ -307,7 +279,7 @@ public class CuckooFilter implements Writeable {
     /**
      * Attempts to merge the fingerprint into the specified bucket or it's alternate bucket.
      * Returns true if the insertion was successful, false if the filter is saturated.
-     *
+     * <p>
      * Expert-level API, use {@link CuckooFilter#add(long)} to insert
      * values into the filter
      */
@@ -351,7 +323,7 @@ public class CuckooFilter implements Writeable {
      * Low-level insert method. Attempts to write the fingerprint into an empty entry
      * at this bucket's position.  Returns true if that was sucessful, false if all entries
      * were occupied.
-     *
+     * <p>
      * If the fingerprint already exists in one of the entries, it will not duplicate the
      * fingerprint like the original paper.  This means the filter _cannot_ support deletes,
      * but is not sensitive to "overflowing" buckets with repeated inserts
@@ -376,10 +348,10 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Converts a hash into a bucket index (primary or alternate).
-     *
+     * <p>
      * If the hash is negative, this flips the bits.  The hash is then modulo numBuckets
      * to get the final index.
-     *
+     * <p>
      * Expert-level API
      */
     static int hashToIndex(int hash, int numBuckets) {
@@ -388,16 +360,16 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Calculates the alternate bucket for a given bucket:fingerprint tuple
-     *
+     * <p>
      * The alternate bucket is the fingerprint multiplied by a mixing constant,
      * then xor'd against the bucket.  This new value is modulo'd against
      * the buckets via {@link CuckooFilter#hashToIndex(int, int)} to get the final
      * index.
-     *
+     * <p>
      * Note that the xor makes this operation reversible as long as we have the
      * fingerprint and current bucket (regardless of if that bucket was the primary
      * or alternate).
-     *
+     * <p>
      * Expert-level API
      */
     static int alternateIndex(int bucket, int fingerprint, int numBuckets) {
@@ -424,10 +396,10 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Calculates the fingerprint for a given hash.
-     *
+     * <p>
      * The fingerprint is simply the first `bitsPerEntry` number of bits that are non-zero.
      * If the entire hash is zero, `(int) 1` is used
-     *
+     * <p>
      * Expert-level API
      */
     static int fingerprint(int hash, int bitsPerEntry, int fingerprintMask) {
@@ -501,7 +473,7 @@ public class CuckooFilter implements Writeable {
      * Calculates the optimal number of buckets for this filter.  The xor used in the bucketing
      * algorithm requires this to be a power of two, so the optimal number of buckets will
      * be rounded to the next largest power of two where applicable.
-     *
+     * <p>
      * TODO: there are schemes to avoid powers of two, might want to investigate those
      */
     private int getNumBuckets(long capacity, double loadFactor, int b) {
@@ -540,5 +512,149 @@ public class CuckooFilter implements Writeable {
             && Objects.equals(this.entriesPerBucket, that.entriesPerBucket)
             && Objects.equals(this.count, that.count)
             && Objects.equals(this.evictedFingerprint, that.evictedFingerprint);
+    }
+
+    /**
+     * A compact implementation of Lucene's Packed64 class.
+     * Previously, this code was part of `:server module under org.apache.lucene.util.packed.Packed64`.
+     * This shorter version has been added here to resolve the JPMS split package issue.
+     */
+    private static final class Packed64 {
+        private static final int BLOCK_SIZE = 64; // 32 = int, 64 = long
+        private static final int BLOCK_BITS = 6; // The #bits representing BLOCK_SIZE
+        private static final int MOD_MASK = BLOCK_SIZE - 1; // x % BLOCK_SIZE
+
+        /**
+         * Values are stores contiguously in the blocks array.
+         */
+        private final long[] blocks;
+        /**
+         * A right-aligned mask of width BitsPerValue used by {@link #get(int)}.
+         */
+        private final long maskRight;
+        /**
+         * Optimization: Saves one lookup in {@link #get(int)}.
+         */
+        private final int bpvMinusBlockSize;
+
+        private final int bitsPerValue;
+        private final int valueCount;
+
+        Packed64(int valueCount, int bitsPerValue) {
+            this.bitsPerValue = bitsPerValue;
+            this.valueCount = valueCount;
+            final int longCount = PackedInts.Format.PACKED.longCount(PackedInts.VERSION_CURRENT, valueCount, bitsPerValue);
+            this.blocks = new long[longCount];
+            maskRight = ~0L << (BLOCK_SIZE - bitsPerValue) >>> (BLOCK_SIZE - bitsPerValue);
+            bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
+        }
+
+        Packed64(StreamInput in) throws IOException {
+            this.bitsPerValue = in.readVInt();
+            this.valueCount = in.readVInt();
+            this.blocks = in.readLongArray();
+            maskRight = ~0L << (BLOCK_SIZE - bitsPerValue) >>> (BLOCK_SIZE - bitsPerValue);
+            bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
+        }
+
+        public void save(StreamOutput out) throws IOException {
+            out.writeVInt(bitsPerValue);
+            out.writeVInt(valueCount);
+            out.writeLongArray(blocks);
+        }
+
+        public int size() {
+            return valueCount;
+        }
+
+        public long get(final int index) {
+            // The abstract index in a bit stream
+            final long majorBitPos = (long) index * bitsPerValue;
+            // The index in the backing long-array
+            final int elementPos = (int) (majorBitPos >>> BLOCK_BITS);
+            // The number of value-bits in the second long
+            final long endBits = (majorBitPos & MOD_MASK) + bpvMinusBlockSize;
+
+            if (endBits <= 0) { // Single block
+                return (blocks[elementPos] >>> -endBits) & maskRight;
+            }
+            // Two blocks
+            return ((blocks[elementPos] << endBits) | (blocks[elementPos + 1] >>> (BLOCK_SIZE - endBits))) & maskRight;
+        }
+
+        public int get(int index, long[] arr, int off, int len) {
+            assert len > 0 : "len must be > 0 (got " + len + ")";
+            assert index >= 0 && index < valueCount;
+            len = Math.min(len, valueCount - index);
+            assert off + len <= arr.length;
+
+            final int originalIndex = index;
+            final PackedInts.Decoder decoder = PackedInts.getDecoder(PackedInts.Format.PACKED, PackedInts.VERSION_CURRENT, bitsPerValue);
+            // go to the next block where the value does not span across two blocks
+            final int offsetInBlocks = index % decoder.longValueCount();
+            if (offsetInBlocks != 0) {
+                for (int i = offsetInBlocks; i < decoder.longValueCount() && len > 0; ++i) {
+                    arr[off++] = get(index++);
+                    --len;
+                }
+                if (len == 0) {
+                    return index - originalIndex;
+                }
+            }
+
+            // bulk get
+            assert index % decoder.longValueCount() == 0;
+            int blockIndex = (int) (((long) index * bitsPerValue) >>> BLOCK_BITS);
+            assert (((long) index * bitsPerValue) & MOD_MASK) == 0;
+            final int iterations = len / decoder.longValueCount();
+            decoder.decode(blocks, blockIndex, arr, off, iterations);
+            final int gotValues = iterations * decoder.longValueCount();
+            index += gotValues;
+            len -= gotValues;
+            assert len >= 0;
+
+            if (index > originalIndex) {
+                // stay at the block boundary
+                return index - originalIndex;
+            } else {
+                // no progress so far => already at a block boundary but no full block to get
+                assert index == originalIndex;
+                assert len > 0 : "len must be > 0 (got " + len + ")";
+                assert index >= 0 && index < size();
+                assert off + len <= arr.length;
+
+                final int gets = Math.min(size() - index, len);
+                for (int i = index, o = off, end = index + gets; i < end; ++i, ++o) {
+                    arr[o] = get(i);
+                }
+                return gets;
+            }
+        }
+
+        public void set(final int index, final long value) {
+            // The abstract index in a contiguous bit stream
+            final long majorBitPos = (long) index * bitsPerValue;
+            // The index in the backing long-array
+            final int elementPos = (int) (majorBitPos >>> BLOCK_BITS); // / BLOCK_SIZE
+            // The number of value-bits in the second long
+            final long endBits = (majorBitPos & MOD_MASK) + bpvMinusBlockSize;
+
+            if (endBits <= 0) { // Single block
+                blocks[elementPos] = blocks[elementPos] & ~(maskRight << -endBits) | (value << -endBits);
+                return;
+            }
+            // Two blocks
+            blocks[elementPos] = blocks[elementPos] & ~(maskRight >>> endBits) | (value >>> endBits);
+            blocks[elementPos + 1] = blocks[elementPos + 1] & (~0L >>> endBits) | (value << (BLOCK_SIZE - endBits));
+        }
+
+        public long ramBytesUsed() {
+            return RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 3 * Integer.BYTES   // bpvMinusBlockSize,valueCount,bitsPerValue
+                    + Long.BYTES          // maskRight
+                    + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            ) // blocks ref
+                + RamUsageEstimator.sizeOf(blocks);
+        }
     }
 }

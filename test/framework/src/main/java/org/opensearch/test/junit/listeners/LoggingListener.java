@@ -53,7 +53,7 @@ import java.util.stream.Stream;
  * A {@link RunListener} that allows changing the log level for a specific test method. When a test method is annotated with the
  * {@link TestLogging} annotation, the level for the specified loggers will be internally saved before the test method execution and
  * overridden with the specified ones. At the end of the test method execution the original loggers levels will be restored.
- *
+ * <p>
  * This class is not thread-safe. Given the static nature of the logging API, it assumes that tests are never run concurrently in the same
  * JVM. For the very same reason no synchronization has been implemented regarding the save/restore process of the original loggers
  * levels.

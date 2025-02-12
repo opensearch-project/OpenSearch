@@ -33,9 +33,9 @@
 package org.opensearch.test.rest.yaml.section;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.util.Map;

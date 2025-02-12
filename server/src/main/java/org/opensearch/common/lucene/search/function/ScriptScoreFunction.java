@@ -35,11 +35,11 @@ package org.opensearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
+import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.script.ExplainableScoreScript;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.Script;
-import org.opensearch.Version;
-import org.opensearch.common.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -52,13 +52,7 @@ import java.util.Objects;
 public class ScriptScoreFunction extends ScoreFunction {
 
     static final class CannedScorer extends Scorable {
-        protected int docid;
         protected float score;
-
-        @Override
-        public int docID() {
-            return docid;
-        }
 
         @Override
         public float score() {
@@ -104,7 +98,6 @@ public class ScriptScoreFunction extends ScoreFunction {
             @Override
             public double score(int docId, float subQueryScore) throws IOException {
                 leafScript.setDocument(docId);
-                scorer.docid = docId;
                 scorer.score = subQueryScore;
                 double result = leafScript.execute(null);
                 if (result < 0f) {
@@ -118,7 +111,6 @@ public class ScriptScoreFunction extends ScoreFunction {
                 Explanation exp;
                 if (leafScript instanceof ExplainableScoreScript) {
                     leafScript.setDocument(docId);
-                    scorer.docid = docId;
                     scorer.score = subQueryScore.getValue().floatValue();
                     exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore, functionName);
                 } else {

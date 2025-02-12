@@ -32,13 +32,11 @@
 
 package org.opensearch.client;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import joptsimple.internal.Strings;
-
 import org.apache.hc.core5.http.Header;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A test case with access to internals of a RestClient.
@@ -56,7 +54,7 @@ public abstract class RestClientBuilderTestCase extends OpenSearchTestCase {
             assertEquals(expectedValue, header.getValue());
         }
         if (expectedHeaders.isEmpty() == false) {
-            fail("Missing expected headers in rest client: " + Strings.join(expectedHeaders.keySet(), ", "));
+            fail("Missing expected headers in rest client: " + String.join(",", expectedHeaders.keySet()));
         }
     }
 }

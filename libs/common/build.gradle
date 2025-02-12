@@ -13,8 +13,13 @@ import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.publish'
 
+ext {
+  // Do not fail on 'warning: using incubating module(s): jdk.incubator.vector'
+  failOnJavadocWarning = false
+}
+
 base {
-  archivesBaseName = 'opensearch-common'
+  archivesName = 'opensearch-common'
 }
 
 dependencies {
@@ -42,4 +47,19 @@ tasks.named('forbiddenApisMain').configure {
   // :libs:opensearch-common does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
   replaceSignatureFiles 'jdk-signatures'
+  failOnMissingClasses = false
+  ignoreSignaturesOfMissingClasses = true
+}
+
+compileJava {
+  options.compilerArgs += ['--add-modules', 'jdk.incubator.vector']
+  options.compilerArgs -= '-Werror' // use of incubator modules is reported as a warning
+}
+
+test {
+  systemProperty 'opensearch.experimental.feature.simd.rounding.enabled', 'forced'
+}
+
+javadoc {
+  options.addStringOption("-add-modules", "jdk.incubator.vector")
 }

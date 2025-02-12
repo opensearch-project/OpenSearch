@@ -8,7 +8,6 @@
 
 package org.opensearch.remotestore.multipart;
 
-import org.junit.Before;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -29,11 +28,6 @@ public class RemoteStoreMultipartFileCorruptionIT extends RemoteStoreBaseIntegTe
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(MockFsRepositoryPlugin.class)).collect(Collectors.toList());
-    }
-
-    @Before
-    public void setup() {
-        setupRepo();
     }
 
     protected Settings remoteStoreIndexSettings() {

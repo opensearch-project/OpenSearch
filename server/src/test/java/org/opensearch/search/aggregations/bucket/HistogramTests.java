@@ -33,8 +33,8 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
-import org.opensearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.List;

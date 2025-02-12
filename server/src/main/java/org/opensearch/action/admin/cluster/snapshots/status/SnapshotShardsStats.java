@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContent;
@@ -47,8 +48,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 /**
  * Status of a snapshot shards
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SnapshotShardsStats implements ToXContentObject {
 
     private int initializingShards;

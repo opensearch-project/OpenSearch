@@ -148,4 +148,13 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             metadata
         );
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
+
+    public Rounding.DateTimeUnit getRounding() {
+        return this.rounding.unit();
+    }
 }

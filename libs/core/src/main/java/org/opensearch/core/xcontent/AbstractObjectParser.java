@@ -33,6 +33,7 @@
 package org.opensearch.core.xcontent;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser.NamedObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
@@ -47,8 +48,9 @@ import java.util.function.Function;
 /**
  * Superclass for {@link ObjectParser} and {@link ConstructingObjectParser}. Defines most of the "declare" methods so they can be shared.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class AbstractObjectParser<Value, Context> {
 
     /**
@@ -108,7 +110,7 @@ public abstract class AbstractObjectParser<Value, Context> {
      *
      * Unlike the other version of this method, "ordered" mode (arrays of
      * objects) is not supported.
-     *
+     * <p>
      * See NamedObjectHolder in ObjectParserTests for examples of how to invoke
      * this.
      *
@@ -163,7 +165,7 @@ public abstract class AbstractObjectParser<Value, Context> {
      * the order sent but tools that generate json are free to put object
      * members in an unordered Map, jumbling them. Thus, if you care about order
      * you can send the object in the second way.
-     *
+     * <p>
      * See NamedObjectHolder in ObjectParserTests for examples of how to invoke
      * this.
      *
@@ -366,10 +368,10 @@ public abstract class AbstractObjectParser<Value, Context> {
     /**
      * Declares a set of fields that are required for parsing to succeed. Only one of the values
      * provided per String[] must be matched.
-     *
+     * <p>
      * E.g. <code>declareRequiredFieldSet("foo", "bar");</code> means at least one of "foo" or
      * "bar" fields must be present.  If neither of those fields are present, an exception will be thrown.
-     *
+     * <p>
      * Multiple required sets can be configured:
      *
      * <pre><code>
@@ -379,7 +381,7 @@ public abstract class AbstractObjectParser<Value, Context> {
      *
      * requires that one of "foo" or "bar" fields are present, and also that one of "bizz" or
      * "buzz" fields are present.
-     *
+     * <p>
      * In JSON, it means any of these combinations are acceptable:
      *
      * <ul>
@@ -415,12 +417,12 @@ public abstract class AbstractObjectParser<Value, Context> {
 
     /**
      * Declares a set of fields of which at most one must appear for parsing to succeed
-     *
+     * <p>
      * E.g. <code>declareExclusiveFieldSet("foo", "bar");</code> means that only one of 'foo'
      * or 'bar' must be present, and if both appear then an exception will be thrown.  Note
      * that this does not make 'foo' or 'bar' required - see {@link #declareRequiredFieldSet(String...)}
      * for required fields.
-     *
+     * <p>
      * Multiple exclusive sets may be declared
      *
      * @param exclusiveSet a set of field names, at most one of which must appear

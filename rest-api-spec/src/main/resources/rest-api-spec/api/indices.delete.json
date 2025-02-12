@@ -1,7 +1,7 @@
 {
   "indices.delete":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-delete-index.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/index-apis/delete-index/",
       "description":"Deletes an index."
     },
     "stability":"stable",

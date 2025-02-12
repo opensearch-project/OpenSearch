@@ -35,18 +35,10 @@ package org.opensearch.common.geo.builders;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.parsers.ShapeParser;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.LinearRing;
-import org.locationtech.jts.geom.MultiPolygon;
-import org.locationtech.jts.geom.Polygon;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +50,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.MultiPolygon;
+import org.locationtech.jts.geom.Polygon;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import static org.apache.lucene.geo.GeoUtils.orient;
 
@@ -176,11 +177,11 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.geo
     }
 
     private static void validateLinearRing(LineStringBuilder lineString) {
-        /**
-         * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
-         * A LinearRing is closed LineString with 4 or more positions. The first and last positions
-         * are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
-         * represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
+        /*
+          Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
+          A LinearRing is closed LineString with 4 or more positions. The first and last positions
+          are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
+          represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
          */
         List<Coordinate> points = lineString.coordinates;
         if (points.size() < 4) {

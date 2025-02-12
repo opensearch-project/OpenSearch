@@ -32,13 +32,20 @@
 
 package org.opensearch.search.basic;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
+import java.util.Arrays;
+import java.util.Collection;
+
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -46,7 +53,20 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * This test basically verifies that search with a single shard active (cause we indexed to it) and other
  * shards possibly not active at all (cause they haven't allocated) will still work.
  */
-public class SearchWhileCreatingIndexIT extends OpenSearchIntegTestCase {
+public class SearchWhileCreatingIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public SearchWhileCreatingIndexIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
     public void testIndexCausesIndexCreation() throws Exception {
         searchWhileCreatingIndex(false, 1); // 1 replica in our default...
     }
@@ -80,6 +100,7 @@ public class SearchWhileCreatingIndexIT extends OpenSearchIntegTestCase {
         }
         client().prepareIndex("test").setId(id).setSource("field", "test").get();
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").get();
+        indexRandomForConcurrentSearch("test");
         // at least one shard should be successful when refreshing
         assertThat(refreshResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
 
@@ -100,7 +121,7 @@ public class SearchWhileCreatingIndexIT extends OpenSearchIntegTestCase {
                 .setPreference(preference + Integer.toString(counter++))
                 .setQuery(QueryBuilders.termQuery("field", "test"))
                 .get();
-            if (searchResponse.getHits().getTotalHits().value != 1) {
+            if (searchResponse.getHits().getTotalHits().value() != 1) {
                 refresh();
                 SearchResponse searchResponseAfterRefresh = client.prepareSearch("test")
                     .setPreference(preference)
@@ -108,7 +129,7 @@ public class SearchWhileCreatingIndexIT extends OpenSearchIntegTestCase {
                     .get();
                 logger.info(
                     "hits count mismatch on any shard search failed, post explicit refresh hits are {}",
-                    searchResponseAfterRefresh.getHits().getTotalHits().value
+                    searchResponseAfterRefresh.getHits().getTotalHits().value()
                 );
                 ensureGreen();
                 SearchResponse searchResponseAfterGreen = client.prepareSearch("test")
@@ -117,7 +138,7 @@ public class SearchWhileCreatingIndexIT extends OpenSearchIntegTestCase {
                     .get();
                 logger.info(
                     "hits count mismatch on any shard search failed, post explicit wait for green hits are {}",
-                    searchResponseAfterGreen.getHits().getTotalHits().value
+                    searchResponseAfterGreen.getHits().getTotalHits().value()
                 );
                 assertHitCount(searchResponse, 1);
             }

@@ -43,6 +43,7 @@ import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.test.OpenSearchTestCase;
+
 import org.mockito.Mockito;
 
 public class ScoreFunctionBuilderTests extends OpenSearchTestCase {

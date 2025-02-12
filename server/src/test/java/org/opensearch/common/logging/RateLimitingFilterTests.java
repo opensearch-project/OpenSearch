@@ -38,8 +38,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import static org.apache.logging.log4j.core.Filter.Result;
 import static org.hamcrest.Matchers.equalTo;
+import static org.apache.logging.log4j.core.Filter.Result;
 
 public class RateLimitingFilterTests extends OpenSearchTestCase {
 

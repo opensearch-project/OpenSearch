@@ -36,9 +36,9 @@ import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.spi.AllowlistClass;
 import org.opensearch.painless.spi.AllowlistLoader;
 import org.opensearch.painless.spi.AllowlistMethod;
+import org.opensearch.painless.spi.annotation.AllowlistAnnotationParser;
 import org.opensearch.painless.spi.annotation.DeprecatedAnnotation;
 import org.opensearch.painless.spi.annotation.NoImportAnnotation;
-import org.opensearch.painless.spi.annotation.AllowlistAnnotationParser;
 
 import java.util.HashMap;
 import java.util.Map;

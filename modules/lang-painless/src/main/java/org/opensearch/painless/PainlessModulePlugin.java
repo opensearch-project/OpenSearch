@@ -33,26 +33,25 @@
 package org.opensearch.painless;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.painless.action.PainlessContextAction;
 import org.opensearch.painless.action.PainlessExecuteAction;
-import org.opensearch.painless.spi.PainlessExtension;
 import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.spi.AllowlistLoader;
+import org.opensearch.painless.spi.PainlessExtension;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
@@ -60,13 +59,16 @@ import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.IngestScript;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptService;
+import org.opensearch.script.UpdateScript;
 import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
@@ -107,6 +109,16 @@ public final class PainlessModulePlugin extends Plugin implements ScriptPlugin, 
         List<Allowlist> ingest = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
         ingest.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.ingest.txt"));
         map.put(IngestScript.CONTEXT, ingest);
+
+        // Functions available to update scripts
+        List<Allowlist> update = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        update.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.update.txt"));
+        map.put(UpdateScript.CONTEXT, update);
+
+        // Functions available to derived fields
+        List<Allowlist> derived = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        derived.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.derived.txt"));
+        map.put(DerivedFieldScript.CONTEXT, derived);
 
         allowlists = map;
     }

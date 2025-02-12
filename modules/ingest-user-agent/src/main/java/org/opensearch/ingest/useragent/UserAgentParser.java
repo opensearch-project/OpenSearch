@@ -34,9 +34,10 @@ package org.opensearch.ingest.useragent;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;

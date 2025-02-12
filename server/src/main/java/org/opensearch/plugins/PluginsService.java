@@ -36,22 +36,24 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.util.SPIClassIterator;
 import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.opensearch.bootstrap.JarHell;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.inject.Module;
+import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.index.IndexModule;
-import org.opensearch.node.ReportingService;
+import org.opensearch.lucene.util.SPIClassIterator;
+import org.opensearch.semver.SemverRange;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.transport.TransportSettings;
 
@@ -354,6 +356,37 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    public static void checkJarHellForPlugin(
+        Set<URL> classpath,
+        PluginInfo candidateInfo,
+        Path candidateDir,
+        Path pluginsDir,
+        Path modulesDir
+    ) throws Exception {
+        Set<Bundle> bundles = new HashSet<>(getPluginBundles(pluginsDir));
+        bundles.addAll(getModuleBundles(modulesDir));
+        bundles.add(new Bundle(candidateInfo, candidateDir));
+
+        List<Bundle> sortedBundles = sortBundles(bundles);
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        for (Bundle bundle : sortedBundles) {
+            checkBundleJarHell(classpath, bundle, transitiveUrls);
+        }
+    }
+
+    public static List<String> findPluginsByDependency(Path pluginsDir, String pluginName) throws IOException {
+        List<String> usedBy = new ArrayList<>();
+        Set<Bundle> bundles = getPluginBundles(pluginsDir);
+        for (Bundle bundle : bundles) {
+            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
+                if (extendedPlugin.equals(pluginName)) {
+                    usedBy.add(bundle.plugin.getName());
+                }
+            }
+        }
+        return usedBy;
+    }
+
     /**
      * Extracts all installed plugin directories from the provided {@code rootPath}.
      *
@@ -386,13 +419,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * Verify the given plugin is compatible with the current OpenSearch installation.
      */
-    static void verifyCompatibility(PluginInfo info) {
-        if (info.getOpenSearchVersion().equals(Version.CURRENT) == false) {
+    public static void verifyCompatibility(PluginInfo info) {
+        if (!isPluginVersionCompatible(info, Version.CURRENT)) {
             throw new IllegalArgumentException(
                 "Plugin ["
                     + info.getName()
                     + "] was built for OpenSearch version "
-                    + info.getOpenSearchVersion()
+                    + info.getOpenSearchVersionRangesString()
                     + " but version "
                     + Version.CURRENT
                     + " is running"
@@ -401,7 +434,17 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
     }
 
-    static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
+    public static boolean isPluginVersionCompatible(final PluginInfo pluginInfo, final Version coreVersion) {
+        // Core version must satisfy the semver range in plugin info
+        for (SemverRange range : pluginInfo.getOpenSearchVersionRanges()) {
+            if (!range.isSatisfiedBy(coreVersion)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
         /*
          * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
          * plugin.
@@ -468,7 +511,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     /**
      * Return the given bundles, sorted in dependency loading order.
-     *
+     * <p>
      * This sort is stable, so that if two plugins do not have any interdependency,
      * their relative order from iteration of the provided set will not change.
      *
@@ -512,7 +555,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (String dependency : bundle.plugin.getExtendedPlugins()) {
             Bundle depBundle = bundles.get(dependency);
             if (depBundle == null) {
-                throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                if (bundle.plugin.isExtendedPluginOptional(dependency)) {
+                    logger.warn("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                    logger.warn("Some features of this plugin may not function without the dependencies being installed.\n");
+                    continue;
+                } else {
+                    throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                }
             }
             addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
             assert sortedBundles.contains(depBundle);
@@ -641,6 +690,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Set<URL> urls = new HashSet<>();
             for (String extendedPlugin : exts) {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
+                if (pluginUrls == null && bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
+                    continue;
+                }
                 assert pluginUrls != null : "transitive urls should have already been set for " + extendedPlugin;
 
                 Set<URL> intersection = new HashSet<>(urls);
@@ -682,6 +734,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    @SuppressWarnings("removal")
     private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
         String name = bundle.plugin.getName();
 
@@ -691,6 +744,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<ClassLoader> extendedLoaders = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
             Plugin extendedPlugin = loaded.get(extendedPluginName);
+            if (extendedPlugin == null && bundle.plugin.isExtendedPluginOptional(extendedPluginName)) {
+                // extended plugin is optional and is not installed
+                continue;
+            }
             assert extendedPlugin != null;
             if (ExtensiblePlugin.class.isInstance(extendedPlugin) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
@@ -750,6 +807,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // Codecs:
         PostingsFormat.reloadPostingsFormats(loader);
         DocValuesFormat.reloadDocValuesFormats(loader);
+        KnnVectorsFormat.reloadKnnVectorsFormat(loader);
         Codec.reloadCodecs(loader);
     }
 

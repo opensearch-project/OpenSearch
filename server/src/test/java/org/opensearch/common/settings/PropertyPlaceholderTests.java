@@ -32,10 +32,10 @@
 
 package org.opensearch.common.settings;
 
+import org.opensearch.test.OpenSearchTestCase;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.is;
 

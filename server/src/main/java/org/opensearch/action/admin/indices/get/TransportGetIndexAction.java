@@ -32,20 +32,21 @@
 
 package org.opensearch.action.admin.indices.get;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.info.TransportClusterInfoAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -110,6 +111,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         Map<String, List<AliasMetadata>> aliasesResult = Map.of();
         Map<String, Settings> settings = Map.of();
         Map<String, Settings> defaultSettings = Map.of();
+        Map<String, Context> contexts = Map.of();
         final Map<String, String> dataStreams = new HashMap<>(
             StreamSupport.stream(Spliterators.spliterator(state.metadata().findDataStreams(concreteIndices).entrySet(), 0), false)
                 .collect(Collectors.toMap(k -> k.getKey(), v -> v.getValue().getName()))
@@ -118,6 +120,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         boolean doneAliases = false;
         boolean doneMappings = false;
         boolean doneSettings = false;
+        boolean doneContext = false;
         for (GetIndexRequest.Feature feature : features) {
             switch (feature) {
                 case MAPPINGS:
@@ -159,11 +162,25 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                         doneSettings = true;
                     }
                     break;
-
+                case CONTEXT:
+                    if (!doneContext) {
+                        final Map<String, Context> contextBuilder = new HashMap<>();
+                        for (String index : concreteIndices) {
+                            Context indexContext = state.metadata().index(index).context();
+                            if (indexContext != null) {
+                                contextBuilder.put(index, indexContext);
+                            }
+                        }
+                        contexts = contextBuilder;
+                        doneContext = true;
+                    }
+                    break;
                 default:
                     throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
-        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams));
+        listener.onResponse(
+            new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams, contexts)
+        );
     }
 }

@@ -50,7 +50,6 @@ import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
 import com.azure.storage.common.implementation.Constants;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
@@ -176,7 +175,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         service.close();
     }
 

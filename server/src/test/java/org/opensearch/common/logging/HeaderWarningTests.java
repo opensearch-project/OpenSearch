@@ -32,6 +32,7 @@
 package org.opensearch.common.logging;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;

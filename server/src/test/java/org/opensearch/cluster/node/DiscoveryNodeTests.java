@@ -34,30 +34,35 @@ package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.test.NodeRoles.nonRemoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.nonSearchNode;
+import static org.opensearch.test.NodeRoles.remoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.searchNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
-import static org.opensearch.test.NodeRoles.nonRemoteClusterClientNode;
-import static org.opensearch.test.NodeRoles.remoteClusterClientNode;
-import static org.opensearch.test.NodeRoles.searchNode;
-import static org.opensearch.test.NodeRoles.nonSearchNode;
 
 public class DiscoveryNodeTests extends OpenSearchTestCase {
 
@@ -79,6 +84,22 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
             previous = current;
         }
 
+    }
+
+    public void testRemoteStoreRedactionInToString() {
+        final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test-repo");
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "test-repo");
+        final DiscoveryNode node = new DiscoveryNode(
+            "name",
+            "id",
+            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+            attributes,
+            roles,
+            Version.CURRENT
+        );
+        assertFalse(node.toString().contains(RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX.get(0)));
     }
 
     public void testDiscoveryNodeIsCreatedWithHostFromInetAddress() throws Exception {
@@ -107,6 +128,43 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         assertEquals(transportAddress.getAddress(), serialized.getHostAddress());
         assertEquals(transportAddress.getAddress(), serialized.getAddress().getAddress());
         assertEquals(transportAddress.getPort(), serialized.getAddress().getPort());
+    }
+
+    public void testWriteVerifiableTo() throws Exception {
+        InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
+        TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
+        final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("att-1", "test-repo");
+        attributes.put("att-2", "test-repo");
+        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, attributes, roles, Version.CURRENT);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
+        node.writeVerifiableTo(checksumOut);
+        StreamInput in = out.bytes().streamInput();
+        DiscoveryNode result = new DiscoveryNode(in);
+        assertEquals(result, node);
+
+        Map<String, String> attributes2 = new HashMap<>();
+        attributes2.put("att-2", "test-repo");
+        attributes2.put("att-1", "test-repo");
+
+        DiscoveryNode node2 = new DiscoveryNode(
+            node.getName(),
+            node.getId(),
+            node.getEphemeralId(),
+            node.getHostName(),
+            node.getHostAddress(),
+            transportAddress,
+            attributes2,
+            roles.stream().sorted().collect(Collectors.toCollection(LinkedHashSet::new)),
+            Version.CURRENT
+        );
+        BytesStreamOutput out2 = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut2 = new BufferedChecksumStreamOutput(out2);
+        node2.writeVerifiableTo(checksumOut2);
+        assertEquals(checksumOut.getChecksum(), checksumOut2.getChecksum());
     }
 
     public void testDiscoveryNodeRoleWithOldVersion() throws Exception {

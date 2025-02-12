@@ -35,9 +35,9 @@ package org.opensearch.index.shard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.gateway.CorruptStateException;
 import org.opensearch.gateway.MetadataStateFormat;
 

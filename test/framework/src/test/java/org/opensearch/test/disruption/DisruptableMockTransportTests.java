@@ -37,10 +37,13 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.opensearch.threadpool.ThreadPool;
@@ -49,8 +52,6 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
-import org.opensearch.core.transport.TransportResponse;
-import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.junit.Before;
@@ -161,7 +162,8 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
             NOOP_TRANSPORT_INTERCEPTOR,
             a -> node1,
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         service2 = transport2.createTransportService(
             Settings.EMPTY,
@@ -169,7 +171,8 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
             NOOP_TRANSPORT_INTERCEPTOR,
             a -> node2,
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
 
         service1.start();

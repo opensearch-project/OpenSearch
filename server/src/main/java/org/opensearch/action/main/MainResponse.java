@@ -34,9 +34,9 @@ package org.opensearch.action.main;
 
 import org.opensearch.Build;
 import org.opensearch.Version;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;

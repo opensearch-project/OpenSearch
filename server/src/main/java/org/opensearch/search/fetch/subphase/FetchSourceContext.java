@@ -33,16 +33,17 @@
 package org.opensearch.search.fetch.subphase;
 
 import org.opensearch.common.Booleans;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -55,8 +56,9 @@ import java.util.function.Function;
 /**
  * Context used to fetch the {@code _source}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");

@@ -196,7 +196,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
      * Set's the false-positive rate for individual cuckoo filters.  Does not dictate the overall fpp rate
      * since we use a "scaling" cuckoo filter which adds more filters as required, and the overall
      * error rate grows differently than individual filters
-     *
+     * <p>
      * This value does, however, affect the overall space usage of the filter.  Coarser precisions provide
      * more compact filters.  The default is 0.01
      */

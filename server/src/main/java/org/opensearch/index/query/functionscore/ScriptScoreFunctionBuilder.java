@@ -33,11 +33,11 @@
 package org.opensearch.index.query.functionscore;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.lucene.search.function.ScoreFunction;
+import org.opensearch.common.lucene.search.function.ScriptScoreFunction;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.search.function.ScoreFunction;
-import org.opensearch.common.lucene.search.function.ScriptScoreFunction;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardContext;
@@ -114,7 +114,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     protected ScoreFunction doToFunction(QueryShardContext context) {
         try {
             ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
-            ScoreScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
+            ScoreScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup(), context.searcher());
             return new ScriptScoreFunction(
                 script,
                 searchScript,

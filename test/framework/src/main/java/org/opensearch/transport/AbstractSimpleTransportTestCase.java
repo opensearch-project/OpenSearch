@@ -39,36 +39,37 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.BoundTransportAddress;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransportService;
@@ -227,7 +228,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             threadPool,
             clusterSettings,
             Collections.emptySet(),
-            interceptor
+            interceptor,
+            NoopTracer.INSTANCE
         );
         service.start();
         if (acceptRequests) {
@@ -1281,9 +1283,17 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 Level.TRACE,
                 notSeenReceived
             );
+            final String notSeenResponseSent = ".*\\[internal:testNotSeen].*sent response.*";
+            final MockLogAppender.LoggingExpectation notSeenResponseSentExpectation = new MockLogAppender.PatternSeenEventExpectation(
+                "sent response",
+                "org.opensearch.transport.TransportService.tracer",
+                Level.TRACE,
+                notSeenResponseSent
+            );
 
             appender.addExpectation(notSeenSentExpectation);
             appender.addExpectation(notSeenReceivedExpectation);
+            appender.addExpectation(notSeenResponseSentExpectation);
 
             PlainTransportFuture<StringMessageResponse> future = new PlainTransportFuture<>(noopResponseHandler);
             serviceA.sendRequest(nodeB, "internal:testNotSeen", new StringMessageRequest(""), future);

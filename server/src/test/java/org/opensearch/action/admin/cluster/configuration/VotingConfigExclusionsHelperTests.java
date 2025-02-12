@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.cluster.configuration;
 
-import org.junit.BeforeClass;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -20,6 +19,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.BeforeClass;
 
 import java.util.Set;
 

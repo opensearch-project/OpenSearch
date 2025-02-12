@@ -8,8 +8,6 @@
 
 package org.opensearch.cluster.action.shard.routing.weighted.get;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
@@ -17,7 +15,6 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGe
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.TransportGetWeightedRoutingAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -32,12 +29,16 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -90,8 +91,8 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> clusterService.state().nodes().get("nodes1"),
             null,
-            Collections.emptySet()
-
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
 
         Settings.Builder settingsBuilder = Settings.builder()

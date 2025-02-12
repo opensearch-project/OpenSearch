@@ -33,14 +33,15 @@ package org.opensearch.search;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -69,6 +70,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.ExplainPhase;
 import org.opensearch.search.fetch.subphase.highlight.CustomHighlighter;
@@ -113,7 +115,6 @@ import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class SearchModuleTests extends OpenSearchTestCase {
@@ -431,9 +432,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
     }
 
     public void testConcurrentQueryPhaseSearcher() {
-        Settings settings = Settings.builder().put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
-        FeatureFlags.initializeFeatureFlags(settings);
-        SearchModule searchModule = new SearchModule(settings, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         TestSearchContext searchContext = new TestSearchContext(null);
         searchContext.setConcurrentSegmentSearchEnabled(true);
         QueryPhase queryPhase = searchModule.getQueryPhase();
@@ -443,8 +442,6 @@ public class SearchModuleTests extends OpenSearchTestCase {
     }
 
     public void testPluginQueryPhaseSearcher() {
-        Settings settings = Settings.builder().put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
-        FeatureFlags.initializeFeatureFlags(settings);
         QueryPhaseSearcher queryPhaseSearcher = (searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout) -> false;
         SearchPlugin plugin1 = new SearchPlugin() {
             @Override
@@ -452,7 +449,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
                 return Optional.of(queryPhaseSearcher);
             }
         };
-        SearchModule searchModule = new SearchModule(settings, Collections.singletonList(plugin1));
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.singletonList(plugin1));
         QueryPhase queryPhase = searchModule.getQueryPhase();
         TestSearchContext searchContext = new TestSearchContext(null);
         assertEquals(queryPhaseSearcher, queryPhase.getQueryPhaseSearcher());
@@ -480,18 +477,10 @@ public class SearchModuleTests extends OpenSearchTestCase {
     }
 
     public void testIndexSearcher() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         ThreadPool threadPool = mock(ThreadPool.class);
-        assertNull(searchModule.getIndexSearcherExecutor(threadPool));
-        verify(threadPool, times(0)).executor(ThreadPool.Names.INDEX_SEARCHER);
-
-        // enable concurrent segment search feature flag
-        Settings settings = Settings.builder().put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
-        FeatureFlags.initializeFeatureFlags(settings);
-        searchModule = new SearchModule(settings, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         searchModule.getIndexSearcherExecutor(threadPool);
         verify(threadPool).executor(ThreadPool.Names.INDEX_SEARCHER);
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
     public void testMultiplePluginRegisterIndexSearcherProvider() {
@@ -511,6 +500,67 @@ public class SearchModuleTests extends OpenSearchTestCase {
         searchPlugins.add(plugin1);
         searchPlugins.add(plugin2);
         expectThrows(IllegalStateException.class, () -> new SearchModule(Settings.EMPTY, searchPlugins));
+    }
+
+    public void testRegisterConcurrentSearchRequestDecidersNoExternalPlugins() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        assertEquals(searchModule.getConcurrentSearchRequestDeciderFactories().size(), 0);
+    }
+
+    public void testRegisterConcurrentSearchRequestDecidersExternalPluginsWithNoDeciders() {
+        SearchPlugin plugin1 = new SearchPlugin() {
+            @Override
+            public Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
+                return Optional.of(mock(ExecutorServiceProvider.class));
+            }
+        };
+        SearchPlugin plugin2 = new SearchPlugin() {
+        };
+
+        List<SearchPlugin> searchPlugins = new ArrayList<>();
+        searchPlugins.add(plugin1);
+        searchPlugins.add(plugin2);
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, searchPlugins);
+
+        assertEquals(searchModule.getConcurrentSearchRequestDeciderFactories().size(), 0);
+    }
+
+    public void testRegisterConcurrentSearchRequestDecidersExternalPluginsWithDeciders() {
+        SearchPlugin pluginDecider1 = new SearchPlugin() {
+            @Override
+            public Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
+                return Optional.of(mock(ExecutorServiceProvider.class));
+            }
+
+            @Override
+            public Optional<ConcurrentSearchRequestDecider.Factory> getConcurrentSearchRequestDeciderFactory() {
+                return Optional.of(new ConcurrentSearchRequestDecider.Factory() {
+                    @Override
+                    public Optional<ConcurrentSearchRequestDecider> create(IndexSettings indexSettings) {
+                        return Optional.of(mock(ConcurrentSearchRequestDecider.class));
+                    }
+                });
+            }
+        };
+
+        SearchPlugin pluginDecider2 = new SearchPlugin() {
+            @Override
+            public Optional<ConcurrentSearchRequestDecider.Factory> getConcurrentSearchRequestDeciderFactory() {
+                return Optional.of(new ConcurrentSearchRequestDecider.Factory() {
+                    @Override
+                    public Optional<ConcurrentSearchRequestDecider> create(IndexSettings indexSettings) {
+                        return Optional.of(mock(ConcurrentSearchRequestDecider.class));
+                    }
+                });
+            }
+        };
+
+        List<SearchPlugin> searchPlugins = new ArrayList<>();
+        searchPlugins.add(pluginDecider1);
+        searchPlugins.add(pluginDecider2);
+
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, searchPlugins);
+        assertEquals(searchModule.getConcurrentSearchRequestDeciderFactories().size(), 2);
     }
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
@@ -558,7 +608,8 @@ public class SearchModuleTests extends OpenSearchTestCase {
         "terms_set",
         "wildcard",
         "wrapper",
-        "distance_feature" };
+        "distance_feature",
+        "template" };
 
     // add here deprecated queries to make sure we log a deprecation warnings when they are used
     private static final String[] DEPRECATED_QUERIES = new String[] { "common", "field_masking_span" };

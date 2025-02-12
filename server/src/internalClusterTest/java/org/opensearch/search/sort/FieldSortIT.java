@@ -32,37 +32,40 @@
 
 package org.opensearch.search.sort;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.tests.util.TestUtil;
-import org.apache.lucene.util.UnicodeUtil;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
-
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -81,14 +84,18 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.opensearch.script.MockScriptPlugin.NAME;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFirstHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
@@ -101,13 +108,25 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
-public class FieldSortIT extends OpenSearchIntegTestCase {
+public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTestCase {
+    public FieldSortIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
@@ -135,7 +154,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
     }
 
-    public void testIssue8226() {
+    public void testIssue8226() throws InterruptedException {
         int numIndices = between(5, 10);
         final boolean useMapping = randomBoolean();
         for (int i = 0; i < numIndices; i++) {
@@ -145,10 +164,13 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                 assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")));
             }
             if (i > 0) {
-                client().prepareIndex("test_" + i).setId("" + i).setSource("{\"entry\": " + i + "}", XContentType.JSON).get();
+                client().prepareIndex("test_" + i).setId("" + i).setSource("{\"entry\": " + i + "}", MediaTypeRegistry.JSON).get();
             }
         }
         refresh();
+        for (int i = 0; i < numIndices; i++) {
+            indexRandomForConcurrentSearch("test_" + i);
+        }
         // sort DESC
         SearchResponse searchResponse = client().prepareSearch()
             .addSort(new FieldSortBuilder("entry").order(SortOrder.DESC).unmappedType(useMapping ? null : "long"))
@@ -181,7 +203,8 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     public void testIssue6614() throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         boolean strictTimeBasedIndices = randomBoolean();
-        final int numIndices = randomIntBetween(2, 25); // at most 25 days in the month
+        // consider only 15 days of the month to avoid hitting open file limit
+        final int numIndices = randomIntBetween(2, 15);
         int docs = 0;
         for (int i = 0; i < numIndices; i++) {
             final String indexId = strictTimeBasedIndices ? "idx_" + i : "idx";
@@ -259,6 +282,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             jsonBuilder().startObject().field("id", "2").field("svalue", "bbb").field("ivalue", 200).field("dvalue", 0.2).endObject()
         );
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addSort("svalue", SortOrder.ASC).get();
 
@@ -323,7 +347,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                 .addSort("dense_bytes", SortOrder.ASC)
                 .get();
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocs));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
             assertThat(searchResponse.getHits().getHits().length, equalTo(size));
             Set<Entry<BytesRef, String>> entrySet = denseBytes.entrySet();
             Iterator<Entry<BytesRef, String>> iterator = entrySet.iterator();
@@ -343,7 +367,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                 .addSort("sparse_bytes", SortOrder.ASC)
                 .get();
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) sparseBytes.size()));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) sparseBytes.size()));
             assertThat(searchResponse.getHits().getHits().length, equalTo(size));
             Set<Entry<BytesRef, String>> entrySet = sparseBytes.entrySet();
             Iterator<Entry<BytesRef, String>> iterator = entrySet.iterator();
@@ -427,6 +451,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field")))
@@ -465,6 +490,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field")))
@@ -497,9 +523,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
     public void testIssue2986() {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=keyword").get());
 
-        client().prepareIndex("test").setId("1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).get();
-        client().prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).get();
-        client().prepareIndex("test").setId("3").setSource("{\"field1\":\"value3\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"field1\":\"value1\"}", MediaTypeRegistry.JSON).get();
+        client().prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", MediaTypeRegistry.JSON).get();
+        client().prepareIndex("test").setId("3").setSource("{\"field1\":\"value3\"}", MediaTypeRegistry.JSON).get();
         refresh();
         SearchResponse result = client().prepareSearch("test")
             .setQuery(matchAllQuery())
@@ -512,7 +538,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testIssue2991() {
+    public void testIssue2991() throws InterruptedException {
         for (int i = 1; i < 4; i++) {
             try {
                 client().admin().indices().prepareDelete("test").get();
@@ -533,6 +559,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test").setId("2").setSource("tag", "beta").get();
 
             refresh();
+            indexRandomForConcurrentSearch("test");
             SearchResponse resp = client().prepareSearch("test")
                 .setSize(2)
                 .setQuery(matchAllQuery())
@@ -586,6 +613,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .startObject("float_value")
                     .field("type", "float")
                     .endObject()
+                    .startObject("half_float_value")
+                    .field("type", "half_float")
+                    .endObject()
                     .startObject("double_value")
                     .field("type", "double")
                     .endObject()
@@ -609,6 +639,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                         .field("long_value", i)
                         .field("unsigned_long_value", UNSIGNED_LONG_BASE.add(BigInteger.valueOf(10000 * i)))
                         .field("float_value", 0.1 * i)
+                        .field("half_float_value", 0.1 * i)
                         .field("double_value", 0.1 * i)
                         .endObject()
                 );
@@ -627,6 +658,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // STRING
         int size = 1 + random.nextInt(10);
@@ -775,6 +807,28 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         assertThat(searchResponse.toString(), not(containsString("error")));
 
+        // HALF_FLOAT
+        size = 1 + random.nextInt(10);
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("half_float_value", SortOrder.ASC).get();
+
+        assertHitCount(searchResponse, 10L);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+        size = 1 + random.nextInt(10);
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("half_float_value", SortOrder.DESC).get();
+
+        assertHitCount(searchResponse, 10);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(9 - i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
         // DOUBLE
         size = 1 + random.nextInt(10);
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("double_value", SortOrder.ASC).get();
@@ -871,12 +925,13 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test")
             .setId("3")
             .setSource(
-                jsonBuilder().startObject().field("id", "3").field("i_value", 2).field("d_value", 2.2).field("u_value", 2).endObject()
+                jsonBuilder().startObject().field("id", "3").field("i_value", 2).field("d_value", 2.2).field("u_value", 3).endObject()
             )
             .get();
 
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // DOUBLE
         logger.info("--> sort with no missing (same as missing _last)");
@@ -886,7 +941,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -898,7 +953,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -910,9 +965,21 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        logger.info("--> sort with custom missing value");
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC).missing(randomBoolean() ? 1 : "1"))
+            .get();
+        assertNoFailures(searchResponse);
+
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
         // FLOAT
@@ -923,7 +990,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -935,7 +1002,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -947,9 +1014,21 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        logger.info("--> sort with custom missing value");
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.fieldSort("d_value").order(SortOrder.ASC).missing(randomBoolean() ? 1.1 : "1.1"))
+            .get();
+        assertNoFailures(searchResponse);
+
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
         // UNSIGNED_LONG
@@ -960,7 +1039,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -972,7 +1051,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -984,10 +1063,28 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        logger.info("--> sort with custom missing value");
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.fieldSort("u_value").order(SortOrder.ASC).missing(randomBoolean() ? 2 : "2"))
+            .get();
+        assertNoFailures(searchResponse);
+
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        logger.info("--> sort with negative missing value");
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.fieldSort("u_value").order(SortOrder.ASC).missing(randomBoolean() ? -1 : "-1"));
+        assertFailures(searchRequestBuilder, RestStatus.BAD_REQUEST, containsString("Value [-1] is out of range for an unsigned long"));
     }
 
     public void testSortMissingNumbersMinMax() throws Exception {
@@ -1038,6 +1135,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // LONG
         logger.info("--> sort with no missing (same as missing _last)");
@@ -1047,7 +1145,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("3", "2")));
@@ -1060,7 +1158,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("3", "2")));
@@ -1073,7 +1171,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(0).getId(), is(oneOf("2", "1")));
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("1", "2")));
@@ -1087,7 +1185,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -1099,7 +1197,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -1111,7 +1209,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
@@ -1124,7 +1222,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("3", "2")));
@@ -1137,7 +1235,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("3", "2")));
@@ -1150,14 +1248,14 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(0).getId(), is(oneOf("2", "1")));
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("1", "2")));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
     }
 
-    public void testSortMissingStrings() throws IOException {
+    public void testSortMissingStrings() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
@@ -1185,6 +1283,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // TODO: WTF?
         try {
@@ -1200,7 +1299,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -1212,7 +1311,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
@@ -1224,7 +1323,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
@@ -1236,7 +1335,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
@@ -1311,6 +1410,9 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .startObject("float_values")
                     .field("type", "float")
                     .endObject()
+                    .startObject("half_float_values")
+                    .field("type", "float")
+                    .endObject()
                     .startObject("double_values")
                     .field("type", "double")
                     .endObject()
@@ -1332,6 +1434,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .array("short_values", 1, 5, 10, 8)
                     .array("byte_values", 1, 5, 10, 8)
                     .array("float_values", 1f, 5f, 10f, 8f)
+                    .array("half_float_values", 1f, 5f, 10f, 8f)
                     .array("double_values", 1d, 5d, 10d, 8d)
                     .array("string_values", "01", "05", "10", "08")
                     .endObject()
@@ -1346,6 +1449,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .array("short_values", 11, 15, 20, 7)
                     .array("byte_values", 11, 15, 20, 7)
                     .array("float_values", 11f, 15f, 20f, 7f)
+                    .array("half_float_values", 11f, 15f, 20f, 7f)
                     .array("double_values", 11d, 15d, 20d, 7d)
                     .array("string_values", "11", "15", "20", "07")
                     .endObject()
@@ -1360,6 +1464,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                     .array("short_values", 2, 1, 3, -4)
                     .array("byte_values", 2, 1, 3, -4)
                     .array("float_values", 2f, 1f, 3f, -4f)
+                    .array("half_float_values", 2f, 1f, 3f, -4f)
                     .array("double_values", 2d, 1d, 3d, -4d)
                     .array("string_values", "02", "01", "03", "!4")
                     .endObject()
@@ -1367,6 +1472,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -1374,7 +1480,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .addSort("long_values", SortOrder.ASC)
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1388,7 +1494,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("long_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1406,7 +1512,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode(SortMode.SUM))
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1424,7 +1530,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode(SortMode.AVG))
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1442,7 +1548,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode(SortMode.MEDIAN))
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1456,7 +1562,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("int_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1470,7 +1576,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("int_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1484,7 +1590,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("short_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1498,7 +1604,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("short_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1512,7 +1618,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("byte_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1526,7 +1632,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("byte_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1540,7 +1646,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("float_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1554,7 +1660,35 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("float_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
+        assertThat(((Number) searchResponse.getHits().getAt(0).getSortValues()[0]).floatValue(), equalTo(20f));
+
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo(Integer.toString(1)));
+        assertThat(((Number) searchResponse.getHits().getAt(1).getSortValues()[0]).floatValue(), equalTo(10f));
+
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo(Integer.toString(3)));
+        assertThat(((Number) searchResponse.getHits().getAt(2).getSortValues()[0]).floatValue(), equalTo(3f));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("half_float_values", SortOrder.ASC).get();
+
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
+        assertThat(((Number) searchResponse.getHits().getAt(0).getSortValues()[0]).floatValue(), equalTo(-4f));
+
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo(Integer.toString(1)));
+        assertThat(((Number) searchResponse.getHits().getAt(1).getSortValues()[0]).floatValue(), equalTo(1f));
+
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo(Integer.toString(2)));
+        assertThat(((Number) searchResponse.getHits().getAt(2).getSortValues()[0]).floatValue(), equalTo(7f));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("half_float_values", SortOrder.DESC).get();
+
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1568,7 +1702,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("double_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1582,7 +1716,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("double_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1596,7 +1730,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("string_values", SortOrder.ASC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
@@ -1610,7 +1744,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("string_values", SortOrder.DESC).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo(Integer.toString(2)));
@@ -1623,7 +1757,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).getSortValues()[0], equalTo("03"));
     }
 
-    public void testSortOnRareField() throws IOException {
+    public void testSortOnRareField() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
@@ -1643,6 +1777,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .setSize(3)
@@ -1738,6 +1873,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                 indexReqs[i] = client().prepareIndex("test").setId(Integer.toString(i)).setSource();
             }
             indexRandom(true, indexReqs);
+            indexRandomForConcurrentSearch("test");
 
             SortOrder order = randomFrom(SortOrder.values());
             SearchResponse searchResponse = client().prepareSearch()
@@ -1840,6 +1976,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // We sort on nested field
         SearchResponse searchResponse = client().prepareSearch()
@@ -1930,7 +2067,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         SearchResponse singleShardResponse = client().prepareSearch("test2").setFrom(from).setSize(size).addSort(sortField, order).get();
         assertNoFailures(singleShardResponse);
 
-        assertThat(multiShardResponse.getHits().getTotalHits().value, equalTo(singleShardResponse.getHits().getTotalHits().value));
+        assertThat(multiShardResponse.getHits().getTotalHits().value(), equalTo(singleShardResponse.getHits().getTotalHits().value()));
         assertThat(multiShardResponse.getHits().getHits().length, equalTo(singleShardResponse.getHits().getHits().length));
         for (int i = 0; i < multiShardResponse.getHits().getHits().length; i++) {
             assertThat(
@@ -1954,13 +2091,13 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test").addSort(SortBuilders.fieldSort("ip")).get();
         assertSearchResponse(response);
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals(2, response.getHits().getTotalHits().value());
         assertArrayEquals(new String[] { "192.168.1.7" }, response.getHits().getAt(0).getSortValues());
         assertArrayEquals(new String[] { "2001:db8::ff00:42:8329" }, response.getHits().getAt(1).getSortValues());
 
         response = client().prepareSearch("test").addSort(SortBuilders.fieldSort("ip")).searchAfter(new Object[] { "192.168.1.7" }).get();
         assertSearchResponse(response);
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals(2, response.getHits().getTotalHits().value());
         assertEquals(1, response.getHits().getHits().length);
         assertArrayEquals(new String[] { "2001:db8::ff00:42:8329" }, response.getHits().getAt(0).getSortValues());
     }
@@ -2025,6 +2162,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         builders.add(client().prepareIndex("old_index").setSource("distance", 50.5));
         builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
         indexRandom(true, true, builders);
+        indexRandomForConcurrentSearch("old_index", "new_index");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -2051,6 +2189,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         builders.add(client().prepareIndex("old_index").setSource(Collections.emptyMap()));
         builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
         indexRandom(true, true, builders);
+        indexRandomForConcurrentSearch("old_index", "new_index");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -2120,6 +2259,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         builders.add(client().prepareIndex("index_date").setSource("field", "2024-04-11T23:47:17"));
         builders.add(client().prepareIndex("index_date_nanos").setSource("field", "2024-04-11T23:47:16.854775807Z"));
         indexRandom(true, true, builders);
+        indexRandomForConcurrentSearch("index_date", "index_date_nanos");
 
         {
             SearchResponse response = client().prepareSearch()
@@ -2245,7 +2385,7 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testLongSortOptimizationCorrectResults() {
+    public void testLongSortOptimizationCorrectResults() throws InterruptedException {
         assertAcked(
             prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2))
                 .setMapping("long_field", "type=long")
@@ -2259,9 +2399,10 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
                 bulkBuilder = client().prepareBulk();
             }
             String source = "{\"long_field\":" + randomLong() + "}";
-            bulkBuilder.add(client().prepareIndex("test1").setId(Integer.toString(i)).setSource(source, XContentType.JSON));
+            bulkBuilder.add(client().prepareIndex("test1").setId(Integer.toString(i)).setSource(source, MediaTypeRegistry.JSON));
         }
         refresh();
+        indexRandomForConcurrentSearch("test1");
 
         // *** 1. sort DESC on long_field
         SearchResponse searchResponse = client().prepareSearch()
@@ -2289,6 +2430,282 @@ public class FieldSortIT extends OpenSearchIntegTestCase {
             assertThat("sort order is incorrect", currentLong, greaterThanOrEqualTo(previousLong));
             previousLong = currentLong;
         }
+    }
+
+    public void testSimpleSortsPoints() throws Exception {
+        final int docs = 100;
+
+        Random random = random();
+        assertAcked(
+            prepareCreate("test").setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("str_value")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("boolean_value")
+                    .field("type", "boolean")
+                    .endObject()
+                    .startObject("byte_value")
+                    .field("type", "byte")
+                    .endObject()
+                    .startObject("short_value")
+                    .field("type", "short")
+                    .endObject()
+                    .startObject("integer_value")
+                    .field("type", "integer")
+                    .endObject()
+                    .startObject("long_value")
+                    .field("type", "long")
+                    .endObject()
+                    .startObject("unsigned_long_value")
+                    .field("type", "unsigned_long")
+                    .endObject()
+                    .startObject("float_value")
+                    .field("type", "float")
+                    .endObject()
+                    .startObject("half_float_value")
+                    .field("type", "half_float")
+                    .endObject()
+                    .startObject("double_value")
+                    .field("type", "double")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureGreen();
+        BigInteger UNSIGNED_LONG_BASE = Numbers.MAX_UNSIGNED_LONG_VALUE.subtract(BigInteger.valueOf(10000 * docs));
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < docs / 2; i++) {
+            IndexRequestBuilder builder = client().prepareIndex("test")
+                .setId(Integer.toString(i))
+                .setSource(
+                    jsonBuilder().startObject()
+                        .field("str_value", new String(new char[] { (char) (97 + i), (char) (97 + i) }))
+                        .field("boolean_value", true)
+                        .field("byte_value", i)
+                        .field("short_value", i)
+                        .field("integer_value", i)
+                        .field("long_value", i)
+                        .field("unsigned_long_value", UNSIGNED_LONG_BASE.add(BigInteger.valueOf(10000 * i)))
+                        .field("float_value", 32 * i)
+                        .field("half_float_value", 16 * i)
+                        .field("double_value", 64 * i)
+                        .endObject()
+                );
+            builders.add(builder);
+        }
+
+        // We keep half of the docs with numeric values and other half without
+        for (int i = docs / 2; i < docs; i++) {
+            IndexRequestBuilder builder = client().prepareIndex("test")
+                .setId(Integer.toString(i))
+                .setSource(
+                    jsonBuilder().startObject().field("str_value", new String(new char[] { (char) (97 + i), (char) (97 + i) })).endObject()
+                );
+            builders.add(builder);
+        }
+
+        int j = 0;
+        Collections.shuffle(builders, random);
+        for (IndexRequestBuilder builder : builders) {
+            builder.get();
+            if ((++j % 25) == 0) {
+                refresh();
+            }
+
+        }
+        refresh();
+        indexRandomForConcurrentSearch("test");
+
+        final int size = 2;
+        // HALF_FLOAT
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .setSize(size)
+            .addSort("half_float_value", SortOrder.ASC)
+            .get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("half_float_value", SortOrder.DESC).get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(docs / 2 - 1 - i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
+        // FLOAT
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("float_value", SortOrder.ASC).get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("float_value", SortOrder.DESC).get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(docs / 2 - 1 - i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
+        // DOUBLE
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("double_value", SortOrder.ASC).get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("double_value", SortOrder.DESC).get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(docs / 2 - 1 - i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
+        // UNSIGNED_LONG
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .setSize(size)
+            .addSort("unsigned_long_value", SortOrder.ASC)
+            .get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .setSize(size)
+            .addSort("unsigned_long_value", SortOrder.DESC)
+            .get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(docs / 2 - 1 - i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+    }
+
+    public void testSortMixedIntegerNumericFields() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        AtomicInteger counter = new AtomicInteger();
+        index("long", () -> Long.MAX_VALUE - counter.getAndIncrement());
+        index("integer", () -> Integer.MAX_VALUE - counter.getAndIncrement());
+        SearchResponse searchResponse = client().prepareSearch("long", "integer")
+            .setQuery(matchAllQuery())
+            .setSize(10)
+            .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC).sortMode(SortMode.MAX))
+            .get();
+        assertNoFailures(searchResponse);
+        long[] sortValues = new long[10];
+        for (int i = 0; i < 10; i++) {
+            sortValues[i] = ((Number) searchResponse.getHits().getAt(i).getSortValues()[0]).longValue();
+        }
+        for (int i = 1; i < 10; i++) {
+            assertThat(Arrays.toString(sortValues), sortValues[i - 1], lessThan(sortValues[i]));
+        }
+    }
+
+    public void testSortMixedFloatingNumericFields() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        AtomicInteger counter = new AtomicInteger();
+        index("double", () -> 100.5 - counter.getAndIncrement());
+        counter.set(0);
+        index("float", () -> 200.5 - counter.getAndIncrement());
+        counter.set(0);
+        index("half_float", () -> 300.5 - counter.getAndIncrement());
+        SearchResponse searchResponse = client().prepareSearch("double", "float", "half_float")
+            .setQuery(matchAllQuery())
+            .setSize(15)
+            .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC).sortMode(SortMode.MAX))
+            .get();
+        assertNoFailures(searchResponse);
+        double[] sortValues = new double[15];
+        for (int i = 0; i < 15; i++) {
+            sortValues[i] = ((Number) searchResponse.getHits().getAt(i).getSortValues()[0]).doubleValue();
+        }
+        for (int i = 1; i < 15; i++) {
+            assertThat(Arrays.toString(sortValues), sortValues[i - 1], lessThan(sortValues[i]));
+        }
+    }
+
+    public void testSortMixedFloatingAndIntegerNumericFields() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        index("long", () -> randomLongBetween(0, (long) 2E53 - 1));
+        index("integer", OpenSearchTestCase::randomInt);
+        index("double", OpenSearchTestCase::randomDouble);
+        index("float", () -> randomFloat());
+        boolean asc = randomBoolean();
+        SearchResponse searchResponse = client().prepareSearch("long", "integer", "double", "float")
+            .setQuery(matchAllQuery())
+            .setSize(20)
+            .addSort(SortBuilders.fieldSort("field").order(asc ? SortOrder.ASC : SortOrder.DESC).sortMode(SortMode.MAX))
+            .get();
+        assertNoFailures(searchResponse);
+        double[] sortValues = new double[20];
+        for (int i = 0; i < 20; i++) {
+            sortValues[i] = ((Number) searchResponse.getHits().getAt(i).getSortValues()[0]).doubleValue();
+        }
+        if (asc) {
+            for (int i = 1; i < 20; i++) {
+                assertThat(Arrays.toString(sortValues), sortValues[i - 1], lessThanOrEqualTo(sortValues[i]));
+            }
+        } else {
+            for (int i = 1; i < 20; i++) {
+                assertThat(Arrays.toString(sortValues), sortValues[i - 1], greaterThanOrEqualTo(sortValues[i]));
+            }
+        }
+    }
+
+    private void index(String type, Supplier<Number> valueSupplier) throws Exception {
+        assertAcked(
+            prepareCreate(type).setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", type)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0))
+        );
+        ensureGreen(type);
+        for (int i = 0; i < 5; i++) {
+            client().prepareIndex(type)
+                .setId(Integer.toString(i))
+                .setSource("{\"field\" : " + valueSupplier.get() + " }", XContentType.JSON)
+                .get();
+        }
+        client().admin().indices().prepareRefresh(type).get();
     }
 
 }

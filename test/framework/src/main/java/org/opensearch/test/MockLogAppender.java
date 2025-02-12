@@ -35,18 +35,23 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.test.junit.annotations.TestLogging;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.fail;
 
 /**
  * Test appender that can be used to verify that certain events were logged correctly
@@ -68,11 +73,19 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
      * write to a closed MockLogAppender instance.
      */
     public static MockLogAppender createForLoggers(Logger... loggers) throws IllegalAccessException {
-        return createForLoggers(".*(\n.*)*", loggers);
+        final String callingClass = Thread.currentThread().getStackTrace()[2].getClassName();
+        return createForLoggersInternal(callingClass, ".*(\n.*)*", loggers);
     }
 
     public static MockLogAppender createForLoggers(String filter, Logger... loggers) throws IllegalAccessException {
+        final String callingClass = Thread.currentThread().getStackTrace()[2].getClassName();
+        return createForLoggersInternal(callingClass, filter, loggers);
+    }
+
+    private static MockLogAppender createForLoggersInternal(String callingClass, String filter, Logger... loggers)
+        throws IllegalAccessException {
         final MockLogAppender appender = new MockLogAppender(
+            callingClass + "-mock-log-appender",
             RegexFilter.createFilter(filter, new String[0], false, null, null),
             Collections.unmodifiableList(Arrays.asList(loggers))
         );
@@ -83,8 +96,8 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
         return appender;
     }
 
-    private MockLogAppender(RegexFilter filter, List<Logger> loggers) {
-        super("mock", filter, null);
+    private MockLogAppender(String name, RegexFilter filter, List<Logger> loggers) {
+        super(name, filter, null, true, Property.EMPTY_ARRAY);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
@@ -116,7 +129,14 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
         for (Logger logger : loggers) {
             Loggers.removeAppender(logger, this);
         }
-        this.stop();
+        super.stop();
+    }
+
+    @Override
+    public void stop() {
+        // MockLogAppender should be used with try-with-resources to ensure
+        // proper clean up ordering and should never be stopped directly.
+        throw new UnsupportedOperationException("Use close() to ensure proper clean up ordering");
     }
 
     public interface LoggingExpectation {
@@ -241,6 +261,59 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
             assertThat(name, saw, equalTo(true));
         }
 
+    }
+
+    /**
+     * Used for cases when the logger is dynamically named such as to include an index name or shard id
+     *
+     * Best used in conjunction with the root logger:
+     * {@code @TestLogging(value = "_root:debug", reason = "Validate logging output");}
+     * @see TestLogging
+     * */
+    public static class PatternSeenWithLoggerPrefixExpectation implements LoggingExpectation {
+        private final String expectationName;
+        private final String loggerPrefix;
+        private final Level level;
+        private final String messageMatchingRegex;
+
+        private final List<String> loggerMatches = new ArrayList<>();
+        private final AtomicBoolean eventSeen = new AtomicBoolean(false);
+
+        public PatternSeenWithLoggerPrefixExpectation(
+            final String expectationName,
+            final String loggerPrefix,
+            final Level level,
+            final String messageMatchingRegex
+        ) {
+            this.expectationName = expectationName;
+            this.loggerPrefix = loggerPrefix;
+            this.level = level;
+            this.messageMatchingRegex = messageMatchingRegex;
+        }
+
+        @Override
+        public void match(final LogEvent event) {
+            if (event.getLevel() == level && event.getLoggerName().startsWith(loggerPrefix)) {
+                final String formattedMessage = event.getMessage().getFormattedMessage();
+                loggerMatches.add(formattedMessage);
+                if (formattedMessage.matches(messageMatchingRegex)) {
+                    eventSeen.set(true);
+                }
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            if (!eventSeen.get()) {
+                final StringBuilder failureMessage = new StringBuilder();
+                failureMessage.append(expectationName + " was not seen, found " + loggerMatches.size() + " messages matching the logger.");
+                failureMessage.append("\r\nMessage matching regex: " + messageMatchingRegex);
+                if (!loggerMatches.isEmpty()) {
+                    failureMessage.append("\r\nMessage details:\r\n" + String.join("\r\n", loggerMatches));
+                }
+                fail(failureMessage.toString());
+            }
+        }
     }
 
     private static String getLoggerName(String name) {

@@ -32,8 +32,6 @@
 
 package org.opensearch.index.reindex;
 
-import java.util.Optional;
-
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
@@ -47,19 +45,18 @@ import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.client.Client;
-import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -72,6 +69,8 @@ import org.opensearch.index.reindex.spi.RemoteReindexExtension;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.ParentTaskAssigningClient;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,6 +79,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
@@ -142,7 +142,8 @@ public class Reindexer {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(
                     task,
-                    logger,
+                    // Added prefix based logger(destination index) to distinguish multiple reindex jobs for easier debugging.
+                    Loggers.getLogger(Reindexer.class, String.valueOf(request.getDestination().index())),
                     assigningClient,
                     threadPool,
                     scriptService,

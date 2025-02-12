@@ -33,6 +33,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 
@@ -41,8 +42,9 @@ import java.io.IOException;
 /**
  * Exception thrown if there are any failures in the translog
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TranslogException extends OpenSearchException {
 
     public TranslogException(ShardId shardId, String msg) {

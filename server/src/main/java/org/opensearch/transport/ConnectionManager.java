@@ -32,8 +32,8 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.core.action.ActionListener;
 
 import java.io.Closeable;
 import java.util.Set;
@@ -64,6 +64,10 @@ public interface ConnectionManager extends Closeable {
     boolean nodeConnected(DiscoveryNode node);
 
     void disconnectFromNode(DiscoveryNode node);
+
+    void setPendingDisconnection(DiscoveryNode node);
+
+    void clearPendingDisconnections();
 
     Set<DiscoveryNode> getAllConnectedNodes();
 

@@ -11,7 +11,9 @@ package org.opensearch.remotestore;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
@@ -22,15 +24,21 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
+import static org.opensearch.index.remote.RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockRepositoryIntegTestCase {
 
     public void testRemoteRefreshRetryOnFailure() throws Exception {
-
         Path location = randomRepoPath().toAbsolutePath();
         setup(location, randomDoubleBetween(0.1, 0.15, true), "metadata", 10L);
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), false))
+            .get();
 
         // Here we are having flush/refresh after each iteration of indexing. However, the refresh will not always succeed
         // due to IOExceptions that are thrown while doing uploadBlobs.
@@ -41,8 +49,13 @@ public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockReposit
         IndicesStatsResponse response = client().admin().indices().stats(new IndicesStatsRequest()).get();
         assertEquals(1, response.getShards().length);
 
+        String indexName = response.getShards()[0].getShardRouting().index().getName();
         String indexUuid = response.getShards()[0].getShardRouting().index().getUUID();
-        Path segmentDataRepoPath = location.resolve(String.format(Locale.ROOT, "%s/0/segments/data", indexUuid));
+
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        String shardPath = getShardLevelBlobPath(client(), indexName, new BlobPath(), "0", SEGMENTS, DATA, segmentsPathFixedPrefix)
+            .buildAsString();
+        Path segmentDataRepoPath = location.resolve(shardPath);
         String segmentDataLocalPath = String.format(Locale.ROOT, "%s/indices/%s/0/index", response.getShards()[0].getDataPath(), indexUuid);
 
         logger.info("--> Verify that the segment files are same on local and repository eventually");
@@ -56,7 +69,7 @@ public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockReposit
             logger.info("Local files = {}, Repo files = {}", sortedFilesInLocal, sortedFilesInRepo);
             assertTrue(filesInRepo.containsAll(filesInLocal));
         }, 90, TimeUnit.SECONDS);
-        deleteRepo();
+        cleanupRepo();
     }
 
     public void testRemoteRefreshSegmentPressureSettingChanged() {

@@ -35,9 +35,7 @@ package org.opensearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.GroupedActionListener;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiskUsage;
@@ -53,7 +51,9 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.transport.client.Client;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -380,9 +380,21 @@ public class DiskThresholdMonitor {
         if ((state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()) == false)
             && nodes.size() > 0
             && nodesOverHighThreshold.size() == nodes.size()) {
+            logger.warn(
+                "Putting index create block on cluster as all nodes are breaching high disk watermark. "
+                    + "Number of nodes above high watermark: {}.",
+                nodesOverHighThreshold.size()
+            );
             setIndexCreateBlock(listener, true);
         } else if (state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id())
-            && diskThresholdSettings.isCreateIndexBlockAutoReleaseEnabled()) {
+            && diskThresholdSettings.isCreateIndexBlockAutoReleaseEnabled()
+            && nodesOverHighThreshold.size() < nodes.size()) {
+                logger.warn(
+                    "Removing index create block on cluster as all nodes are no longer breaching high disk watermark. "
+                        + "Number of nodes above high watermark: {}. Total numbers of nodes: {}.",
+                    nodesOverHighThreshold.size(),
+                    nodes.size()
+                );
                 setIndexCreateBlock(listener, false);
             } else {
                 listener.onResponse(null);

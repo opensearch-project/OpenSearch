@@ -57,26 +57,28 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.ParseField;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.analysis.FieldNameAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -92,8 +94,6 @@ import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.query.Rewriteable;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -139,10 +139,10 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
      *
      * @param field                     The field that contains the percolator query
      * @param document                  The binary blob containing document to percolate
-     * @param documentXContentType      The content type of the binary blob containing the document to percolate
+     * @param documentMediaType      The content type of the binary blob containing the document to percolate
      */
-    public PercolateQueryBuilder(String field, BytesReference document, XContentType documentXContentType) {
-        this(field, Collections.singletonList(document), documentXContentType);
+    public PercolateQueryBuilder(String field, BytesReference document, MediaType documentMediaType) {
+        this(field, Collections.singletonList(document), documentMediaType);
     }
 
     /**
@@ -369,9 +369,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (indexedDocId != null) {
             return new PercolateQueryBuilder(field, indexedDocIndex, indexedDocId, indexDocRouting, indexDocPreference, indexedDocVersion);
         } else if (document != null) {
-            return new PercolateQueryBuilder(field, Collections.singletonList(document), XContentType.JSON);
+            return new PercolateQueryBuilder(field, Collections.singletonList(document), MediaTypeRegistry.JSON);
         } else {
-            return new PercolateQueryBuilder(field, documents, XContentType.JSON);
+            return new PercolateQueryBuilder(field, documents, MediaTypeRegistry.JSON);
         }
     });
     static {

@@ -33,6 +33,7 @@
 package org.opensearch.cluster.service;
 
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.function.Supplier;
 
@@ -49,6 +50,12 @@ public interface ClusterApplier {
     void setInitialState(ClusterState initialState);
 
     /**
+     * Sets the pre-commit state for the applier.
+     * @param clusterState state that has been committed by coordinator to store
+     */
+    void setPreCommitState(ClusterState clusterState);
+
+    /**
      * Method to invoke when a new cluster state is available to be applied
      *
      * @param source information where the cluster state came from
@@ -59,7 +66,10 @@ public interface ClusterApplier {
 
     /**
      * Listener for results of cluster state application
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface ClusterApplyListener {
         /**
          * Called on successful cluster state application

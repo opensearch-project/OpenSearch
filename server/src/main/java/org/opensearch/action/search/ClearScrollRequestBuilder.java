@@ -33,15 +33,17 @@
 package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.List;
 
 /**
  * Transport request builder for clearing a search scroll
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollRequest, ClearScrollResponse> {
 
     public ClearScrollRequestBuilder(OpenSearchClient client, ClearScrollAction action) {

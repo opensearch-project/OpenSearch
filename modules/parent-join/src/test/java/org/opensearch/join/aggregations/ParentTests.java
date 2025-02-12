@@ -32,13 +32,13 @@
 
 package org.opensearch.join.aggregations;
 
-import java.util.Arrays;
-import java.util.Collection;
-
 import org.opensearch.join.ParentJoinModulePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
+
+import java.util.Arrays;
+import java.util.Collection;
 
 public class ParentTests extends BaseAggregationTestCase<ParentAggregationBuilder> {
 

@@ -1,0 +1,5 @@
+Ehcache V3
+Copyright 2014-2023 Terracotta, Inc.
+
+The product includes software from the Apache Commons Lang project,
+under the Apache License 2.0 (see: org.ehcache.impl.internal.classes.commonslang)

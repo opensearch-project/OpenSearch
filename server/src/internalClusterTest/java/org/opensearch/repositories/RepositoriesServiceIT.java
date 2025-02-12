@@ -33,19 +33,18 @@
 package org.opensearch.repositories;
 
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -70,9 +69,12 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
             .next();
 
         final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath());
-
-        assertAcked(
-            client.admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
+        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+            client().admin().cluster(),
+            repositoryName,
+            FsRepository.TYPE,
+            true,
+            repoSettings
         );
 
         final GetRepositoriesResponse originalGetRepositoriesResponse = client.admin()
@@ -91,8 +93,12 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         final boolean updated = randomBoolean();
         final String updatedRepositoryType = updated ? "mock" : FsRepository.TYPE;
 
-        assertAcked(
-            client.admin().cluster().preparePutRepository(repositoryName).setType(updatedRepositoryType).setSettings(repoSettings).get()
+        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+            client().admin().cluster(),
+            repositoryName,
+            updatedRepositoryType,
+            true,
+            repoSettings
         );
 
         final GetRepositoriesResponse updatedGetRepositoriesResponse = client.admin()
@@ -107,5 +113,13 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
 
         final Repository updatedRepository = repositoriesService.repository(repositoryName);
         assertThat(updatedRepository, updated ? not(sameInstance(originalRepository)) : sameInstance(originalRepository));
+    }
+
+    public void testSystemRepositoryCantBeCreated() {
+        internalCluster();
+        final String repositoryName = "test-repo";
+        final Settings.Builder repoSettings = Settings.builder().put("system_repository", true).put("location", randomRepoPath());
+
+        assertThrows(RepositoryException.class, () -> createRepository(repositoryName, FsRepository.TYPE, repoSettings));
     }
 }

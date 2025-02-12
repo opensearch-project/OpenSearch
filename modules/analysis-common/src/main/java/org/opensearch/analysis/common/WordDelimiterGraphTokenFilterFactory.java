@@ -47,6 +47,7 @@ import org.opensearch.index.analysis.TokenFilterFactory;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.analysis.common.WordDelimiterTokenFilterFactory.parseTypes;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.CATENATE_ALL;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.CATENATE_NUMBERS;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.CATENATE_WORDS;
@@ -57,7 +58,6 @@ import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.SPLIT_ON_NUMERICS;
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE;
-import static org.opensearch.analysis.common.WordDelimiterTokenFilterFactory.parseTypes;
 
 public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFactory {
     private final byte[] charTypeTable;

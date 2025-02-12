@@ -32,18 +32,20 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequestBuilder;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.Map;
 
 /**
  * Builder for a cluster update settings request
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<
     ClusterUpdateSettingsRequest,
     ClusterUpdateSettingsResponse,

@@ -32,12 +32,20 @@
 
 package org.opensearch.common.cache;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Listener for removing an element from the cache
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 @FunctionalInterface
 public interface RemovalListener<K, V> {
+
+    /**
+     * This may be called from multiple threads at once. So implementation needs to be thread safe.
+     * @param notification removal notification for desired entry.
+     */
     void onRemoval(RemovalNotification<K, V> notification);
 }

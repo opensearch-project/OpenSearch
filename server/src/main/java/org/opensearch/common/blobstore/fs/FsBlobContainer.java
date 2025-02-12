@@ -69,7 +69,7 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * A file system based implementation of {@link org.opensearch.common.blobstore.BlobContainer}.
  * All blobs in the container are stored on a file system, the location of which is specified by the {@link BlobPath}.
- *
+ * <p>
  * Note that the methods in this implementation of {@link org.opensearch.common.blobstore.BlobContainer} may
  * additionally throw a {@link java.lang.SecurityException} if the configured {@link java.lang.SecurityManager}
  * does not permit read and/or write access to the underlying files.
@@ -258,7 +258,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     /**
      * Returns true if the blob is a leftover temporary blob.
-     *
+     * <p>
      * The temporary blobs might be left after failed atomic write operation.
      */
     public static boolean isTempBlobName(final String blobName) {

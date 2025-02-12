@@ -30,8 +30,8 @@
 apply plugin: 'opensearch.build'
 
 java {
-  targetCompatibility = JavaVersion.VERSION_11
-  sourceCompatibility = JavaVersion.VERSION_11
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
 }
 
 base {
@@ -69,3 +69,10 @@ dependenciesInfo.enabled = false
 //we aren't releasing this jar
 thirdPartyAudit.enabled = false
 test.enabled = false
+
+tasks.withType(JavaCompile) {
+  // Suppressing '[options] target value 8 is obsolete and will be removed in a future release'
+  configure(options) {
+    options.compilerArgs << '-Xlint:-options'
+  }
+}

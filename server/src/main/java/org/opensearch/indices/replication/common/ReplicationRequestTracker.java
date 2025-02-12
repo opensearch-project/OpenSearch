@@ -32,10 +32,10 @@
 
 package org.opensearch.indices.replication.common;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ListenableFuture;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 
 import java.util.Collections;
@@ -58,8 +58,7 @@ public class ReplicationRequestTracker {
      * This method will mark that a request with a unique sequence number has been received. If this is the
      * first time the unique request has been received, this method will return a listener to be completed.
      * The caller should then perform the requested action and complete the returned listener.
-     *
-     *
+     * <p>
      * If the unique request has already been received, this method will either complete the provided listener
      * or attach that listener to the listener returned in the first call. In this case, the method will
      * return null and the caller should not perform the requested action as a prior caller is already

@@ -32,10 +32,10 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -46,7 +46,6 @@ import java.util.Set;
 
 /**
  * Base class for HLL++ algorithms.
- *
  * It contains methods for cloning and serializing the data structure.
  *
  * @opensearch.internal

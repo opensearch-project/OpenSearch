@@ -63,7 +63,7 @@ public interface GeometryFormat<ParsedFormat> {
 
     /**
      * Serializes the geometry into a standard Java object.
-     *
+     * <p>
      * For example, the GeoJson format returns the geometry as a map, while WKT returns a string.
      */
     Object toXContentAsObject(ParsedFormat geometry);

@@ -155,4 +155,8 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         return new TopHitsAggregator(searchContext.fetchPhase(), subSearchContext, name, searchContext, parent, metadata);
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

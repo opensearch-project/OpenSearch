@@ -72,8 +72,13 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
         }
     }
 
-    public UnmappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount, Map<String, Object> metadata) {
-        super(name, order, order, requiredSize, minDocCount, metadata);
+    public UnmappedTerms(
+        String name,
+        BucketOrder order,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds,
+        Map<String, Object> metadata
+    ) {
+        super(name, order, order, bucketCountThresholds, metadata);
     }
 
     /**
@@ -100,7 +105,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
 
     @Override
     public UnmappedTerms create(List<Bucket> buckets) {
-        return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
+        return new UnmappedTerms(name, order, bucketCountThresholds, metadata);
     }
 
     @Override
@@ -120,7 +125,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
+        return new UnmappedTerms(name, order, bucketCountThresholds, metadata);
     }
 
     @Override

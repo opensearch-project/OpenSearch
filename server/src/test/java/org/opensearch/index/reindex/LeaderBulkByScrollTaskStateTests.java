@@ -32,15 +32,16 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.action.ActionListener;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import org.mockito.ArgumentCaptor;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;

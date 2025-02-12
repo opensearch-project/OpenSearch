@@ -33,9 +33,9 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

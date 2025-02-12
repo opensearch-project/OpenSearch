@@ -36,11 +36,11 @@ import org.apache.lucene.util.packed.PackedInts;
 
 /**
  * Linear counter, implemented based on pseudo code from
- * http://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf and its appendix
- * https://docs.google.com/document/d/1gyjfMHy43U9OWBXxfaeG-3MjGzejW1dlpyMwEYAAWEI/view?fullscreen
- *
+ * <a href="http://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf">40671.pdf</a> and its
+ * <a href="https://docs.google.com/document/d/1gyjfMHy43U9OWBXxfaeG-3MjGzejW1dlpyMwEYAAWEI/view?fullscreen">appendix</a>
+ * <p>
  * Trying to understand what this class does without having read the paper is considered adventurous.
- *
+ * <p>
  * The algorithm just keep a record of all distinct values provided encoded as an integer.
  *
  * @opensearch.internal

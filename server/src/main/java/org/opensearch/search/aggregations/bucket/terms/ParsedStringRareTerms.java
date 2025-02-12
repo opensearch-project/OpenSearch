@@ -32,13 +32,13 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import java.io.IOException;
-import java.nio.CharBuffer;
-
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.nio.CharBuffer;
 
 /**
  * A significant rare  result parsed between nodes

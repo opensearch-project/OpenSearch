@@ -32,6 +32,7 @@
 
 package org.opensearch.core.common.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -44,8 +45,9 @@ import java.io.IOException;
  * the addresses the transport is bound to, and the other is the published one that represents the address clients
  * should communicate on.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class BoundTransportAddress implements Writeable {
 
     private TransportAddress[] boundAddresses;

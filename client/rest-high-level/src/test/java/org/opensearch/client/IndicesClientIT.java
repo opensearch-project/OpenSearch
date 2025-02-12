@@ -65,7 +65,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.indices.AnalyzeRequest;
 import org.opensearch.client.indices.AnalyzeResponse;
 import org.opensearch.client.indices.CloseIndexRequest;
@@ -108,23 +108,23 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.ValidationException;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -134,6 +134,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.common.xcontent.support.XContentMapValues.extractRawValues;
+import static org.opensearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -149,10 +154,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.common.xcontent.support.XContentMapValues.extractRawValues;
-import static org.opensearch.common.xcontent.support.XContentMapValues.extractValue;
 
 public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
 
@@ -256,6 +257,26 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         }
     }
 
+    public void testCreateIndexFailPrivateSetting() throws IOException {
+        {
+            // Create index with private setting
+            String indexName = "private_index";
+            assertFalse(indexExists(indexName));
+
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+
+            Settings.Builder settings = Settings.builder();
+            settings.put(SETTING_CREATION_DATE, -1);
+            createIndexRequest.settings(settings);
+
+            OpenSearchStatusException exception = expectThrows(
+                OpenSearchStatusException.class,
+                () -> execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync)
+            );
+            assertTrue(exception.getMessage().contains("private index setting [index.creation_date] can not be set explicitly"));
+        }
+    }
+
     public void testGetSettings() throws IOException {
         String indexName = "get_settings_index";
         Settings basicSettings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
@@ -279,6 +300,24 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             highLevelClient().indices()::getSettingsAsync
         );
         assertEquals("30s", updatedResponse.getSetting(indexName, "index.refresh_interval"));
+    }
+
+    public void testGetPrivateSettings() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
+
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName);
+        GetSettingsResponse getSettingsResponse = execute(
+            getSettingsRequest,
+            highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync
+        );
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.refresh_interval"));
+        assertNotNull(getSettingsResponse.getSetting(indexName, "index.creation_date"));
+        assertNotNull(getSettingsResponse.getSetting(indexName, "index.uuid"));
     }
 
     public void testGetSettingsNonExistentIndex() throws IOException {
@@ -701,7 +740,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         closeIndex(index);
         ResponseException exception = expectThrows(
             ResponseException.class,
-            () -> client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search"))
+            () -> client().performRequest(new Request(HttpGet.METHOD_NAME, "/" + index + "/_search"))
         );
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
         assertThat(exception.getMessage().contains(index), equalTo(true));
@@ -714,7 +753,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         );
         assertTrue(openIndexResponse.isAcknowledged());
 
-        Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search"));
+        Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/" + index + "/_search"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
@@ -771,7 +810,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
 
             ResponseException exception = expectThrows(
                 ResponseException.class,
-                () -> client().performRequest(new Request(HttpGet.METHOD_NAME, indexResult.getIndex() + "/_search"))
+                () -> client().performRequest(new Request(HttpGet.METHOD_NAME, "/" + indexResult.getIndex() + "/_search"))
             );
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
             assertThat(exception.getMessage().contains(indexResult.getIndex()), equalTo(true));
@@ -1074,7 +1113,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         }
         {
             String mappings = "{\"properties\":{\"field2\":{\"type\":\"keyword\"}}}";
-            rolloverRequest.getCreateIndexRequest().mapping(mappings, XContentType.JSON);
+            rolloverRequest.getCreateIndexRequest().mapping(mappings, MediaTypeRegistry.JSON);
             rolloverRequest.dryRun(false);
             rolloverRequest.addMaxIndexSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
             RolloverResponse rolloverResponse = execute(
@@ -1270,7 +1309,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             assertThat(getAliasesResponse.getException(), nullValue());
         }
         createIndex(index, Settings.EMPTY);
-        client().performRequest(new Request(HttpPut.METHOD_NAME, index + "/_alias/" + alias));
+        client().performRequest(new Request(HttpPut.METHOD_NAME, "/" + index + "/_alias/" + alias));
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(index, "non_existent_index");
             GetAliasesResponse getAliasesResponse = execute(
@@ -1489,7 +1528,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             .order(10)
             .create(randomBoolean())
             .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
-            .mapping("{ \"properties\": { \"host_name\": { \"type\": \"keyword\" } } }", XContentType.JSON)
+            .mapping("{ \"properties\": { \"host_name\": { \"type\": \"keyword\" } } }", MediaTypeRegistry.JSON)
             .alias(new Alias("alias-1").indexRouting("abc"))
             .alias(new Alias("alias-1").indexRouting("abc"))
             .alias(new Alias("{index}-write").searchRouting("xyz"));
@@ -1558,7 +1597,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
                     + "    }"
                     + "  }"
                     + "}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .alias(new Alias("alias-1").indexRouting("abc"))
             .alias(new Alias("{index}-write").searchRouting("xyz"));
@@ -1664,7 +1703,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             equalTo(true)
         );
         PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest("template-2").patterns(Arrays.asList("pattern-2", "name-2"))
-            .mapping("{\"properties\": { \"name\": { \"type\": \"text\" }}}", XContentType.JSON)
+            .mapping("{\"properties\": { \"name\": { \"type\": \"text\" }}}", MediaTypeRegistry.JSON)
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
         assertThat(
             execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),

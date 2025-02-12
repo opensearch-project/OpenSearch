@@ -2,9 +2,7 @@
   - [Getting Started](#getting-started)
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
-      - [JDK 11](#jdk-11)
-      - [JDK 14](#jdk-14)
-      - [JDK 17](#jdk-17)
+      - [JDK](#jdk)
       - [Custom Runtime JDK](#custom-runtime-jdk)
       - [Windows](#windows)
       - [Docker](#docker)
@@ -57,10 +55,12 @@
       - [Developer API](#developer-api)
       - [User API](#user-api)
       - [Experimental Development](#experimental-development)
+      - [API Compatibility Checks](#api-compatibility-checks)
     - [Backports](#backports)
     - [LineLint](#linelint)
     - [Lucene Snapshots](#lucene-snapshots)
     - [Flaky Tests](#flaky-tests)
+    - [Gradle Check Metrics Dashboard](#gradle-check-metrics-dashboard)
 
 # Developer Guide
 
@@ -74,35 +74,24 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 ### Install Prerequisites
 
-#### JDK 11
+#### JDK
 
-OpenSearch builds using Java 11 at a minimum, using the Adoptium distribution. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`. This is configured in [buildSrc/build.gradle](buildSrc/build.gradle) and [distribution/tools/java-version-checker/build.gradle](distribution/tools/java-version-checker/build.gradle).
+OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 11 is the minimum supported, and JDK-23 is the newest supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`. 
 
-```
-allprojects {
-  targetCompatibility = JavaVersion.VERSION_11
-  sourceCompatibility = JavaVersion.VERSION_11
-}
-```
+Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11). 
+
+
+In addition, certain backward compatibility tests check out and compile the previous major version of OpenSearch, and therefore require installing [JDK 11](https://adoptium.net/temurin/releases/?version=11) and [JDK 17](https://adoptium.net/temurin/releases/?version=17) and setting the `JAVA11_HOME` and `JAVA17_HOME` environment variables. More to that, since 8.10 release, Gradle has deprecated the usage of the any JDKs below JDK-16. For smooth development experience, the recommendation is to install at least [JDK 17](https://adoptium.net/temurin/releases/?version=17) or [JDK 21](https://adoptium.net/temurin/releases/?version=21). If you still want to build with JDK-11 only, please add `-Dorg.gradle.warning.mode=none` when invoking any Gradle build task from command line, for example:
 
 ```
-sourceCompatibility = JavaVersion.VERSION_11
-targetCompatibility = JavaVersion.VERSION_11
+./gradlew check -Dorg.gradle.warning.mode=none
 ```
 
-Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
-
-#### JDK 14
-
-To run the full suite of tests, download and install [JDK 14](https://jdk.java.net/archive/) and set `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
-
-#### JDK 17
-
-By default, the test tasks use bundled JDK runtime, configured in [buildSrc/version.properties](buildSrc/version.properties), and set to JDK 17 (LTS).
+By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml), and set to JDK 23 (non-LTS).
 
 ```
 bundled_jdk_vendor = adoptium
-bundled_jdk = 17.0.2+8
+bundled_jdk = 23.0.1+11
 ```
 
 #### Custom Runtime JDK
@@ -181,6 +170,12 @@ Run OpenSearch using `gradlew run`.
 
 ```
 ./gradlew run
+```
+
+[Plugins](plugins/) may be installed by passing a `-PinstalledPlugins` property:
+
+```bash
+./gradlew run -PinstalledPlugins="['plugin1', 'plugin2']"
 ```
 
 That will build OpenSearch and start it, writing its log above Gradle's status message. We log a lot of stuff on startup, specifically these lines tell you that OpenSearch is ready.
@@ -342,7 +337,7 @@ Please follow these formatting guidelines:
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code with the `// tag::NAME` and `// end::NAME` directives, but note that these are intended for use in documentation, so please make it clear what you have done, and only do this where the benefit clearly outweighs the decrease in consistency.
 * Note that JavaDoc and block comments i.e. `/* ... */` are not formatted, but line comments i.e `// ...` are.
-* There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, if might get called out in PR reviews as something to change.
+* There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, it might get called out in PR reviews as something to change.
 
 ## Adding Dependencies
 
@@ -569,13 +564,19 @@ use Version checks accordingly (e.g., `Version.onOrAfter`, `Version.before`) to 
 
 #### Developer API
 
-The Developer API consists of interfaces and foundation software implementations that enable external users to develop new OpenSearch features. This includes
-obvious components such as the Plugin framework and less obvious components such as REST Action Handlers. When developing a new feature of OpenSearch it is important
-to explicitly mark which implementation components may, or may not, be extended by external implementations. For example, all new API classes with `@opensearch.api`
-signal that the new component may be extended by an external implementation and therefore provide backwards compatibility guarantees. Similarly, any class explicitly
-marked with the `@opensearch.internal` annotation, or not explicitly marked by an annotation should not be extended by external implementation components as it does not
-guarantee backwards compatibility and may change at any time. The `@deprecated` annotation should also be added to any `@opensearch.api` classes or methods that are
-either changed or planned to be removed across minor versions.
+The Developer API consists of interfaces and foundation software implementations that enable external users to develop new OpenSearch features. This includes obvious
+components such as the Plugin and Extension frameworks and less obvious components such as REST Action Handlers. When developing a new feature of OpenSearch it is
+important to explicitly mark which implementation components may, or may not, be extended by external implementations. For example, all new API classes with
+`@PublicApi` annotation (or documented as `@opensearch.api`) signal that the new component may be extended by an external implementation and therefore provide
+backwards compatibility guarantees. Similarly, any class explicitly marked with the `@InternalApi` (or documented as `@opensearch.internal`) annotation, or not
+explicitly marked by an annotation should not be extended by external implementation components as it does not guarantee backwards compatibility and may change at
+any time. The `@DeprecatedApi` annotation could also be added to any classes annotated with `@PublicApi` (or documented as `@opensearch.api`) or their methods that
+are either changed (with replacement) or planned to be removed across major versions.
+
+The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`)
+annotation. The presence of this annotation signals that API may change at any time (major, minor or even patch releases). In general, the classes annotated with
+`@PublicApi` may expose other classes or methods annotated with `@ExperimentalApi`, in such cases the backward compatibility guarantees would not apply to latter
+(see please [Experimental Development](#experimental-development) for more details).
 
 #### User API
 
@@ -592,8 +593,22 @@ and a log message to the OpenSearch deprecation log files using the `Deprecation
 Rapidly developing new features often benefit from several release cycles before committing to an official and long term supported (LTS) API. To enable this cycle OpenSearch
 uses an Experimental Development process leveraging [Feature Flags](https://featureflags.io/feature-flags/). This allows a feature to be developed using the same process as
 a LTS feature but with additional guard rails and communication mechanisms to signal to the users and development community the feature is not yet stable, may change in a future
-release, or be removed altogether. Any Developer or User APIs implemented along with the experimental feature should be marked with the `@opensearch.experimental` annotation to
-signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines.
+release, or be removed altogether. Any Developer or User APIs implemented along with the experimental feature should be marked with `@ExperimentalApi` (or documented as
+`@opensearch.experimental`) annotation to signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines.
+
+#### API Compatibility Checks
+
+The compatibility checks for public APIs are performed using [japicmp](https://siom79.github.io/japicmp/) and are available as separate Gradle tasks (those are run on demand at the moment):
+
+```
+./gradlew japicmp
+```
+
+By default, the API compatibility checks are run against the latest released version of the OpenSearch, however the target version to compare to could be provided using system property during the build, fe.:
+
+```
+./gradlew japicmp  -Djapicmp.compare.version=2.14.0-SNAPSHOT
+```
 
 ### Backports
 
@@ -623,13 +638,19 @@ Note that these snapshots do not follow the Maven [naming convention](https://ma
 
 ### Flaky Tests
 
-OpenSearch has a very large test suite with long running, often failing (flaky), integration tests. Such individual tests are labelled as [Flaky Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22). Your help is wanted fixing these!
+If you encounter a test failure locally or in CI that is seemingly unrelated to the change in your pull request, it may be a known flaky test or a new test failure. OpenSearch has a very large test suite with long running, often failing (flaky), integration tests. Such individual tests are labelled as [Flaky Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22). Your help is wanted fixing these!
 
-If you encounter a build/test failure in CI that is unrelated to the change in your pull request, it may be a known flaky test, or a new test failure.
+The automation [gradle-check-flaky-test-detector](https://build.ci.opensearch.org/job/gradle-check-flaky-test-detector/), which runs in OpenSearch public Jenkins, identifies failing flaky issues that are part of post-merge actions. Once a flaky test is identified, the automation creates an issue with detailed report that includes links to all relevant commits, the Gradle check build log, the test report, and pull requests that are impacted with the flaky test failures. This automation leverages data from the [OpenSearch Metrics Project](https://github.com/opensearch-project/opensearch-metrics) to establish a baseline for creating the issue and updating the flaky test report. For all flaky test issues created by automation, visit this [link](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%3Etest-failure+author%3Aopensearch-ci-bot).
 
-1. Follow failed CI links, and locate the failing test(s).
-2. Copy-paste the failure into a comment of your PR.
-3. Search through [issues](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) using the name of the failed test for whether this is a known flaky test.
-4. If an existing issue is found, paste a link to the known issue in a comment to your PR.
-5. If no existing issue is found, open one.
-6. Retry CI via the GitHub UX or by pushing an update to your PR.
+If you still see a failing test that is not part of the post merge actions, please do:
+
+* Follow failed CI links, and locate the failing test(s) or use the [Gradle Check Metrics Dashboard](#gradle-check-metrics-dashboard).
+* Copy-paste the failure into a comment of your PR.
+* Search through issues using the name of the failed test for whether this is a known flaky test.
+* If no existing issue is found, open one.
+* Retry CI via the GitHub UX or by pushing an update to your PR.
+
+
+### Gradle Check Metrics Dashboard
+
+To get the comprehensive insights and analysis of the Gradle Check test failures, visit the [OpenSearch Gradle Check Metrics Dashboard](https://metrics.opensearch.org/_dashboards/app/dashboards#/view/e5e64d40-ed31-11ee-be99-69d1dbc75083). This dashboard is part of the [OpenSearch Metrics Project](https://github.com/opensearch-project/opensearch-metrics) initiative. The dashboard contains multiple data points that can help investigate and resolve flaky failures. Additionally, this dashboard can be used to drill down, slice, and dice the data using multiple supported filters, which further aids in troubleshooting and resolving issues.

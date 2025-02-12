@@ -32,6 +32,7 @@
 
 package org.opensearch.search.query;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.SearchShardTarget;
@@ -41,8 +42,9 @@ import java.io.IOException;
 /**
  * Thrown if there are any errors in the query phase
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class QueryPhaseExecutionException extends SearchException {
 
     public QueryPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable cause) {

@@ -8,12 +8,16 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import org.opensearch.common.Booleans;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.opensearch.telemetry.tracing.Span;
 
 /**
  * Strict check span processor to validate the spans.
@@ -25,6 +29,14 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     public StrictCheckSpanProcessor() {}
 
     private static Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
+
+    // If you want to see the stack trace for each spanData, then
+    // update the flag to true or set the corresponding system property to true
+    // This is helpful in debugging the tests. Default value is false.
+    // Note: Enabling this might lead to OOM issues while running ITs.
+    private static final boolean isStackTraceForSpanEnabled = Booleans.parseBoolean(
+        System.getProperty("tests.telemetry.span.stack_traces", "false")
+    );
 
     @Override
     public void onStart(Span span) {
@@ -50,6 +62,7 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
 
     private MockSpanData toMockSpanData(Span span) {
         String parentSpanId = (span.getParentSpan() != null) ? span.getParentSpan().getSpanId() : "";
+        StackTraceElement[] stackTrace = isStackTraceForSpanEnabled ? Thread.currentThread().getStackTrace() : null;
         MockSpanData spanData = new MockSpanData(
             span.getSpanId(),
             parentSpanId,
@@ -57,8 +70,28 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
             System.nanoTime(),
             false,
             span.getSpanName(),
-            Thread.currentThread().getStackTrace()
+            stackTrace,
+            (span instanceof MockSpan) ? ((MockSpan) span).getAttributes() : Map.of()
         );
         return spanData;
+    }
+
+    /**
+     * Ensures the strict check succeeds for all the spans.
+     */
+    public static void validateTracingStateOnShutdown() {
+        List<MockSpanData> spanData = new ArrayList<>(spanMap.values());
+        if (spanData.size() != 0) {
+            TelemetryValidators validators = new TelemetryValidators(
+                Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansHaveUniqueId())
+            );
+            try {
+                validators.validate(spanData, 1);
+            } catch (Error e) {
+                spanMap.clear();
+                throw e;
+            }
+        }
+
     }
 }

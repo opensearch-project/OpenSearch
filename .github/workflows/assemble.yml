@@ -1,0 +1,40 @@
+name: Gradle Assemble
+on: [pull_request]
+
+jobs:
+  assemble:
+    if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        java: [ 21, 23 ]
+        os: [ubuntu-latest, windows-latest, macos-13, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+      - name: Setup docker (missing on MacOS)
+        id: setup_docker
+        if: runner.os == 'macos'
+        continue-on-error: true
+        run: |
+          brew install docker colima coreutils
+          gtimeout 15m colima start
+        shell: bash
+      - name: Run Gradle (assemble)
+        if: runner.os == 'macos' && steps.setup_docker.outcome != 'success'
+        run: |
+          # Report success even if previous step failed (Docker on MacOS runner is very unstable)
+          exit 0;
+      - name: Run Gradle (assemble)
+        shell: bash
+        if: runner.os != 'macos'
+        run: |
+          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE 
+      - name: Run Gradle (assemble)
+        if: runner.os == 'macos' && steps.setup_docker.outcome == 'success'
+        run: |
+          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE

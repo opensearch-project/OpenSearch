@@ -33,6 +33,7 @@
 package org.opensearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
@@ -63,6 +64,7 @@ import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositor
 @ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
 public class HdfsBlobStoreContainerTests extends OpenSearchTestCase {
 
+    @SuppressWarnings("removal")
     private FileContext createTestContext() {
         FileContext fileContext;
         try {
@@ -73,6 +75,7 @@ public class HdfsBlobStoreContainerTests extends OpenSearchTestCase {
         return fileContext;
     }
 
+    @SuppressWarnings("removal")
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
     private FileContext createContext(URI uri) {
         // mirrors HdfsRepository.java behaviour

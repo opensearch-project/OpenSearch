@@ -38,15 +38,17 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.client.Client;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.repositories.RepositoryMissingException;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
+import org.opensearch.transport.client.Client;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -127,19 +129,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * Returns the number of data and cluster-manager eligible nodes in the cluster.
      */
-    // TODO: Add abstract keyword after removing the deprecated numDataAndMasterNodes()
-    public int numDataAndClusterManagerNodes() {
-        return numDataAndMasterNodes();
-    }
-
-    /**
-     * Returns the number of data and cluster-manager eligible nodes in the cluster.
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #numDataAndClusterManagerNodes()}
-     */
-    @Deprecated
-    public int numDataAndMasterNodes() {
-        throw new UnsupportedOperationException("Must be overridden");
-    }
+    public abstract int numDataAndClusterManagerNodes();
 
     /**
      * Returns the http addresses of the nodes within the cluster.
@@ -253,7 +243,18 @@ public abstract class TestCluster implements Closeable {
             }
             for (String repository : repositories) {
                 try {
-                    client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                    List<RepositoryMetadata> repositoryMetadata = client().admin()
+                        .cluster()
+                        .prepareGetRepositories(repository)
+                        .execute()
+                        .actionGet()
+                        .repositories();
+                    if (repositoryMetadata.isEmpty() == false
+                        && BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.get(repositoryMetadata.get(0).settings()) == true) {
+                        client().admin().cluster().prepareCleanupRepository(repository).execute().actionGet();
+                    } else {
+                        client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                    }
                 } catch (RepositoryMissingException ex) {
                     // ignore
                 }
@@ -263,7 +264,7 @@ public abstract class TestCluster implements Closeable {
 
     /**
      * Ensures that any breaker statistics are reset to 0.
-     *
+     * <p>
      * The implementation is specific to the test cluster, because the act of
      * checking some breaker stats can increase them.
      */

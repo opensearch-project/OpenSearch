@@ -40,6 +40,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -48,7 +49,6 @@ import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchShardTarget;
@@ -83,6 +83,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
+
 public class TestSearchContext extends SearchContext {
     public static final SearchShardTarget SHARD_TARGET = new SearchShardTarget(
         "test",
@@ -105,6 +107,7 @@ public class TestSearchContext extends SearchContext {
     SearchShardTask task;
     SortAndFormats sort;
     boolean trackScores = false;
+    boolean includeNamedQueriesScore = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 
     ContextIndexSearcher searcher;
@@ -118,12 +121,21 @@ public class TestSearchContext extends SearchContext {
     private CollapseContext collapse;
     protected boolean concurrentSegmentSearchEnabled;
     private BucketCollectorProcessor bucketCollectorProcessor = NO_OP_BUCKET_COLLECTOR_PROCESSOR;
+    private int maxSliceCount;
 
     /**
      * Sets the concurrent segment search enabled field
      */
     public void setConcurrentSegmentSearchEnabled(boolean concurrentSegmentSearchEnabled) {
         this.concurrentSegmentSearchEnabled = concurrentSegmentSearchEnabled;
+    }
+
+    /**
+     * Sets the maxSliceCount for concurrent search
+     * @param sliceCount maxSliceCount
+     */
+    public void setMaxSliceCount(int sliceCount) {
+        this.maxSliceCount = sliceCount;
     }
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
@@ -160,7 +172,8 @@ public class TestSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
         this.searcher = searcher;
-        this.concurrentSegmentSearchEnabled = searcher != null && (searcher.getExecutor() != null);
+        this.concurrentSegmentSearchEnabled = searcher != null; /* executor is always set */
+        this.maxSliceCount = randomIntBetween(0, 2);
         this.scrollContext = scrollContext;
     }
 
@@ -398,6 +411,17 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public SearchContext includeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        this.includeNamedQueriesScore = includeNamedQueriesScore;
+        return this;
+    }
+
+    @Override
+    public boolean includeNamedQueriesScore() {
+        return includeNamedQueriesScore;
+    }
+
+    @Override
     public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpTo) {
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         return this;
@@ -620,7 +644,7 @@ public class TestSearchContext extends SearchContext {
      * Returns concurrent segment search status for the search context
      */
     @Override
-    public boolean isConcurrentSegmentSearchEnabled() {
+    public boolean shouldUseConcurrentSearch() {
         return concurrentSegmentSearchEnabled;
     }
 
@@ -672,6 +696,21 @@ public class TestSearchContext extends SearchContext {
     @Override
     public BucketCollectorProcessor bucketCollectorProcessor() {
         return bucketCollectorProcessor;
+    }
+
+    @Override
+    public int getTargetMaxSliceCount() {
+        assert concurrentSegmentSearchEnabled == true : "Please use concurrent search before fetching maxSliceCount";
+        return maxSliceCount;
+    }
+
+    @Override
+    public boolean shouldUseTimeSeriesDescSortOptimization() {
+        return indexShard != null
+            && indexShard.isTimeSeriesDescSortOptimizationEnabled()
+            && sort != null
+            && sort.isSortOnTimeSeriesField()
+            && sort.sort.getSort()[0].getReverse() == false;
     }
 
     /**

@@ -48,11 +48,11 @@ public class PreBuiltCacheFactory {
 
     /**
      * The strategy of caching the analyzer
-     *
-     * ONE               Exactly one version is stored. Useful for analyzers which do not store version information
-     * LUCENE            Exactly one version for each lucene version is stored. Useful to prevent different analyzers with the same version
-     * OPENSEARCH        Exactly one version per opensearch version is stored. Useful if you change an analyzer between opensearch
-     *                   releases, when the lucene version does not change
+     * <ul>
+     * <li>ONE        : Exactly one version is stored. Useful for analyzers which do not store version information</li>
+     * <li>LUCENE     : Exactly one version for each lucene version is stored. Useful to prevent different analyzers with the same version</li>
+     * <li>OPENSEARCH : Exactly one version per opensearch version is stored. Useful if you change an analyzer between opensearch releases, when the lucene version does not change</li>
+     * </ul>
      */
     public enum CachingStrategy {
         ONE,

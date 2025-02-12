@@ -34,14 +34,14 @@ package org.opensearch.common.util;
 
 /**
  * Performs binary search on an arbitrary data structure.
- *
+ * <p>
  * To do a search, create a subclass and implement custom {@link #compare(int)} and {@link #distance(int)} methods.
- *
+ * <p>
  * {@link BinarySearcher} knows nothing about the value being searched for or the underlying data structure.
  * These things should be determined by the subclass in its overridden methods.
- *
+ * <p>
  * Refer to {@link BigArrays.DoubleBinarySearcher} for an example.
- *
+ * <p>
  * NOTE: this class is not thread safe
  *
  * @opensearch.internal
@@ -74,7 +74,7 @@ public abstract class BinarySearcher {
     /**
      * Uses a binary search to determine the index of the element within the index range {from, ... , to} that is
      * closest to the search value.
-     *
+     * <p>
      * Unlike most binary search implementations, the value being searched for is not an argument to search method.
      * Rather, this value should be stored by the subclass along with the underlying array.
      *

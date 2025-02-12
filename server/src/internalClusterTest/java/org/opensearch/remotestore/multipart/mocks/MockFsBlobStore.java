@@ -28,7 +28,7 @@ public class MockFsBlobStore extends FsBlobStore {
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         try {
-            return new MockFsVerifyingBlobContainer(this, path, buildAndCreate(path), triggerDataIntegrityFailure);
+            return new MockFsAsyncBlobContainer(this, path, buildAndCreate(path), triggerDataIntegrityFailure);
         } catch (IOException ex) {
             throw new OpenSearchException("failed to create blob container", ex);
         }

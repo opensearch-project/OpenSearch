@@ -33,6 +33,7 @@
 package org.opensearch.action;
 
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -42,8 +43,9 @@ import java.util.Arrays;
 /**
  * Used to keep track of original indices within internal (e.g. shard level) requests
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class OriginalIndices implements IndicesRequest {
 
     // constant to use when original indices are not applicable and will not be serialized across the wire

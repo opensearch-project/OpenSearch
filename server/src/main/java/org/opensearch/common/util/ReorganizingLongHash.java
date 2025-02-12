@@ -8,7 +8,10 @@
 
 package org.opensearch.common.util;
 
+import org.opensearch.common.Numbers;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 
 /**
  * Specialized hash table implementation that maps a (primitive) long to long.
@@ -24,6 +27,7 @@ import org.opensearch.common.lease.Releasable;
  *
  * @opensearch.internal
  */
+@InternalApi
 public class ReorganizingLongHash implements Releasable {
     private static final long MAX_CAPACITY = 1L << 32;
     private static final long DEFAULT_INITIAL_CAPACITY = 32;
@@ -109,14 +113,22 @@ public class ReorganizingLongHash implements Releasable {
         this.bigArrays = bigArrays;
         this.loadFactor = loadFactor;
 
-        capacity = nextPowerOfTwo((long) (initialCapacity / loadFactor));
+        capacity = Numbers.nextPowerOfTwo((long) (initialCapacity / loadFactor));
+        assert capacity <= MAX_CAPACITY : "required capacity too large";
         mask = capacity - 1;
         grow = (long) (capacity * loadFactor);
         size = 0;
-
-        table = bigArrays.newLongArray(capacity, false);
-        table.fill(0, capacity, -1);  // -1 represents an empty slot
-        keys = bigArrays.newLongArray(initialCapacity, false);
+        try {
+            table = bigArrays.newLongArray(capacity, false);
+            table.fill(0, capacity, -1);  // -1 represents an empty slot
+            keys = bigArrays.newLongArray(initialCapacity, false);
+        } finally {
+            if (table == null || keys == null) {
+                // it's important to close the arrays initialized above to prevent memory leak
+                // refer: https://github.com/opensearch-project/OpenSearch/issues/10154
+                Releasables.closeWhileHandlingException(table, keys);
+            }
+        }
     }
 
     /**
@@ -296,11 +308,6 @@ public class ReorganizingLongHash implements Releasable {
 
     @Override
     public void close() {
-        table.close();
-        keys.close();
-    }
-
-    private static long nextPowerOfTwo(final long value) {
-        return Math.max(1, Long.highestOneBit(value - 1) << 1);
+        Releasables.close(table, keys);
     }
 }

@@ -32,9 +32,9 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -128,6 +128,7 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
         );
         assertThat(builder.getName(), equalTo("test"));
         assertThat(builder.field(), equalTo("f"));
+        assertThat(builder.fieldName(), equalTo("f"));
         assertThat(builder.ranges, equalTo(List.of(new RangeAggregator.Range("1", null, 0d))));
     }
 }

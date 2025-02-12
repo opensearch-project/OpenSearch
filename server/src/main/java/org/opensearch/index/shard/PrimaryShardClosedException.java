@@ -5,10 +5,10 @@
 
 package org.opensearch.index.shard;
 
-import java.io.IOException;
-
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * Exception to indicate failures are caused due to the closure of the primary

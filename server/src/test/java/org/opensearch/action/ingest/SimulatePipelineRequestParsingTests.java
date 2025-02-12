@@ -55,12 +55,12 @@ import java.util.Map;
 import static org.opensearch.action.ingest.SimulatePipelineRequest.Fields;
 import static org.opensearch.action.ingest.SimulatePipelineRequest.SIMULATED_PIPELINE_ID;
 import static org.opensearch.ingest.IngestDocument.Metadata.ID;
+import static org.opensearch.ingest.IngestDocument.Metadata.IF_PRIMARY_TERM;
+import static org.opensearch.ingest.IngestDocument.Metadata.IF_SEQ_NO;
 import static org.opensearch.ingest.IngestDocument.Metadata.INDEX;
 import static org.opensearch.ingest.IngestDocument.Metadata.ROUTING;
 import static org.opensearch.ingest.IngestDocument.Metadata.VERSION;
 import static org.opensearch.ingest.IngestDocument.Metadata.VERSION_TYPE;
-import static org.opensearch.ingest.IngestDocument.Metadata.IF_SEQ_NO;
-import static org.opensearch.ingest.IngestDocument.Metadata.IF_PRIMARY_TERM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -85,7 +85,7 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         when(ingestService.getProcessorFactories()).thenReturn(registry);
     }
 
-    public void testParseUsingPipelineStore(boolean useExplicitType) throws Exception {
+    public void testParseUsingPipelineStore() throws Exception {
         int numDocs = randomIntBetween(1, 10);
 
         Map<String, Object> requestContent = new HashMap<>();
@@ -131,7 +131,7 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
     }
 
-    public void innerTestParseWithProvidedPipeline() throws Exception {
+    public void testParseWithProvidedPipeline() throws Exception {
         int numDocs = randomIntBetween(1, 10);
 
         Map<String, Object> requestContent = new HashMap<>();
@@ -144,17 +144,29 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
             List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, ID, ROUTING, VERSION, VERSION_TYPE, IF_SEQ_NO, IF_PRIMARY_TERM);
             for (IngestDocument.Metadata field : fields) {
                 if (field == VERSION) {
-                    Long value = randomLong();
-                    doc.put(field.getFieldName(), value);
-                    expectedDoc.put(field.getFieldName(), value);
+                    if (randomBoolean()) {
+                        Long value = randomLong();
+                        doc.put(field.getFieldName(), value);
+                        expectedDoc.put(field.getFieldName(), value);
+                    } else {
+                        int value = randomIntBetween(1, 1000000);
+                        doc.put(field.getFieldName(), value);
+                        expectedDoc.put(field.getFieldName(), (long) value);
+                    }
                 } else if (field == VERSION_TYPE) {
                     String value = VersionType.toString(randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE));
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);
                 } else if (field == IF_SEQ_NO || field == IF_PRIMARY_TERM) {
-                    Long value = randomNonNegativeLong();
-                    doc.put(field.getFieldName(), value);
-                    expectedDoc.put(field.getFieldName(), value);
+                    if (randomBoolean()) {
+                        Long value = randomNonNegativeLong();
+                        doc.put(field.getFieldName(), value);
+                        expectedDoc.put(field.getFieldName(), value);
+                    } else {
+                        int value = randomIntBetween(1, 1000000);
+                        doc.put(field.getFieldName(), value);
+                        expectedDoc.put(field.getFieldName(), (long) value);
+                    }
                 } else {
                     if (randomBoolean()) {
                         String value = randomAlphaOfLengthBetween(1, 10);
@@ -281,5 +293,41 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
             () -> SimulatePipelineRequest.parse(requestContent, false, ingestService)
         );
         assertThat(e3.getMessage(), containsString("required property is missing"));
+    }
+
+    public void testNotValidMetadataFields() {
+        List<IngestDocument.Metadata> fields = Arrays.asList(VERSION, IF_SEQ_NO, IF_PRIMARY_TERM);
+        for (IngestDocument.Metadata field : fields) {
+            String metadataFieldName = field.getFieldName();
+            Map<String, Object> requestContent = new HashMap<>();
+            List<Map<String, Object>> docs = new ArrayList<>();
+            requestContent.put(Fields.DOCS, docs);
+            Map<String, Object> doc = new HashMap<>();
+            doc.put(metadataFieldName, randomAlphaOfLengthBetween(1, 10));
+            doc.put(Fields.SOURCE, Collections.singletonMap(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            docs.add(doc);
+
+            Map<String, Object> pipelineConfig = new HashMap<>();
+            List<Map<String, Object>> processors = new ArrayList<>();
+            Map<String, Object> processorConfig = new HashMap<>();
+            List<Map<String, Object>> onFailureProcessors = new ArrayList<>();
+            int numOnFailureProcessors = randomIntBetween(0, 1);
+            for (int j = 0; j < numOnFailureProcessors; j++) {
+                onFailureProcessors.add(Collections.singletonMap("mock_processor", Collections.emptyMap()));
+            }
+            if (numOnFailureProcessors > 0) {
+                processorConfig.put("on_failure", onFailureProcessors);
+            }
+            processors.add(Collections.singletonMap("mock_processor", processorConfig));
+            pipelineConfig.put("processors", processors);
+
+            requestContent.put(Fields.PIPELINE, pipelineConfig);
+
+            assertThrows(
+                "Failed to parse parameter [" + metadataFieldName + "], only int or long is accepted",
+                IllegalArgumentException.class,
+                () -> SimulatePipelineRequest.parse(requestContent, false, ingestService)
+            );
+        }
     }
 }

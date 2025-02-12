@@ -36,9 +36,10 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -46,8 +47,9 @@ import java.util.EnumSet;
 /**
  * Request for {@link IndicesShardStoresAction}
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesShardStoresRequest extends ClusterManagerNodeReadRequest<IndicesShardStoresRequest>
     implements
         IndicesRequest.Replaceable {

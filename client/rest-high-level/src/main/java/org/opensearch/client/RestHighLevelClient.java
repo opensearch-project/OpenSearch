@@ -35,7 +35,6 @@ package org.opensearch.client;
 import org.apache.hc.core5.http.HttpEntity;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -69,7 +68,7 @@ import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.core.CountRequest;
@@ -86,6 +85,8 @@ import org.opensearch.client.tasks.TaskSubmissionResponse;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -99,7 +100,6 @@ import org.opensearch.index.reindex.ReindexRequest;
 import org.opensearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.plugins.spi.NamedXContentProvider;
 import org.opensearch.rest.BytesRestResponse;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
 import org.opensearch.script.mustache.MultiSearchTemplateResponse;
 import org.opensearch.script.mustache.SearchTemplateRequest;
@@ -139,21 +139,21 @@ import org.opensearch.search.aggregations.bucket.range.ParsedRange;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.opensearch.search.aggregations.bucket.sampler.ParsedSampler;
+import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongRareTerms;
+import org.opensearch.search.aggregations.bucket.terms.LongTerms;
 import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedLongRareTerms;
+import org.opensearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedMultiTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedStringRareTerms;
-import org.opensearch.search.aggregations.bucket.terms.SignificantLongTerms;
-import org.opensearch.search.aggregations.bucket.terms.SignificantStringTerms;
-import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
-import org.opensearch.search.aggregations.bucket.terms.LongTerms;
-import org.opensearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
-import org.opensearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedUnsignedLongTerms;
+import org.opensearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.opensearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringRareTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.UnsignedLongTerms;
@@ -2227,11 +2227,11 @@ public class RestHighLevelClient implements Closeable {
         if (entity.getContentType() == null) {
             throw new IllegalStateException("OpenSearch didn't return the [Content-Type] header, unable to parse response body");
         }
-        MediaType medaiType = MediaType.fromMediaType(entity.getContentType());
-        if (medaiType == null) {
+        MediaType mediaType = MediaType.fromMediaType(entity.getContentType());
+        if (mediaType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType());
         }
-        try (XContentParser parser = medaiType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
+        try (XContentParser parser = mediaType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }

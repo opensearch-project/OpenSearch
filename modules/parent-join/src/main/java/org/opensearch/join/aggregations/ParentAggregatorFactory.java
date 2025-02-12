@@ -118,4 +118,10 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
         // Parent Aggregation is registered in non-standard way
         return OTHER_SUBTYPE;
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        // See https://github.com/opensearch-project/OpenSearch/issues/9316
+        return false;
+    }
 }

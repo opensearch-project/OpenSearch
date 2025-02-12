@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
 
 /**
  * Represent rules for tests enforced by the @{link {@link TestingConventionsTasks}}
- *
+ * <p>
  * Rules are identified by name, tests must have this name as a suffix and implement one of the base classes
  * and be part of all the specified tasks.
  */

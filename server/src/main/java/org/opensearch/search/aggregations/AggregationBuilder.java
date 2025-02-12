@@ -31,10 +31,11 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteable;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryRewriteContext;
@@ -50,8 +51,9 @@ import java.util.Map;
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class AggregationBuilder
     implements
         NamedWriteable,
@@ -168,8 +170,9 @@ public abstract class AggregationBuilder
      * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
      * instead of <strong>per parent bucket</strong>.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum BucketCardinality {
         NONE,
         ONE,
@@ -193,6 +196,6 @@ public abstract class AggregationBuilder
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 }

@@ -39,6 +39,7 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedConsumer;
@@ -440,7 +441,7 @@ public abstract class PackagingTestCase extends Assert {
 
     /**
      * Run the given action with a temporary copy of the config directory.
-     *
+     * <p>
      * Files under the path passed to the action may be modified as necessary for the
      * test to execute, and running OpenSearch with {@link #startOpenSearch()} will
      * use the temporary directory.

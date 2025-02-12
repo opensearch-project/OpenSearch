@@ -36,7 +36,7 @@ import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.search.SearchHit;
 
 import java.io.IOException;
@@ -59,8 +59,8 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
         createFieldAddingPipleine("xyz", "fieldNameXYZ", "valueXYZ");
 
         BulkRequest request = new BulkRequest();
-        request.add(new IndexRequest("test").id("1").source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("test").id("2").source(XContentType.JSON, "field", "bulk2"));
+        request.add(new IndexRequest("test").id("1").source(MediaTypeRegistry.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("test").id("2").source(MediaTypeRegistry.JSON, "field", "bulk2"));
         request.pipeline("xyz");
 
         bulk(request);
@@ -76,8 +76,8 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
 
         BulkRequest request = new BulkRequest();
         request.pipeline("globalId");
-        request.add(new IndexRequest("test").id("1").source(XContentType.JSON, "field", "bulk1").setPipeline("perIndexId"));
-        request.add(new IndexRequest("test").id("2").source(XContentType.JSON, "field", "bulk2").setPipeline("perIndexId"));
+        request.add(new IndexRequest("test").id("1").source(MediaTypeRegistry.JSON, "field", "bulk1").setPipeline("perIndexId"));
+        request.add(new IndexRequest("test").id("2").source(MediaTypeRegistry.JSON, "field", "bulk2").setPipeline("perIndexId"));
 
         bulk(request);
 
@@ -96,11 +96,11 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
         request.pipeline("globalId");
 
         request.add(new IndexRequest("test").id("1")
-            .source(XContentType.JSON, "field", "bulk1")
+            .source(MediaTypeRegistry.JSON, "field", "bulk1")
             .setPipeline("perIndexId")); // <1>
 
         request.add(new IndexRequest("test").id("2")
-            .source(XContentType.JSON, "field", "bulk2")); // <2>
+            .source(MediaTypeRegistry.JSON, "field", "bulk2")); // <2>
         // end::bulk-request-mix-pipeline
         bulk(request);
 
@@ -116,8 +116,8 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
 
     public void testGlobalIndex() throws IOException {
         BulkRequest request = new BulkRequest("global_index");
-        request.add(new IndexRequest().id("1").source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest().id("2").source(XContentType.JSON, "field", "bulk2"));
+        request.add(new IndexRequest().id("1").source(MediaTypeRegistry.JSON, "field", "bulk1"));
+        request.add(new IndexRequest().id("2").source(MediaTypeRegistry.JSON, "field", "bulk2"));
 
         bulk(request);
 
@@ -128,10 +128,10 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
     @SuppressWarnings("unchecked")
     public void testIndexGlobalAndPerRequest() throws IOException {
         BulkRequest request = new BulkRequest("global_index");
-        request.add(new IndexRequest("local_index").id("1").source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("local_index").id("1").source(MediaTypeRegistry.JSON, "field", "bulk1"));
         request.add(
             new IndexRequest().id("2") // will take global index
-                .source(XContentType.JSON, "field", "bulk2")
+                .source(MediaTypeRegistry.JSON, "field", "bulk2")
         );
 
         bulk(request);
@@ -143,8 +143,8 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
     public void testGlobalRouting() throws IOException {
         createIndexWithMultipleShards("index");
         BulkRequest request = new BulkRequest((String) null);
-        request.add(new IndexRequest("index").id("1").source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index").id("2").source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("index").id("1").source(MediaTypeRegistry.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("index").id("2").source(MediaTypeRegistry.JSON, "field", "bulk1"));
         request.routing("1");
         bulk(request);
 
@@ -158,8 +158,8 @@ public class BulkRequestWithGlobalParametersIT extends OpenSearchRestHighLevelCl
     public void testMixLocalAndGlobalRouting() throws IOException {
         BulkRequest request = new BulkRequest((String) null);
         request.routing("globalRouting");
-        request.add(new IndexRequest("index").id("1").source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index").id("2").routing("localRouting").source(XContentType.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("index").id("1").source(MediaTypeRegistry.JSON, "field", "bulk1"));
+        request.add(new IndexRequest("index").id("2").routing("localRouting").source(MediaTypeRegistry.JSON, "field", "bulk1"));
 
         bulk(request);
 

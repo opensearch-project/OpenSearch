@@ -32,13 +32,13 @@
 
 package org.opensearch.gradle;
 
-import org.gradle.api.internal.artifacts.repositories.DefaultIvyArtifactRepository;
 import org.opensearch.gradle.OpenSearchDistribution.Platform;
 import org.opensearch.gradle.OpenSearchDistribution.Type;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.internal.artifacts.repositories.DefaultIvyArtifactRepository;
 import org.gradle.testfixtures.ProjectBuilder;
 
 import java.io.File;

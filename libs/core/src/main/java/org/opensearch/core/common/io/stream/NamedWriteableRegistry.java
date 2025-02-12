@@ -32,6 +32,8 @@
 
 package org.opensearch.core.common.io.stream;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,19 +43,21 @@ import java.util.Objects;
 
 /**
  * A registry for {@link Writeable.Reader} readers of {@link NamedWriteable}.
- *
+ * <p>
  * The registration is keyed by the combination of the category class of {@link NamedWriteable}, and a name unique
  * to that category.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NamedWriteableRegistry {
 
     /**
      * An entry in the registry, made up of a category class and name, and a reader for that category class.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Entry {
 
         /** The superclass of a {@link NamedWriteable} which will be read by {@link #reader}. */

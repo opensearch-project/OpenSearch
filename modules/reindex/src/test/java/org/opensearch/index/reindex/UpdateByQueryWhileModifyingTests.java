@@ -40,10 +40,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 
 /**
  * Mutates a document while update-by-query-ing it and asserts that the mutation

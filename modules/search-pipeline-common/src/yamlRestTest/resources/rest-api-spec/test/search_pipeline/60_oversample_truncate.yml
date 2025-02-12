@@ -1,0 +1,105 @@
+---
+teardown:
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test state propagating from oversample to truncate_hits processor":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "request_processors": [
+              {
+                "oversample" : {
+                  "sample_factor" : 2
+                }
+              }
+            ],
+            "response_processors": [
+              {
+                "collapse" : {
+                  "field" : "group_id"
+                }
+              },
+              {
+                "truncate_hits" : {}
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          "group_id": "a",
+          "popularity" : 1
+        }
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {
+          "group_id": "a",
+          "popularity" : 2
+        }
+  - do:
+      index:
+        index: test
+        id: 3
+        body: {
+          "group_id": "b",
+          "popularity" : 3
+        }
+  - do:
+      index:
+        index: test
+        id: 4
+        body: {
+          "group_id": "b",
+          "popularity" : 4
+        }
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        body: {
+          "query" : {
+            "function_score" : {
+              "field_value_factor" : {
+                "field" : "popularity"
+              }
+            }
+          },
+          "size" : 2
+        }
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "3" }
+
+  - do:
+      search:
+        search_pipeline: my_pipeline
+        body: {
+          "query" : {
+            "function_score" : {
+              "field_value_factor" : {
+                "field" : "popularity"
+              }
+            }
+          },
+          "size" : 2
+        }
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "2" }

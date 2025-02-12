@@ -32,9 +32,11 @@
 
 package org.opensearch.action;
 
-import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.transport.TransportRequestOptions;
 
 /**
@@ -42,6 +44,7 @@ import org.opensearch.transport.TransportRequestOptions;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ActionType<Response extends ActionResponse> {
 
     private final String name;

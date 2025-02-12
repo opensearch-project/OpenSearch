@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.opensearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.opensearch.action.admin.indices.close.CloseIndexRequest;
@@ -57,7 +56,7 @@ import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
-import org.opensearch.action.support.clustermanager.TransportMasterNodeActionUtils;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeActionUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
@@ -90,24 +89,30 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Priority;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.Priority;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -123,10 +128,10 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
@@ -150,6 +155,8 @@ public class ClusterStateChanges {
     private final TransportUpdateSettingsAction transportUpdateSettingsAction;
     private final TransportClusterRerouteAction transportClusterRerouteAction;
     private final TransportCreateIndexAction transportCreateIndexAction;
+    private final RepositoriesService repositoriesService;
+    private final RemoteStoreNodeService remoteStoreNodeService;
 
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final JoinTaskExecutor joinTaskExecutor;
@@ -232,7 +239,8 @@ public class ClusterStateChanges {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(SETTINGS, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             clusterSettings,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(
             SETTINGS,
@@ -283,10 +291,13 @@ public class ClusterStateChanges {
 
         final AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(SETTINGS, clusterService.getClusterSettings());
 
+        // build IndexScopedSettings from a settingsModule so that all settings gated by enabled featureFlags are registered.
+        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+
         MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
             clusterService,
             allocationService,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            settingsModule.getIndexScopedSettings(),
             indicesService,
             shardLimitValidator,
             threadPool,
@@ -300,12 +311,14 @@ public class ClusterStateChanges {
             new AliasValidator(),
             shardLimitValidator,
             environment,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            settingsModule.getIndexScopedSettings(),
             threadPool,
             xContentRegistry,
             systemIndices,
             true,
-            awarenessReplicaBalance
+            awarenessReplicaBalance,
+            DefaultRemoteStoreSettings.INSTANCE,
+            null
         );
 
         transportCloseIndexAction = new TransportCloseIndexAction(
@@ -362,8 +375,19 @@ public class ClusterStateChanges {
             indexNameExpressionResolver
         );
 
+        repositoriesService = new RepositoriesService(
+            Settings.EMPTY,
+            clusterService,
+            transportService,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            threadPool
+        );
+
+        remoteStoreNodeService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
+
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {});
+        joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {}, remoteStoreNodeService);
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -417,12 +441,6 @@ public class ClusterStateChanges {
         joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList()));
 
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #joinNodesAndBecomeClusterManager(ClusterState, List)} */
-    @Deprecated
-    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        return joinNodesAndBecomeClusterManager(clusterState, nodes);
     }
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
@@ -489,7 +507,7 @@ public class ClusterStateChanges {
     ) {
         return executeClusterStateUpdateTask(clusterState, () -> {
             try {
-                TransportMasterNodeActionUtils.runClusterManagerOperation(
+                TransportClusterManagerNodeActionUtils.runClusterManagerOperation(
                     masterNodeAction,
                     request,
                     clusterState,

@@ -8,25 +8,28 @@
 
 package org.opensearch.index.store.lockmanager;
 
-import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RemoteStoreLockManagerFactoryTests extends OpenSearchTestCase {
 
@@ -39,7 +42,7 @@ public class RemoteStoreLockManagerFactoryTests extends OpenSearchTestCase {
         repositoriesServiceSupplier = mock(Supplier.class);
         repositoriesService = mock(RepositoriesService.class);
         when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
-        remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(repositoriesServiceSupplier);
+        remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(repositoriesServiceSupplier, "");
     }
 
     public void testNewLockManager() throws IOException {
@@ -47,6 +50,7 @@ public class RemoteStoreLockManagerFactoryTests extends OpenSearchTestCase {
         String testRepository = "testRepository";
         String testIndexUUID = "testIndexUUID";
         String testShardId = "testShardId";
+        RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(PathType.FIXED);
 
         BlobStoreRepository repository = mock(BlobStoreRepository.class);
         BlobStore blobStore = mock(BlobStore.class);
@@ -58,7 +62,12 @@ public class RemoteStoreLockManagerFactoryTests extends OpenSearchTestCase {
 
         when(repositoriesService.repository(testRepository)).thenReturn(repository);
 
-        RemoteStoreLockManager lockManager = remoteStoreLockManagerFactory.newLockManager(testRepository, testIndexUUID, testShardId);
+        RemoteStoreLockManager lockManager = remoteStoreLockManagerFactory.newLockManager(
+            testRepository,
+            testIndexUUID,
+            testShardId,
+            pathStrategy
+        );
 
         assertTrue(lockManager != null);
         ArgumentCaptor<BlobPath> blobPathCaptor = ArgumentCaptor.forClass(BlobPath.class);

@@ -37,9 +37,8 @@ import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.NodeRoles;
-
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.Arrays;

@@ -57,8 +57,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.opensearch.percolator.PercolatorHighlightSubFetchPhase.locatePercolatorQuery;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Adds a special field to a percolator query hit to indicate which documents matched with the percolator query.
@@ -103,7 +103,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                     IndexSearcher percolatorIndexSearcher = pc.percolateQuery.getPercolatorIndexSearcher();
                     int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
                     TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));
-                    if (topDocs.totalHits.value == 0) {
+                    if (topDocs.totalHits.value() == 0) {
                         // This hit didn't match with a percolate query,
                         // likely to happen when percolating multiple documents
                         continue;

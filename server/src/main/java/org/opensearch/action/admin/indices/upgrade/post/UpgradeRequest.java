@@ -33,20 +33,24 @@
 package org.opensearch.action.admin.indices.upgrade.post;
 
 import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.transport.client.IndicesAdminClient;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 
 /**
  * A request to upgrade one or more indices. In order to update all indices, pass an empty array or
  * {@code null} for the indices.
- * @see org.opensearch.client.Requests#upgradeRequest(String...)
- * @see org.opensearch.client.IndicesAdminClient#upgrade(UpgradeRequest)
+ * @see Requests#upgradeRequest(String...)
+ * @see IndicesAdminClient#upgrade(UpgradeRequest)
  * @see UpgradeResponse
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class UpgradeRequest extends BroadcastRequest<UpgradeRequest> {
 
     /**

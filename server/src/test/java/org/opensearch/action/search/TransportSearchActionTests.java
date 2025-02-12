@@ -32,9 +32,9 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.OriginalIndicesTests;
@@ -54,15 +54,16 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermsQueryBuilder;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -75,6 +76,7 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -234,7 +236,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
     }
 
     public void testProcessRemoteShards() {
-        try (TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+        try (
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                threadPool,
+                NoopTracer.INSTANCE
+            )
+        ) {
             RemoteClusterService service = transportService.getRemoteClusterService();
             assertFalse(service.isCrossClusterSearchEnabled());
             Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
@@ -451,7 +460,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
         Function<Boolean, InternalAggregation.ReduceContext> reduceContext = finalReduce -> null;
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -473,7 +484,12 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 remoteClusterService,
                 threadPool,
                 listener,
-                (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                new SearchRequestContext(
+                    new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                    searchRequest,
+                    () -> null
+                )
             );
             if (localIndices == null) {
                 assertNull(setOnce.get());
@@ -507,7 +523,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         int totalClusters = numClusters + (local ? 1 : 0);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -529,7 +547,12 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchRequestContext(
+                        new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                        searchRequest,
+                        () -> null
+                    )
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -566,7 +589,12 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchRequestContext(
+                        new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                        searchRequest,
+                        () -> null
+                    )
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -624,7 +652,12 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchRequestContext(
+                        new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                        searchRequest,
+                        () -> null
+                    )
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -664,7 +697,12 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchRequestContext(
+                        new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                        searchRequest,
+                        () -> null
+                    )
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -715,7 +753,12 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchRequestContext(
+                        new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                        searchRequest,
+                        () -> null
+                    )
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -748,7 +791,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         Settings.Builder builder = Settings.builder();
         MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
         Settings settings = builder.build();
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -764,6 +809,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteIndicesByCluster,
                     remoteClusterService,
                     threadPool,
+                    null,
                     new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -790,6 +836,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteIndicesByCluster,
                     remoteClusterService,
                     threadPool,
+                    null,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -835,6 +882,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteIndicesByCluster,
                     remoteClusterService,
                     threadPool,
+                    null,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -862,6 +910,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteIndicesByCluster,
                     remoteClusterService,
                     threadPool,
+                    null,
                     new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -904,6 +953,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteIndicesByCluster,
                     remoteClusterService,
                     threadPool,
+                    null,
                     new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);

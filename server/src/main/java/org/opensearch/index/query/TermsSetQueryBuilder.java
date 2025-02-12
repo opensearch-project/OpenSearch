@@ -35,19 +35,18 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.search.CoveringQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.BytesRefs;
-import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -251,8 +250,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
         // Fail before we attempt to create the term queries:
-        if (values.size() > BooleanQuery.getMaxClauseCount()) {
-            throw new BooleanQuery.TooManyClauses();
+        if (values.size() > IndexSearcher.getMaxClauseCount()) {
+            throw new IndexSearcher.TooManyClauses();
         }
 
         List<Query> queries = createTermQueries(context);

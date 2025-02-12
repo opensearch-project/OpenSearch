@@ -10,7 +10,7 @@
 apply plugin: 'opensearch.build'
 
 base {
-  archivesBaseName = 'opensearch-upgrade-cli'
+  archivesName = 'opensearch-upgrade-cli'
 }
 
 dependencies {

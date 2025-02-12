@@ -40,10 +40,11 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.util.Collection;
 import java.util.Collections;
+
+import org.locationtech.jts.geom.Coordinate;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,7 +83,7 @@ public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
 
         // make sure it is not excluded when we explicitly provide the fieldname
@@ -92,7 +93,7 @@ public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getHighlightFields().size(), equalTo(1));
         assertThat(
             response.getHits().getAt(0).getHighlightFields().get("field").fragments()[0].string(),
@@ -106,7 +107,7 @@ public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getHighlightFields().size(), equalTo(1));
         assertThat(
             response.getHits().getAt(0).getHighlightFields().get("field").fragments()[0].string(),
@@ -135,14 +136,14 @@ public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
 
         response = client().prepareSearch("test-idx").setPostFilter(QueryBuilders.termQuery("field.bool", "true")).execute().actionGet();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) 1));
+        assertThat(response.getHits().getTotalHits().value(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
             .setPostFilter(QueryBuilders.geoDistanceQuery("field.point").point(42.0, 51.0).distance("1km"))
             .execute()
             .actionGet();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) 1));
+        assertThat(response.getHits().getTotalHits().value(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
             .setPostFilter(
@@ -152,11 +153,11 @@ public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) 1));
+        assertThat(response.getHits().getTotalHits().value(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx").setPostFilter(QueryBuilders.termQuery("field.field", "foo")).execute().actionGet();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) 1));
+        assertThat(response.getHits().getTotalHits().value(), equalTo((long) 1));
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
@@ -191,6 +192,6 @@ public class ExternalValuesMapperIntegrationIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) 1));
+        assertThat(response.getHits().getTotalHits().value(), equalTo((long) 1));
     }
 }

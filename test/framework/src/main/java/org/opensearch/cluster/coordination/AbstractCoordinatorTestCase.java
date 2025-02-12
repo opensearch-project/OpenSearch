@@ -32,47 +32,54 @@
 package org.opensearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+
 import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.History;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
+import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.env.NodeEnvironment;
@@ -80,9 +87,12 @@ import org.opensearch.gateway.ClusterStateUpdaters;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.MockGatewayMetaState;
 import org.opensearch.gateway.PersistedClusterStateService;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
@@ -557,7 +567,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
 
-            final int pendingTaskCount = leader.clusterManagerService.getFakeMasterServicePendingTaskCount();
+            final int pendingTaskCount = leader.clusterManagerService.getFakeClusterManagerServicePendingTaskCount();
             runFor((pendingTaskCount + 1) * DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "draining task queue");
 
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
@@ -645,6 +655,12 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     assertFalse(
                         nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId)
+                    );
+                }
+                if (clusterNode.coordinator.getMode() == Mode.LEADER || clusterNode.coordinator.getMode() == Mode.FOLLOWER) {
+                    assertFalse(
+                        "Election scheduler should stop after cluster has stabilised",
+                        clusterNode.coordinator.isElectionSchedulerRunning()
                     );
                 }
             }
@@ -839,14 +855,16 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private final CoordinationState.PersistedState delegate;
             private final NodeEnvironment nodeEnvironment;
 
+            private MockGatewayMetaState mockGatewayMetaState;
+
             MockPersistedState(DiscoveryNode localNode) {
                 try {
                     if (rarely()) {
                         nodeEnvironment = newNodeEnvironment();
                         nodeEnvironments.add(nodeEnvironment);
-                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode, bigArrays);
-                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
-                        delegate = gatewayMetaState.getPersistedState();
+                        mockGatewayMetaState = new MockGatewayMetaState(localNode, bigArrays);
+                        mockGatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry(), persistedStateRegistry());
+                        delegate = mockGatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;
                         delegate = new InMemoryPersistedState(
@@ -863,11 +881,12 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
 
             MockPersistedState(
                 DiscoveryNode newLocalNode,
-                MockPersistedState oldState,
+                PersistedStateRegistry persistedStateRegistry,
                 Function<Metadata, Metadata> adaptGlobalMetadata,
                 Function<Long, Long> adaptCurrentTerm
             ) {
                 try {
+                    MockPersistedState oldState = (MockPersistedState) persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL);
                     if (oldState.nodeEnvironment != null) {
                         nodeEnvironment = oldState.nodeEnvironment;
                         final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
@@ -889,7 +908,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                             }
                         }
                         final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode, bigArrays);
-                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
+                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry(), persistedStateRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;
@@ -1008,6 +1027,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             }
 
             @Override
+            public PersistedStateStats getStats() {
+                return null;
+            }
+
+            @Override
             public void close() {
                 assertTrue(openPersistedStates.remove(this));
                 try {
@@ -1024,7 +1048,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private final int nodeIndex;
             Coordinator coordinator;
             private final DiscoveryNode localNode;
-            final MockPersistedState persistedState;
+            final PersistedStateRegistry persistedStateRegistry;
             final Settings nodeSettings;
             private AckedFakeThreadPoolClusterManagerService clusterManagerService;
             private DisruptableClusterApplierService clusterApplierService;
@@ -1032,6 +1056,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             TransportService transportService;
             private DisruptableMockTransport mockTransport;
             private NodeHealthService nodeHealthService;
+            private RepositoriesService repositoriesService;
+            private RemoteStoreNodeService remoteStoreNodeService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
 
             ClusterNode(int nodeIndex, boolean clusterManagerEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
@@ -1055,7 +1081,9 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                 this.nodeIndex = nodeIndex;
                 this.localNode = localNode;
                 this.nodeSettings = nodeSettings;
-                persistedState = persistedStateSupplier.apply(localNode);
+                final MockPersistedState persistedState = persistedStateSupplier.apply(localNode);
+                persistedStateRegistry = persistedStateRegistry();
+                persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, persistedState);
                 assertTrue("must use a fresh PersistedState", openPersistedStates.add(persistedState));
                 boolean success = false;
                 try {
@@ -1104,7 +1132,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     getTransportInterceptor(localNode, threadPool),
                     a -> localNode,
                     null,
-                    emptySet()
+                    emptySet(),
+                    NoopTracer.INSTANCE
                 );
                 clusterManagerService = new AckedFakeThreadPoolClusterManagerService(
                     localNode.getId(),
@@ -1118,12 +1147,25 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     settings,
                     clusterSettings,
                     deterministicTaskQueue,
-                    threadPool
+                    threadPool,
+                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
                 );
                 clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
-                clusterService.setNodeConnectionsService(
-                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
+                NodeConnectionsService nodeConnectionsService = createTestNodeConnectionsService(
+                    clusterService.getSettings(),
+                    threadPool,
+                    transportService
                 );
+                clusterService.setNodeConnectionsService(nodeConnectionsService);
+                repositoriesService = new RepositoriesService(
+                    settings,
+                    clusterService,
+                    transportService,
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    threadPool
+                );
+                remoteStoreNodeService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = Collections.singletonList(
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
@@ -1143,8 +1185,13 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     Randomness.get(),
                     (s, p, r) -> {},
                     getElectionStrategy(),
-                    nodeHealthService
+                    nodeHealthService,
+                    persistedStateRegistry,
+                    remoteStoreNodeService,
+                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+                    null
                 );
+                coordinator.setNodeConnectionsService(nodeConnectionsService);
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,
@@ -1203,14 +1250,14 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                 return new ClusterNode(
                     nodeIndex,
                     newLocalNode,
-                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm),
+                    node -> new MockPersistedState(newLocalNode, persistedStateRegistry, adaptGlobalMetadata, adaptCurrentTerm),
                     nodeSettings,
                     nodeHealthService
                 );
             }
 
             private CoordinationState.PersistedState getPersistedState() {
-                return persistedState;
+                return persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL);
             }
 
             String getId() {
@@ -1546,6 +1593,24 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         }
     }
 
+    public static NodeConnectionsService createTestNodeConnectionsService(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportService transportService
+    ) {
+        return new NodeConnectionsService(settings, threadPool, transportService) {
+            @Override
+            public void connectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
+                // just update targetsByNode to ensure disconnect runs for these nodes
+                // we rely on disconnect to run for keeping track of pendingDisconnects and ensuring node-joins can happen
+                for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                    this.targetsByNode.put(discoveryNode, createConnectionTarget(discoveryNode));
+                }
+                onCompletion.run();
+            }
+        };
+    }
+
     static class DisruptableClusterApplierService extends ClusterApplierService {
         private final String nodeName;
         private final DeterministicTaskQueue deterministicTaskQueue;
@@ -1557,9 +1622,10 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             Settings settings,
             ClusterSettings clusterSettings,
             DeterministicTaskQueue deterministicTaskQueue,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            ClusterManagerMetrics clusterManagerMetrics
         ) {
-            super(nodeName, settings, clusterSettings, threadPool);
+            super(nodeName, settings, clusterSettings, threadPool, clusterManagerMetrics);
             this.nodeName = nodeName;
             this.deterministicTaskQueue = deterministicTaskQueue;
             addStateApplier(event -> {
@@ -1596,11 +1662,6 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);
             }
-        }
-
-        @Override
-        protected void connectToNodesAndWait(ClusterState newClusterState) {
-            // don't do anything, and don't block
         }
 
         @Override

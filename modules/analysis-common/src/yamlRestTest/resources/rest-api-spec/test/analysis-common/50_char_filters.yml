@@ -69,6 +69,7 @@
           char_filter:
             - type: mapping
               mappings:
+                - "# This is a comment"
                 - "# => _hashsign_"
                 - "@ => _atsign_"
   - length: { tokens: 3 }

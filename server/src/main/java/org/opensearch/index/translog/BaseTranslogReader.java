@@ -32,6 +32,7 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamInput;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.index.seqno.SequenceNumbers;
 
@@ -108,7 +109,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         return size;
     }
 
-    public TranslogSnapshot newSnapshot() {
+    TranslogSnapshot newSnapshot() {
         return new TranslogSnapshot(this, sizeInBytes());
     }
 

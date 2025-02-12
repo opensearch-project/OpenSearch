@@ -41,14 +41,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.lucene.search.function.Functions;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.search.function.Functions;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.FilterScript;
@@ -215,7 +216,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             return new ConstantScoreWeight(this, boost) {
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
                     final FilterScript leafScript = filterScript.newInstance(context);
                     TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
@@ -232,7 +233,8 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                             return 1000f;
                         }
                     };
-                    return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                    final Scorer scorer = new ConstantScoreScorer(score(), scoreMode, twoPhase);
+                    return new DefaultScorerSupplier(scorer);
                 }
 
                 @Override

@@ -34,8 +34,8 @@ package org.opensearch.action.admin.indices.validate.query;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractBroadcastResponseTestCase;
 
@@ -115,7 +115,7 @@ public class ValidateQueryResponseTests extends AbstractBroadcastResponseTestCas
     @Override
     public void testToXContent() {
         ValidateQueryResponse response = createTestInstance(10, 10, 0, new ArrayList<>());
-        String output = Strings.toString(XContentType.JSON, response);
+        String output = Strings.toString(MediaTypeRegistry.JSON, response);
         assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0},\"valid\":true}", output);
     }
 }

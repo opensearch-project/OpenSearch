@@ -8,8 +8,6 @@
 
 package org.opensearch.common.io;
 
-import java.io.IOException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -18,6 +16,8 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+
+import java.io.IOException;
 
 /**
  * Manages versioning and checksum for a stream of content.

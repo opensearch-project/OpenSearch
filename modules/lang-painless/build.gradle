@@ -33,11 +33,11 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
 
 apply plugin: 'opensearch.validate-rest-spec'
 apply plugin: 'opensearch.yaml-rest-test'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'An easy, safe and fast scripting language for OpenSearch'
-  classname 'org.opensearch.painless.PainlessModulePlugin'
+  description = 'An easy, safe and fast scripting language for OpenSearch'
+  classname = 'org.opensearch.painless.PainlessModulePlugin'
 }
 
 ext {
@@ -47,6 +47,7 @@ ext {
 
 testClusters.all {
   module ':modules:mapper-extras'
+  module ':modules:aggs-matrix-stats'
   systemProperty 'opensearch.scripting.update.ctx_in_params', 'false'
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'opensearch.transport.cname_in_publish_address', 'true'
@@ -61,30 +62,6 @@ dependencies {
   api "org.ow2.asm:asm:${versions.asm}"
   api project('spi')
 }
-
-test {
-  doFirst {
-    test.classpath -= project.files(project.tasks.named('shadowJar'))
-    test.classpath -= project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME)
-    test.classpath += project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).runtimeClasspath
-  }
-}
-
-shadowJar {
-  archiveClassifier.set('')
-  relocate 'org.objectweb', 'org.opensearch.repackage.org.objectweb'
-  dependencies {
-    include(dependency("org.ow2.asm:asm:${versions.asm}"))
-    include(dependency("org.ow2.asm:asm-util:${versions.asm}"))
-    include(dependency("org.ow2.asm:asm-tree:${versions.asm}"))
-    include(dependency("org.ow2.asm:asm-commons:${versions.asm}"))
-    include(dependency("org.ow2.asm:asm-analysis:${versions.asm}"))
-  }
-}
-
-tasks.validateNebulaPom.dependsOn tasks.generatePomFileForShadowPublication
-tasks.validateShadowPom.dependsOn tasks.generatePomFileForNebulaPublication
-tasks.withType(AbstractPublishToMaven)*.dependsOn "generatePomFileForShadowPublication", "generatePomFileForNebulaPublication"
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
@@ -138,11 +115,17 @@ testClusters {
   }
 }
 
+interface InjectedExecOps {
+  @Inject ExecOperations getExecOps()
+}
+
+
 tasks.register("generateContextDoc", DefaultTestClustersTask) {
   dependsOn sourceSets.doc.runtimeClasspath
   useCluster testClusters.generateContextCluster
   doFirst {
-    project.javaexec {
+    def execOps = project.objects.newInstance(InjectedExecOps)
+    execOps.execOps.javaexec {
       mainClass = 'org.opensearch.painless.ContextDocGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI().get(0)}"

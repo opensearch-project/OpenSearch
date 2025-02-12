@@ -47,8 +47,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.core.rest.RestStatus.OK;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RestGetSourceActionTests extends RestActionTestCase {

@@ -34,12 +34,14 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.queries.spans.SpanFirstQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.opensearch.index.query.QueryBuilders.spanTermQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -127,5 +129,11 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(exception.getMessage(), equalTo("span_first [match] as a nested span clause can't have non-default boost value [2.0]"));
+    }
+
+    public void testVisit() {
+        List<QueryBuilder> visitorQueries = new ArrayList<>();
+        doCreateTestQueryBuilder().visit(createTestVisitor(visitorQueries));
+        assertEquals(2, visitorQueries.size());
     }
 }

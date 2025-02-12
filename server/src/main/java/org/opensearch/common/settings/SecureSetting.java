@@ -32,21 +32,20 @@
 
 package org.opensearch.common.settings;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.core.common.settings.SecureString;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.EnumSet;
 import java.util.Set;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.core.common.settings.SecureString;
-
 /**
  * A secure setting.
- *
+ * <p>
  * This class allows access to settings from the OpenSearch keystore.
  *
  * @opensearch.internal
@@ -153,7 +152,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
 
     /**
      * A setting which contains a sensitive string.
-     *
+     * <p>
      * This may be any sensitive string, e.g. a username, a password, an auth token, etc.
      */
     public static Setting<SecureString> secureString(String name, Setting<SecureString> fallback, Property... properties) {
@@ -180,7 +179,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
 
     /**
      * A setting which contains a file. Reading the setting opens an input stream to the file.
-     *
+     * <p>
      * This may be any sensitive file, e.g. a set of credentials normally in plaintext.
      */
     public static Setting<InputStream> secureFile(String name, Setting<InputStream> fallback, Property... properties) {

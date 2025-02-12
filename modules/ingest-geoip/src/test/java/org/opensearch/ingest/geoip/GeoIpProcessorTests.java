@@ -33,6 +33,7 @@
 package org.opensearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.ingest.IngestDocument;

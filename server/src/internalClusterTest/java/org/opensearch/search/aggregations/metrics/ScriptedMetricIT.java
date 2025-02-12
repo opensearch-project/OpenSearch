@@ -32,14 +32,16 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
@@ -53,12 +55,14 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -69,6 +73,7 @@ import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.scriptedMetric;
@@ -87,9 +92,21 @@ import static org.hamcrest.Matchers.sameInstance;
 
 @ClusterScope(scope = Scope.SUITE)
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class ScriptedMetricIT extends OpenSearchIntegTestCase {
+public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static long numDocs;
+
+    public ScriptedMetricIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -332,7 +349,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
                     new BytesArray(
                         "{\"script\": {\"lang\": \"" + MockScriptPlugin.NAME + "\"," + " \"source\": \"vars.multiplier = 3\"} }"
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
         );
 
@@ -345,7 +362,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
                     new BytesArray(
                         "{\"script\": {\"lang\": \"" + MockScriptPlugin.NAME + "\"," + " \"source\": \"state.list.add(vars.multiplier)\"} }"
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
         );
 
@@ -361,7 +378,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
                             + "\","
                             + " \"source\": \"sum state values as a new aggregation\"} }"
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
         );
 
@@ -377,7 +394,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
                             + "\","
                             + " \"source\": \"sum all states (lists) values as a new aggregation\"} }"
                     ),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
         );
 
@@ -425,7 +442,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             .addAggregation(scriptedMetric("scripted").mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript))
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -475,7 +492,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -529,7 +546,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -584,7 +601,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -649,7 +666,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -719,7 +736,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -778,7 +795,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -836,7 +853,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -886,7 +903,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -930,7 +947,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -988,7 +1005,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -1023,7 +1040,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -1083,7 +1100,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
         Aggregation aggregation = response.getAggregations().get("histo");
         assertThat(aggregation, notNullValue());
         assertThat(aggregation, instanceOf(Histogram.class));
@@ -1156,7 +1173,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -1378,6 +1395,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        internalCluster().wipeIndices("cache_test_idx");
     }
 
     public void testConflictingAggAndScriptParams() {

@@ -38,8 +38,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.test.BackgroundIndexer;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Locale;
 
@@ -56,6 +56,11 @@ public class ReplicaToPrimaryPromotionIT extends OpenSearchIntegTestCase {
         return 1;
     }
 
+    @Override
+    public boolean useRandomReplicationStrategy() {
+        return true;
+    }
+
     public void testPromoteReplicaToPrimary() throws Exception {
         final String indexName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         createIndex(indexName);
@@ -65,7 +70,7 @@ public class ReplicaToPrimaryPromotionIT extends OpenSearchIntegTestCase {
             try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), numOfDocs)) {
                 waitForDocs(numOfDocs, indexer);
             }
-            refresh(indexName);
+            refreshAndWaitForReplication(indexName);
         }
 
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), numOfDocs);

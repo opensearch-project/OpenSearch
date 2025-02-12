@@ -37,11 +37,11 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
@@ -161,7 +161,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                 + "] in "
                 + Arrays.toString(store.directory().listAll());
             // With Segment Replication, we will fsync after a full commit has been received.
-            if (store.indexSettings().isSegRepEnabled() == false) {
+            if (store.indexSettings().isSegRepEnabledOrRemoteNode() == false) {
                 store.directory().sync(Collections.singleton(temporaryFileName));
             }
             IndexOutput remove = removeOpenIndexOutputs(name);

@@ -31,19 +31,19 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedBinaryRangeLeafCollector;
 import org.opensearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedSetRangeLeafCollector;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
 
@@ -66,7 +66,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
         @Override
         public long nextOrd() {
             if (i == ords.length) {
-                return NO_MORE_ORDS;
+                return NO_MORE_DOCS;
             }
             return ords[i++];
         }

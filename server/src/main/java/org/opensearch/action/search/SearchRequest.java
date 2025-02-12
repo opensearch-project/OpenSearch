@@ -32,22 +32,27 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -59,18 +64,19 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
- * {@link org.opensearch.client.Requests#searchRequest(String...)}.
+ * {@link Requests#searchRequest(String...)}.
  * <p>
  * Note, the search {@link #source(org.opensearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
  * </p>
  *
- * @see org.opensearch.client.Requests#searchRequest(String...)
- * @see org.opensearch.client.Client#search(SearchRequest)
+ * @see Requests#searchRequest(String...)
+ * @see Client#search(SearchRequest)
  * @see SearchResponse
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
@@ -117,6 +123,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private String pipeline;
 
+    private Boolean phaseTook = null;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -154,6 +162,18 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         indices(indices);
         this.source = source;
+    }
+
+    /**
+     * Deep clone a SearchRequest
+     *
+     * @return a copy of the current SearchRequest
+     */
+    public SearchRequest deepCopy() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        this.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        return new SearchRequest(in);
     }
 
     /**
@@ -209,6 +229,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
+        this.phaseTook = searchRequest.phaseTook;
     }
 
     /**
@@ -253,6 +274,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             pipeline = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+            phaseTook = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -283,6 +307,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalTimeValue(cancelAfterTimeInterval);
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalString(pipeline);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
+            out.writeOptionalBoolean(phaseTook);
         }
     }
 
@@ -348,7 +375,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * request. When created through {@link #subSearchRequest(SearchRequest, String[], String, long, boolean)}, this method returns
      * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
      */
-    long getOrCreateAbsoluteStartMillis() {
+    public long getOrCreateAbsoluteStartMillis() {
         return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
     }
 
@@ -485,7 +512,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
-     * The tye of search to execute.
+     * The type of search to execute.
      */
     public SearchType searchType() {
         return searchType;
@@ -600,7 +627,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
      * bounds and the query are disjoint.
-     *
+     * <p>
      * When unspecified, the pre-filter phase is executed if any of these conditions is met:
      * <ul>
      * <li>The request targets more than 128 shards</li>
@@ -616,12 +643,26 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
+     * Returns value of user-provided phase_took query parameter for this search request.
+     */
+    public Boolean isPhaseTook() {
+        return phaseTook;
+    }
+
+    /**
+     * Sets value of phase_took query param if provided by user. Defaults to <code>null</code>.
+     */
+    public void setPhaseTook(Boolean phaseTook) {
+        this.phaseTook = phaseTook;
+    }
+
+    /**
      * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold, or <code>null</code> if the threshold is unspecified.
      * This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
      * bounds and the query are disjoint.
-     *
+     * <p>
      * When unspecified, the pre-filter phase is executed if any of these conditions is met:
      * <ul>
      * <li>The request targets more than 128 shards</li>
@@ -687,7 +728,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             sb.append("scroll[").append(scroll.keepAlive()).append("], ");
         }
         if (source != null) {
-            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+            sb.append("source[");
+            try {
+                sb.append(source.toString(FORMAT_PARAMS));
+            } catch (final OpenSearchException ex) {
+                sb.append("<error: ").append(ex.getMessage()).append(">");
+            }
+            sb.append("]");
         } else {
             sb.append("source[]");
         }
@@ -719,7 +766,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
-            && Objects.equals(pipeline, that.pipeline);
+            && Objects.equals(pipeline, that.pipeline)
+            && Objects.equals(phaseTook, that.phaseTook);
     }
 
     @Override
@@ -740,7 +788,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             localClusterAlias,
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
-            cancelAfterTimeInterval
+            cancelAfterTimeInterval,
+            phaseTook
         );
     }
 
@@ -783,6 +832,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + cancelAfterTimeInterval
             + ", pipeline="
             + pipeline
+            + ", phaseTook="
+            + phaseTook
             + "}";
     }
 }

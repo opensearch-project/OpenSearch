@@ -32,6 +32,8 @@
 
 package org.opensearch.common;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Represents a function that accepts three arguments and produces a result.
  *
@@ -40,8 +42,9 @@ package org.opensearch.common;
  * @param <U> the type of the third argument
  * @param <R> the return type
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 @FunctionalInterface
 public interface TriFunction<S, T, U, R> {
     /**

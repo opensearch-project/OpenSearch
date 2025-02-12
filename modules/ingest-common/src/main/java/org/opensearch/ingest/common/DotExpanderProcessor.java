@@ -118,25 +118,15 @@ public final class DotExpanderProcessor extends AbstractProcessor {
         ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             if (field.contains(".") == false) {
-                throw ConfigurationUtils.newConfigurationException(
-                    ConfigurationUtils.TAG_KEY,
-                    tag,
-                    "field",
-                    "field does not contain a dot"
-                );
+                throw ConfigurationUtils.newConfigurationException(TYPE, tag, "field", "field does not contain a dot");
             }
             if (field.indexOf('.') == 0 || field.lastIndexOf('.') == field.length() - 1) {
-                throw ConfigurationUtils.newConfigurationException(
-                    ConfigurationUtils.TAG_KEY,
-                    tag,
-                    "field",
-                    "Field can't start or end with a dot"
-                );
+                throw ConfigurationUtils.newConfigurationException(TYPE, tag, "field", "Field can't start or end with a dot");
             }
             int firstIndex = -1;
             for (int index = field.indexOf('.'); index != -1; index = field.indexOf('.', index + 1)) {
                 if (index - firstIndex == 1) {
-                    throw ConfigurationUtils.newConfigurationException(ConfigurationUtils.TAG_KEY, tag, "field", "No space between dots");
+                    throw ConfigurationUtils.newConfigurationException(TYPE, tag, "field", "No space between dots");
                 }
                 firstIndex = index;
             }

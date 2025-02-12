@@ -32,17 +32,35 @@
 
 package org.opensearch.similarity;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+
+import java.util.Arrays;
+import java.util.Collection;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimilarityIT extends OpenSearchIntegTestCase {
+public class SimilarityIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+    public SimilarityIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
     public void testCustomBM25Similarity() throws Exception {
         try {
             client().admin().indices().prepareDelete("test").execute().actionGet();
@@ -89,14 +107,14 @@ public class SimilarityIT extends OpenSearchIntegTestCase {
             .setQuery(matchQuery("field1", "quick brown fox"))
             .execute()
             .actionGet();
-        assertThat(bm25SearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(bm25SearchResponse.getHits().getTotalHits().value(), equalTo(1L));
         float bm25Score = bm25SearchResponse.getHits().getHits()[0].getScore();
 
         SearchResponse booleanSearchResponse = client().prepareSearch()
             .setQuery(matchQuery("field2", "quick brown fox"))
             .execute()
             .actionGet();
-        assertThat(booleanSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(booleanSearchResponse.getHits().getTotalHits().value(), equalTo(1L));
         float defaultScore = booleanSearchResponse.getHits().getHits()[0].getScore();
 
         assertThat(bm25Score, not(equalTo(defaultScore)));

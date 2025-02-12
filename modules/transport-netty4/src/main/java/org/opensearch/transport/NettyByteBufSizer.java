@@ -32,12 +32,12 @@
 
 package org.opensearch.transport;
 
+import java.util.List;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
-
-import java.util.List;
 
 @ChannelHandler.Sharable
 public class NettyByteBufSizer extends MessageToMessageDecoder<ByteBuf> {

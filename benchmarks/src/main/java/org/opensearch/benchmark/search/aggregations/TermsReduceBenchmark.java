@@ -40,11 +40,11 @@ import org.opensearch.action.search.QueryPhaseResultConsumer;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchProgressListener;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
@@ -57,6 +57,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.query.QuerySearchResult;
@@ -170,15 +171,14 @@ public class TermsReduceBenchmark {
                 "terms",
                 BucketOrder.key(true),
                 BucketOrder.count(false),
-                topNSize,
-                1,
                 Collections.emptyMap(),
                 DocValueFormat.RAW,
                 numShards,
                 true,
                 0,
                 buckets,
-                0
+                0,
+                new TermsAggregator.BucketCountThresholds(1, 0, topNSize, numShards)
             );
         }
 

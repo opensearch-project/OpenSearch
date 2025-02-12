@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -42,8 +43,9 @@ import java.util.Objects;
 /**
  * Base class for rollover request conditions
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Condition<T> implements NamedWriteable, ToXContentFragment {
 
     protected T value;
@@ -96,8 +98,9 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
     /**
      * Holder for index stats used to evaluate conditions
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Stats {
         public final long numDocs;
         public final long indexCreated;
@@ -113,8 +116,9 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
     /**
      * Holder for evaluated condition result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Result {
         public final Condition<?> condition;
         public final boolean matched;

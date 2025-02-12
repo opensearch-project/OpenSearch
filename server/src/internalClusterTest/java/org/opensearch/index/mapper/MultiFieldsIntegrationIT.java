@@ -37,9 +37,9 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -72,9 +72,9 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         client().prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse searchResponse = client().prepareSearch("my-index").setQuery(matchQuery("title", "multi")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
         searchResponse = client().prepareSearch("my-index").setQuery(matchQuery("title.not_analyzed", "Multi fields")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
         assertAcked(client().admin().indices().preparePutMapping("my-index").setSource(createPutMappingSource()));
 
@@ -93,7 +93,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
         client().prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
 
         searchResponse = client().prepareSearch("my-index").setQuery(matchQuery("title.uncased", "Multi")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
     }
 
     @SuppressWarnings("unchecked")
@@ -120,9 +120,9 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
             .setSize(0)
             .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
             .get();
-        assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(countResponse.getHits().getTotalHits().value(), equalTo(1L));
         countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", point.geohash())).get();
-        assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(countResponse.getHits().getTotalHits().value(), equalTo(1L));
     }
 
     @SuppressWarnings("unchecked")
@@ -144,7 +144,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
 
         client().prepareIndex("my-index").setId("1").setSource("a", "complete me").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "complete me")).get();
-        assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(countResponse.getHits().getTotalHits().value(), equalTo(1L));
     }
 
     @SuppressWarnings("unchecked")
@@ -166,7 +166,7 @@ public class MultiFieldsIntegrationIT extends OpenSearchIntegTestCase {
 
         client().prepareIndex("my-index").setId("1").setSource("a", "127.0.0.1").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "127.0.0.1")).get();
-        assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(countResponse.getHits().getTotalHits().value(), equalTo(1L));
     }
 
     private XContentBuilder createMappingSource(String fieldType) throws IOException {

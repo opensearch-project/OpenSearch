@@ -73,6 +73,16 @@ public class CollectionUtils {
 
     /**
      * Return a rotated view of the given list with the given distance.
+     * <ul>
+     * <li>The distance can be negative, in which case the list is rotated to the left.</li>
+     * <li>The distance can be larger than the size of the list, in which case the list is rotated multiple times.</li>
+     * <li>The distance can be zero, in which case the list is not rotated.</li>
+     * <li>The list can be empty, in which case it remains empty.</li>
+     * </ul>
+     * @param list the list to rotate
+     * @param distance the distance to rotate (positive rotates right, negative rotates left)
+     * @return a rotated view of the given list with the given distance
+     * @see RotatedList
      */
     public static <T> List<T> rotate(final List<T> list, int distance) {
         if (list.isEmpty()) {
@@ -92,7 +102,13 @@ public class CollectionUtils {
     }
 
     /**
-     * in place de-duplicates items in a list
+     * In place de-duplicates items in a list
+     * Noop if the list is empty or has one item.
+     *
+     * @throws NullPointerException if the list is `null` or comparator is `null`
+     * @param array the list to de-duplicate
+     * @param comparator the comparator to use to compare items
+     * @param <T> the type of the items in the list
      */
     public static <T> void sortAndDedup(final List<T> array, Comparator<T> comparator) {
         // base case: one item
@@ -115,6 +131,12 @@ public class CollectionUtils {
         array.subList(deduped.nextIndex(), array.size()).clear();
     }
 
+    /**
+     * Converts a collection of Integers to an array of ints.
+     * @param ints The collection of Integers to convert
+     * @return The array of ints
+     * @throws NullPointerException if ints is null
+     */
     public static int[] toArray(Collection<Integer> ints) {
         Objects.requireNonNull(ints);
         return ints.stream().mapToInt(s -> s).toArray();
@@ -134,6 +156,11 @@ public class CollectionUtils {
         }
     }
 
+    /**
+     * Converts an object to an Iterable, if possible.
+     * @param value The object to convert
+     * @return The Iterable, or null if the object cannot be converted
+     */
     @SuppressWarnings("unchecked")
     private static Iterable<?> convert(Object value) {
         if (value == null) {
@@ -192,6 +219,13 @@ public class CollectionUtils {
         private final List<T> in;
         private final int distance;
 
+        /**
+         * Creates a rotated list
+         * @param list The list to rotate
+         * @param distance The distance to rotate to the right
+         * @throws IllegalArgumentException if the distance is negative or greater than the size of the list;
+         *                                  or if the list is not a {@link RandomAccess} list
+         */
         RotatedList(List<T> list, int distance) {
             if (distance < 0 || distance >= list.size()) {
                 throw new IllegalArgumentException();
@@ -218,6 +252,13 @@ public class CollectionUtils {
         }
     }
 
+    /**
+     * Converts an {@link Iterable} to an {@link ArrayList}.
+     * @param elements The iterable to convert
+     * @param <E> the type the elements
+     * @return an {@link ArrayList}
+     * @throws NullPointerException if elements is null
+     */
     @SuppressWarnings("unchecked")
     public static <E> ArrayList<E> iterableAsArrayList(Iterable<? extends E> elements) {
         if (elements == null) {
@@ -297,11 +338,11 @@ public class CollectionUtils {
     }
 
     /**
-     * Check if a collection is empty or not. Empty collection mean either it is null or it has no elements in it. If
-     * collection contains a null element it means it is not empty.
+     * Checks if a collection is empty or not. Empty collection mean either it is null or it has no elements in it.
+     * If collection contains a null element it means it is not empty.
      *
      * @param collection {@link Collection}
-     * @return boolean
+     * @return true if collection is null or {@code isEmpty()}, false otherwise
      * @param <E> Element
      */
     public static <E> boolean isEmpty(final Collection<E> collection) {

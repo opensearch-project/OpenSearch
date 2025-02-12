@@ -8,14 +8,17 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.IOException;
 
 /**
  * The interface that defines how {@link Translog.Snapshot} will get replayed into the Engine
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 @FunctionalInterface
+@PublicApi(since = "1.0.0")
 public interface TranslogRecoveryRunner {
 
     /**

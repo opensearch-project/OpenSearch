@@ -40,17 +40,16 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequ
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -59,6 +58,7 @@ import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.snapshots.SnapshotRestoreException;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -97,7 +97,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         final Settings.Builder builder = Settings.builder();
         builder.put("compress", compress);
         if (compress) {
-            builder.put("compression_type", randomFrom(CompressorType.values()));
+            builder.put("compression_type", randomFrom(CompressorRegistry.registeredCompressors().keySet()));
         }
         return builder.build();
     }
@@ -110,9 +110,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         final boolean verify = randomBoolean();
 
         logger.debug("-->  creating repository [name: {}, verify: {}, settings: {}]", name, verify, settings);
-        assertAcked(
-            client().admin().cluster().preparePutRepository(name).setType(repositoryType()).setVerify(verify).setSettings(settings)
-        );
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), name, repositoryType(), verify, Settings.builder().put(settings));
 
         internalCluster().getDataOrClusterManagerNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());
@@ -160,6 +158,27 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                 }
                 assertEquals(data.length, target.length());
                 assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));
+            }
+            container.delete();
+        }
+    }
+
+    public void testReadRange() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            final byte[] data = randomBytes(4096);
+
+            // Pick a subrange starting somewhere between position 100 and 1000
+            // and ending somewhere between 100 bytes past that position and
+            // 100 bytes before the end
+            final int startOffset = randomIntBetween(100, 1000);
+            final int endOffset = randomIntBetween(startOffset + 100, data.length - 100);
+            final byte[] subrangeData = Arrays.copyOfRange(data, startOffset, endOffset);
+
+            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
+            try (InputStream stream = container.readBlob("foobar", startOffset, subrangeData.length)) {
+                final byte[] actual = stream.readAllBytes();
+                assertArrayEquals(subrangeData, actual);
             }
             container.delete();
         }
@@ -328,7 +347,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                     logger.info("--> add random documents to {}", index);
                     addRandomDocuments(index, randomIntBetween(10, 1000));
                 } else {
-                    int docCount = (int) client().prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
+                    int docCount = (int) client().prepareSearch(index).setSize(0).get().getHits().getTotalHits().value();
                     int deleteCount = randomIntBetween(1, docCount);
                     logger.info("--> delete {} random documents from {}", deleteCount, index);
                     for (int i = 0; i < deleteCount; i++) {
@@ -396,7 +415,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                 addRandomDocuments(indexName, docCount);
             }
             // Check number of documents in this iteration
-            docCounts[i] = (int) client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value;
+            docCounts[i] = (int) client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value();
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
             assertSuccessfulSnapshot(
                 client().admin()

@@ -32,11 +32,14 @@
 
 package org.opensearch.search.sort;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
@@ -44,8 +47,8 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,6 +64,7 @@ import java.util.function.Function;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.sort.SortBuilders.scriptSort;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -70,9 +74,21 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimpleSortIT extends OpenSearchIntegTestCase {
+public class SimpleSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String DOUBLE_APOSTROPHE = "\u0027\u0027";
+
+    public SimpleSortIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -382,7 +398,7 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
 
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
@@ -395,7 +411,7 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
 
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
@@ -414,7 +430,7 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
         }
         assertThat(searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
@@ -434,7 +450,7 @@ public class SimpleSortIT extends OpenSearchIntegTestCase {
         }
         assertThat(searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("2"));
     }
 

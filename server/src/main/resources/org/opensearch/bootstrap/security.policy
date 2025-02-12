@@ -46,8 +46,11 @@ grant codeBase "${codebase.opensearch-secure-sm}" {
 grant codeBase "${codebase.opensearch}" {
   // needed for loading plugins which may expect the context class loader to be set
   permission java.lang.RuntimePermission "setContextClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
   // needed for SPI class loading
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
+  permission org.opensearch.secure_sm.ThreadContextPermission "stashWithOrigin";
 };
 
 //// Very special jar permissions:
@@ -83,6 +86,11 @@ grant codeBase "${codebase.jna}" {
 // ZSTD compression
 grant codeBase "${codebase.zstd-jni}" {
   permission java.lang.RuntimePermission "loadLibrary.*";
+};
+
+// repository-azure plugin and server side streaming
+grant codeBase "${codebase.reactor-core}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
 };
 
 //// Everything else:
@@ -187,5 +195,4 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
-
 };

@@ -8,11 +8,14 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.InternalApi;
+
 /**
  * Base span
  *
  * @opensearch.internal
  */
+@InternalApi
 public abstract class AbstractSpan implements Span {
 
     /**

@@ -38,14 +38,16 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -92,14 +94,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        super(
-            metadata,
-            getSetting(COMPRESS_SETTING, metadata),
-            namedXContentRegistry,
-            clusterService,
-            recoverySettings,
-            buildLocation(metadata)
-        );
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.storageService = storageService;
 
         String basePath = BASE_PATH.get(metadata.settings());
@@ -136,6 +131,15 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    @Override
+    public List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        List<Setting<?>> restrictedSettings = new ArrayList<>();
+        restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
+        restrictedSettings.add(BUCKET);
+        restrictedSettings.add(BASE_PATH);
+        return restrictedSettings;
     }
 
     /**

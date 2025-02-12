@@ -1,0 +1,38 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
+
+base {
+  archivesName = 'opensearch-compress'
+}
+
+dependencies {
+  api project(':libs:opensearch-common')
+  api project(':libs:opensearch-core')
+
+  //zstd
+  api "com.github.luben:zstd-jni:${versions.zstd}"
+
+  testImplementation(project(":test:framework")) {
+    // tests use the locally compiled version of server
+    exclude group: 'org.opensearch', module: 'opensearch-compress'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // :libs:opensearch-compress does not depend on server
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+jarHell.enabled = false

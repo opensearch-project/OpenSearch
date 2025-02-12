@@ -35,9 +35,7 @@ package org.opensearch.action.search;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
-
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -45,15 +43,16 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
@@ -64,7 +63,6 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
@@ -86,6 +84,7 @@ import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.FetchSubPhaseProcessor;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -110,8 +109,8 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
 
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-            /**
-             * Set up a fetch sub phase that throws an exception on indices whose name that start with "boom".
+            /*
+              Set up a fetch sub phase that throws an exception on indices whose name that start with "boom".
              */
             return Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
                 @Override
@@ -155,7 +154,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 randomBoolean()
             );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+            assertEquals(1, searchResponse.getHits().getTotalHits().value());
             SearchHit[] hits = searchResponse.getHits().getHits();
             assertEquals(1, hits.length);
             SearchHit hit = hits[0];
@@ -172,7 +171,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 randomBoolean()
             );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+            assertEquals(1, searchResponse.getHits().getTotalHits().value());
             SearchHit[] hits = searchResponse.getHits().getHits();
             assertEquals(1, hits.length);
             SearchHit hit = hits[0];
@@ -202,7 +201,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
         }
         {
             SearchRequest searchRequest = new SearchRequest("<test-{now/d}>");
@@ -213,13 +212,13 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         {
             SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
         }
         {
             SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             searchRequest.indices("<test-{now/d}>");
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+            assertEquals(1, searchResponse.getHits().getTotalHits().value());
             assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
         }
         {
@@ -231,7 +230,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             sourceBuilder.query(rangeQuery);
             searchRequest.source(sourceBuilder);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+            assertEquals(1, searchResponse.getHits().getTotalHits().value());
             assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
         }
     }
@@ -268,7 +267,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 ? originalRequest
                 : SearchRequest.subSearchRequest(originalRequest, Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
             Aggregations aggregations = searchResponse.getAggregations();
             LongTerms longTerms = aggregations.get("terms");
             assertEquals(1, longTerms.getBuckets().size());
@@ -282,7 +281,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 false
             );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
             Aggregations aggregations = searchResponse.getAggregations();
             LongTerms longTerms = aggregations.get("terms");
             assertEquals(2, longTerms.getBuckets().size());
@@ -367,7 +366,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                 .setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
                 .setPreFilterShardSize(randomIntBetween(1, 3))
                 .get();
-            assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(2L));
         });
     }
 
@@ -594,6 +593,11 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                     Map<String, Object> metadata
                 ) throws IOException {
                     return new TestAggregator(name, parent, searchContext);
+                }
+
+                @Override
+                protected boolean supportsConcurrentSegmentSearch() {
+                    return true;
                 }
             };
         }

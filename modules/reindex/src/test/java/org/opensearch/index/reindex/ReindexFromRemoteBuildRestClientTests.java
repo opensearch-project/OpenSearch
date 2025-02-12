@@ -34,9 +34,9 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilderTestCase;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.query.MatchAllQueryBuilder;

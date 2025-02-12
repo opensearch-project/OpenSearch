@@ -56,6 +56,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -87,7 +88,7 @@ import java.util.regex.Pattern;
 
 /**
  * A disk based container for sensitive settings in OpenSearch.
- *
+ * <p>
  * Loading a keystore has 2 phases. First, call {@link #load(Path)}. Then call
  * {@link #decrypt(char[])} with the keystore password, or an empty char array if
  * {@link #hasPassword()} is {@code false}.  Loading and decrypting should happen
@@ -133,7 +134,7 @@ public class KeyStoreWrapper implements SecureSettings {
     private static final String KEYSTORE_FILENAME = "opensearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
-    static final int FORMAT_VERSION = 4;
+    public static final int FORMAT_VERSION = 4;
 
     /** The oldest metadata format version that can be read. */
     private static final int MIN_FORMAT_VERSION = 1;
@@ -146,7 +147,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /**
      * The number of bits for the cipher key.
-     *
+     * <p>
      * Note: The Oracle JDK 8 ships with a limited JCE policy that restricts key length for AES to 128 bits.
      * This can be increased to 256 bits once minimum java 9 is the minimum java version.
      * See http://www.oracle.com/technetwork/java/javase/terms/readme/jdk9-readme-3852447.html#jce
@@ -233,7 +234,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /**
      * Loads information about the OpenSearch keystore from the provided config directory.
-     *
+     * <p>
      * {@link #decrypt(char[])} must be called before reading or writing any entries.
      * Returns {@code null} if no keystore exists.
      */
@@ -357,7 +358,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /**
      * Decrypts the underlying keystore data.
-     *
+     * <p>
      * This may only be called once.
      */
     public void decrypt(char[] password) throws GeneralSecurityException, IOException {
@@ -630,7 +631,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Set a string setting.
      */
-    synchronized void setString(String setting, char[] value) {
+    public synchronized void setString(String setting, char[] value) {
         ensureOpen();
         validateSettingName(setting);
 
@@ -645,7 +646,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Set a file setting.
      */
-    synchronized void setFile(String setting, byte[] bytes) {
+    public synchronized void setFile(String setting, byte[] bytes) {
         ensureOpen();
         validateSettingName(setting);
 
@@ -658,7 +659,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Remove the given setting from the keystore.
      */
-    void remove(String setting) {
+    public void remove(String setting) {
         ensureOpen();
         Entry oldEntry = entries.get().remove(setting);
         if (oldEntry != null) {

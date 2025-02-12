@@ -9,13 +9,15 @@
 package org.opensearch.action.admin.indices.replication;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Segment Replication stats information request builder.
  *
- * @opensearch.internal
+  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SegmentReplicationStatsRequestBuilder extends BroadcastOperationRequestBuilder<
     SegmentReplicationStatsRequest,
     SegmentReplicationStatsResponse,

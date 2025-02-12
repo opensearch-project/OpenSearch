@@ -32,6 +32,9 @@
 
 package org.opensearch.action;
 
+import org.opensearch.common.action.ActionFuture;
+import org.opensearch.core.action.ActionListener;
+
 /**
  * An {@link ActionFuture} that listeners can be added to.
  *

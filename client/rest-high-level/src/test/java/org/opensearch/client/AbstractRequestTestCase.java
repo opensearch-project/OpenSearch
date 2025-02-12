@@ -31,20 +31,20 @@
 
 package org.opensearch.client;
 
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 /**
  * Base class for HLRC request parsing tests.
- *
+ * <p>
  * This case class facilitates generating client side request test instances and
  * verifies that they are correctly parsed into server side request instances.
  *

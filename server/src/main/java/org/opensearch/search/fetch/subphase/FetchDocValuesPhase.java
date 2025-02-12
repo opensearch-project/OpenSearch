@@ -47,7 +47,7 @@ import java.util.List;
 
 /**
  * Fetch sub phase which pulls data from doc values.
- *
+ * <p>
  * Specifying {@code "docvalue_fields": ["field1", "field2"]}
  *
  * @opensearch.internal

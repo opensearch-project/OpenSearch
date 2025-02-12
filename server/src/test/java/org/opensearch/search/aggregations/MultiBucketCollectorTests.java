@@ -35,13 +35,13 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -56,12 +56,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MultiBucketCollectorTests extends OpenSearchTestCase {
     private static class ScoreAndDoc extends Scorable {
         float score;
-        int doc = -1;
-
-        @Override
-        public int docID() {
-            return doc;
-        }
 
         @Override
         public float score() {

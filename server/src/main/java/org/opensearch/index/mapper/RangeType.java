@@ -41,7 +41,6 @@ import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -53,6 +52,7 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.lucene.queries.BinaryDocValuesRangeQuery;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -313,7 +313,7 @@ public enum RangeType {
         ) {
             ZoneId zone = (timeZone == null) ? ZoneOffset.UTC : timeZone;
 
-            DateMathParser dateMathParser = (parser == null) ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
+            DateMathParser dateMathParser = (parser == null) ? DateFieldMapper.getDefaultDateTimeFormatter().toDateMathParser() : parser;
             boolean roundUp = includeLower == false; // using "gt" should round lower bound up
             Long low = lowerTerm == null
                 ? minValue()

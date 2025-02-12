@@ -8,12 +8,10 @@
 
 package org.opensearch.common.settings;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.util.FeatureFlags;
+
+import java.util.Set;
 
 /**
  * Encapsulates all valid feature flag level settings.
@@ -31,16 +29,16 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
         super(settings, settingsSet, settingUpgraders, scope);
     }
 
-    public static final Set<Setting<?>> BUILT_IN_FEATURE_FLAGS = Collections.unmodifiableSet(
-        new HashSet<>(
-            Arrays.asList(
-                FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING,
-                FeatureFlags.REMOTE_STORE_SETTING,
-                FeatureFlags.EXTENSIONS_SETTING,
-                FeatureFlags.IDENTITY_SETTING,
-                FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING,
-                FeatureFlags.TELEMETRY_SETTING
-            )
-        )
+    public static final Set<Setting<?>> BUILT_IN_FEATURE_FLAGS = Set.of(
+        FeatureFlags.EXTENSIONS_SETTING,
+        FeatureFlags.TELEMETRY_SETTING,
+        FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING,
+        FeatureFlags.TIERED_REMOTE_INDEX_SETTING,
+        FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
+        FeatureFlags.PLUGGABLE_CACHE_SETTING,
+        FeatureFlags.STAR_TREE_INDEX_SETTING,
+        FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
+        FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING,
+        FeatureFlags.TERM_VERSION_PRECOMMIT_ENABLE_SETTING
     );
 }

@@ -39,15 +39,17 @@ import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -691,7 +693,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         /**
          * Constructor
-         *
+         * <p>
          * {@code flags} is Lucene's <a href="https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/util/automaton/RegExp.java#L391-L411">syntax flags</a>
          * and {@code caseInsensitive} enables Lucene's only <a href="https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/util/automaton/RegExp.java#L416">matching flag</a>.
          */
@@ -718,7 +720,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 flags,
                 caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0
             );
-            final CompiledAutomaton automaton = new CompiledAutomaton(regexp.toAutomaton());
+            final Automaton automaton = Operations.determinize(regexp.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            final CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
 
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
@@ -726,14 +729,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 checkPositions(fieldType);
 
                 IntervalsSource regexpSource = maxExpansions == null
-                    ? Intervals.multiterm(automaton, regexp.toString())
-                    : Intervals.multiterm(automaton, maxExpansions, regexp.toString());
+                    ? Intervals.multiterm(compiledAutomaton, regexp.toString())
+                    : Intervals.multiterm(compiledAutomaton, maxExpansions, regexp.toString());
                 return Intervals.fixField(useField, regexpSource);
             } else {
                 checkPositions(fieldType);
                 return maxExpansions == null
-                    ? Intervals.multiterm(automaton, regexp.toString())
-                    : Intervals.multiterm(automaton, maxExpansions, regexp.toString());
+                    ? Intervals.multiterm(compiledAutomaton, regexp.toString())
+                    : Intervals.multiterm(compiledAutomaton, maxExpansions, regexp.toString());
             }
         }
 

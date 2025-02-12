@@ -46,8 +46,8 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
@@ -58,9 +58,9 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
@@ -95,7 +95,7 @@ import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_
  *
  * @opensearch.internal
  */
-public abstract class TopDocsCollectorContext extends QueryCollectorContext {
+public abstract class TopDocsCollectorContext extends QueryCollectorContext implements RescoringQueryCollectorContext {
     protected final int numHits;
 
     TopDocsCollectorContext(String profilerName, int numHits) {
@@ -183,7 +183,9 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 );
             } else {
                 if (hitCount == -1) {
-                    if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+                    if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+                        manager = new TotalHitCountCollectorManager(sort);
+                    } else {
                         manager = new EarlyTerminatingCollectorManager<>(
                             new TotalHitCountCollectorManager(sort),
                             trackTotalHitsUpTo,
@@ -345,9 +347,10 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
             int hitCountThreshold
         ) {
             if (sortAndFormats == null) {
-                return TopScoreDocCollector.create(numHits, searchAfter, hitCountThreshold);
+                return new TopScoreDocCollectorManager(numHits, searchAfter, hitCountThreshold, false).newCollector();
             } else {
-                return TopFieldCollector.create(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold);
+                return new TopFieldCollectorManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold, false)
+                    .newCollector();
             }
         }
 
@@ -360,16 +363,17 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
             if (sortAndFormats == null) {
                 // See please https://github.com/apache/lucene/pull/450, should be fixed in 9.x
                 if (searchAfter != null) {
-                    return TopScoreDocCollector.createSharedManager(
+                    return new TopScoreDocCollectorManager(
                         numHits,
                         new FieldDoc(searchAfter.doc, searchAfter.score),
-                        hitCountThreshold
+                        hitCountThreshold,
+                        true
                     );
                 } else {
-                    return TopScoreDocCollector.createSharedManager(numHits, null, hitCountThreshold);
+                    return new TopScoreDocCollectorManager(numHits, null, hitCountThreshold, true);
                 }
             } else {
-                return TopFieldCollector.createSharedManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold);
+                return new TopFieldCollectorManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold, true);
             }
         }
 
@@ -530,7 +534,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
                     float score = collector.getMaxScore();
                     if (Float.isNaN(maxScore)) {
                         maxScore = score;
-                    } else {
+                    } else if (!Float.isNaN(score)) {
                         maxScore = Math.max(maxScore, score);
                     }
                 }
@@ -579,7 +583,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
             // artificially reducing the number of total hits and doc scores.
             ScoreDoc[] scoreDocs = topDocs.scoreDocs;
             if (terminatedAfter != null) {
-                if (totalHits.value > terminatedAfter) {
+                if (totalHits.value() > terminatedAfter) {
                     totalHits = new TotalHits(terminatedAfter, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
                 }
 
@@ -733,8 +737,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 count += context.reader().docFreq(term);
             }
             return count;
-        } else if (query.getClass() == DocValuesFieldExistsQuery.class && reader.hasDeletions() == false) {
-            final String field = ((DocValuesFieldExistsQuery) query).getField();
+        } else if (query.getClass() == FieldExistsQuery.class && reader.hasDeletions() == false) {
+            final String field = ((FieldExistsQuery) query).getField();
             int count = 0;
             for (LeafReaderContext context : reader.leaves()) {
                 FieldInfos fieldInfos = context.reader().getFieldInfos();

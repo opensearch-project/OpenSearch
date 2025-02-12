@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.MappedFieldType;
 
@@ -38,8 +39,9 @@ import org.opensearch.index.mapper.MappedFieldType;
  * Used by all field data based aggregators. This determine the context of the field data the aggregators are operating
  * in. It holds both the field names and the index field datas that are associated with them.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class FieldContext {
 
     private final String field;

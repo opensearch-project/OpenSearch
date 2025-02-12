@@ -270,6 +270,7 @@ public class StoreRecoveryTests extends OpenSearchTestCase {
         IOUtils.close(dir, target);
     }
 
+    @SuppressWarnings("removal")
     public boolean hardLinksSupported(Path path) throws IOException {
         try {
             Files.createFile(path.resolve("foo.bar"));

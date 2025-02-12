@@ -49,14 +49,14 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.similarity.ScriptedSimilarity;
 import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.SimilarityScript;
 import org.opensearch.script.SimilarityWeightScript;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -122,7 +122,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
             3.2f
         );
         TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
         w.close();
         dir.close();
@@ -171,7 +171,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
             3.2f
         );
         TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
         w.close();
         dir.close();

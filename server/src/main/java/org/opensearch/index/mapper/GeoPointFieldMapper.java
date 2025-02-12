@@ -63,7 +63,7 @@ import java.util.function.Supplier;
 
 /**
  * Field Mapper for geo_point types.
- *
+ * <p>
  * Uses lucene 6 LatLonPoint encoding
  *
  * @opensearch.internal

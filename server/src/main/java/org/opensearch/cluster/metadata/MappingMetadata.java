@@ -35,13 +35,16 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.VerifiableWriteable;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 
@@ -56,9 +59,10 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
 /**
  * Mapping configuration for a type.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
+@PublicApi(since = "1.0.0")
+public class MappingMetadata extends AbstractDiffable<MappingMetadata> implements VerifiableWriteable {
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
 
     private final String type;
@@ -159,6 +163,13 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         out.writeString(type());
         source().writeTo(out);
         // routing
+        out.writeBoolean(routingRequired);
+    }
+
+    @Override
+    public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
+        out.writeString(type());
+        source().writeVerifiableTo(out);
         out.writeBoolean(routingRequired);
     }
 

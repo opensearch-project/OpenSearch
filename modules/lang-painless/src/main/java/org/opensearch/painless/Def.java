@@ -36,13 +36,11 @@ import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupUtility;
 import org.opensearch.painless.lookup.PainlessMethod;
 import org.opensearch.painless.symbol.FunctionTable;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.time.ZonedDateTime;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.Iterator;
@@ -1504,15 +1502,6 @@ public final class Def {
                     + String.class.getCanonicalName()
             );
         }
-    }
-
-    // TODO: remove this when the transition from Joda to Java datetimes is completed
-    public static ZonedDateTime defToZonedDateTime(final Object value) {
-        if (value instanceof JodaCompatibleZonedDateTime) {
-            return ((JodaCompatibleZonedDateTime) value).getZonedDateTime();
-        }
-
-        return (ZonedDateTime) value;
     }
 
     /**

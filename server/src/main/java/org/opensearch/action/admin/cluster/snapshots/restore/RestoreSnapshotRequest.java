@@ -37,15 +37,16 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,23 +56,27 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
-import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Restore snapshot request
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestoreSnapshotRequest.class);
 
     /**
      * Enumeration of possible storage types
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum StorageType {
         LOCAL("local"),
         REMOTE_SNAPSHOT("remote_snapshot");
@@ -107,6 +112,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private String renamePattern;
     private String renameReplacement;
+    private String renameAliasPattern;
+    private String renameAliasReplacement;
     private boolean waitForCompletion;
     private boolean includeGlobalState = false;
     private boolean partial = false;
@@ -116,6 +123,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     private StorageType storageType = StorageType.LOCAL;
     @Nullable
     private String sourceRemoteStoreRepository = null;
+    @Nullable
+    private String sourceRemoteTranslogRepository = null;
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -151,8 +160,17 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             storageType = in.readEnum(StorageType.class);
         }
-        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE) && in.getVersion().onOrAfter(Version.V_2_9_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             sourceRemoteStoreRepository = in.readOptionalString();
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            sourceRemoteTranslogRepository = in.readOptionalString();
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
+            renameAliasPattern = in.readOptionalString();
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
+            renameAliasReplacement = in.readOptionalString();
         }
     }
 
@@ -175,8 +193,17 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeEnum(storageType);
         }
-        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE) && out.getVersion().onOrAfter(Version.V_2_9_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeOptionalString(sourceRemoteStoreRepository);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeOptionalString(sourceRemoteTranslogRepository);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
+            out.writeOptionalString(renameAliasPattern);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
+            out.writeOptionalString(renameAliasReplacement);
         }
     }
 
@@ -349,6 +376,51 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     }
 
     /**
+     * Sets rename pattern that should be applied to restored indices' alias.
+     * <p>
+     * Alias that match the rename pattern will be renamed according to {@link #renameAliasReplacement(String)}. The
+     * rename pattern is applied according to the {@link java.util.regex.Matcher#appendReplacement(StringBuffer, String)}
+     * If two or more aliases are renamed into the same name, they will be merged.
+     *
+     * @param renameAliasPattern rename pattern
+     * @return this request
+     */
+    public RestoreSnapshotRequest renameAliasPattern(String renameAliasPattern) {
+        this.renameAliasPattern = renameAliasPattern;
+        return this;
+    }
+
+    /**
+     * Returns rename alias pattern
+     *
+     * @return rename alias pattern
+     */
+    public String renameAliasPattern() {
+        return renameAliasPattern;
+    }
+
+    /**
+     * Sets rename alias replacement
+     * <p>
+     * See {@link #renameAliasPattern(String)} for more information.
+     *
+     * @param renameAliasReplacement rename replacement
+     */
+    public RestoreSnapshotRequest renameAliasReplacement(String renameAliasReplacement) {
+        this.renameAliasReplacement = renameAliasReplacement;
+        return this;
+    }
+
+    /**
+     * Returns rename alias replacement
+     *
+     * @return rename alias replacement
+     */
+    public String renameAliasReplacement() {
+        return renameAliasReplacement;
+    }
+
+    /**
      * If this parameter is set to true the operation will wait for completion of restore process before returning.
      *
      * @param waitForCompletion if true the operation will wait for completion
@@ -497,7 +569,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
      * this is the snapshot that this request restores. If the client can only identify a snapshot by its name then there is a risk that the
      * desired snapshot may be deleted and replaced by a new snapshot with the same name which is inconsistent with the original one. This
      * method lets us fail the restore if the precise snapshot we want is not available.
-     *
+     * <p>
      * This is for internal use only and is not exposed in the REST layer.
      */
     public RestoreSnapshotRequest snapshotUuid(String snapshotUuid) {
@@ -541,12 +613,31 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     }
 
     /**
+     * Sets Source Remote Translog Repository for all the restored indices
+     *
+     * @param sourceRemoteTranslogRepository name of the remote translog repository that should be used for all restored indices.
+     */
+    public RestoreSnapshotRequest setSourceRemoteTranslogRepository(String sourceRemoteTranslogRepository) {
+        this.sourceRemoteTranslogRepository = sourceRemoteTranslogRepository;
+        return this;
+    }
+
+    /**
      * Returns Source Remote Store Repository for all the restored indices
      *
      * @return source Remote Store Repository
      */
     public String getSourceRemoteStoreRepository() {
         return sourceRemoteStoreRepository;
+    }
+
+    /**
+     * Returns Source Remote Translog Repository for all the restored indices
+     *
+     * @return source Remote Translog Repository
+     */
+    public String getSourceRemoteTranslogRepository() {
+        return sourceRemoteTranslogRepository;
     }
 
     /**
@@ -593,6 +684,18 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                 } else {
                     throw new IllegalArgumentException("malformed rename_replacement");
                 }
+            } else if (name.equals("rename_alias_pattern")) {
+                if (entry.getValue() instanceof String) {
+                    renameAliasPattern((String) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed rename_alias_pattern");
+                }
+            } else if (name.equals("rename_alias_replacement")) {
+                if (entry.getValue() instanceof String) {
+                    renameAliasReplacement((String) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed rename_alias_replacement");
+                }
             } else if (name.equals("index_settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed index_settings section");
@@ -615,15 +718,16 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                 }
 
             } else if (name.equals("source_remote_store_repository")) {
-                if (!FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
-                    throw new IllegalArgumentException(
-                        "Unsupported parameter " + name + ". Please enable remote store feature flag for this experimental feature"
-                    );
-                }
                 if (entry.getValue() instanceof String) {
                     setSourceRemoteStoreRepository((String) entry.getValue());
                 } else {
                     throw new IllegalArgumentException("malformed source_remote_store_repository");
+                }
+            } else if (name.equals("source_remote_translog_repository")) {
+                if (entry.getValue() instanceof String) {
+                    setSourceRemoteTranslogRepository((String) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed source_remote_translog_repository");
                 }
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
@@ -652,6 +756,12 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (renameReplacement != null) {
             builder.field("rename_replacement", renameReplacement);
         }
+        if (renameAliasPattern != null) {
+            builder.field("rename_alias_pattern", renameAliasPattern);
+        }
+        if (renameAliasReplacement != null) {
+            builder.field("rename_alias_replacement", renameAliasReplacement);
+        }
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
         builder.field("include_aliases", includeAliases);
@@ -670,8 +780,11 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (storageType != null) {
             storageType.toXContent(builder);
         }
-        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE) && sourceRemoteStoreRepository != null) {
+        if (sourceRemoteStoreRepository != null) {
             builder.field("source_remote_store_repository", sourceRemoteStoreRepository);
+        }
+        if (sourceRemoteTranslogRepository != null) {
+            builder.field("source_remote_translog_repository", sourceRemoteTranslogRepository);
         }
         builder.endObject();
         return builder;
@@ -697,51 +810,38 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(renamePattern, that.renamePattern)
             && Objects.equals(renameReplacement, that.renameReplacement)
+            && Objects.equals(renameAliasPattern, that.renameAliasPattern)
+            && Objects.equals(renameAliasReplacement, that.renameAliasReplacement)
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
             && Objects.equals(snapshotUuid, that.snapshotUuid)
-            && Objects.equals(storageType, that.storageType);
-        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
-            equals = Objects.equals(sourceRemoteStoreRepository, that.sourceRemoteStoreRepository);
-        }
+            && Objects.equals(storageType, that.storageType)
+            && Objects.equals(sourceRemoteStoreRepository, that.sourceRemoteStoreRepository)
+            && Objects.equals(sourceRemoteTranslogRepository, that.sourceRemoteTranslogRepository);
         return equals;
     }
 
     @Override
     public int hashCode() {
         int result;
-        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
-            result = Objects.hash(
-                snapshot,
-                repository,
-                indicesOptions,
-                renamePattern,
-                renameReplacement,
-                waitForCompletion,
-                includeGlobalState,
-                partial,
-                includeAliases,
-                indexSettings,
-                snapshotUuid,
-                storageType,
-                sourceRemoteStoreRepository
-            );
-        } else {
-            result = Objects.hash(
-                snapshot,
-                repository,
-                indicesOptions,
-                renamePattern,
-                renameReplacement,
-                waitForCompletion,
-                includeGlobalState,
-                partial,
-                includeAliases,
-                indexSettings,
-                snapshotUuid,
-                storageType
-            );
-        }
+        result = Objects.hash(
+            snapshot,
+            repository,
+            indicesOptions,
+            renamePattern,
+            renameReplacement,
+            renameAliasPattern,
+            renameAliasReplacement,
+            waitForCompletion,
+            includeGlobalState,
+            partial,
+            includeAliases,
+            indexSettings,
+            snapshotUuid,
+            storageType,
+            sourceRemoteStoreRepository,
+            sourceRemoteTranslogRepository
+        );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;
@@ -749,6 +849,6 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 }

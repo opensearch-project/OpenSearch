@@ -32,6 +32,8 @@
 
 package org.opensearch.discovery.ec2;
 
+import software.amazon.awssdk.core.SdkSystemSetting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.SpecialPermission;
@@ -45,7 +47,6 @@ import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.transport.TransportService;
-import software.amazon.awssdk.core.SdkSystemSetting;
 
 import java.io.BufferedReader;
 import java.io.IOException;

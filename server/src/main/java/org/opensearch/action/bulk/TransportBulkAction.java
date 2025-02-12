@@ -36,11 +36,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.core.Assertions;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
@@ -56,7 +54,6 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.update.TransportUpdateAction;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -68,24 +65,35 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.ValidationException;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
 import org.opensearch.indices.IndexClosedException;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanBuilder;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -129,7 +137,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressureService indexingPressureService;
+    private final IndicesService indicesService;
     private final SystemIndices systemIndices;
+    private final Tracer tracer;
 
     @Inject
     public TransportBulkAction(
@@ -143,7 +153,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         AutoCreateIndex autoCreateIndex,
         IndexingPressureService indexingPressureService,
-        SystemIndices systemIndices
+        IndicesService indicesService,
+        SystemIndices systemIndices,
+        Tracer tracer
     ) {
         this(
             threadPool,
@@ -156,8 +168,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             autoCreateIndex,
             indexingPressureService,
+            indicesService,
             systemIndices,
-            System::nanoTime
+            System::nanoTime,
+            tracer
         );
     }
 
@@ -172,8 +186,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         AutoCreateIndex autoCreateIndex,
         IndexingPressureService indexingPressureService,
+        IndicesService indicesService,
         SystemIndices systemIndices,
-        LongSupplier relativeTimeProvider
+        LongSupplier relativeTimeProvider,
+        Tracer tracer
     ) {
         super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
         Objects.requireNonNull(relativeTimeProvider);
@@ -187,8 +203,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexingPressureService = indexingPressureService;
+        this.indicesService = indicesService;
         this.systemIndices = systemIndices;
         clusterService.addStateApplier(this.ingestForwarder);
+        this.tracer = tracer;
     }
 
     /**
@@ -515,18 +533,25 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
             final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
             Metadata metadata = clusterState.metadata();
+            // go over all the requests and create a ShardId -> Operations mapping
+            Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
                 // the request can only be null because we set it to null in the previous step, so it gets ignored
                 if (docWriteRequest == null) {
                     continue;
                 }
+
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
                 if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
                     continue;
                 }
+                if (addFailureIfAppendOnlyIndexAndOpsDeleteOrUpdate(docWriteRequest, i, concreteIndices, metadata)) {
+                    continue;
+                }
+
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
                 try {
                     // The ConcreteIndices#resolveIfAbsent(...) method validates via IndexNameExpressionResolver whether
@@ -570,6 +595,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         default:
                             throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
+
+                    ShardId shardId = clusterService.operationRouting()
+                        .indexShards(clusterState, concreteIndex.getName(), docWriteRequest.id(), docWriteRequest.routing())
+                        .shardId();
+                    List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
+                    shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                 } catch (OpenSearchParseException | IllegalArgumentException | RoutingMissingException e) {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);
@@ -579,30 +610,26 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             }
 
-            // first, go over all the requests and create a ShardId -> Operations mapping
-            Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
-            for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                if (request == null) {
-                    continue;
-                }
-                String concreteIndex = concreteIndices.getConcreteIndex(request.index()).getName();
-                ShardId shardId = clusterService.operationRouting()
-                    .indexShards(clusterState, concreteIndex, request.id(), request.routing())
-                    .shardId();
-                List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
-                shardRequests.add(new BulkItemRequest(i, request));
-            }
-
             if (requestsByShard.isEmpty()) {
-                listener.onResponse(
-                    new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-                );
+                BulkItemResponse[] response = responses.toArray(new BulkItemResponse[responses.length()]);
+                long tookMillis = buildTookInMillis(startTimeNanos);
+
+                DocStatusStats stats = new DocStatusStats();
+                for (BulkItemResponse itemResponse : response) {
+                    if (itemResponse != null) {
+                        stats.inc(itemResponse.status());
+                    }
+                }
+
+                indicesService.addDocStatusStats(stats);
+                listener.onResponse(new BulkResponse(response, tookMillis));
                 return;
             }
 
             final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
+            final DocStatusStats docStatusStats = new DocStatusStats();
             String nodeId = clusterService.localNode().getId();
+
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
@@ -624,47 +651,66 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     bulkShardRequest::ramBytesUsed,
                     isOnlySystem
                 );
-                shardBulkAction.execute(bulkShardRequest, ActionListener.runBefore(new ActionListener<BulkShardResponse>() {
-                    @Override
-                    public void onResponse(BulkShardResponse bulkShardResponse) {
-                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                            // we may have no response if item failed
-                            if (bulkItemResponse.getResponse() != null) {
-                                bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+
+                final Span span = tracer.startSpan(SpanBuilder.from("bulkShardAction", nodeId, bulkShardRequest));
+                try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                    shardBulkAction.execute(
+                        bulkShardRequest,
+                        TraceableActionListener.create(ActionListener.runBefore(new ActionListener<BulkShardResponse>() {
+                            @Override
+                            public void onResponse(BulkShardResponse bulkShardResponse) {
+                                for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                                    // we may have no response if item failed
+                                    if (bulkItemResponse.getResponse() != null) {
+                                        bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                                    }
+
+                                    docStatusStats.inc(bulkItemResponse.status());
+                                    responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                                }
+
+                                if (counter.decrementAndGet() == 0) {
+                                    finishHim();
+                                }
                             }
-                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
-                        }
-                        if (counter.decrementAndGet() == 0) {
-                            finishHim();
-                        }
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // create failures for all relevant requests
-                        for (BulkItemRequest request : requests) {
-                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                            DocWriteRequest<?> docWriteRequest = request.request();
-                            responses.set(
-                                request.id(),
-                                new BulkItemResponse(
-                                    request.id(),
-                                    docWriteRequest.opType(),
-                                    new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
-                                )
-                            );
-                        }
-                        if (counter.decrementAndGet() == 0) {
-                            finishHim();
-                        }
-                    }
+                            @Override
+                            public void onFailure(Exception e) {
+                                // create failures for all relevant requests
+                                for (BulkItemRequest request : requests) {
+                                    final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                                    final DocWriteRequest<?> docWriteRequest = request.request();
+                                    final BulkItemResponse bulkItemResponse = new BulkItemResponse(
+                                        request.id(),
+                                        docWriteRequest.opType(),
+                                        new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
+                                    );
 
-                    private void finishHim() {
-                        listener.onResponse(
-                            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-                        );
-                    }
-                }, releasable::close));
+                                    docStatusStats.inc(bulkItemResponse.status());
+                                    responses.set(request.id(), bulkItemResponse);
+                                }
+
+                                if (counter.decrementAndGet() == 0) {
+                                    finishHim();
+                                }
+                            }
+
+                            private void finishHim() {
+                                indicesService.addDocStatusStats(docStatusStats);
+                                listener.onResponse(
+                                    new BulkResponse(
+                                        responses.toArray(new BulkItemResponse[responses.length()]),
+                                        buildTookInMillis(startTimeNanos)
+                                    )
+                                );
+                            }
+                        }, releasable::close), span, tracer)
+                    );
+                } catch (Exception e) {
+                    span.setError(e);
+                    span.endSpan();
+                    throw e;
+                }
             }
             bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
         }
@@ -707,6 +753,47 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     run();
                 }
             });
+        }
+
+        private boolean addFailureIfAppendOnlyIndexAndOpsDeleteOrUpdate(
+            DocWriteRequest<?> request,
+            int idx,
+            final ConcreteIndices concreteIndices,
+            Metadata metadata
+        ) {
+            Index concreteIndex = concreteIndices.resolveIfAbsent(request);
+            final IndexMetadata indexMetadata = metadata.index(concreteIndex);
+            if (indexMetadata.isAppendOnlyIndex()) {
+                if ((request.opType() == DocWriteRequest.OpType.UPDATE || request.opType() == DocWriteRequest.OpType.DELETE)) {
+                    ValidationException exception = new ValidationException();
+                    exception.addValidationError(
+                        "Operation ["
+                            + request.opType()
+                            + "] is not allowed as setting `"
+                            + IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey()
+                            + "` is enabled for this index: "
+                            + request.index()
+                    );
+                    addFailure(request, idx, exception);
+                    return true;
+                } else if (request.id() != null && request.opType() == DocWriteRequest.OpType.INDEX) {
+                    ValidationException exception = new ValidationException();
+                    exception.addValidationError(
+                        "Operation ["
+                            + request.opType()
+                            + "] is not allowed with a custom document id "
+                            + request.id()
+                            + " as setting `"
+                            + IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey()
+                            + "` is enabled for this index: "
+                            + request.index()
+                    );
+                    addFailure(request, idx, exception);
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private boolean addFailureIfRequiresAliasAndAliasIsMissing(DocWriteRequest<?> request, int idx, final Metadata metadata) {
@@ -766,6 +853,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final AtomicArray<BulkItemResponse> responses,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated
     ) {
+        /*
+         * We are not wrapping the listener here to capture the response codes for performance benefits. It will
+         * be saving us an iteration over the responses array
+         */
         new BulkOperation(task, bulkRequest, listener, responses, startTimeNanos, indicesThatCannotBeCreated).run();
     }
 
@@ -872,7 +963,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             },
             bulkRequestModifier::markItemAsDropped,
-            executorName
+            executorName,
+            original
         );
     }
 

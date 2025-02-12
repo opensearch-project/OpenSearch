@@ -8,9 +8,10 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.common.Nullable;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+
+import org.opensearch.common.Nullable;
 
 /**
  * The holder of the AmazonS3 and AWSCredentialsProvider
@@ -18,16 +19,19 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 final class AmazonAsyncS3WithCredentials {
     private final S3AsyncClient client;
     private final S3AsyncClient priorityClient;
+    private final S3AsyncClient urgentClient;
     private final AwsCredentialsProvider credentials;
 
     private AmazonAsyncS3WithCredentials(
         final S3AsyncClient client,
         final S3AsyncClient priorityClient,
+        final S3AsyncClient urgentClient,
         @Nullable final AwsCredentialsProvider credentials
     ) {
         this.client = client;
         this.credentials = credentials;
         this.priorityClient = priorityClient;
+        this.urgentClient = urgentClient;
     }
 
     S3AsyncClient client() {
@@ -38,6 +42,10 @@ final class AmazonAsyncS3WithCredentials {
         return priorityClient;
     }
 
+    S3AsyncClient urgentClient() {
+        return urgentClient;
+    }
+
     AwsCredentialsProvider credentials() {
         return credentials;
     }
@@ -45,8 +53,9 @@ final class AmazonAsyncS3WithCredentials {
     static AmazonAsyncS3WithCredentials create(
         final S3AsyncClient client,
         final S3AsyncClient priorityClient,
+        final S3AsyncClient urgentClient,
         @Nullable final AwsCredentialsProvider credentials
     ) {
-        return new AmazonAsyncS3WithCredentials(client, priorityClient, credentials);
+        return new AmazonAsyncS3WithCredentials(client, priorityClient, urgentClient, credentials);
     }
 }

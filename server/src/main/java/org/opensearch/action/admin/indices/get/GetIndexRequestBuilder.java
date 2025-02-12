@@ -32,14 +32,16 @@
 
 package org.opensearch.action.admin.indices.get;
 
-import org.opensearch.action.support.master.info.ClusterInfoRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.action.support.clustermanager.info.ClusterInfoRequestBuilder;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport request builder to get information about an index.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetIndexRequestBuilder extends ClusterInfoRequestBuilder<GetIndexRequest, GetIndexResponse, GetIndexRequestBuilder> {
 
     public GetIndexRequestBuilder(OpenSearchClient client, GetIndexAction action, String... indices) {

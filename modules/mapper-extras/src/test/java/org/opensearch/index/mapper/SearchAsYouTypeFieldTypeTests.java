@@ -52,8 +52,8 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 
 public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 

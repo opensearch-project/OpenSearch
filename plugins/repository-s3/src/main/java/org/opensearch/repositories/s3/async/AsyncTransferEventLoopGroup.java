@@ -8,11 +8,6 @@
 
 package org.opensearch.repositories.s3.async;
 
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.epoll.Epoll;
-import io.netty.channel.epoll.EpollEventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -21,6 +16,12 @@ import org.opensearch.repositories.s3.SocketAccess;
 
 import java.io.Closeable;
 import java.util.concurrent.TimeUnit;
+
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.epoll.Epoll;
+import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.util.concurrent.Future;
 
 /**
  * AsyncTransferEventLoopGroup is an encapsulation for netty {@link EventLoopGroup}

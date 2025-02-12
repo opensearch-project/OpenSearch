@@ -32,11 +32,11 @@
 
 package org.opensearch.common.geo;
 
+import java.util.List;
+
 import org.locationtech.spatial4j.context.SpatialContext;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.ShapeCollection;
-
-import java.util.List;
 
 /**
  * Extends spatial4j ShapeCollection for points_only shape indexing support

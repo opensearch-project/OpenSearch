@@ -33,9 +33,10 @@
 package org.opensearch.action.admin.cluster.reroute;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -45,8 +46,9 @@ import java.util.Objects;
 /**
  * Request to submit cluster reroute allocation commands
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteRequest> {
     private AllocationCommands commands = new AllocationCommands();
     private boolean dryRun;

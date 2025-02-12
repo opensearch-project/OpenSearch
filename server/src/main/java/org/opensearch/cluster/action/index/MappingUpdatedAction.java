@@ -33,12 +33,9 @@
 package org.opensearch.cluster.action.index;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.client.Client;
-import org.opensearch.client.IndicesAdminClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
@@ -48,9 +45,12 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.Mapping;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.IndicesAdminClient;
 
 import java.util.concurrent.Semaphore;
 
@@ -131,19 +131,6 @@ public class MappingUpdatedAction {
         }
     }
 
-    /**
-     * Update mappings on the cluster-manager node, waiting for the change to be committed,
-     * but not for the mapping update to be applied on all nodes. The timeout specified by
-     * {@code timeout} is the cluster-manager node timeout ({@link ClusterManagerNodeRequest#clusterManagerNodeTimeout()}),
-     * potentially waiting for a cluster-manager node to be available.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #updateMappingOnClusterManager(Index, Mapping, ActionListener)}
-     */
-    @Deprecated
-    public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
-        updateMappingOnClusterManager(index, mappingUpdate, listener);
-    }
-
     // used by tests
     int blockedThreads() {
         return semaphore.getQueueLength();
@@ -153,7 +140,7 @@ public class MappingUpdatedAction {
     protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
         PutMappingRequest putMappingRequest = new PutMappingRequest();
         putMappingRequest.setConcreteIndex(index);
-        putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
+        putMappingRequest.source(mappingUpdate.toString(), MediaTypeRegistry.JSON);
         putMappingRequest.clusterManagerNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
         client.execute(

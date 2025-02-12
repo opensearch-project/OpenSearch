@@ -127,7 +127,7 @@ public final class Randomness {
 
     /**
      * Provides a secure source of randomness.
-     *
+     * <p>
      * This acts exactly similar to {@link #get()}, but returning a new {@link SecureRandom}.
      */
     public static SecureRandom createSecure() {

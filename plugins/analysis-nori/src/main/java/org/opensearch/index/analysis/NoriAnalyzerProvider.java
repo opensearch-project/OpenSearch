@@ -32,16 +32,17 @@
 
 package org.opensearch.index.analysis;
 
-import java.util.List;
-import java.util.Set;
 import org.apache.lucene.analysis.ko.KoreanAnalyzer;
 import org.apache.lucene.analysis.ko.KoreanPartOfSpeechStopFilter;
 import org.apache.lucene.analysis.ko.KoreanTokenizer;
-import org.apache.lucene.analysis.ko.dict.UserDictionary;
 import org.apache.lucene.analysis.ko.POS;
+import org.apache.lucene.analysis.ko.dict.UserDictionary;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
+
+import java.util.List;
+import java.util.Set;
 
 import static org.opensearch.index.analysis.NoriPartOfSpeechStopFilterFactory.resolvePOSList;
 

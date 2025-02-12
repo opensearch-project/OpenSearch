@@ -32,21 +32,20 @@
 
 package org.opensearch.index.rankeval;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.MultiSearchResponse.Item;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.client.Client;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.TemplateScript;
@@ -54,6 +53,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,10 +71,10 @@ import static org.opensearch.index.rankeval.RatedRequest.validateEvaluatedQuery;
  * supplied query parameters) against a set of possible search requests (read:
  * search specifications, expressed as query/search request templates) and
  * compares the result against a set of annotated documents per search intent.
- *
+ * <p>
  * If any documents are returned that haven't been annotated the document id of
  * those is returned per search intent.
- *
+ * <p>
  * The resulting search quality is computed in terms of precision at n and
  * returned for each search specification for the full set of search intents as
  * averaged precision at n.
@@ -126,7 +126,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                         namedXContentRegistry,
                         LoggingDeprecationHandler.INSTANCE,
                         new BytesArray(resolvedRequest),
-                        XContentType.JSON
+                        MediaTypeRegistry.JSON
                     )
                 ) {
                     evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);

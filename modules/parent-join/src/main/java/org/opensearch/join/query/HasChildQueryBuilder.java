@@ -42,12 +42,12 @@ import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
@@ -373,7 +373,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * A query that rewrites into another query using
      * {@link JoinUtil#createJoinQuery(String, Query, Query, IndexSearcher, ScoreMode, OrdinalMap, int, int)}
      * that executes the actual join.
-     *
+     * <p>
      * This query is exclusively used by the {@link HasChildQueryBuilder} and {@link HasParentQueryBuilder} to get access
      * to the {@link DirectoryReader} used by the current search in order to retrieve the {@link OrdinalMap}.
      * The {@link OrdinalMap} is required by {@link JoinUtil} to execute the join.

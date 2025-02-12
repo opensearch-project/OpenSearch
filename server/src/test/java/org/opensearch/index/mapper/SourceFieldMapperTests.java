@@ -33,17 +33,17 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collection;
 import java.util.Map;
@@ -75,11 +75,11 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
-        assertThat(MediaTypeRegistry.xContent(doc.source().toBytesRef().bytes), equalTo(XContentType.JSON));
+        assertThat(MediaTypeRegistry.xContent(doc.source().toBytesRef().bytes), equalTo(MediaTypeRegistry.JSON));
 
         documentMapper = parser.parse("type", new CompressedXContent(mapping));
         doc = documentMapper.parse(
@@ -90,7 +90,8 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 XContentType.SMILE
             )
         );
-
+        final IndexableField recoverySourceIndexableField = doc.rootDoc().getField("_recovery_source");
+        assertNull(recoverySourceIndexableField);
         assertThat(MediaTypeRegistry.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }
 
@@ -124,7 +125,53 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
+            )
+        );
+
+        IndexableField sourceField = doc.rootDoc().getField("_source");
+        Map<String, Object> sourceAsMap;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+            sourceAsMap = parser.map();
+        }
+        final IndexableField recoverySourceIndexableField = doc.rootDoc().getField("_recovery_source");
+        assertNotNull(recoverySourceIndexableField);
+        assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
+        assertThat(sourceAsMap.containsKey("path2"), equalTo(false));
+    }
+
+    public void testIncludesForRecoverySource() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_source")
+            .array("includes", new String[] { "path1*" })
+            .array("recovery_source_includes", new String[] { "path2*" })
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        DocumentMapper documentMapper = createIndex("test").mapperService()
+            .documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument doc = documentMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("path1")
+                        .field("field1", "value1")
+                        .endObject()
+                        .startObject("path2")
+                        .field("field2", "value2")
+                        .endObject()
+                        .endObject()
+                ),
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -135,6 +182,39 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(false));
+
+        final IndexableField recoverySourceIndexableField = doc.rootDoc().getField("_recovery_source");
+        assertNotNull(recoverySourceIndexableField);
+        Map<String, Object> recoverySourceAsMap;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(recoverySourceIndexableField.binaryValue()))) {
+            recoverySourceAsMap = parser.map();
+        }
+
+        assertThat(recoverySourceAsMap.containsKey("path1"), equalTo(false));
+        assertThat(recoverySourceAsMap.containsKey("path2"), equalTo(true));
+    }
+
+    public void testNoRecoverySourceAndNoSource_whenBothAreDisabled() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_source")
+            .field("enabled", "false")
+            .field("recovery_source_enabled", "false")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(mapping));
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "1", source, MediaTypeRegistry.JSON));
+
+        final IndexableField sourceIndexableField = doc.rootDoc().getField("_source");
+        final IndexableField recoverySourceIndexableField = doc.rootDoc().getField("_recovery_source");
+        assertNull(recoverySourceIndexableField);
+        assertNull(sourceIndexableField);
     }
 
     public void testExcludes() throws Exception {
@@ -167,7 +247,53 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
+            )
+        );
+
+        IndexableField sourceField = doc.rootDoc().getField("_source");
+        Map<String, Object> sourceAsMap;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+            sourceAsMap = parser.map();
+        }
+        final IndexableField recoverySourceIndexableField = doc.rootDoc().getField("_recovery_source");
+        assertNotNull(recoverySourceIndexableField);
+        assertThat(sourceAsMap.containsKey("path1"), equalTo(false));
+        assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
+    }
+
+    public void testExcludesForRecoverySource() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_source")
+            .array("excludes", "path1*")
+            .array("recovery_source_excludes", "path2*")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        DocumentMapper documentMapper = createIndex("test").mapperService()
+            .documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument doc = documentMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("path1")
+                        .field("field1", "value1")
+                        .endObject()
+                        .startObject("path2")
+                        .field("field2", "value2")
+                        .endObject()
+                        .endObject()
+                ),
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -178,6 +304,15 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
+
+        final IndexableField recoverySourceIndexableField = doc.rootDoc().getField("_recovery_source");
+        assertNotNull(recoverySourceIndexableField);
+        Map<String, Object> recoverySourceAsMap;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(recoverySourceIndexableField.binaryValue()))) {
+            recoverySourceAsMap = parser.map();
+        }
+        assertThat(recoverySourceAsMap.containsKey("path1"), equalTo(true));
+        assertThat(recoverySourceAsMap.containsKey("path2"), equalTo(false));
     }
 
     public void testEnabledNotUpdateable() throws Exception {
@@ -314,8 +449,8 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         try {
-            documentMapper.parse(new SourceToParse("test", "1", new BytesArray("{}}"), XContentType.JSON)); // extra end object
-                                                                                                            // (invalid JSON)
+            documentMapper.parse(new SourceToParse("test", "1", new BytesArray("{}}"), MediaTypeRegistry.JSON)); // extra end object
+            // (invalid JSON)
             fail("Expected parse exception");
         } catch (MapperParsingException e) {
             assertNotNull(e.getRootCause());

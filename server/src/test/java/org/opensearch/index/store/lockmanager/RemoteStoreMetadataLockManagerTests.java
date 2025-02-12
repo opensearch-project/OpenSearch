@@ -8,21 +8,23 @@
 
 package org.opensearch.index.store.lockmanager;
 
-import junit.framework.TestCase;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.junit.Before;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
+
+import junit.framework.TestCase;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RemoteStoreMetadataLockManagerTests extends OpenSearchTestCase {
     private RemoteBufferedOutputDirectory lockDirectory;
@@ -94,5 +96,27 @@ public class RemoteStoreMetadataLockManagerTests extends OpenSearchTestCase {
     public void testIsAcquiredExceptionCase() { // metadata file is not passed during isAcquired call.
         FileLockInfo testLockInfo = FileLockInfo.getLockInfoBuilder().withAcquirerId(testAcquirerId).build();
         assertThrows(IllegalArgumentException.class, () -> remoteStoreMetadataLockManager.isAcquired(testLockInfo));
+    }
+
+    public void testFetchLocksEmpty() throws IOException {
+        when(lockDirectory.listFilesByPrefix("metadata")).thenReturn(Set.of());
+        assertEquals(0, remoteStoreMetadataLockManager.fetchLockedMetadataFiles("metadata").size());
+    }
+
+    public void testFetchLocksNonEmpty() throws IOException {
+        String metadata1 = "metadata_1_2_3";
+        String metadata2 = "metadata_4_5_6";
+        when(lockDirectory.listFilesByPrefix("metadata")).thenReturn(
+            Set.of(
+                FileLockInfo.LockFileUtils.generateLockName(metadata1, "snapshot1"),
+                FileLockInfo.LockFileUtils.generateLockName(metadata2, "snapshot2")
+            )
+        );
+        assertEquals(Set.of(metadata1, metadata2), remoteStoreMetadataLockManager.fetchLockedMetadataFiles("metadata"));
+    }
+
+    public void testFetchLocksException() throws IOException {
+        when(lockDirectory.listFilesByPrefix("metadata")).thenThrow(new IOException("Something went wrong"));
+        assertThrows(IOException.class, () -> remoteStoreMetadataLockManager.fetchLockedMetadataFiles("metadata"));
     }
 }

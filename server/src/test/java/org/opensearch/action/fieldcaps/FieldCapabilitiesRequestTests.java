@@ -34,8 +34,8 @@ package org.opensearch.action.fieldcaps;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;

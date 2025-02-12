@@ -32,10 +32,10 @@
 
 package org.opensearch.transport;
 
+import java.nio.channels.SocketChannel;
+
 import io.netty.channel.Channel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-
-import java.nio.channels.SocketChannel;
 
 /**
  * Helper class to expose {@link #javaChannel()} method

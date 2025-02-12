@@ -36,7 +36,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.tests.index.FieldFilterLeafReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -46,6 +45,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.FieldFilterLeafReader;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.util.io.IOUtils;
@@ -71,7 +71,7 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
         writer.addDocument(doc);
         DirectoryReader open = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         final AtomicInteger closeCalls = new AtomicInteger(0);
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
             "field",
@@ -100,7 +100,7 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
             }
             outerCount.incrementAndGet();
         });
-        assertEquals(0, wrap.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(0, wrap.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         wrap.close();
         assertFalse("wrapped reader is closed", wrap.getIndexReader().tryIncRef());
         assertEquals(sourceRefCount, open.getRefCount());
@@ -124,7 +124,7 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
         writer.addDocument(doc);
         DirectoryReader open = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         searcher.setSimilarity(iwc.getSimilarity());
         final AtomicInteger closeCalls = new AtomicInteger(0);
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
@@ -170,7 +170,7 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
         writer.addDocument(doc);
         DirectoryReader open = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         searcher.setSimilarity(iwc.getSimilarity());
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         try (

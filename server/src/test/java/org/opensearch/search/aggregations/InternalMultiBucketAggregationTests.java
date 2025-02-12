@@ -37,6 +37,7 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.test.OpenSearchTestCase;
@@ -164,20 +165,18 @@ public class InternalMultiBucketAggregationTests extends OpenSearchTestCase {
                 DocValueFormat.RAW
             )
         );
-
         InternalTerms termsAgg = new StringTerms(
             "string_terms",
             BucketOrder.count(false),
             BucketOrder.count(false),
-            1,
-            0,
             Collections.emptyMap(),
             DocValueFormat.RAW,
             1,
             false,
             0,
             stringBuckets,
-            0
+            0,
+            new TermsAggregator.BucketCountThresholds(0, 0, 1, 1)
         );
         InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(termsAgg));
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);
@@ -208,15 +207,14 @@ public class InternalMultiBucketAggregationTests extends OpenSearchTestCase {
             "string_terms",
             BucketOrder.count(false),
             BucketOrder.count(false),
-            1,
-            0,
             Collections.emptyMap(),
             DocValueFormat.RAW,
             1,
             false,
             0,
             stringBuckets,
-            0
+            0,
+            new TermsAggregator.BucketCountThresholds(0, 0, 1, 1)
         );
         InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(termsAgg));
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);

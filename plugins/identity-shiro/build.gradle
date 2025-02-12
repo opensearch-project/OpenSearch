@@ -9,15 +9,15 @@
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Plugin for identity features in OpenSearch.'
-  classname 'org.opensearch.identity.shiro.ShiroIdentityPlugin'
-  name project.name
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+  description = 'Plugin for identity features in OpenSearch.'
+  classname = 'org.opensearch.identity.shiro.ShiroIdentityPlugin'
+  name = project.name
+  licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile = rootProject.file('NOTICE.txt')
 }
 
 dependencies {
-  implementation 'org.apache.shiro:shiro-core:1.11.0'
+  implementation 'org.apache.shiro:shiro-core:1.13.0'
 
   // Needed for shiro
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -28,10 +28,9 @@ dependencies {
 
   implementation 'org.passay:passay:1.6.3'
 
-  implementation "org.bouncycastle:bcprov-jdk15to18:${versions.bouncycastle}"
+  implementation "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
 
   testImplementation project(path: ':modules:transport-netty4') // for http
-  testImplementation project(path: ':plugins:transport-nio') // for http
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
   testImplementation project(path: ':client:rest-high-level')
   testImplementation 'junit:junit:4.13.2'

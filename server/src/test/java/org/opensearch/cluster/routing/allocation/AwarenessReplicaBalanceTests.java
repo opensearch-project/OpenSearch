@@ -16,8 +16,8 @@ import org.opensearch.common.settings.Settings;
 
 import java.util.Optional;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.hamcrest.Matchers.equalTo;
 
 public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
 

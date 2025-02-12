@@ -58,7 +58,7 @@ public class IndexShardHotSpotTests extends OpenSearchAllocationWithConstraintsT
     /**
      * Test cluster scale in scenario, when nodes are gracefully excluded from
      * cluster before termination.
-     *
+     * <p>
      * During moveShards(), shards are picked from across indexes in an interleaved manner.
      * This prevents hot spots by evenly picking up shards. Since shard order can change
      * in subsequent runs.

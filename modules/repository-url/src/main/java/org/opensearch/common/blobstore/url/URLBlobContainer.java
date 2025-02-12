@@ -157,6 +157,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
+    @SuppressWarnings("removal")
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
     private static InputStream getInputStream(URL url) throws IOException {
         try {

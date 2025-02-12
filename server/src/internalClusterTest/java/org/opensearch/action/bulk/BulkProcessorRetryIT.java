@@ -32,12 +32,11 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
-
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.RemoteTransportException;
 
@@ -161,11 +160,11 @@ public class BulkProcessorRetryIT extends OpenSearchIntegTestCase {
         SearchResponse results = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0).get();
 
         if (rejectedExecutionExpected) {
-            assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
+            assertThat((int) results.getHits().getTotalHits().value(), lessThanOrEqualTo(numberOfAsyncOps));
         } else if (rejectedAfterAllRetries) {
-            assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
+            assertThat((int) results.getHits().getTotalHits().value(), lessThan(numberOfAsyncOps));
         } else {
-            assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
+            assertThat((int) results.getHits().getTotalHits().value(), equalTo(numberOfAsyncOps));
         }
     }
 
@@ -195,7 +194,7 @@ public class BulkProcessorRetryIT extends OpenSearchIntegTestCase {
     /**
      * Internal helper class to correlate backoff states with bulk responses. This is needed to check whether we maxed out the number
      * of retries but still got rejected (which is perfectly fine and can also happen from time to time under heavy load).
-     *
+     * <p>
      * This implementation relies on an implementation detail in Retry, namely that the bulk listener is notified on the same thread
      * as the last call to the backoff policy's iterator. The advantage is that this is non-invasive to the rest of the production code.
      */

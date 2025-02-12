@@ -14,6 +14,7 @@
 package org.opensearch.common.concurrent;
 
 import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -23,8 +24,9 @@ import java.io.IOException;
  * invoked when {@link #close()} is called. The internal {@link OneWayGate} instance ensures
  * that this is invoked only once. See also {@link AutoCloseableRefCounted}
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GatedCloseable<T> implements Closeable {
 
     private final T ref;

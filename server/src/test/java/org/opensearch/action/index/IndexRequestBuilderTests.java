@@ -32,10 +32,10 @@
 
 package org.opensearch.action.index;
 
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 import org.junit.After;
@@ -74,7 +74,7 @@ public class IndexRequestBuilderTests extends OpenSearchTestCase {
         indexRequestBuilder.setSource(source);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
-        indexRequestBuilder.setSource(source, XContentType.JSON);
+        indexRequestBuilder.setSource(source, MediaTypeRegistry.JSON);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
         indexRequestBuilder.setSource("SomeKey", "SomeValue");
@@ -87,7 +87,7 @@ public class IndexRequestBuilderTests extends OpenSearchTestCase {
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
         XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();
-        indexRequestBuilder.setSource(docOut.toByteArray(), XContentType.JSON);
+        indexRequestBuilder.setSource(docOut.toByteArray(), MediaTypeRegistry.JSON);
         assertEquals(
             EXPECTED_SOURCE,
             XContentHelper.convertToJson(indexRequestBuilder.request().source(), true, indexRequestBuilder.request().getContentType())

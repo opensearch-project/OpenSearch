@@ -8,11 +8,15 @@
 
 package org.opensearch;
 
-import org.opensearch.core.index.snapshots.IndexShardSnapshotException;
+import org.opensearch.transport.client.transport.NoNodeAvailableException;
 
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
+import static org.opensearch.Version.V_2_10_0;
+import static org.opensearch.Version.V_2_13_0;
+import static org.opensearch.Version.V_2_17_0;
+import static org.opensearch.Version.V_2_18_0;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_2_5_0;
@@ -652,12 +656,7 @@ public final class OpenSearchServerException {
         );
         // 93 used to be for IndexWarmerMissingException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
-                org.opensearch.client.transport.NoNodeAvailableException.class,
-                org.opensearch.client.transport.NoNodeAvailableException::new,
-                94,
-                UNKNOWN_VERSION_ADDED
-            )
+            new OpenSearchExceptionHandle(NoNodeAvailableException.class, NoNodeAvailableException::new, 94, UNKNOWN_VERSION_ADDED)
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
@@ -676,7 +675,12 @@ public final class OpenSearchServerException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(IndexShardSnapshotException.class, IndexShardSnapshotException::new, 98, UNKNOWN_VERSION_ADDED)
+            new OpenSearchExceptionHandle(
+                org.opensearch.core.index.snapshots.IndexShardSnapshotException.class,
+                org.opensearch.core.index.snapshots.IndexShardSnapshotException::new,
+                98,
+                UNKNOWN_VERSION_ADDED
+            )
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
@@ -989,14 +993,6 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.tasks.TaskCancelledException.class,
-                org.opensearch.tasks.TaskCancelledException::new,
-                146,
-                UNKNOWN_VERSION_ADDED
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
                 org.opensearch.env.ShardLockObtainFailedException.class,
                 org.opensearch.env.ShardLockObtainFailedException::new,
                 147,
@@ -1178,6 +1174,46 @@ public final class OpenSearchServerException {
                 org.opensearch.search.pipeline.SearchPipelineProcessingException::new,
                 170,
                 V_2_7_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.crypto.CryptoRegistryException.class,
+                org.opensearch.crypto.CryptoRegistryException::new,
+                171,
+                V_2_10_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.action.admin.indices.view.ViewNotFoundException.class,
+                org.opensearch.action.admin.indices.view.ViewNotFoundException::new,
+                172,
+                V_2_13_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.action.admin.indices.view.ViewAlreadyExistsException.class,
+                org.opensearch.action.admin.indices.view.ViewAlreadyExistsException::new,
+                173,
+                V_2_13_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.indices.InvalidIndexContextException.class,
+                org.opensearch.indices.InvalidIndexContextException::new,
+                174,
+                V_2_17_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.common.breaker.ResponseLimitBreachedException.class,
+                org.opensearch.common.breaker.ResponseLimitBreachedException::new,
+                175,
+                V_2_18_0
             )
         );
         registerExceptionHandle(

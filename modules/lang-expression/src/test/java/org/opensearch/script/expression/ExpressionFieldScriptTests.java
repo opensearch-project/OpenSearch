@@ -47,8 +47,8 @@ import java.text.ParseException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -77,7 +77,7 @@ public class ExpressionFieldScriptTests extends OpenSearchTestCase {
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData);
+        lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData, SearchLookup.UNKNOWN_SHARD_ID);
     }
 
     private FieldScript.LeafFactory compile(String expression) {

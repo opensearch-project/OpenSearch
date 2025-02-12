@@ -38,6 +38,7 @@ import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.util.FeatureFlags;
@@ -45,10 +46,13 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.IndexingSlowLog;
-import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.LogByteSizeMergePolicyProvider;
+import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.SearchSlowLog;
+import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.FieldMapper;
@@ -70,11 +74,14 @@ import java.util.function.Predicate;
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class IndexScopedSettings extends AbstractScopedSettings {
 
     public static final Predicate<String> INDEX_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(IndexMetadata.INDEX_SETTING_PREFIX);
+
+    public static final Predicate<String> ARCHIVED_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(ARCHIVED_SETTINGS_PREFIX);
 
     public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(
         new HashSet<>(
@@ -84,6 +91,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
                 MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED,
+                IndexMetadata.SETTING_INDEX_CREATION_DATE,
+                IndexMetadata.INDEX_UUID_SETTING,
+                IndexMetadata.SETTING_INDEX_HISTORY_UUID,
                 IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
@@ -102,6 +112,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_FORMAT_SETTING,
                 IndexMetadata.INDEX_HIDDEN_SETTING,
                 IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
+                IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -118,14 +129,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
                 IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
                 IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
-                MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
-                MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
-                MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
-                MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
-                MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
-                MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
-                MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
-                MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
+                TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
+                TieredMergePolicyProvider.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
+                TieredMergePolicyProvider.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
+                TieredMergePolicyProvider.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
+                TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
+                TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
+                TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
+                TieredMergePolicyProvider.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
                 IndexSortConfig.INDEX_SORT_FIELD_SETTING,
                 IndexSortConfig.INDEX_SORT_ORDER_SETTING,
                 IndexSortConfig.INDEX_SORT_MISSING_SETTING,
@@ -144,6 +155,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
                 IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
                 IndexSettings.MAX_TERMS_COUNT_SETTING,
+                IndexSettings.MAX_NESTED_QUERY_DEPTH_SETTING,
                 IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
                 IndexSettings.DEFAULT_FIELD_SETTING,
                 IndexSettings.QUERY_STRING_LENIENT_SETTING,
@@ -169,6 +181,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
                 IndexSettings.INDEX_SEARCH_IDLE_AFTER,
                 IndexSettings.INDEX_SEARCH_THROTTLED,
+                IndexSettings.INDEX_UNREFERENCED_FILE_CLEANUP,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
                 FieldMapper.COERCE_SETTING,
@@ -182,7 +195,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
-                IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS,
+                IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS,
                 IndexModule.INDEX_RECOVERY_TYPE_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
                 FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
@@ -190,6 +203,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 EngineConfig.INDEX_CODEC_SETTING,
                 EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING,
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
+                EngineConfig.INDEX_USE_COMPOUND_FILE,
                 IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
                 IndexSettings.DEFAULT_PIPELINE,
                 IndexSettings.FINAL_PIPELINE,
@@ -198,6 +212,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY,
+                IndexSettings.INDEX_MERGE_POLICY,
+                IndexSettings.INDEX_CHECK_PENDING_FLUSH_ENABLED,
+                LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MERGE_FACTOR_SETTING,
+                LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MIN_MERGE_SETTING,
+                LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_SETTING,
+                LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_FOR_FORCED_MERGE_SETTING,
+                LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGED_DOCS_SETTING,
+                LogByteSizeMergePolicyProvider.INDEX_LBS_NO_CFS_RATIO_SETTING,
                 IndexSettings.DEFAULT_SEARCH_PIPELINE,
 
                 // Settings for Searchable Snapshots
@@ -205,9 +227,43 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,
                 IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME,
                 IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID,
+                IndexSettings.SEARCHABLE_SNAPSHOT_SHARD_PATH_TYPE,
 
                 // Settings for remote translog
                 IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
+                IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING,
+
+                // Settings for remote store enablement
+                IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
+                IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
+                IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+
+                IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING,
+                IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
+
+                // Settings for concurrent segment search
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING, // deprecated
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE,
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT,
+                IndexSettings.ALLOW_DERIVED_FIELDS,
+
+                // Settings for star tree index
+                StarTreeIndexSettings.STAR_TREE_DEFAULT_MAX_LEAF_DOCS,
+                StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING,
+                StarTreeIndexSettings.STAR_TREE_MAX_FIELDS_SETTING,
+                StarTreeIndexSettings.DEFAULT_METRICS_LIST,
+                StarTreeIndexSettings.DEFAULT_DATE_INTERVALS,
+                StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING,
+                StarTreeIndexSettings.STAR_TREE_MAX_BASE_METRICS_SETTING,
+                StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING,
+
+                IndexSettings.INDEX_CONTEXT_CREATED_VERSION,
+                IndexSettings.INDEX_CONTEXT_CURRENT_VERSION,
+
+                // Settings for ingestion source
+                IndexMetadata.INGESTION_SOURCE_TYPE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_POINTER_INIT_RESET_SETTING,
+                IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -232,14 +288,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
      */
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
-        FeatureFlags.REMOTE_STORE,
-        List.of(
-            IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
-            IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
-            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING
-        ),
-        FeatureFlags.CONCURRENT_SEGMENT_SEARCH,
-        List.of(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING)
+        FeatureFlags.TIERED_REMOTE_INDEX,
+        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE),
+        FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL,
+        List.of(IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING)
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
@@ -267,12 +319,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     @Override
     public boolean isPrivateSetting(String key) {
         switch (key) {
-            case IndexMetadata.SETTING_CREATION_DATE:
-            case IndexMetadata.SETTING_INDEX_UUID:
-            case IndexMetadata.SETTING_HISTORY_UUID:
             case IndexMetadata.SETTING_VERSION_UPGRADED:
             case IndexMetadata.SETTING_INDEX_PROVIDED_NAME:
-            case MergePolicyConfig.INDEX_MERGE_ENABLED:
+            case MergePolicyProvider.INDEX_MERGE_ENABLED:
                 // we keep the shrink settings for BWC - this can be removed in 8.0
                 // we can't remove in 7 since this setting might be baked into an index coming in via a full cluster restart from 6.0
             case "index.shrink.source.uuid":

@@ -86,23 +86,27 @@ public class HeapBufferedAsyncEntityConsumer extends AbstractBinAsyncEntityConsu
             return;
         }
 
-        ByteArrayBuffer buffer = bufferRef.get();
-        if (buffer == null) {
-            buffer = new ByteArrayBuffer(bufferLimitBytes);
-            if (bufferRef.compareAndSet(null, buffer) == false) {
-                buffer = bufferRef.get();
-            }
-        }
-
         int len = src.limit();
-        if (buffer.length() + len > bufferLimitBytes) {
+        if (len < 0) {
+            len = 4096;
+        } else if (len > bufferLimitBytes) {
             throw new ContentTooLongException(
                 "entity content is too long [" + len + "] for the configured buffer limit [" + bufferLimitBytes + "]"
             );
         }
 
-        if (len < 0) {
-            len = 4096;
+        ByteArrayBuffer buffer = bufferRef.get();
+        if (buffer == null) {
+            buffer = new ByteArrayBuffer(len);
+            if (bufferRef.compareAndSet(null, buffer) == false) {
+                buffer = bufferRef.get();
+            }
+        }
+
+        if (buffer.length() + len > bufferLimitBytes) {
+            throw new ContentTooLongException(
+                "entity content is too long [" + len + "] for the configured buffer limit [" + bufferLimitBytes + "]"
+            );
         }
 
         if (src.hasArray()) {
@@ -135,5 +139,13 @@ public class HeapBufferedAsyncEntityConsumer extends AbstractBinAsyncEntityConsu
             buffer.clear();
             buffer = null;
         }
+    }
+
+    /**
+     * Gets current byte buffer instance
+     * @return byte buffer instance
+     */
+    ByteArrayBuffer getBuffer() {
+        return bufferRef.get();
     }
 }

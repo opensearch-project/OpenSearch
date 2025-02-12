@@ -32,11 +32,11 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BitMixer;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.search.aggregations.ParsedAggregation;
 import org.opensearch.test.InternalAggregationTestCase;

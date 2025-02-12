@@ -35,8 +35,8 @@ package org.opensearch.script.expression;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.search.DoubleValues;
-import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.search.MultiValueMode;
 

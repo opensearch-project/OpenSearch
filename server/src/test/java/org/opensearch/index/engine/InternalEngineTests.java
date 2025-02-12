@@ -33,6 +33,7 @@
 package org.opensearch.index.engine;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -77,15 +78,14 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.tests.index.ForceMergePolicy;
+import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -99,8 +99,6 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
@@ -111,15 +109,20 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
@@ -139,7 +142,6 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
@@ -151,10 +153,14 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.listener.TranslogEventListener;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
+import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -164,6 +170,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -194,6 +201,15 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import static java.util.Collections.shuffle;
+import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
+import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
@@ -218,18 +234,8 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
-import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.PRIMARY;
-import static org.opensearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 
 public class InternalEngineTests extends EngineTestCase {
 
@@ -265,7 +271,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(1, searcher.getIndexReader().numDocs());
             TopDocs search = searcher.search(new MatchAllDocsQuery(), 1);
-            org.apache.lucene.document.Document luceneDoc = searcher.doc(search.scoreDocs[0].doc);
+            org.apache.lucene.document.Document luceneDoc = searcher.storedFields().document(search.scoreDocs[0].doc);
             assertEquals("test", luceneDoc.get("value"));
         }
 
@@ -278,7 +284,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             assertEquals(1, searcher.getIndexReader().numDocs());
             TopDocs search = searcher.search(new MatchAllDocsQuery(), 1);
-            org.apache.lucene.document.Document luceneDoc = searcher.doc(search.scoreDocs[0].doc);
+            org.apache.lucene.document.Document luceneDoc = searcher.storedFields().document(search.scoreDocs[0].doc);
             assertEquals("updated", luceneDoc.get("value"));
         }
 
@@ -333,6 +339,58 @@ public class InternalEngineTests extends EngineTestCase {
 
             segments = engine.segments(true);
             assertThat(segments.size(), equalTo(3));
+        }
+    }
+
+    public void testSegmentsWithUseCompoundFileFlag_true() throws IOException {
+        try (Store store = createStore(); Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy())) {
+            ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
+            Engine.Index index = indexForDoc(doc);
+            engine.index(index);
+            engine.flush();
+            final List<Segment> segments = engine.segments(false);
+            assertThat(segments, hasSize(1));
+            assertTrue(segments.get(0).compound);
+            boolean cfeCompoundFileFound = false;
+            boolean cfsCompoundFileFound = false;
+            for (final String fileName : store.readLastCommittedSegmentsInfo().files(true)) {
+                if (fileName.endsWith(".cfe")) {
+                    cfeCompoundFileFound = true;
+                }
+                if (fileName.endsWith(".cfs")) {
+                    cfsCompoundFileFound = true;
+                }
+            }
+            Assert.assertTrue(cfeCompoundFileFound);
+            Assert.assertTrue(cfsCompoundFileFound);
+        }
+    }
+
+    public void testSegmentsWithUseCompoundFileFlag_false() throws IOException {
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_USE_COMPOUND_FILE.getKey(), false).build()
+        );
+        try (Store store = createStore(); Engine engine = createEngine(indexSettings, store, createTempDir(), new TieredMergePolicy())) {
+            ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
+            Engine.Index index = indexForDoc(doc);
+            engine.index(index);
+            engine.flush();
+            final List<Segment> segments = engine.segments(false);
+            assertThat(segments, hasSize(1));
+            assertFalse(segments.get(0).compound);
+            boolean cfeCompoundFileFound = false;
+            boolean cfsCompoundFileFound = false;
+            for (final String fileName : store.readLastCommittedSegmentsInfo().files(true)) {
+                if (fileName.endsWith(".cfe")) {
+                    cfeCompoundFileFound = true;
+                }
+                if (fileName.endsWith(".cfs")) {
+                    cfsCompoundFileFound = true;
+                }
+            }
+            Assert.assertFalse(cfeCompoundFileFound);
+            Assert.assertFalse(cfsCompoundFileFound);
         }
     }
 
@@ -674,7 +732,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             segments = engine.segments(true);
-            assertThat(segments.size(), equalTo(2));
+            assertThat(segments.size(), equalTo(1));
         }
     }
 
@@ -946,7 +1004,7 @@ public class InternalEngineTests extends EngineTestCase {
             recoveringEngine.refresh("test");
             try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), docs);
-                assertEquals(docs, topDocs.totalHits.value);
+                assertEquals(docs, topDocs.totalHits.value());
             }
         } finally {
             IOUtils.close(initialEngine, recoveringEngine, store);
@@ -1023,6 +1081,55 @@ public class InternalEngineTests extends EngineTestCase {
         getThread.join();
         assertTrue(latestGetResult.get().exists());
         latestGetResult.get().close();
+    }
+
+    public void testUpdateOperationForAppendOnlyIndex() throws Exception {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), "true");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (
+            Store store = createStore();
+            InternalEngine engine = createUpdateOnlyEngine(
+                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
+            )
+        ) {
+            engine.refresh("warm_up");
+            Engine.Searcher searchResult = engine.acquireSearcher("test");
+            searchResult.close();
+
+            final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = engine::acquireSearcher;
+
+            // create a document
+            Document document = testDocumentWithTextField();
+            document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
+            ParsedDocument doc = testParsedDocument("1", null, document, B_1, null);
+            expectThrows(AlreadyClosedException.class, () -> engine.index(indexForDoc(doc)));
+        }
+    }
+
+    private InternalEngine createUpdateOnlyEngine(EngineConfig config) throws IOException {
+        final Store store = config.getStore();
+        final Directory directory = store.directory();
+        if (Lucene.indexExists(directory) == false) {
+            store.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
+            final String translogUuid = Translog.createEmptyTranslog(
+                config.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                shardId,
+                primaryTerm.get()
+            );
+            store.associateIndexWithNewTranslog(translogUuid);
+        }
+
+        return new InternalEngine(config) {
+            @Override
+            protected IndexingStrategy indexingStrategyForOperation(Index index) throws IOException {
+                return IndexingStrategy.processNormally(false, 0, 0);
+            }
+        };
     }
 
     public void testSimpleOperations() throws Exception {
@@ -1814,7 +1921,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (
             Store store = createStore();
             InternalEngine engine = createEngine(
-                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
+                config(indexSettings, store, createTempDir(), newMergePolicy(random(), false), null, null, globalCheckpoint::get)
             )
         ) {
             int numDocs = scaledRandomIntBetween(10, 100);
@@ -3228,12 +3335,337 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testUnreferencedFileCleanUpOnSegmentMergeFailureWithCleanUpEnabled() throws Exception {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        final CountDownLatch cleanupCompleted = new CountDownLatch(1);
+        MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+            @Override
+            public void eval(MockDirectoryWrapper dir) throws IOException {
+                // Fail segment merge with diskfull during merging terms
+                if (callStackContainsAnyOf("mergeTerms")) {
+                    throw new IOException("No space left on device");
+                }
+            }
+        };
+
+        wrapper.failOn(fail);
+        try {
+            Store store = createStore(wrapper);
+            final Engine.EventListener eventListener = new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {
+                    try {
+                        // extra0 file is added as a part of
+                        // https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
+                        // Safe to remove from file count along with write.lock without impacting the test.
+                        long fileCount = Arrays.stream(store.directory().listAll())
+                            .filter(file -> file.equals("write.lock") == false && ExtrasFS.isExtra(file) == false)
+                            .count();
+
+                        // Since only one document is committed and unreferenced files are cleaned up,
+                        // there are 4 files (*cfs, *cfe, *si and segments_*).
+                        assertThat(fileCount, equalTo(4L));
+                        wrapper.close();
+                        store.close();
+                        engine.close();
+                        cleanupCompleted.countDown();
+                    } catch (IOException ex) {
+                        throw new AssertionError(ex);
+                    }
+                }
+            };
+
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+            final AtomicLong retentionLeasesVersion = new AtomicLong();
+            final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(
+                new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), Collections.emptyList())
+            );
+
+            // Just allow force merge so that regular merge does not close the shard first before any any other operation
+            //
+            InternalEngine engine = createEngine(
+                config(
+                    defaultSettings,
+                    store,
+                    createTempDir(),
+                    newForceMergePolicy(),
+                    null,
+                    null,
+                    null,
+                    globalCheckpoint::get,
+                    retentionLeasesHolder::get,
+                    new NoneCircuitBreakerService(),
+                    eventListener
+                )
+            );
+
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+
+            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            engine.refresh("test");
+            engine.flush();
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+
+            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
+            engine.index(indexForDoc(doc2));
+            engine.refresh("test");
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+
+            // IndexWriter can throw either IOException or IllegalStateException depending on whether tragedy is set or not.
+            expectThrowsAnyOf(
+                Arrays.asList(IOException.class, IllegalStateException.class),
+                () -> engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID())
+            );
+
+            assertTrue(cleanupCompleted.await(10, TimeUnit.SECONDS));
+            // Cleanup count will be incremented whenever cleanup is performed correctly.
+            long unreferencedFileCleanUpsPerformed = engine.unreferencedFileCleanUpsPerformed();
+            assertThat(unreferencedFileCleanUpsPerformed, equalTo(1L));
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    public void testUnreferencedFileCleanUpOnSegmentMergeFailureWithCleanUpDisabled() throws Exception {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        final CountDownLatch cleanupCompleted = new CountDownLatch(1);
+        MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+
+            @Override
+            public void eval(MockDirectoryWrapper dir) throws IOException {
+                if (callStackContainsAnyOf("mergeTerms")) {
+                    throw new IOException("No space left on device");
+                }
+            }
+        };
+
+        wrapper.failOn(fail);
+        try {
+            Store store = createStore(wrapper);
+            final Engine.EventListener eventListener = new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {
+                    try {
+                        // extra0 file is added as a part of
+                        // https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
+                        // Safe to remove from file count along with write.lock without impacting the test
+                        long fileCount = Arrays.stream(store.directory().listAll())
+                            .filter(file -> file.equals("write.lock") == false && ExtrasFS.isExtra(file) == false)
+                            .count();
+
+                        // Since now cleanup is not happening now, all unrefrenced files now be present as well.
+                        assertThat(fileCount, equalTo(13L));
+                        wrapper.close();
+                        store.close();
+                        engine.close();
+                        cleanupCompleted.countDown();
+                    } catch (IOException ex) {
+                        throw new AssertionError(ex);
+                    }
+                }
+            };
+
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+            final AtomicLong retentionLeasesVersion = new AtomicLong();
+            final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(
+                new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), Collections.emptyList())
+            );
+            InternalEngine engine = createEngine(
+                config(
+                    defaultSettings,
+                    store,
+                    createTempDir(),
+                    newForceMergePolicy(),
+                    null,
+                    null,
+                    null,
+                    globalCheckpoint::get,
+                    retentionLeasesHolder::get,
+                    new NoneCircuitBreakerService(),
+                    eventListener
+                )
+            );
+
+            // Disable cleanup
+            final IndexSettings indexSettings = engine.config().getIndexSettings();
+            final IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
+                .settings(
+                    Settings.builder().put(indexSettings.getSettings()).put(IndexSettings.INDEX_UNREFERENCED_FILE_CLEANUP.getKey(), false)
+                )
+                .build();
+            indexSettings.updateIndexMetadata(indexMetadata);
+
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+
+            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            engine.refresh("test");
+            engine.flush();
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+
+            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
+            engine.index(indexForDoc(doc2));
+            engine.refresh("test");
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+
+            // IndexWriter can throw either IOException or IllegalStateException depending on whether tragedy is set or not.
+            expectThrowsAnyOf(
+                Arrays.asList(IOException.class, IllegalStateException.class),
+                () -> engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID())
+            );
+
+            assertTrue(cleanupCompleted.await(10, TimeUnit.SECONDS));
+            // Cleanup count will not be incremented whenever cleanup is disabled.
+            long unreferencedFileCleanUpsPerformed = engine.unreferencedFileCleanUpsPerformed();
+            assertThat(unreferencedFileCleanUpsPerformed, equalTo(0L));
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    public void testUnreferencedFileCleanUpFailsOnSegmentMergeFailureWhenDirectoryClosed() throws Exception {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        final CountDownLatch cleanupCompleted = new CountDownLatch(1);
+        MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
+
+            @Override
+            public void eval(MockDirectoryWrapper dir) throws IOException {
+                if (callStackContainsAnyOf("mergeTerms")) {
+                    throw new IOException("No space left on device");
+                }
+            }
+        };
+
+        wrapper.failOn(fail);
+        MockLogAppender mockAppender = MockLogAppender.createForLoggers(Loggers.getLogger(Engine.class, shardId));
+        try {
+            // Create a store where directory is closed during unreferenced file cleanup.
+            Store store = createFailingDirectoryStore(wrapper);
+            final Engine.EventListener eventListener = new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {
+                    try {
+                        store.close();
+                        engine.close();
+                        mockAppender.assertAllExpectationsMatched();
+                        mockAppender.close();
+                        cleanupCompleted.countDown();
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            };
+
+            final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+            final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+            final AtomicLong retentionLeasesVersion = new AtomicLong();
+            final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(
+                new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), Collections.emptyList())
+            );
+            InternalEngine engine = createEngine(
+                config(
+                    defaultSettings,
+                    store,
+                    createTempDir(),
+                    newForceMergePolicy(),
+                    null,
+                    null,
+                    null,
+                    globalCheckpoint::get,
+                    retentionLeasesHolder::get,
+                    new NoneCircuitBreakerService(),
+                    eventListener
+                )
+            );
+
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+
+            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            engine.refresh("test");
+            engine.flush();
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(1));
+
+            ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
+            engine.index(indexForDoc(doc2));
+            engine.refresh("test");
+
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+
+            // Close the store so that unreferenced file cleanup will fail.
+            store.close();
+
+            final String message = "Error while deleting unreferenced file *";
+            mockAppender.start();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("expected message", Engine.class.getCanonicalName(), Level.ERROR, message)
+            );
+
+            // IndexWriter can throw either IOException or IllegalStateException depending on whether tragedy is set or not.
+            expectThrowsAnyOf(
+                Arrays.asList(IOException.class, IllegalStateException.class),
+                () -> engine.forceMerge(true, 1, false, false, false, UUIDs.randomBase64UUID())
+            );
+
+            assertTrue(cleanupCompleted.await(10, TimeUnit.SECONDS));
+            // Cleanup count will not be incremented whenever there is some issue with cleanup.
+            long unreferencedFileCleanUpsPerformed = engine.unreferencedFileCleanUpsPerformed();
+            assertThat(unreferencedFileCleanUpsPerformed, equalTo(0L));
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
     public void testSettings() {
         CodecService codecService = new CodecService(null, engine.config().getIndexSettings(), logger);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
+    }
+
+    /**
+     * Creates a merge policy which only supports force merge.
+     * @return returns a merge policy which only supports force merge.
+     */
+    private MergePolicy newForceMergePolicy() {
+        return new ForceMergePolicy(new TieredMergePolicy());
+    }
+
+    /**
+     * Create a store where directory is closed when referenced while unreferenced file cleanup.
+     *
+     * @param directory directory used for creating the store.
+     * @return a store where directory is closed when referenced while unreferenced file cleanup.
+     */
+    private Store createFailingDirectoryStore(final Directory directory) {
+        return new Store(shardId, INDEX_SETTINGS, directory, new DummyShardLock(shardId)) {
+            @Override
+            public Directory directory() {
+                if (callStackContainsAnyOf("cleanUpUnreferencedFiles")) {
+                    throw new AlreadyClosedException("store is already closed");
+                }
+
+                return super.directory();
+            }
+        };
     }
 
     public void testCurrentTranslogUUIIDIsCommitted() throws IOException {
@@ -3526,7 +3958,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.translogManager().skipTranslogRecovery();
             try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
-                assertThat(topDocs.totalHits.value, equalTo(0L));
+                assertThat(topDocs.totalHits.value(), equalTo(0L));
             }
         }
     }
@@ -3617,7 +4049,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(result.getVersion(), equalTo(2L));
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), numDocs + 1);
-            assertThat(topDocs.totalHits.value, equalTo(numDocs + 1L));
+            assertThat(topDocs.totalHits.value(), equalTo(numDocs + 1L));
         }
 
         engine.close();
@@ -3626,7 +4058,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("warm_up");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), numDocs + 1);
-            assertThat(topDocs.totalHits.value, equalTo(numDocs + 1L));
+            assertThat(topDocs.totalHits.value(), equalTo(numDocs + 1L));
         }
         assertEquals(flush ? 1 : 2, translogHandler.appliedOperations());
         engine.delete(new Engine.Delete(Integer.toString(randomId), newUid(doc), primaryTerm.get()));
@@ -3637,7 +4069,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), numDocs);
-            assertThat(topDocs.totalHits.value, equalTo((long) numDocs));
+            assertThat(topDocs.totalHits.value(), equalTo((long) numDocs));
         }
     }
 
@@ -3671,7 +4103,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Path badTranslogLog = createTempDir();
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         Translog translog = new LocalTranslog(
-            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
+            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
             badUUID,
             createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
@@ -3688,7 +4120,9 @@ public class InternalEngineTests extends EngineTestCase {
             shardId,
             translog.location(),
             config.getIndexSettings(),
-            BigArrays.NON_RECYCLING_INSTANCE
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
         );
 
         EngineConfig brokenConfig = new EngineConfig.Builder().shardId(shardId)
@@ -4058,7 +4492,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1, topDocs.totalHits.value());
         }
         operation = appendOnlyPrimary(doc, false, 1, create);
         retry = appendOnlyPrimary(doc, true, 1, create);
@@ -4093,7 +4527,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1, topDocs.totalHits.value());
         }
     }
 
@@ -4151,7 +4585,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(0, topDocs.totalHits.value);
+            assertEquals(0, topDocs.totalHits.value());
         }
     }
 
@@ -4175,7 +4609,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1, topDocs.totalHits.value());
         }
 
         final boolean create = randomBoolean();
@@ -4215,7 +4649,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1, topDocs.totalHits.value());
         }
     }
 
@@ -4260,12 +4694,12 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1, topDocs.totalHits.value());
         }
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1, topDocs.totalHits.value());
         }
         if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             List<Translog.Operation> ops = readAllOperationsInLucene(engine);
@@ -4340,7 +4774,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1, topDocs.totalHits.value());
         }
 
         index = new Engine.Index(
@@ -4362,7 +4796,7 @@ public class InternalEngineTests extends EngineTestCase {
         replicaEngine.refresh("test");
         try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1, topDocs.totalHits.value());
         }
     }
 
@@ -4432,7 +4866,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1, topDocs.totalHits.value());
         }
 
         Engine.Index secondIndexRequestReplica = new Engine.Index(
@@ -4453,7 +4887,7 @@ public class InternalEngineTests extends EngineTestCase {
         replicaEngine.refresh("test");
         try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1, topDocs.totalHits.value());
         }
     }
 
@@ -5712,7 +6146,7 @@ public class InternalEngineTests extends EngineTestCase {
                 "routing",
                 Collections.singletonList(document),
                 source,
-                XContentType.JSON,
+                MediaTypeRegistry.JSON,
                 null
             );
 
@@ -5892,7 +6326,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             TopDocs search = searcher.search(new MatchAllDocsQuery(), searcher.getIndexReader().numDocs());
             for (int i = 0; i < search.scoreDocs.length; i++) {
-                org.apache.lucene.document.Document luceneDoc = searcher.doc(search.scoreDocs[i].doc);
+                org.apache.lucene.document.Document luceneDoc = searcher.storedFields().document(search.scoreDocs[i].doc);
                 assertEquals("updated", luceneDoc.get("value"));
             }
             int totalNumDocs = numDocs - numDeletes.get();
@@ -6909,7 +7343,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                     LeafReader leafReader = getOnlyLeafReader(searcher.getIndexReader());
-                    assertEquals(createdVersion.luceneVersion.major, leafReader.getMetaData().getCreatedVersionMajor());
+                    assertEquals(createdVersion.luceneVersion.major, leafReader.getMetaData().createdVersionMajor());
                 }
             }
         }
@@ -6921,7 +7355,11 @@ public class InternalEngineTests extends EngineTestCase {
             engine.ensureOpen();
             while (running.get()
                 && assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration() < 500) {
-                engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
+                try {
+                    engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
+                } catch (IOException e) {
+                    fail("io exception not expected");
+                }
             }
         });
         rollTranslog.start();
@@ -7377,7 +7815,9 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getTranslogConfig().getShardId(),
                 createTempDir(),
                 config.getTranslogConfig().getIndexSettings(),
-                config.getTranslogConfig().getBigArrays()
+                config.getTranslogConfig().getBigArrays(),
+                "",
+                false
             );
             EngineConfig configWithWarmer = new EngineConfig.Builder().shardId(config.getShardId())
                 .threadPool(config.getThreadPool())
@@ -7497,7 +7937,9 @@ public class InternalEngineTests extends EngineTestCase {
                     assertNotNull(result.getFailure());
                     assertThat(
                         result.getFailure().getMessage(),
-                        containsString("Number of documents in the index can't exceed [" + maxDocs + "]")
+                        containsString(
+                            "Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs + "] documents per shard"
+                        )
                     );
                     assertThat(result.getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
                     assertThat(engine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(maxSeqNo));
@@ -7529,16 +7971,86 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testGetSegmentInfosSnapshot() throws IOException {
+    public void testGetSegmentInfosSnapshot_AllSnapshotFilesPreservedAcrossCommit() throws Exception {
         IOUtils.close(store, engine);
-        Store store = createStore();
-        InternalEngine engine = spy(createEngine(store, createTempDir()));
-        GatedCloseable<SegmentInfos> segmentInfosSnapshot = engine.getSegmentInfosSnapshot();
-        assertNotNull(segmentInfosSnapshot);
-        assertNotNull(segmentInfosSnapshot.get());
-        verify(engine, times(1)).getLatestSegmentInfos();
-        store.close();
-        engine.close();
+        store = createStore();
+        engine = createEngine(store, createTempDir());
+        List<Engine.Operation> operations = generateHistoryOnReplica(
+            randomIntBetween(1, 100),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        for (Engine.Operation op : operations) {
+            applyOperation(engine, op);
+        }
+        engine.refresh("test");
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            Collection<String> files = snapshot.get().files(true);
+            Set<String> localFiles = Set.of(store.directory().listAll());
+            for (String file : files) {
+                assertTrue("Local directory contains file " + file, localFiles.contains(file));
+            }
+
+            engine.flush(true, true);
+
+            try (
+                final GatedCloseable<SegmentInfos> snapshotAfterFlush = engine.getSegmentInfosSnapshot();
+                final GatedCloseable<IndexCommit> commit = engine.acquireLastIndexCommit(false)
+            ) {
+                final SegmentInfos segmentInfos = snapshotAfterFlush.get();
+                assertNotEquals(segmentInfos.getSegmentsFileName(), snapshot.get().getSegmentsFileName());
+                assertEquals(commit.get().getSegmentsFileName(), segmentInfos.getSegmentsFileName());
+            }
+
+            // original files are preserved.
+            localFiles = Set.of(store.directory().listAll());
+            for (String file : files) {
+                assertTrue("Local directory contains file " + file, localFiles.contains(file));
+            }
+        }
+    }
+
+    public void testGetSegmentInfosSnapshot_LatestCommitOnDiskHasHigherGenThanReader() throws Exception {
+        IOUtils.close(store, engine);
+        store = createStore();
+        engine = createEngine(store, createTempDir());
+        // to simulate this we need concurrent flush/refresh.
+        AtomicBoolean run = new AtomicBoolean(true);
+        AtomicInteger docId = new AtomicInteger(0);
+        Thread refresher = new Thread(() -> {
+            while (run.get()) {
+                try {
+                    engine.index(indexForDoc(createParsedDoc(Integer.toString(docId.getAndIncrement()), null)));
+                    engine.refresh("test");
+                    getSnapshotAndAssertFilesExistLocally();
+                } catch (Exception e) {
+                    Assert.fail();
+                }
+            }
+        });
+        refresher.start();
+        try {
+            for (int i = 0; i < 10; i++) {
+                engine.flush(true, true);
+                getSnapshotAndAssertFilesExistLocally();
+            }
+        } catch (Exception e) {
+            Assert.fail();
+        } finally {
+            run.set(false);
+            refresher.join();
+        }
+    }
+
+    private void getSnapshotAndAssertFilesExistLocally() throws IOException {
+        try (GatedCloseable<SegmentInfos> snapshot = engine.getSegmentInfosSnapshot()) {
+            Collection<String> files = snapshot.get().files(true);
+            Set<String> localFiles = Set.of(store.directory().listAll());
+            for (String file : files) {
+                assertTrue("Local directory contains file " + file, localFiles.contains(file));
+            }
+        }
     }
 
     public void testGetProcessedLocalCheckpoint() throws IOException {

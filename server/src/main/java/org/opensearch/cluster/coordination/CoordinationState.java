@@ -35,8 +35,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -49,6 +53,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
  * The core class of the cluster state coordination algorithm, directly implementing the
@@ -64,8 +69,8 @@ public class CoordinationState {
 
     private final ElectionStrategy electionStrategy;
 
-    // persisted state
-    private final PersistedState persistedState;
+    // persisted state registry
+    private final PersistedStateRegistry persistedStateRegistry;
 
     // transient state
     private VoteCollection joinVotes;
@@ -74,12 +79,18 @@ public class CoordinationState {
     private long lastPublishedVersion;
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
+    private final boolean isRemoteStateEnabled;
 
-    public CoordinationState(DiscoveryNode localNode, PersistedState persistedState, ElectionStrategy electionStrategy) {
+    public CoordinationState(
+        DiscoveryNode localNode,
+        PersistedStateRegistry persistedStateRegistry,
+        ElectionStrategy electionStrategy,
+        Settings settings
+    ) {
         this.localNode = localNode;
 
-        // persisted state
-        this.persistedState = persistedState;
+        // persisted state registry
+        this.persistedStateRegistry = persistedStateRegistry;
         this.electionStrategy = electionStrategy;
 
         // transient state
@@ -87,16 +98,19 @@ public class CoordinationState {
         this.startedJoinSinceLastReboot = false;
         this.electionWon = false;
         this.lastPublishedVersion = 0L;
-        this.lastPublishedConfiguration = persistedState.getLastAcceptedState().getLastAcceptedConfiguration();
+        this.lastPublishedConfiguration = persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL)
+            .getLastAcceptedState()
+            .getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
+        this.isRemoteStateEnabled = isRemoteStoreClusterStateEnabled(settings);
     }
 
     public long getCurrentTerm() {
-        return persistedState.getCurrentTerm();
+        return persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getCurrentTerm();
     }
 
     public ClusterState getLastAcceptedState() {
-        return persistedState.getLastAcceptedState();
+        return persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getLastAcceptedState();
     }
 
     public long getLastAcceptedTerm() {
@@ -186,7 +200,7 @@ public class CoordinationState {
         assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
         assert initialState.getLastCommittedConfiguration().isEmpty() == false;
 
-        persistedState.setLastAcceptedState(initialState);
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setLastAcceptedState(initialState);
     }
 
     /**
@@ -222,7 +236,7 @@ public class CoordinationState {
             logger.debug("handleStartJoin: discarding {}: {}", joinVotes, reason);
         }
 
-        persistedState.setCurrentTerm(startJoinRequest.getTerm());
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setCurrentTerm(startJoinRequest.getTerm());
         assert getCurrentTerm() == startJoinRequest.getTerm();
         lastPublishedVersion = 0;
         lastPublishedConfiguration = getLastAcceptedConfiguration();
@@ -436,7 +450,10 @@ public class CoordinationState {
             clusterState.version(),
             clusterState.term()
         );
-        persistedState.setLastAcceptedState(clusterState);
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setLastAcceptedState(clusterState);
+        if (shouldUpdateRemotePersistedState(publishRequest)) {
+            updateRemotePersistedStateOnPublishRequest(publishRequest);
+        }
         assert getLastAcceptedState() == clusterState;
 
         return new PublishResponse(clusterState.term(), clusterState.version());
@@ -490,6 +507,7 @@ public class CoordinationState {
                 publishResponse.getVersion(),
                 publishResponse.getTerm()
             );
+            handlePreCommit();
             return Optional.of(new ApplyCommitRequest(localNode, publishResponse.getTerm(), publishResponse.getVersion()));
         }
 
@@ -547,8 +565,37 @@ public class CoordinationState {
             applyCommit.getVersion()
         );
 
-        persistedState.markLastAcceptedStateAsCommitted();
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).markLastAcceptedStateAsCommitted();
+        if (shouldCommitRemotePersistedState()) {
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).markLastAcceptedStateAsCommitted();
+        }
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
+    }
+
+    /**
+     * This method should be called just before sending the PublishRequest to all cluster nodes.
+     * @param clusterState The cluster state for which pre publish activities should happen.
+     */
+    public void handlePrePublish(ClusterState clusterState) {
+        // Publishing the current state to remote store before sending the cluster state to other nodes.
+        // This is to ensure the remote store is the single source of truth for current state. Even if the current node
+        // goes down after sending the cluster state to other nodes, we should be able to read the remote state and
+        // recover the cluster.
+        if (isRemoteStateEnabled) {
+            assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(clusterState);
+        }
+    }
+
+    /**
+     * This method should be called just before sending the ApplyCommitRequest to all cluster nodes.
+     */
+    public void handlePreCommit() {
+        // Publishing the committed state to remote store before sending apply commit to other nodes.
+        if (isRemoteStateEnabled) {
+            assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).markLastAcceptedStateAsCommitted();
+        }
     }
 
     public void invariant() {
@@ -564,7 +611,34 @@ public class CoordinationState {
     }
 
     public void close() throws IOException {
-        persistedState.close();
+        IOUtils.close(persistedStateRegistry);
+    }
+
+    private boolean shouldUpdateRemotePersistedState(PublishRequest publishRequest) {
+        return persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null
+            && publishRequest.getAcceptedState().getNodes().isLocalNodeElectedClusterManager() == false;
+    }
+
+    private void updateRemotePersistedStateOnPublishRequest(PublishRequest publishRequest) {
+        if (publishRequest instanceof RemoteStatePublishRequest) {
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(publishRequest.getAcceptedState());
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE)
+                .setLastAcceptedManifest(((RemoteStatePublishRequest) publishRequest).getAcceptedManifest());
+        } else {
+            // We will end up here if PublishRequest was sent not using Remote Store even with remote persisted state on this node
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(null);
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedManifest(null);
+        }
+    }
+
+    private boolean shouldCommitRemotePersistedState() {
+        return persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null
+            && persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL)
+                .getLastAcceptedState()
+                .getNodes()
+                .isLocalNodeElectedClusterManager() == false
+            && persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState() != null
+            && persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedManifest() != null;
     }
 
     /**
@@ -599,6 +673,28 @@ public class CoordinationState {
         void setLastAcceptedState(ClusterState clusterState);
 
         /**
+         * Returns the stats for the persistence layer for {@link CoordinationState}.
+         * @return PersistedStateStats
+         */
+        PersistedStateStats getStats();
+
+        /**
+         * Returns the last accepted {@link ClusterMetadataManifest}.
+         *
+         * @return The last accepted {@link ClusterMetadataManifest}, or null if no manifest
+         *         has been accepted yet.
+         */
+        default ClusterMetadataManifest getLastAcceptedManifest() {
+            // return null by default, this method needs to be overridden wherever required
+            return null;
+        }
+
+        /**
+         * Sets the last accepted {@link ClusterMetadataManifest}.
+         */
+        default void setLastAcceptedManifest(ClusterMetadataManifest manifest) {}
+
+        /**
          * Marks the last accepted cluster state as committed.
          * After a successful call to this method, {@link #getLastAcceptedState()} should return the last cluster state that was set,
          * with the last committed configuration now corresponding to the last accepted configuration, and the cluster uuid, if set,
@@ -606,14 +702,7 @@ public class CoordinationState {
          */
         default void markLastAcceptedStateAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
-            Metadata.Builder metadataBuilder = null;
-            if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
-                final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(lastAcceptedState.coordinationMetadata())
-                    .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
-                    .build();
-                metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
-                metadataBuilder.coordinationMetadata(coordinationMetadata);
-            }
+            Metadata.Builder metadataBuilder = commitVotingConfiguration(lastAcceptedState);
             // if we receive a commit from a Zen1 cluster-manager that has not recovered its state yet,
             // the cluster uuid might not been known yet.
             assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
@@ -636,6 +725,18 @@ public class CoordinationState {
             if (metadataBuilder != null) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build());
             }
+        }
+
+        default Metadata.Builder commitVotingConfiguration(ClusterState lastAcceptedState) {
+            Metadata.Builder metadataBuilder = null;
+            if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
+                final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(lastAcceptedState.coordinationMetadata())
+                    .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
+                    .build();
+                metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
+                metadataBuilder.coordinationMetadata(coordinationMetadata);
+            }
+            return metadataBuilder;
         }
 
         default void close() throws IOException {}

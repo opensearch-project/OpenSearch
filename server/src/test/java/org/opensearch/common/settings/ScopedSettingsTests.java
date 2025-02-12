@@ -61,6 +61,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -786,6 +789,30 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         assertTrue(settings.isFinalSetting("foo.group.key"));
     }
 
+    public void testIsUnmodifiableOnRestore() {
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    Setting.intSetting("foo.int", 1, Property.UnmodifiableOnRestore, Property.IndexScope, Property.NodeScope),
+                    Setting.groupSetting("foo.group.", Property.UnmodifiableOnRestore, Property.IndexScope, Property.NodeScope),
+                    Setting.groupSetting("foo.list.", Property.UnmodifiableOnRestore, Property.IndexScope, Property.NodeScope),
+                    Setting.intSetting("foo.int.baz", 1, Property.IndexScope, Property.NodeScope)
+                )
+            )
+        );
+
+        assertFalse(settings.isUnmodifiableOnRestoreSetting("foo.int.baz"));
+        assertTrue(settings.isUnmodifiableOnRestoreSetting("foo.int"));
+
+        assertFalse(settings.isUnmodifiableOnRestoreSetting("foo.list"));
+        assertTrue(settings.isUnmodifiableOnRestoreSetting("foo.list.0.key"));
+        assertTrue(settings.isUnmodifiableOnRestoreSetting("foo.list.key"));
+
+        assertFalse(settings.isUnmodifiableOnRestoreSetting("foo.group"));
+        assertTrue(settings.isUnmodifiableOnRestoreSetting("foo.group.key"));
+    }
+
     public void testDiff() throws IOException {
         Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
         Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
@@ -1478,4 +1505,107 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
             if (i == 42) throw new AssertionError("empty key");
         }));
     }
+
+    public void testGetOrNullWhenSettingIsNotSet() {
+        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);
+        AbstractScopedSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(Arrays.asList(testSetting, testSetting2))
+        );
+        clusterSettings.registerSetting(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE);
+        clusterSettings.registerSetting(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING);
+        assertNull(clusterSettings.getOrNull(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING));
+
+    }
+
+    public void testGetOrNullWhenSettingIsSet() {
+        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);
+        AbstractScopedSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(Arrays.asList(testSetting, testSetting2))
+        );
+        clusterSettings.registerSetting(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE);
+        clusterSettings.applySettings(
+            Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_AUTO).build()
+        );
+        assertEquals(clusterSettings.getOrNull(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE), "auto");
+
+    }
+
+    public void testGetOrNullWhenSettingIsSetInNodeSettings() {
+        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);
+        Settings concurrentSearchModeSetting = Settings.builder()
+            .put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_AUTO)
+            .build();
+        AbstractScopedSettings clusterSettings = new ClusterSettings(
+            concurrentSearchModeSetting,
+            new HashSet<>(Arrays.asList(testSetting, testSetting2, CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE))
+        );
+        assertEquals(clusterSettings.getOrNull(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE), "auto");
+
+    }
+
+    public void testGetOrNullWhenSettingScopeDoesntMatch() {
+        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);
+        AbstractScopedSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(Arrays.asList(testSetting, testSetting2))
+        );
+        Setting<Integer> failedSetting = Setting.intSetting("foo.bar.scope.fail", 1, Property.Dynamic, Property.IndexScope);
+        clusterSettings.registerSetting(failedSetting);
+        try {
+            clusterSettings.getOrNull(failedSetting);
+            fail("setting scope doesn't match");
+        } catch (SettingsException ex) {
+            assertEquals("settings scope doesn't match the setting scope [NodeScope] not in [[Dynamic, IndexScope]]", ex.getMessage());
+        }
+
+    }
+
+    public void testGetOrNullWhenSettingIsNotRegistered() {
+        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);
+        AbstractScopedSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(Arrays.asList(testSetting, testSetting2))
+        );
+        Setting<Integer> failedSetting = Setting.intSetting("foo.bar.register.fail", 1, Property.Dynamic, Property.NodeScope);
+
+        try {
+            clusterSettings.getOrNull(failedSetting);
+            fail("setting is not registered");
+        } catch (SettingsException ex) {
+            assertEquals("setting foo.bar.register.fail has not been registered", ex.getMessage());
+        }
+
+    }
+
+    public void testGetOrNullWhenSettingIsRegisteredWithFallback() {
+        Setting<Integer> fallbackSetting = Setting.intSetting("foo.bar", 10, Property.Dynamic, Property.NodeScope);
+        AbstractScopedSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fallbackSetting)));
+        clusterSettings.registerSetting(fallbackSetting);
+        clusterSettings.applySettings(Settings.builder().put(fallbackSetting.getKey(), 100).build());
+        Setting<Integer> settingWithFallback = Setting.intSetting("foo.fallback", fallbackSetting, 1, Property.Dynamic, Property.NodeScope);
+        clusterSettings.registerSetting(settingWithFallback);
+
+        assertEquals(clusterSettings.getOrNull(settingWithFallback), Integer.valueOf(100));
+
+    }
+
+    public void testGetOrNullWhenSettingIsRegisteredNodeSettingFallback() {
+        Setting<Integer> fallbackSetting = Setting.intSetting("foo.bar", 10, Property.Dynamic, Property.NodeScope);
+        Settings settings = Settings.builder().put(fallbackSetting.getKey(), 100).build();
+        AbstractScopedSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(Arrays.asList(fallbackSetting)));
+
+        Setting<Integer> settingWithFallback = Setting.intSetting("foo.fallback", fallbackSetting, 1, Property.Dynamic, Property.NodeScope);
+        clusterSettings.registerSetting(settingWithFallback);
+
+        assertEquals(clusterSettings.getOrNull(settingWithFallback), Integer.valueOf(100));
+
+    }
+
 }

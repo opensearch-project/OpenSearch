@@ -13,9 +13,9 @@
 
 package org.opensearch.common.concurrent;
 
-import org.junit.Before;
 import org.opensearch.common.util.concurrent.RefCounted;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.mock;

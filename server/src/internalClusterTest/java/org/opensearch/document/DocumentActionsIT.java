@@ -43,22 +43,21 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
 
 import static org.opensearch.action.DocWriteRequest.OpType;
-import static org.opensearch.client.Requests.clearIndicesCacheRequest;
-import static org.opensearch.client.Requests.getRequest;
-import static org.opensearch.client.Requests.indexRequest;
-import static org.opensearch.client.Requests.refreshRequest;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
-
+import static org.opensearch.transport.client.Requests.clearIndicesCacheRequest;
+import static org.opensearch.transport.client.Requests.getRequest;
+import static org.opensearch.transport.client.Requests.indexRequest;
+import static org.opensearch.transport.client.Requests.refreshRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -181,7 +180,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
             // test successful
             SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
             assertNoFailures(countResponse);
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
@@ -192,7 +191,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
                 countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
                 equalTo(0)
             );
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }
@@ -210,7 +209,7 @@ public class DocumentActionsIT extends OpenSearchIntegTestCase {
             .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
             .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
             .add(client().prepareDelete().setIndex("test").setId("1"))
-            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
+            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", MediaTypeRegistry.JSON)) // failure
             .execute()
             .actionGet();
 

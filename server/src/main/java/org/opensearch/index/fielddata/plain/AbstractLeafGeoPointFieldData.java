@@ -32,8 +32,8 @@
 package org.opensearch.index.fielddata.plain;
 
 import org.apache.lucene.util.Accountable;
-import org.opensearch.index.fielddata.LeafGeoPointFieldData;
 import org.opensearch.index.fielddata.FieldData;
+import org.opensearch.index.fielddata.LeafGeoPointFieldData;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;

@@ -54,11 +54,11 @@ import org.opensearch.test.VersionUtils;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
-import java.util.HashSet;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;

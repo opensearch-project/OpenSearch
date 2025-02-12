@@ -34,8 +34,8 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -125,7 +125,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
             isSearchable,
             false,
             true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            DateFieldMapper.getDefaultDateTimeFormatter(),
             useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
             null,
             Collections.emptyMap()

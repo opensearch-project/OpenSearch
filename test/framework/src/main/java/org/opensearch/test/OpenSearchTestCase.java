@@ -42,6 +42,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,24 +63,18 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.NamedWriteable;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.index.Index;
 import org.opensearch.common.joda.JodaDeprecationPatterns;
 import org.opensearch.common.logging.DeprecatedMessage;
 import org.opensearch.common.logging.HeaderWarning;
@@ -89,20 +84,29 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.time.FormatNames;
-import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
@@ -117,7 +121,8 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.plugins.AnalysisPlugin;
@@ -130,6 +135,8 @@ import org.opensearch.test.junit.listeners.LoggingListener;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -142,6 +149,8 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -167,14 +176,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import reactor.core.scheduler.Schedulers;
+
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
+import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -203,7 +216,12 @@ import static org.hamcrest.Matchers.hasItem;
     "LuceneFixedGap",
     "LuceneVarGapFixedInterval",
     "LuceneVarGapDocFreqInterval",
-    "Lucene50" })
+    "Lucene50",
+    "Lucene90",
+    "Lucene94",
+    "Lucene90",
+    "Lucene95",
+    "Lucene99" })
 @LuceneTestCase.SuppressReproduceLine
 public abstract class OpenSearchTestCase extends LuceneTestCase {
 
@@ -223,6 +241,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     @Override
     public void tearDown() throws Exception {
+        Schedulers.shutdownNow();
         FeatureFlagSetter.clear();
         super.tearDown();
     }
@@ -364,7 +383,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     @AfterClass
     public static void restoreContentType() {
         Requests.CONTENT_TYPE = XContentType.SMILE;
-        Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
+        Requests.INDEX_CONTENT_TYPE = MediaTypeRegistry.JSON;
     }
 
     @BeforeClass
@@ -633,7 +652,32 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             try {
                 // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
                 // StatusData instances to Strings as otherwise their toString output is useless
+
+                final Function<StatusData, String> statusToString = (statusData) -> {
+                    try (final StringWriter sw = new StringWriter(); final PrintWriter pw = new PrintWriter(sw)) {
+
+                        pw.print(statusData.getLevel());
+                        pw.print(":");
+                        pw.print(statusData.getMessage().getFormattedMessage());
+
+                        if (statusData.getStackTraceElement() != null) {
+                            final var messageSource = statusData.getStackTraceElement();
+                            pw.println("Source:");
+                            pw.println(messageSource.getFileName() + "@" + messageSource.getLineNumber());
+                        }
+
+                        if (statusData.getThrowable() != null) {
+                            pw.println("Throwable:");
+                            statusData.getThrowable().printStackTrace(pw);
+                        }
+                        return sw.toString();
+                    } catch (IOException ioe) {
+                        throw new RuntimeException(ioe);
+                    }
+                };
+
                 assertThat(
+                    statusData.stream().map(statusToString::apply).collect(Collectors.joining("\r\n")),
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
                     empty()
                 );
@@ -769,6 +813,14 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     public static long randomNonNegativeLong() {
         long randomLong = randomLong();
         return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
+    }
+
+    /**
+     * @return a <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNonNegativeInt() {
+        int randomInt = randomInt();
+        return randomInt == Integer.MIN_VALUE ? 0 : Math.abs(randomInt);
     }
 
     public static float randomFloat() {
@@ -1091,6 +1143,38 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     /**
+     * Runs the code block for the provided max wait time and sleeping for fixed sleep time, waiting for no assertions to trip.
+     */
+    public static void assertBusyWithFixedSleepTime(CheckedRunnable<Exception> codeBlock, TimeValue maxWaitTime, TimeValue sleepTime)
+        throws Exception {
+        long maxTimeInMillis = maxWaitTime.millis();
+        long sleepTimeInMillis = sleepTime.millis();
+        if (sleepTimeInMillis > maxTimeInMillis) {
+            throw new IllegalArgumentException("sleepTime is more than the maxWaitTime");
+        }
+        long sum = 0;
+        List<AssertionError> failures = new ArrayList<>();
+        while (sum <= maxTimeInMillis) {
+            try {
+                codeBlock.run();
+                return;
+            } catch (AssertionError e) {
+                failures.add(e);
+            }
+            sum += sleepTimeInMillis;
+            Thread.sleep(sleepTimeInMillis);
+        }
+        try {
+            codeBlock.run();
+        } catch (AssertionError e) {
+            for (AssertionError failure : failures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
+    }
+
+    /**
      * Periodically execute the supplied function until it returns true, or a timeout
      * is reached. This version uses a timeout of 10 seconds. If at all possible,
      * use {@link OpenSearchTestCase#assertBusy(CheckedRunnable)} instead.
@@ -1202,7 +1286,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static Settings.Builder remoteIndexSettings(Version version) {
         Settings.Builder builder = Settings.builder()
-            .put(FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
+            .put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
         return builder;
@@ -1311,7 +1395,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         boolean humanReadable,
         String... exceptFieldNames
     ) throws IOException {
-        BytesReference bytes = XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
+        BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
         try (XContentParser parser = createParser(mediaType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
                 return BytesReference.bytes(builder);
@@ -1543,6 +1627,13 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     /**
+     * The {@link PersistedStateRegistry} to use for this test. Subclasses should override and use liberally.
+     */
+    protected PersistedStateRegistry persistedStateRegistry() {
+        return new PersistedStateRegistry();
+    }
+
+    /**
      * Create a "mock" script for use either with {@link MockScriptEngine} or anywhere where you need a script but don't really care about
      * its contents.
      */
@@ -1718,5 +1809,42 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         } catch (UnknownHostException e) {
             throw new AssertionError();
         }
+    }
+
+    public static BlobPath getShardLevelBlobPath(
+        Client client,
+        String remoteStoreIndex,
+        BlobPath basePath,
+        String shardId,
+        RemoteStoreEnums.DataCategory dataCategory,
+        RemoteStoreEnums.DataType dataType,
+        String fixedPrefix
+    ) {
+        String indexUUID = client.admin()
+            .indices()
+            .prepareGetSettings(remoteStoreIndex)
+            .get()
+            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
+        ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
+        Map<String, String> remoteCustomData = state.metadata()
+            .index(remoteStoreIndex)
+            .getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        RemoteStoreEnums.PathType type = Objects.isNull(remoteCustomData)
+            ? RemoteStoreEnums.PathType.FIXED
+            : RemoteStoreEnums.PathType.valueOf(remoteCustomData.get(RemoteStoreEnums.PathType.NAME));
+        RemoteStoreEnums.PathHashAlgorithm hashAlgorithm = Objects.nonNull(remoteCustomData)
+            ? remoteCustomData.containsKey(RemoteStoreEnums.PathHashAlgorithm.NAME)
+                ? RemoteStoreEnums.PathHashAlgorithm.valueOf(remoteCustomData.get(RemoteStoreEnums.PathHashAlgorithm.NAME))
+                : null
+            : null;
+        RemoteStorePathStrategy.ShardDataPathInput pathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
+            .basePath(basePath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .fixedPrefix(fixedPrefix)
+            .build();
+        return type.path(pathInput, hashAlgorithm);
     }
 }

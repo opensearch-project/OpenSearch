@@ -71,23 +71,8 @@ public class GetComponentTemplatesRequest implements Validatable {
         return clusterManagerNodeTimeout;
     }
 
-    /**
-     * @return the timeout for waiting for the cluster-manager node to respond
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getMasterNodeTimeout()}
-     */
-    @Deprecated
-    public TimeValue getMasterNodeTimeout() {
-        return getClusterManagerNodeTimeout();
-    }
-
     public void setClusterManagerNodeTimeout(@Nullable TimeValue clusterManagerNodeTimeout) {
         this.clusterManagerNodeTimeout = clusterManagerNodeTimeout;
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #setClusterManagerNodeTimeout(TimeValue)} */
-    @Deprecated
-    public void setMasterNodeTimeout(@Nullable TimeValue clusterManagerNodeTimeout) {
-        setClusterManagerNodeTimeout(clusterManagerNodeTimeout);
     }
 
     public void setClusterManagerNodeTimeout(String clusterManagerNodeTimeout) {
@@ -96,12 +81,6 @@ public class GetComponentTemplatesRequest implements Validatable {
             getClass().getSimpleName() + ".clusterManagerNodeTimeout"
         );
         setClusterManagerNodeTimeout(timeValue);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #setClusterManagerNodeTimeout(String)} */
-    @Deprecated
-    public void setMasterNodeTimeout(String clusterManagerNodeTimeout) {
-        setClusterManagerNodeTimeout(clusterManagerNodeTimeout);
     }
 
     /**

@@ -32,7 +32,6 @@
 
 package org.opensearch.indices.template;
 
-import org.junit.After;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -45,12 +44,12 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.InvalidAliasNameException;
@@ -59,6 +58,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,6 +69,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -79,11 +84,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.opensearch.index.query.QueryBuilders.termQuery;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 
 public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
 
@@ -478,7 +478,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("template_1")
                 .setPatterns(Collections.singletonList("te*"))
-                .setMapping("{\"foo\": \"abcde\"}", XContentType.JSON)
+                .setMapping("{\"foo\": \"abcde\"}", MediaTypeRegistry.JSON)
                 .get()
         );
         assertThat(e.getMessage(), containsString("Failed to parse mapping "));
@@ -591,7 +591,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                         + "    }\n"
                         + "}"
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
 
@@ -803,8 +803,8 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
             .addAlias(new Alias("alias4").filter(termQuery("field", "value")))
             .get();
 
-        client().prepareIndex("a1").setId("test").setSource("{}", XContentType.JSON).get();
-        BulkResponse response = client().prepareBulk().add(new IndexRequest("a2").id("test").source("{}", XContentType.JSON)).get();
+        client().prepareIndex("a1").setId("test").setSource("{}", MediaTypeRegistry.JSON).get();
+        BulkResponse response = client().prepareBulk().add(new IndexRequest("a2").id("test").source("{}", MediaTypeRegistry.JSON)).get();
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
         assertThat(response.getItems()[0].getIndex(), equalTo("a2"));
@@ -819,9 +819,9 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         // So the aliases defined in the index template for this index will not fail
         // even though the fields in the alias fields don't exist yet and indexing into
         // an index that doesn't exist yet will succeed
-        client().prepareIndex("b1").setId("test").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("b1").setId("test").setSource("{}", MediaTypeRegistry.JSON).get();
 
-        response = client().prepareBulk().add(new IndexRequest("b2").id("test").source("{}", XContentType.JSON)).get();
+        response = client().prepareBulk().add(new IndexRequest("b2").id("test").source("{}", MediaTypeRegistry.JSON)).get();
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
         assertThat(response.getItems()[0].getId(), equalTo("test"));
@@ -854,7 +854,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                     + "            }\n"
                     + "         }\n"
                     + "    }\n",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
 
@@ -992,7 +992,7 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
                 .indices()
                 .preparePutTemplate("template_2")
                 .setPatterns(Collections.singletonList("te*"))
-                .setMapping("{\"_routing\":{\"required\":false}}", XContentType.JSON)
+                .setMapping("{\"_routing\":{\"required\":false}}", MediaTypeRegistry.JSON)
                 .setSettings(Settings.builder().put("index.number_of_shards", "6").put("index.routing_partition_size", "3"))
                 .get()
         );

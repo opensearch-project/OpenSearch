@@ -35,10 +35,10 @@ package org.opensearch.index.reindex.remote;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.MediaType;
@@ -121,8 +121,8 @@ final class RemoteResponseParsers {
         HITS_PARSER.declareField(constructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 final TotalHits totalHits = SearchHits.parseTotalHitsFragment(p);
-                assert totalHits.relation == TotalHits.Relation.EQUAL_TO;
-                return totalHits.value;
+                assert totalHits.relation() == TotalHits.Relation.EQUAL_TO;
+                return totalHits.value();
             } else {
                 // For BWC with nodes pre 7.0
                 return p.longValue();

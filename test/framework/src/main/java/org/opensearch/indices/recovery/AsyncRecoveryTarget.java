@@ -33,7 +33,7 @@
 package org.opensearch.indices.recovery;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.seqno.ReplicationTracker;

@@ -34,14 +34,16 @@ package org.opensearch.search.suggest;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
 
 /**
  * Base class used for all suggester implementations
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Suggester<T extends SuggestionSearchContext.SuggestionContext> {
 
     protected abstract Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(

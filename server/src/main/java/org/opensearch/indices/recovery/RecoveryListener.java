@@ -9,6 +9,7 @@
 package org.opensearch.indices.recovery;
 
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
@@ -19,6 +20,7 @@ import org.opensearch.indices.replication.common.ReplicationState;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "2.2.0")
 public class RecoveryListener implements ReplicationListener {
 
     /**

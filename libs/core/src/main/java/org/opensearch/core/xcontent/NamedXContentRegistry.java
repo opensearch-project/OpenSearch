@@ -33,6 +33,7 @@
 package org.opensearch.core.xcontent;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 
 import java.io.IOException;
@@ -49,8 +50,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Main registry for serializable content (e.g., field mappers, aggregations)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NamedXContentRegistry {
     /**
      * The empty {@link NamedXContentRegistry} for use when you are sure that you aren't going to call
@@ -64,6 +66,7 @@ public class NamedXContentRegistry {
     /**
      * An entry in the {@linkplain NamedXContentRegistry} containing the name of the object and the parser that can parse it.
      */
+    @PublicApi(since = "1.0.0")
     public static class Entry {
         /** The class that this entry can read. */
         public final Class<?> categoryClass;

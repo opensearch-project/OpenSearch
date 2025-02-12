@@ -8,13 +8,10 @@
 
 package org.opensearch.search.backpressure;
 
-import org.hamcrest.MatcherAssert;
-import org.junit.After;
-import org.junit.Before;
-import org.opensearch.action.ActionListener;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.search.SearchShardTask;
@@ -22,10 +19,14 @@ import org.opensearch.action.search.SearchTask;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
@@ -34,14 +35,18 @@ import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskCancelledException;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.wlm.QueryGroupTask;
+import org.hamcrest.MatcherAssert;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -50,15 +55,28 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class SearchBackpressureIT extends OpenSearchIntegTestCase {
+public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(10, TimeUnit.SECONDS);
     private static final int MOVING_AVERAGE_WINDOW_SIZE = 10;
+
+    public SearchBackpressureIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -296,7 +314,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
         assertNull("SearchShardTask shouldn't have cancelled for monitor_only mode", caughtException);
     }
 
-    private static class ExceptionCatchingListener implements ActionListener<TestResponse> {
+    public static class ExceptionCatchingListener implements ActionListener<TestResponse> {
         private final CountDownLatch latch;
         private Exception exception = null;
 
@@ -315,7 +333,11 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
             latch.countDown();
         }
 
-        private Exception getException() {
+        public CountDownLatch getLatch() {
+            return latch;
+        }
+
+        public Exception getException() {
             return exception;
         }
     }
@@ -331,7 +353,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
         return () -> description;
     }
 
-    interface TaskFactory<T extends Task> {
+    public interface TaskFactory<T extends Task> {
         T createTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers);
     }
 
@@ -394,6 +416,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
             threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
                 try {
                     CancellableTask cancellableTask = (CancellableTask) task;
+                    ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
                     long startTime = System.nanoTime();
 
                     // Doing a busy-wait until task cancellation or timeout.

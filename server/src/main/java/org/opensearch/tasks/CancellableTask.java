@@ -35,6 +35,7 @@ package org.opensearch.tasks;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.tasks.TaskId;
 
 import java.util.Map;
 

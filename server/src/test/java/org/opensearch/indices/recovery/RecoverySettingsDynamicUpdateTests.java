@@ -35,6 +35,8 @@ package org.opensearch.indices.recovery;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
@@ -47,7 +49,27 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         clusterSettings.applySettings(
             Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
         );
-        assertEquals(null, recoverySettings.rateLimiter());
+        assertNull(recoverySettings.recoveryRateLimiter());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
+        );
+        assertNull(recoverySettings.replicationRateLimiter());
+    }
+
+    public void testSetReplicationMaxBytesPerSec() {
+        assertEquals(40, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), new ByteSizeValue(60, ByteSizeUnit.MB))
+                .build()
+        );
+        assertEquals(60, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), new ByteSizeValue(80, ByteSizeUnit.MB))
+                .build()
+        );
+        assertEquals(80, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
     }
 
     public void testRetryDelayStateSync() {
@@ -95,5 +117,24 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
                 .build()
         );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionLongTimeout());
+    }
+
+    public void testChunkSize() {
+        ByteSizeValue chunkSize = new ByteSizeValue(between(1, 1000), ByteSizeUnit.BYTES);
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING.getKey(), chunkSize).build()
+        );
+        assertEquals(chunkSize, recoverySettings.getChunkSize());
+    }
+
+    public void testInternalActionRetryTimeout() {
+        long duration = between(1, 1000);
+        TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.getKey(), duration, timeUnit)
+                .build()
+        );
+        assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionRetryTimeout());
     }
 }

@@ -32,13 +32,13 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -49,22 +49,26 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.common.Strings;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.compress.CompressorType;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.compress.CompressorRegistry;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.plugins.Plugin;
@@ -101,7 +105,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -290,30 +295,6 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         return clusterManagerName;
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerFromFinalizingSnapshotOnIndexFile(String)} */
-    @Deprecated
-    public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
-        return blockClusterManagerFromFinalizingSnapshotOnIndexFile(repositoryName);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerOnWriteIndexFile(String)} */
-    @Deprecated
-    public static String blockMasterOnWriteIndexFile(final String repositoryName) {
-        return blockClusterManagerOnWriteIndexFile(repositoryName);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerFromDeletingIndexNFile(String)} */
-    @Deprecated
-    public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
-        blockClusterManagerFromDeletingIndexNFile(repositoryName);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerFromFinalizingSnapshotOnSnapFile(String)} */
-    @Deprecated
-    public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
-        return blockClusterManagerFromFinalizingSnapshotOnSnapFile(repositoryName);
-    }
-
     public static String blockNodeWithIndex(final String repositoryName, final String indexName) {
         for (String node : internalCluster().nodesInclude(indexName)) {
             ((MockRepository) internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName)).blockOnDataFiles(
@@ -327,6 +308,12 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     public static void blockNodeOnAnyFiles(String repository, String nodeName) {
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName).repository(repository)).setBlockOnAnyFiles(
+            true
+        );
+    }
+
+    public static void blockNodeOnAnySegmentFile(String repository, String nodeName) {
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName).repository(repository)).blockOnSegmentFiles(
             true
         );
     }
@@ -373,16 +360,6 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
-    protected void createRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
-    }
-
-    protected void updateRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> updating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setType(type).setSettings(settings));
-    }
-
     protected void createRepository(String repoName, String type, Path location) {
         createRepository(repoName, type, Settings.builder().put("location", location));
     }
@@ -417,7 +394,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         final boolean compress = randomBoolean();
         settings.put("location", randomRepoPath()).put("compress", compress);
         if (compress) {
-            settings.put("compression_type", randomFrom(CompressorType.values()));
+            settings.put("compression_type", randomFrom(CompressorRegistry.registeredCompressors().keySet()));
         }
         if (rarely()) {
             settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
@@ -480,11 +457,12 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     protected SnapshotInfo createFullSnapshot(String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] in [{}]", snapshotName, repoName);
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
-            .setIncludeGlobalState(true)
+        final CreateSnapshotResponse response = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true)
             .get();
-        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         return snapshotInfo;
@@ -498,12 +476,32 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
             .setWaitForCompletion(true)
             .get();
+        SnapshotInfo snapshotInfo = response.getSnapshotInfo();
 
-        final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
         return snapshotInfo;
+    }
+
+    protected void restoreSnapshot(
+        String repositoryName,
+        String snapshotName,
+        String indexName,
+        String restoredIndexName,
+        Settings indexSettings
+    ) {
+        logger.info("--> restoring snapshot [{}] of {} in [{}] to [{}]", snapshotName, indexName, repositoryName, restoredIndexName);
+        RestoreSnapshotRequestBuilder builder = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repositoryName, snapshotName)
+            .setWaitForCompletion(false)
+            .setRenamePattern(indexName)
+            .setRenameReplacement(restoredIndexName);
+        if (indexSettings != null) {
+            builder.setIndexSettings(indexSettings);
+        }
+        assertEquals(builder.get().status(), RestStatus.ACCEPTED);
     }
 
     protected void createIndexWithRandomDocs(String indexName, int docCount) throws InterruptedException {
@@ -544,7 +542,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     protected long getCountForIndex(String indexName) {
         return client().search(
             new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
-        ).actionGet().getHits().getTotalHits().value;
+        ).actionGet().getHits().getTotalHits().value();
     }
 
     protected void assertDocCount(String index, long count) {
@@ -552,19 +550,18 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName) throws IOException {
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(remoteStoreIndex)
-            .get()
-            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
-        return getLockFilesInRemoteStore(remoteStoreIndex, remoteStoreRepositoryName, indexUUID);
-    }
-
-    protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName, String indexUUID)
-        throws IOException {
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepositoryName);
-        BlobPath shardLevelBlobPath = remoteStoreRepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
+        String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
+        BlobPath shardLevelBlobPath = getShardLevelBlobPath(
+            client(),
+            remoteStoreIndex,
+            remoteStoreRepository.basePath(),
+            "0",
+            SEGMENTS,
+            LOCK_FILES,
+            segmentsPathFixedPrefix
+        );
         BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
         try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
             return lockDirectory.listAll();
@@ -606,7 +603,8 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             Collections.emptyList(),
             randomBoolean(),
             metadata,
-            false
+            false,
+            0
         );
         PlainActionFuture.<RepositoryData, Exception>get(
             f -> repo.finalizeSnapshot(
@@ -616,6 +614,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
                 snapshotInfo,
                 Version.V_2_0_0,
                 Function.identity(),
+                Priority.NORMAL,
                 f
             )
         );
@@ -662,6 +661,16 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             }, statePredicate);
             future.get(30L, TimeUnit.SECONDS);
         }
+    }
+
+    protected ActionFuture<AcknowledgedResponse> deleteSnapshotBlockedOnClusterManager(String repoName, String snapshotName) {
+        blockClusterManagerFromDeletingIndexNFile(repoName);
+        return deleteSnapshot(repoName, snapshotName);
+    }
+
+    protected ActionFuture<AcknowledgedResponse> deleteSnapshot(String repoName, String snapshotName) {
+        logger.info("--> Deleting snapshot [{}] to repo [{}]", snapshotName, repoName);
+        return clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 
     protected ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName, String dataNode)
@@ -749,11 +758,5 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
                 }
             }
         });
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #awaitClusterManagerFinishRepoOperations()} */
-    @Deprecated
-    protected void awaitMasterFinishRepoOperations() throws Exception {
-        awaitClusterManagerFinishRepoOperations();
     }
 }

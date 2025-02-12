@@ -36,13 +36,13 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
-import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.reindex.BulkByScrollTask.Status;
 import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.transport.client.transport.NoNodeAvailableException;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -51,8 +51,8 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 
 public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkByScrollResponse> {
 

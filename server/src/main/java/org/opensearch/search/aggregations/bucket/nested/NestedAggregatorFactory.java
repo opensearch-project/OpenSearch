@@ -100,4 +100,8 @@ public class NestedAggregatorFactory extends AggregatorFactory {
         }
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

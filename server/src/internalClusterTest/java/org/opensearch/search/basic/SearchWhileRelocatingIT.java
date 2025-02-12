@@ -32,6 +32,8 @@
 
 package org.opensearch.search.basic;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -40,20 +42,36 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.formatShardStatus;
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchWhileRelocatingIT extends OpenSearchIntegTestCase {
+public class SearchWhileRelocatingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public SearchWhileRelocatingIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     public void testSearchAndRelocateConcurrentlyRandomReplicas() throws Exception {
         testSearchAndRelocateConcurrently(randomIntBetween(0, 1));
@@ -100,14 +118,14 @@ public class SearchWhileRelocatingIT extends OpenSearchIntegTestCase {
                         try {
                             while (!stop.get()) {
                                 SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
-                                if (sr.getHits().getTotalHits().value != numDocs) {
+                                if (sr.getHits().getTotalHits().value() != numDocs) {
                                     // if we did not search all shards but had no failures that is potentially fine
                                     // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
                                     // request comes in. It's a small window but a known limitation.
                                     if (sr.getTotalShards() != sr.getSuccessfulShards() && sr.getFailedShards() == 0) {
                                         nonCriticalExceptions.add(
                                             "Count is "
-                                                + sr.getHits().getTotalHits().value
+                                                + sr.getHits().getTotalHits().value()
                                                 + " but "
                                                 + numDocs
                                                 + " was expected. "
@@ -121,7 +139,7 @@ public class SearchWhileRelocatingIT extends OpenSearchIntegTestCase {
                                 final SearchHits sh = sr.getHits();
                                 assertThat(
                                     "Expected hits to be the same size the actual hits array",
-                                    sh.getTotalHits().value,
+                                    sh.getTotalHits().value(),
                                     equalTo((long) (sh.getHits().length))
                                 );
                                 // this is the more critical but that we hit the actual hit array has a different size than the

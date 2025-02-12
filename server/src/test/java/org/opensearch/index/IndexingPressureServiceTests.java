@@ -8,7 +8,6 @@
 
 package org.opensearch.index;
 
-import org.junit.Before;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.bulk.BulkItemRequest;
@@ -16,16 +15,18 @@ import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.stats.IndexingPressurePerShardStats;
 import org.opensearch.index.stats.IndexingPressureStats;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.client.Requests;
+import org.junit.Before;
 
 public class IndexingPressureServiceTests extends OpenSearchTestCase {
 
@@ -44,7 +45,7 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
     @Before
     public void beforeTest() {
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        clusterService = new ClusterService(settings, clusterSettings, null);
+        clusterService = ClusterServiceUtils.createClusterService(settings, clusterSettings, null);
     }
 
     public void testCoordinatingOperationForShardIndexingPressure() {

@@ -364,6 +364,7 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         assertThat(counts.get(noZoneNode), equalTo(2));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5908")
     public void testThreeZoneOneReplicaWithForceZoneValueAndLoadAwareness() throws Exception {
         int nodeCountPerAZ = 5;
         int numOfShards = 30;

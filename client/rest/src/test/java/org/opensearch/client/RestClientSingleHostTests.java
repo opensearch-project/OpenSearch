@@ -67,11 +67,12 @@ import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.reactor.IOReactorStatus;
 import org.apache.hc.core5.util.TimeValue;
+import org.opensearch.client.http.HttpUriRequestProducer;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.client.http.HttpUriRequestProducer;
 
 import javax.net.ssl.SSLHandshakeException;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;

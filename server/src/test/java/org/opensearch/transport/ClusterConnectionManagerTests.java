@@ -33,12 +33,12 @@
 package org.opensearch.transport;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -58,8 +58,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 
 public class ClusterConnectionManagerTests extends OpenSearchTestCase {
@@ -317,6 +317,50 @@ public class ClusterConnectionManagerTests extends OpenSearchTestCase {
         expectThrows(NodeNotConnectedException.class, () -> connectionManager.getConnection(node));
         assertEquals(0, connectionManager.size());
         assertEquals(0, nodeConnectedCount.get());
+        assertEquals(0, nodeDisconnectedCount.get());
+    }
+
+    public void testConnectFailsWhenDisconnectIsPending() {
+        AtomicInteger nodeConnectedCount = new AtomicInteger();
+        AtomicInteger nodeDisconnectedCount = new AtomicInteger();
+        connectionManager.addListener(new TransportConnectionListener() {
+            @Override
+            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+                nodeConnectedCount.incrementAndGet();
+            }
+
+            @Override
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+                nodeDisconnectedCount.incrementAndGet();
+            }
+        });
+
+        DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+        ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
+        Transport.Connection connection = new TestConnect(node);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            listener.onResponse(connection);
+            return null;
+        }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
+        assertFalse(connectionManager.nodeConnected(node));
+
+        // Mark connection as pending disconnect, any connection attempt should fail
+        connectionManager.setPendingDisconnection(node);
+        PlainActionFuture<Void> fut = new PlainActionFuture<>();
+        connectionManager.connectToNode(node, connectionProfile, validator, fut);
+        expectThrows(IllegalStateException.class, () -> fut.actionGet());
+
+        // clear the pending disconnect and assert that connection succeeds
+        connectionManager.clearPendingDisconnections();
+        assertFalse(connectionManager.nodeConnected(node));
+        PlainActionFuture.get(
+            future -> connectionManager.connectToNode(node, connectionProfile, validator, ActionListener.map(future, x -> null))
+        );
+        assertFalse(connection.isClosed());
+        assertTrue(connectionManager.nodeConnected(node));
+        assertEquals(1, connectionManager.size());
+        assertEquals(1, nodeConnectedCount.get());
         assertEquals(0, nodeDisconnectedCount.get());
     }
 

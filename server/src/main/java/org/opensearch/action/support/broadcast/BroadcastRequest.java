@@ -36,9 +36,9 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -51,6 +51,8 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
 
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+
+    protected boolean shouldCancelOnTimeout = false;
 
     public BroadcastRequest(StreamInput in) throws IOException {
         super(in);
@@ -124,5 +126,13 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
+    }
+
+    public void setShouldCancelOnTimeout(boolean shouldCancelOnTimeout) {
+        this.shouldCancelOnTimeout = shouldCancelOnTimeout;
+    }
+
+    public boolean getShouldCancelOnTimeout() {
+        return this.shouldCancelOnTimeout;
     }
 }

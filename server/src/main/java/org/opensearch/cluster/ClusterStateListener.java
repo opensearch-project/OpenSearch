@@ -32,11 +32,14 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * A listener to be notified when a cluster state changes.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ClusterStateListener {
 
     /**

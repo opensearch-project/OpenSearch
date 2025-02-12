@@ -38,44 +38,46 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.common.compress.Compressor;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
-import org.opensearch.common.lucene.store.IndexOutputOutputStream;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.CorruptStateException;
+import org.opensearch.index.store.exception.ChecksumCombinationException;
 import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.opensearch.common.blobstore.transfer.RemoteTransferContainer.checksumOfChecksum;
 
 /**
  * Snapshot metadata file format used in v2.0 and above
  *
  * @opensearch.internal
  */
-public final class ChecksumBlobStoreFormat<T extends ToXContent> {
+public final class ChecksumBlobStoreFormat<T extends ToXContent> extends BaseBlobStoreFormat<T> {
 
     // Serialization parameters to specify correct context for metadata serialization
-    private static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
+    public static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
 
     static {
         Map<String, String> snapshotOnlyParams = new HashMap<>();
@@ -90,11 +92,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     // The format version
     public static final int VERSION = 1;
 
-    private static final int BUFFER_SIZE = 4096;
-
     private final String codec;
-
-    private final String blobNameFormat;
 
     private final CheckedFunction<XContentParser, T, IOException> reader;
 
@@ -104,8 +102,8 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param reader         prototype object that can deserialize T from XContent
      */
     public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader) {
+        super(blobNameFormat, false);
         this.reader = reader;
-        this.blobNameFormat = blobNameFormat;
         this.codec = codec;
     }
 
@@ -122,7 +120,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     }
 
     public String blobName(String name) {
-        return String.format(Locale.ROOT, blobNameFormat, name);
+        return String.format(Locale.ROOT, getBlobNameFormat(), name);
     }
 
     public T deserialize(String blobName, NamedXContentRegistry namedXContentRegistry, BytesReference bytes) throws IOException {
@@ -162,41 +160,104 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param compressor          whether to use compression
      */
     public void write(final T obj, final BlobContainer blobContainer, final String name, final Compressor compressor) throws IOException {
-        final String blobName = blobName(name);
-        final BytesReference bytes = serialize(obj, blobName, compressor);
-        blobContainer.writeBlob(blobName, bytes.streamInput(), bytes.length(), false);
+        write(obj, blobContainer, name, compressor, SNAPSHOT_ONLY_FORMAT_PARAMS, XContentType.SMILE, codec, VERSION);
     }
 
-    public BytesReference serialize(final T obj, final String blobName, final Compressor compressor) throws IOException {
-        try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
-            try (
-                OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
-                    "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")",
-                    blobName,
-                    outputStream,
-                    BUFFER_SIZE
-                )
-            ) {
-                CodecUtil.writeHeader(indexOutput, codec, VERSION);
-                try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
-                    @Override
-                    public void close() throws IOException {
-                        // this is important since some of the XContentBuilders write bytes on close.
-                        // in order to write the footer we need to prevent closing the actual index input.
-                    }
-                };
-                    XContentBuilder builder = MediaTypeRegistry.contentBuilder(
-                        XContentType.SMILE,
-                        compressor.threadLocalOutputStream(indexOutputOutputStream)
-                    )
-                ) {
-                    builder.startObject();
-                    obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
-                    builder.endObject();
-                }
-                CodecUtil.writeFooter(indexOutput);
-            }
-            return outputStream.bytes();
+    /**
+     * Internally calls {@link #writeAsyncWithPriority} with {@link WritePriority#NORMAL}
+     */
+    public void writeAsync(
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        ActionListener<Void> listener,
+        final ToXContent.Params params
+    ) throws IOException {
+        // use NORMAL priority by default
+        this.writeAsyncWithPriority(obj, blobContainer, name, compressor, WritePriority.NORMAL, listener, params);
+    }
+
+    /**
+     * Internally calls {@link #writeAsyncWithPriority} with {@link WritePriority#URGENT}
+     * <p>
+     * <b>NOTE:</b> We use this method to upload urgent priority objects like cluster state to remote stores.
+     * Use {@link #writeAsync(ToXContent, BlobContainer, String, Compressor, ActionListener, ToXContent.Params)} for
+     * other use cases.
+     */
+    public void writeAsyncWithUrgentPriority(
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        ActionListener<Void> listener,
+        final ToXContent.Params params
+    ) throws IOException {
+        this.writeAsyncWithPriority(obj, blobContainer, name, compressor, WritePriority.URGENT, listener, params);
+    }
+
+    /**
+     * Method to writes blob with resolving the blob name using {@link #blobName} method with specified
+     * {@link WritePriority}. Leverages the multipart upload if supported by the blobContainer.
+     *
+     * @param obj                 object to be serialized
+     * @param blobContainer       blob container
+     * @param name                blob name
+     * @param compressor          whether to use compression
+     * @param priority            write priority to be used
+     * @param listener            listener to listen to write result
+     * @param params              ToXContent params
+     */
+    private void writeAsyncWithPriority(
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        final WritePriority priority,
+        ActionListener<Void> listener,
+        final ToXContent.Params params
+    ) throws IOException {
+        if (blobContainer instanceof AsyncMultiStreamBlobContainer == false) {
+            write(obj, blobContainer, name, compressor, params, XContentType.SMILE, codec, VERSION);
+            listener.onResponse(null);
+            return;
         }
+        final String blobName = blobName(name);
+        final BytesReference bytesReference = serialize(obj, blobName, compressor, params);
+        final String resourceDescription = "ChecksumBlobStoreFormat.writeAsyncWithPriority(blob=\"" + blobName + "\")";
+        byte[] bytes = BytesReference.toBytes(bytesReference);
+        long expectedChecksum;
+        try (IndexInput input = new ByteArrayIndexInput(resourceDescription, bytes)) {
+            try {
+                expectedChecksum = checksumOfChecksum(input.clone(), 8);
+            } catch (Exception e) {
+                throw new ChecksumCombinationException(
+                    "Potentially corrupted file: Checksum combination failed while combining stored checksum "
+                        + "and calculated checksum of stored checksum",
+                    resourceDescription,
+                    e
+                );
+            }
+        }
+
+        try (
+            RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                blobName,
+                blobName,
+                bytes.length,
+                true,
+                priority,
+                (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput(resourceDescription, bytes), size, position),
+                expectedChecksum,
+                ((AsyncMultiStreamBlobContainer) blobContainer).remoteIntegrityCheckSupported()
+            )
+        ) {
+            ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
+        }
+    }
+
+    public BytesReference serialize(final T obj, final String blobName, final Compressor compressor, final ToXContent.Params params)
+        throws IOException {
+        return serialize(obj, blobName, compressor, params, XContentType.SMILE, codec, VERSION);
     }
 }

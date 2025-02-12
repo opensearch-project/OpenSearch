@@ -1,7 +1,7 @@
 {
   "cat.cluster_manager":{
     "documentation":{
-      "url":"https://opensearch.org/docs/latest/opensearch/rest-api/cat/cat-master/",
+      "url":"https://opensearch.org/docs/latest/api-reference/cat/cat-cluster_manager/",
       "description":"Returns information about the cluster-manager node."
     },
     "stability":"stable",

@@ -44,19 +44,21 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogManager;
-import org.opensearch.index.translog.TranslogConfig;
-import org.opensearch.index.translog.TranslogException;
-import org.opensearch.index.translog.NoOpTranslogManager;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
+import org.opensearch.index.translog.NoOpTranslogManager;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogException;
+import org.opensearch.index.translog.TranslogManager;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+
+import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
 
 /**
  * NoOpEngine is an engine implementation that does nothing but the bare minimum
@@ -158,21 +160,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
      */
     public TranslogManager translogManager() {
         try {
-            return new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, new Translog.Snapshot() {
-                @Override
-                public void close() {}
-
-                @Override
-                public int totalOperations() {
-                    return 0;
-                }
-
-                @Override
-                public Translog.Operation next() {
-                    return null;
-                }
-
-            }) {
+            return new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, EMPTY_TRANSLOG_SNAPSHOT) {
                 /**
                  * This implementation will trim existing translog files using a {@link TranslogDeletionPolicy}
                  * that retains nothing but the last translog generation from safe commit.
@@ -203,7 +191,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
                                         engineConfig.getGlobalCheckpointSupplier(),
                                         engineConfig.getPrimaryTermSupplier(),
                                         seqNo -> {},
-                                        engineConfig.getPrimaryModeSupplier()
+                                        engineConfig.getStartedPrimarySupplier()
                                     )
                             ) {
                                 translog.trimUnreferencedReaders();

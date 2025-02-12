@@ -32,13 +32,14 @@
 
 package org.opensearch.packaging.test;
 
-import junit.framework.TestCase;
 import org.opensearch.packaging.util.Distribution;
 import org.opensearch.packaging.util.FileUtils;
 import org.opensearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
 import java.util.regex.Pattern;
+
+import junit.framework.TestCase;
 
 import static org.opensearch.packaging.util.FileUtils.getDistributionFile;
 import static org.junit.Assume.assumeTrue;

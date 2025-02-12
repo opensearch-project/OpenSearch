@@ -47,8 +47,9 @@ import org.opensearch.common.settings.AbstractScopedSettings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.transport.MockTransportService;
@@ -105,7 +106,7 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             .put(settings)
             .build();
         ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
-        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool);
+        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, NoopTracer.INSTANCE);
         try {
             newService.registerRequestHandler(
                 ClusterStateAction.NAME,
@@ -143,7 +144,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -192,7 +200,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                 return seedNode;
             };
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -240,7 +255,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             knownNodes.add(discoverableNode2);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -297,7 +319,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -336,7 +365,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             DiscoveryNode incompatibleSeedNode = incompatibleSeedTransport.getLocalNode();
             knownNodes.add(incompatibleSeedNode);
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -378,7 +414,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             DiscoveryNode rejectedNode = randomBoolean() ? seedNode : discoverableNode;
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -424,7 +467,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             knownNodes.add(discoverableNode);
             closedTransport.close();
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -474,7 +524,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             Collections.shuffle(knownNodes, random());
             Collections.shuffle(otherKnownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -542,7 +599,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -589,8 +653,18 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
             MockTransportService accessible = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService unresponsive1 = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
-            MockTransportService unresponsive2 = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)
+            MockTransportService unresponsive1 = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                threadPool,
+                NoopTracer.INSTANCE
+            );
+            MockTransportService unresponsive2 = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                threadPool,
+                NoopTracer.INSTANCE
+            )
         ) {
             // We start in order to get a valid address + port, but do not start accepting connections as we
             // will not actually connect to these transports
@@ -616,7 +690,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -679,7 +760,14 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
             knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 localService.start();
                 localService.acceptIncomingRequests();
 

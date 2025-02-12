@@ -33,9 +33,7 @@ package org.opensearch.action.admin.indices.datastream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
@@ -53,14 +51,17 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.ParseField;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.index.Index;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -76,8 +77,9 @@ import java.util.stream.Collectors;
 /**
  * Transport action for getting a datastream
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
     public static final GetDataStreamAction INSTANCE = new GetDataStreamAction();
@@ -90,8 +92,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     /**
      * Request for getting data streams
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Request extends ClusterManagerNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
@@ -156,16 +159,18 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     /**
      * Response for getting data streams
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField DATASTREAMS_FIELD = new ParseField("data_streams");
 
         /**
          * Data streams information
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class DataStreamInfo extends AbstractDiffable<DataStreamInfo> implements ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");

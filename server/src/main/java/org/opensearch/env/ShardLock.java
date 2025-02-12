@@ -32,6 +32,7 @@
 
 package org.opensearch.env;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.io.Closeable;
@@ -44,8 +45,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @see NodeEnvironment
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class ShardLock implements Closeable {
 
     private final ShardId shardId;

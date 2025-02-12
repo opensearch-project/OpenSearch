@@ -33,6 +33,7 @@ package org.apache.lucene.search.grouping;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -144,7 +145,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             reverseMul = new int[sortFields.length];
             for (int compIDX = 0; compIDX < sortFields.length; compIDX++) {
                 final SortField sortField = sortFields[compIDX];
-                comparators[compIDX] = sortField.getComparator(1, false);
+                comparators[compIDX] = sortField.getComparator(1, Pruning.NONE);
                 reverseMul[compIDX] = sortField.getReverse() ? -1 : 1;
             }
         }
@@ -191,10 +192,10 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             final CollapseTopFieldDocs shard = shardHits[shardIDX];
             // totalHits can be non-zero even if no hits were
             // collected, when searchAfter was used:
-            totalHitCount += shard.totalHits.value;
+            totalHitCount += shard.totalHits.value();
             // If any hit count is a lower bound then the merged
             // total hit count is a lower bound as well
-            if (shard.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+            if (shard.totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
             }
             if (CollectionUtils.isEmpty(shard.scoreDocs) == false) {

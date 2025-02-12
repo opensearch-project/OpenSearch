@@ -33,8 +33,8 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -69,7 +69,7 @@ public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) recordCount));
+        assertThat(response.getHits().getTotalHits().value(), equalTo((long) recordCount));
 
         assertThat(((Terms) response.getAggregations().get("test")).getBuckets().size(), equalTo(recordCount + 1));
         assertThat(((Terms) response.getAggregations().get("test_raw")).getBuckets().size(), equalTo(recordCount));
@@ -90,7 +90,7 @@ public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test-idx").setId("1").setSource("foo", "bar").get();
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
         SearchResponse response = client().prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("root.top.child", "bar")).get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
     }
 
     private XContentBuilder createDynamicTemplateMapping() throws IOException {

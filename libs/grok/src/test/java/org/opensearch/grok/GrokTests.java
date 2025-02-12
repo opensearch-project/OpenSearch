@@ -51,16 +51,16 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.opensearch.grok.GrokCaptureType.BOOLEAN;
 import static org.opensearch.grok.GrokCaptureType.DOUBLE;
 import static org.opensearch.grok.GrokCaptureType.FLOAT;
 import static org.opensearch.grok.GrokCaptureType.INTEGER;
 import static org.opensearch.grok.GrokCaptureType.LONG;
 import static org.opensearch.grok.GrokCaptureType.STRING;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GrokTests extends OpenSearchTestCase {
     public void testMatchWithoutCaptures() {
@@ -377,6 +377,16 @@ public class GrokTests extends OpenSearchTestCase {
             "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] " + "via patterns [NAME1=>NAME2=>NAME3=>NAME4]",
             e.getMessage()
         );
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new TreeMap<>();
+            for (int i = 1; i <= 501; i++) {
+                bank.put("NAME" + i, "!!!%{NAME" + (i + 1) + "}!!!");
+            }
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false, logger::warn);
+        });
+        assertEquals("Pattern references exceeded maximum depth of 500", e.getMessage());
     }
 
     public void testMalformedPattern() {

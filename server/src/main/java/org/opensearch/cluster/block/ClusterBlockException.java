@@ -33,6 +33,7 @@
 package org.opensearch.cluster.block;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
@@ -49,8 +50,9 @@ import static java.util.Collections.unmodifiableSet;
 /**
  * Internal exception on obtaining a cluster block
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterBlockException extends OpenSearchException {
     private final Set<ClusterBlock> blocks;
 

@@ -33,12 +33,11 @@ package org.opensearch.search.aggregations.support.values;
 
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.LongValues;
-import org.joda.time.ReadableInstant;
 import org.opensearch.common.lucene.ScorerAware;
 import org.opensearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.opensearch.script.AggregationScript;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.opensearch.search.aggregations.AggregationExecutionException;
+import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -110,8 +109,6 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
             return ((ReadableInstant) o).getMillis();
         } else if (o instanceof ZonedDateTime) {
             return ((ZonedDateTime) o).toInstant().toEpochMilli();
-        } else if (o instanceof JodaCompatibleZonedDateTime) {
-            return ((JodaCompatibleZonedDateTime) o).toInstant().toEpochMilli();
         } else if (o instanceof Boolean) {
             // We do expose boolean fields as boolean in scripts, however aggregations still expect
             // that scripts return the same internal representation as regular fields, so boolean

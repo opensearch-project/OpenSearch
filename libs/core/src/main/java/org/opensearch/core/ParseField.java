@@ -31,6 +31,7 @@
 
 package org.opensearch.core;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.XContentLocation;
 
@@ -43,7 +44,11 @@ import java.util.function.Supplier;
 /**
  * Holds a field that can be found in a request while parsing and its different
  * variants, which may be deprecated.
+ *
+ * @opensearch.api
+ *
  */
+@PublicApi(since = "1.0.0")
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;

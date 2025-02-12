@@ -33,11 +33,11 @@
 package org.opensearch.threadpool;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -51,13 +51,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class ThreadPoolStatsTests extends OpenSearchTestCase {
     public void testThreadPoolStatsSort() throws IOException {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
-        stats.add(new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("m", 3, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("m", 1, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("d", -1, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("m", 2, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("t", -1, 0, 0, 0, 0, 0L));
-        stats.add(new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L));
+        stats.add(new ThreadPoolStats.Stats("z", -1, 0, 0, 0, 0, 0L, 0L));
+        stats.add(new ThreadPoolStats.Stats("m", 3, 0, 0, 0, 0, 0L, 0L));
+        stats.add(new ThreadPoolStats.Stats("m", 1, 0, 0, 0, 0, 0L, 0L));
+        stats.add(new ThreadPoolStats.Stats("d", -1, 0, 0, 0, 0, 0L, 0L));
+        stats.add(new ThreadPoolStats.Stats("m", 2, 0, 0, 0, 0, 0L, 0L));
+        stats.add(new ThreadPoolStats.Stats("t", -1, 0, 0, 0, 0, 0L, 0L));
+        stats.add(new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L, 0L));
 
         List<ThreadPoolStats.Stats> copy = new ArrayList<>(stats);
         Collections.sort(copy);
@@ -79,14 +79,14 @@ public class ThreadPoolStatsTests extends OpenSearchTestCase {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
 
             List<ThreadPoolStats.Stats> stats = new ArrayList<>();
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, -1, 0, 0, 0, 0, 0L));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.WARMER, -1, 0, 0, 0, 0, 0L));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.GENERIC, -1, 0, 0, 0, 0, 0L));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, -1, 0, 0, 0, 0, 0L));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SAME, -1, 0, 0, 0, 0, 0L));
+            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, -1, 0, 0, 0, 0, 0L, 0L));
+            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.WARMER, -1, 0, 0, 0, 0, 0L, -1L));
+            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.GENERIC, -1, 0, 0, 0, 0, 0L, -1L));
+            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, -1, 0, 0, 0, 0, 0L, -1L));
+            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SAME, -1, 0, 0, 0, 0, 0L, -1L));
 
             ThreadPoolStats threadPoolStats = new ThreadPoolStats(stats);
-            try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os)) {
+            try (XContentBuilder builder = new XContentBuilder(MediaTypeRegistry.JSON.xContent(), os)) {
                 builder.startObject();
                 threadPoolStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();

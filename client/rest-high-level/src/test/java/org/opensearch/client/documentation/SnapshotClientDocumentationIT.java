@@ -32,7 +32,6 @@
 
 package org.opensearch.client.documentation;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -52,7 +51,7 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchRestHighLevelClientTestCase;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
@@ -64,9 +63,10 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -90,15 +90,15 @@ import static org.hamcrest.Matchers.equalTo;
  * You need to wrap your code between two tags like:
  * // tag::example
  * // end::example
- *
+ * <p>
  * Where example is your tag name.
- *
+ * <p>
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
  * include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[example]
  * --------------------------------------------------
- *
+ * <p>
  * The column width of the code block is 84. If the code contains a line longer
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
@@ -156,7 +156,7 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
         {
             // tag::create-repository-settings-source
             request.settings("{\"location\": \".\", \"compress\": \"true\"}",
-                XContentType.JSON); // <1>
+                MediaTypeRegistry.JSON); // <1>
             // end::create-repository-settings-source
         }
 
@@ -818,7 +818,7 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
     private void createTestRepositories() throws IOException {
         PutRepositoryRequest request = new PutRepositoryRequest(repositoryName);
         request.type(FsRepository.TYPE);
-        request.settings("{\"location\": \".\"}", XContentType.JSON);
+        request.settings("{\"location\": \".\"}", MediaTypeRegistry.JSON);
         assertTrue(highLevelClient().snapshot().createRepository(request, RequestOptions.DEFAULT).isAcknowledged());
     }
 
@@ -827,7 +827,7 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
     }
 
     private void createTestSnapshots() throws IOException {
-        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "_snapshot/%s/%s", repositoryName, snapshotName));
+        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "/_snapshot/%s/%s", repositoryName, snapshotName));
         createSnapshot.addParameter("wait_for_completion", "true");
         createSnapshot.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
         Response response = highLevelClient().getLowLevelClient().performRequest(createSnapshot);

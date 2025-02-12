@@ -35,7 +35,6 @@ package org.opensearch.index.reindex;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollResponse;
@@ -43,17 +42,18 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.ShardSearchFailure;
-import org.opensearch.client.Client;
-import org.opensearch.client.ParentTaskAssigningClient;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.search.SearchHit;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.ParentTaskAssigningClient;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -175,7 +175,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
             }
             hits = unmodifiableList(hits);
         }
-        long total = response.getHits().getTotalHits().value;
+        long total = response.getHits().getTotalHits().value();
         return new Response(response.isTimedOut(), failures, total, hits, response.getScrollId());
     }
 

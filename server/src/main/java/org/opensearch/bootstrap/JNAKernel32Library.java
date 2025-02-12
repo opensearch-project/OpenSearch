@@ -141,7 +141,7 @@ final class JNAKernel32Library {
 
     /**
      * Memory protection constraints
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366786%28v=vs.85%29.aspx
      */
     public static final int PAGE_NOACCESS = 0x0001;
@@ -151,7 +151,7 @@ final class JNAKernel32Library {
     /**
      * Contains information about a range of pages in the virtual address space of a process.
      * The VirtualQuery and VirtualQueryEx functions use this structure.
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366775%28v=vs.85%29.aspx
      */
     public static class MemoryBasicInformation extends Structure {
@@ -186,7 +186,7 @@ final class JNAKernel32Library {
     /**
      * Locks the specified region of the process's virtual address space into physical
      * memory, ensuring that subsequent access to the region will not incur a page fault.
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx
      *
      * @param address A pointer to the base address of the region of pages to be locked.
@@ -197,7 +197,7 @@ final class JNAKernel32Library {
 
     /**
      * Retrieves information about a range of pages within the virtual address space of a specified process.
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366907%28v=vs.85%29.aspx
      *
      * @param handle A handle to the process whose memory information is queried.
@@ -210,7 +210,7 @@ final class JNAKernel32Library {
 
     /**
      * Sets the minimum and maximum working set sizes for the specified process.
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms686234%28v=vs.85%29.aspx
      *
      * @param handle A handle to the process whose working set sizes is to be set.
@@ -222,7 +222,7 @@ final class JNAKernel32Library {
 
     /**
      * Retrieves a pseudo handle for the current process.
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms683179%28v=vs.85%29.aspx
      *
      * @return a pseudo handle to the current process.
@@ -231,7 +231,7 @@ final class JNAKernel32Library {
 
     /**
      * Closes an open object handle.
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms724211%28v=vs.85%29.aspx
      *
      * @param handle A valid handle to an open object.
@@ -252,7 +252,7 @@ final class JNAKernel32Library {
 
     /**
      * Creates or opens a new job object
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms682409%28v=vs.85%29.aspx
      *
      * @param jobAttributes security attributes
@@ -263,7 +263,7 @@ final class JNAKernel32Library {
 
     /**
      * Associates a process with an existing job
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms681949%28v=vs.85%29.aspx
      *
      * @param job job handle
@@ -274,7 +274,7 @@ final class JNAKernel32Library {
 
     /**
      * Basic limit information for a job object
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
      */
     public static class JOBOBJECT_BASIC_LIMIT_INFORMATION extends Structure implements Structure.ByReference {
@@ -316,7 +316,7 @@ final class JNAKernel32Library {
 
     /**
      * Get job limit and state information
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684925%28v=vs.85%29.aspx
      *
      * @param job job handle
@@ -330,7 +330,7 @@ final class JNAKernel32Library {
 
     /**
      * Set job limit and state information
-     *
+     * <p>
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms686216%28v=vs.85%29.aspx
      *
      * @param job job handle

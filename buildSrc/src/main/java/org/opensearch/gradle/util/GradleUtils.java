@@ -39,12 +39,17 @@ import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.LenientConfiguration;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.internal.artifacts.ivyservice.ResolvedFilesCollectingVisitor;
+import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.SelectedArtifactSet;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceRegistration;
 import org.gradle.api.services.BuildServiceRegistry;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskContainer;
@@ -53,6 +58,9 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -244,5 +252,23 @@ public abstract class GradleUtils {
     public static String getProjectPathFromTask(String taskPath) {
         int lastDelimiterIndex = taskPath.lastIndexOf(":");
         return lastDelimiterIndex == 0 ? ":" : taskPath.substring(0, lastDelimiterIndex);
+    }
+
+    public static FileCollection getFiles(Project project, Configuration cfg, Spec<Dependency> spec) {
+        final LenientConfiguration configuration = cfg.getResolvedConfiguration().getLenientConfiguration();
+        try {
+            // Using reflection here to cover the pre 8.7 releases (since those have no such APIs), the
+            // ResolverResults.LegacyResolverResults.LegacyVisitedArtifactSet::select(...) is not available
+            // on older versions.
+            final MethodHandle mh = MethodHandles.lookup()
+                .findVirtual(configuration.getClass(), "select", MethodType.methodType(SelectedArtifactSet.class, Spec.class))
+                .bindTo(configuration);
+
+            final ResolvedFilesCollectingVisitor visitor = new ResolvedFilesCollectingVisitor();
+            ((SelectedArtifactSet) mh.invoke(spec)).visitArtifacts(visitor, false);
+            return project.files(visitor.getFiles());
+        } catch (Throwable ex) {
+            return project.files(configuration.getFiles(spec));
+        }
     }
 }

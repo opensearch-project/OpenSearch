@@ -39,12 +39,12 @@ import java.util.Collection;
 
 /**
  * Utilities for converting to/from the GeoHash standard
- *
+ * <p>
  * The geohash long format is represented as lon/lat (x/y) interleaved with the 4 least significant bits
  * representing the level (1-12) [xyxy...xyxyllll]
- *
+ * <p>
  * This differs from a morton encoded value which interleaves lat/lon (y/x).
- *
+ * <p>
  * NOTE: this will replace {@code org.opensearch.common.geo.GeoHashUtils}
  */
 public class Geohash {

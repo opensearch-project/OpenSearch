@@ -33,14 +33,15 @@
 package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
 import java.util.List;
@@ -76,10 +77,12 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final TransportSearchAction.SearchTimeProvider timeProvider,
         final ClusterState clusterState,
         final SearchTask task,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchRequestContext searchRequestContext,
+        final Tracer tracer
     ) {
         super(
-            "dfs",
+            SearchPhaseName.DFS_PRE_QUERY.getName(),
             logger,
             searchTransportService,
             nodeIdToConnection,
@@ -95,7 +98,9 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             task,
             new ArraySearchPhaseResults<>(shardsIts.size()),
             request.getMaxConcurrentShardRequests(),
-            clusters
+            clusters,
+            searchRequestContext,
+            tracer
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         this.searchPhaseController = searchPhaseController;

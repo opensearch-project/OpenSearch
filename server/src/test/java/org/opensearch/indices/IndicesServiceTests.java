@@ -31,13 +31,15 @@
 
 package org.opensearch.indices;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexGraveyard;
@@ -45,16 +47,19 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader.DelegatingCacheHelper;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.LocalAllocateDangledIndices;
 import org.opensearch.gateway.MetaStateService;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -69,15 +74,17 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.TestSearchContext;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -618,5 +625,85 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         final String pattern =
             ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));
+    }
+
+    public void testClusterRemoteTranslogBufferIntervalDefault() {
+        IndicesService indicesService = getIndicesService();
+        assertEquals(
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+            indicesService.getRemoteStoreSettings().getClusterRemoteTranslogBufferInterval()
+        );
+    }
+
+    public void testDirectoryReaderWithoutDelegatingCacheHelperNotCacheable() throws IOException {
+        IndicesService indicesService = getIndicesService();
+        final IndexService indexService = createIndex("test");
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
+        when(request.requestCache()).thenReturn(true);
+
+        TestSearchContext context = getTestContext(indexService, 0);
+        IndexReader.CacheHelper notDelegatingCacheHelper = mock(IndexReader.CacheHelper.class);
+        DelegatingCacheHelper delegatingCacheHelper = mock(DelegatingCacheHelper.class);
+        for (boolean useDelegatingCacheHelper : new boolean[] { true, false }) {
+            IndexReader.CacheHelper cacheHelper = useDelegatingCacheHelper ? delegatingCacheHelper : notDelegatingCacheHelper;
+            setupMocksForCanCache(context, cacheHelper);
+            assertEquals(useDelegatingCacheHelper, indicesService.canCache(request, context));
+        }
+    }
+
+    public void testCanCacheSizeNonzero() {
+        // Requests should only be cached if their size is <= INDICES_REQUEST_CACHE_MAX_SIZE_TO_CACHE_SETTING.
+        final IndexService indexService = createIndex("test");
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
+        when(request.requestCache()).thenReturn(null);
+
+        TestSearchContext sizeZeroContext = getTestContext(indexService, 0);
+        TestSearchContext sizeNonzeroContext = getTestContext(indexService, 10);
+
+        // Test for an IndicesService with the default setting value of 0
+        IndicesService indicesService = getIndicesService();
+        DelegatingCacheHelper cacheHelper = mock(DelegatingCacheHelper.class);
+        Map<TestSearchContext, Boolean> expectedResultMap = Map.of(sizeZeroContext, true, sizeNonzeroContext, false);
+
+        for (Map.Entry<TestSearchContext, Boolean> entry : expectedResultMap.entrySet()) {
+            TestSearchContext context = entry.getKey();
+            setupMocksForCanCache(context, cacheHelper);
+            assertEquals(entry.getValue(), indicesService.canCache(request, context));
+        }
+        // Simulate the cluster setting update by manually calling setCanCacheSizeNonzeroRequests
+        int maxCacheableSize = 40;
+        indicesService.setMaxSizeInRequestCache(maxCacheableSize);
+        TestSearchContext sizeEqualsThresholdContext = getTestContext(indexService, maxCacheableSize);
+        TestSearchContext sizeAboveThresholdContext = getTestContext(indexService, maxCacheableSize + 5);
+        expectedResultMap = Map.of(sizeZeroContext, true, sizeEqualsThresholdContext, true, sizeAboveThresholdContext, false);
+
+        for (Map.Entry<TestSearchContext, Boolean> entry : expectedResultMap.entrySet()) {
+            TestSearchContext context = entry.getKey();
+            setupMocksForCanCache(context, cacheHelper);
+            assertEquals(entry.getValue(), indicesService.canCache(request, context));
+        }
+    }
+
+    private void setupMocksForCanCache(TestSearchContext context, IndexReader.CacheHelper cacheHelper) {
+        ContextIndexSearcher searcher = mock(ContextIndexSearcher.class);
+        context.setSearcher(searcher);
+        DirectoryReader reader = mock(DirectoryReader.class);
+        when(searcher.getDirectoryReader()).thenReturn(reader);
+        when(searcher.getIndexReader()).thenReturn(reader);
+        when(reader.getReaderCacheHelper()).thenReturn(cacheHelper);
+    }
+
+    private TestSearchContext getTestContext(IndexService indexService, int size) {
+        return new TestSearchContext(indexService.getBigArrays(), indexService) {
+            @Override
+            public SearchType searchType() {
+                return SearchType.QUERY_THEN_FETCH;
+            }
+
+            @Override
+            public int size() {
+                return size;
+            }
+        };
     }
 }

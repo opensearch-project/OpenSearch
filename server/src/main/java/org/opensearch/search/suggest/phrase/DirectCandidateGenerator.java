@@ -131,7 +131,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
      */
     @Override
     public boolean isKnownWord(BytesRef term) throws IOException {
-        return termStats(term).docFreq > 0;
+        return termStats(term).docFreq() > 0;
     }
 
     /* (non-Javadoc)
@@ -147,9 +147,9 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         if (termsEnum.seekExact(term)) {
             return new TermStats(
                 termsEnum.docFreq(),
-                /**
-                 * We use the {@link TermsEnum#docFreq()} for fields that don't
-                 * record the {@link TermsEnum#totalTermFreq()}.
+                /*
+                  We use the {@link TermsEnum#docFreq()} for fields that don't
+                  record the {@link TermsEnum#totalTermFreq()}.
                  */
                 termsEnum.totalTermFreq() == -1 ? termsEnum.docFreq() : termsEnum.totalTermFreq()
             );
@@ -168,12 +168,12 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         float origThreshold = spellchecker.getThresholdFrequency();
         try {
             if (suggestMode != SuggestMode.SUGGEST_ALWAYS) {
-                /**
-                 * We use the {@link TermStats#docFreq} to compute the frequency threshold
-                 * because that's what {@link DirectSpellChecker#suggestSimilar} expects
-                 * when filtering terms.
+                /*
+                  We use the {@link TermStats#docFreq} to compute the frequency threshold
+                  because that's what {@link DirectSpellChecker#suggestSimilar} expects
+                  when filtering terms.
                  */
-                int threshold = thresholdTermFrequency(original.termStats.docFreq);
+                int threshold = thresholdTermFrequency(original.termStats.docFreq());
                 if (threshold == Integer.MAX_VALUE) {
                     // the threshold is the max possible frequency so we can skip the search
                     return set;
@@ -267,7 +267,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     private double score(TermStats termStats, double errorScore, long dictionarySize) {
-        return errorScore * (((double) termStats.totalTermFreq + 1) / ((double) dictionarySize + 1));
+        return errorScore * (((double) termStats.totalTermFreq() + 1) / ((double) dictionarySize + 1));
     }
 
     // package protected for test

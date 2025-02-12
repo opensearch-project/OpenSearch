@@ -36,15 +36,19 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactoryBuilder;
+
+import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentGenerator;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,14 +56,12 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.util.Set;
 
+import org.yaml.snakeyaml.LoaderOptions;
+
 /**
  * A YAML based content implementation using Jackson.
  */
-public class YamlXContent implements XContent {
-    public static final int DEFAULT_MAX_STRING_LEN = Integer.parseInt(
-        System.getProperty("opensearch.xcontent.string.length.max", "50000000" /* ~50 Mb */)
-    );
-
+public class YamlXContent implements XContent, XContentContraints {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(yamlXContent);
     }
@@ -68,9 +70,18 @@ public class YamlXContent implements XContent {
     public static final YamlXContent yamlXContent;
 
     static {
-        yamlFactory = new YAMLFactory();
+        final LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setCodePointLimit(DEFAULT_CODEPOINT_LIMIT);
+        yamlFactory = new YAMLFactoryBuilder(new YAMLFactory()).loaderOptions(loaderOptions).build();
         yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        yamlFactory.setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(DEFAULT_MAX_STRING_LEN).build());
+        yamlFactory.setStreamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
+        yamlFactory.setStreamReadConstraints(
+            StreamReadConstraints.builder()
+                .maxStringLength(DEFAULT_MAX_STRING_LEN)
+                .maxNameLength(DEFAULT_MAX_NAME_LEN)
+                .maxNestingDepth(DEFAULT_MAX_DEPTH)
+                .build()
+        );
         yamlFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
         yamlXContent = new YamlXContent();
     }

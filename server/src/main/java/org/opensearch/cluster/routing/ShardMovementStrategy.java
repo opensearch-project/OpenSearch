@@ -9,17 +9,19 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Locale;
 
 /**
  * ShardMovementStrategy defines the order in which shard movement occurs.
- *
+ * <p>
  * ShardMovementStrategy values or rather their string representation to be used with
  * {@link BalancedShardsAllocator#SHARD_MOVEMENT_STRATEGY_SETTING} via cluster settings.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.9.0")
 public enum ShardMovementStrategy {
     /**
      * default behavior in which order of shard movement doesn't matter.

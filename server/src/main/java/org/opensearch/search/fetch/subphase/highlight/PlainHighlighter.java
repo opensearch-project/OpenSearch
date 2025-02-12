@@ -123,13 +123,27 @@ public class PlainHighlighter implements Highlighter {
         List<Object> textsToHighlight;
         Analyzer analyzer = context.mapperService().documentMapper().mappers().indexAnalyzer();
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
+        final Integer fieldMaxAnalyzedOffset = field.fieldOptions().maxAnalyzerOffset();
+        if (fieldMaxAnalyzedOffset != null && fieldMaxAnalyzedOffset > maxAnalyzedOffset) {
+            throw new IllegalArgumentException(
+                "max_analyzer_offset has exceeded ["
+                    + maxAnalyzedOffset
+                    + "] - maximum allowed to be analyzed for highlighting. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
+                    + "] index level setting. "
+                    + "For large texts, indexing with offsets or term vectors is recommended!"
+            );
+        }
 
         textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.getQueryShardContext(), hitContext, fieldContext.forceSource);
 
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
-            if (textLength > maxAnalyzedOffset) {
+            if (fieldMaxAnalyzedOffset != null && textLength > fieldMaxAnalyzedOffset) {
+                text = text.substring(0, fieldMaxAnalyzedOffset);
+            } else if (textLength > maxAnalyzedOffset) {
                 throw new IllegalArgumentException(
                     "The length of ["
                         + fieldContext.fieldName

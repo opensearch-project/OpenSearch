@@ -41,6 +41,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -79,16 +80,6 @@ public class RemoveProcessorFactoryTests extends OpenSearchTestCase {
         );
     }
 
-    public void testCreateMissingField() throws Exception {
-        Map<String, Object> config = new HashMap<>();
-        try {
-            factory.create(null, null, null, config);
-            fail("factory create should have failed");
-        } catch (OpenSearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[field] required property is missing"));
-        }
-    }
-
     public void testInvalidMustacheTemplate() throws Exception {
         RemoveProcessor.Factory factory = new RemoveProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
@@ -97,5 +88,32 @@ public class RemoveProcessorFactoryTests extends OpenSearchTestCase {
         OpenSearchException exception = expectThrows(OpenSearchException.class, () -> factory.create(null, processorTag, null, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("opensearch.processor_tag").get(0), equalTo(processorTag));
+    }
+
+    public void testCreateWithExcludeField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        String processorTag = randomAlphaOfLength(10);
+        OpenSearchException exception = expectThrows(
+            OpenSearchParseException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
+        assertThat(exception.getMessage(), equalTo("[field] either field or exclude_field must be set"));
+
+        Map<String, Object> config2 = new HashMap<>();
+        config2.put("field", "field1");
+        config2.put("exclude_field", "field2");
+        exception = expectThrows(OpenSearchParseException.class, () -> factory.create(null, processorTag, null, config2));
+        assertThat(exception.getMessage(), equalTo("[field] either field or exclude_field must be set"));
+
+        Map<String, Object> config6 = new HashMap<>();
+        config6.put("exclude_field", "exclude_field");
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config6);
+        assertThat(
+            removeProcessor.getExcludeFields()
+                .stream()
+                .map(template -> template.newInstance(Collections.emptyMap()).execute())
+                .collect(Collectors.toList()),
+            equalTo(List.of("exclude_field"))
+        );
     }
 }

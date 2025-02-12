@@ -57,14 +57,14 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.gateway.PersistedClusterStateService.Writer;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.io.IOError;

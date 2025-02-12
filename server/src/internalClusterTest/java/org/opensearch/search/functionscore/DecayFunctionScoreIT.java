@@ -32,13 +32,15 @@
 
 package org.opensearch.search.functionscore;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.Version;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
@@ -53,18 +55,18 @@ import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.opensearch.client.Requests.indexRequest;
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
@@ -72,11 +74,14 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.linearDecayFunction;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
+import static org.opensearch.transport.client.Requests.indexRequest;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.closeTo;
@@ -85,7 +90,19 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
-public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
+public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public DecayFunctionScoreIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
@@ -170,7 +187,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -178,7 +195,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
@@ -187,7 +204,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(searchSource().query(baseQuery)));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -195,7 +212,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
@@ -204,7 +221,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(searchSource().query(baseQuery)));
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -212,7 +229,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
 
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
@@ -277,7 +294,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
         assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
@@ -300,7 +317,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
         assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
@@ -321,7 +338,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (numDummyDocs + 2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (numDummyDocs + 2)));
         assertThat(sh.getAt(0).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getId(), anyOf(equalTo("1"), equalTo("2")));
         assertThat(sh.getAt(1).getScore(), equalTo(sh.getAt(0).getScore()));
@@ -375,6 +392,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
                 )
         );
         indexRandom(true, false, indexBuilders); // force no dummy docs
+        indexRandomForConcurrentSearch("test");
 
         // Test Gauss
         List<Float> lonlat = new ArrayList<>();
@@ -393,7 +411,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
 
@@ -403,7 +421,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
 
@@ -419,7 +437,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
         assertThat(sh.getAt(0).getId(), equalTo("2"));
         assertThat(sh.getAt(1).getId(), equalTo("1"));
 
@@ -459,6 +477,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(randomIntBetween(1, 10))
         );
+        indexRandomForConcurrentSearch("test");
         GeoPoint point = new GeoPoint(20, 11);
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -470,7 +489,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(1.0, 1.e-5));
         // this is equivalent to new GeoPoint(20, 11); just flipped so scores must be same
@@ -485,7 +504,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(1.0f, 1.e-5));
     }
@@ -512,6 +531,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject())
             .get();
+        indexRandomForConcurrentSearch("test");
         FunctionScoreQueryBuilder baseQuery = functionScoreQuery(
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(2)
@@ -527,7 +547,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(1.0, 1.e-5));
 
@@ -541,7 +561,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(0.5, 1.e-5));
 
@@ -555,7 +575,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(2.0 + 0.5, 1.e-5));
         logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).getId(), sr.getHits().getAt(0).getExplanation());
@@ -570,7 +590,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo((2.0 + 0.5) / 2, 1.e-5));
 
@@ -584,7 +604,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(0.5, 1.e-5));
 
@@ -598,7 +618,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).getScore(), closeTo(2.0, 1.e-5));
 
@@ -631,6 +651,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
             constantScoreQuery(termQuery("test", "value")).queryName("query1"),
             ScoreFunctionBuilders.weightFactorFunction(2, "weight1")
         );
+        indexRandomForConcurrentSearch("test");
         // decay score should return 0.5 for this function and baseQuery should return 2.0f as it's score
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -645,7 +666,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (1)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(0).getExplanation().getDetails(), arrayWithSize(2));
         assertThat(sh.getAt(0).getExplanation().getDetails()[0].getDetails(), arrayWithSize(2));
@@ -739,6 +760,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         ).actionGet();
         refresh();
 
+        indexRandomForConcurrentSearch("test");
         SearchResponse sr = client().search(
             searchRequest().source(
                 searchSource().query(functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num1", "now", "2d")))
@@ -794,6 +816,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         ).actionGet();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -870,6 +893,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         ).actionGet();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -951,6 +975,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         List<Float> lonlat = new ArrayList<>();
         lonlat.add(100f);
         lonlat.add(110f);
+        indexRandomForConcurrentSearch("test");
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
@@ -1084,6 +1109,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         client().index(indexRequest("test").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
             .actionGet();
         refresh();
+        indexRandomForConcurrentSearch("test");
         // so, we indexed a string field, but now we try to score a num field
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -1148,12 +1174,13 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
             );
 
         indexRandom(true, doc1, doc2);
+        indexRandomForConcurrentSearch("test");
 
         ActionFuture<SearchResponse> response = client().search(searchRequest().source(searchSource().query(baseQuery)));
         SearchResponse sr = response.actionGet();
         assertSearchHits(sr, "1", "2");
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo((long) (2)));
+        assertThat(sh.getTotalHits().value(), equalTo((long) (2)));
 
         List<Float> lonlat = new ArrayList<>();
         lonlat.add(20f);
@@ -1292,7 +1319,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         );
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo(2L));
+        assertThat(sh.getTotalHits().value(), equalTo(2L));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
         assertExplain(queryName, functionName, sr);
@@ -1309,7 +1336,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo(2L));
+        assertThat(sh.getTotalHits().value(), equalTo(2L));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
         assertExplain(queryName, functionName, sr);
@@ -1329,7 +1356,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
 
         sr = response.actionGet();
         sh = sr.getHits();
-        assertThat(sh.getTotalHits().value, equalTo(2L));
+        assertThat(sh.getTotalHits().value(), equalTo(2L));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
         assertExplain(queryName, functionName, sr);

@@ -38,6 +38,7 @@ import org.opensearch.cloud.gce.GceMetadataService;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -65,7 +66,6 @@ import static org.hamcrest.Matchers.not;
  * compute/v1/projects/[project-id]/zones/[zone]
  *
  * By default, project-id is the test method name, lowercase and missing the "test" prefix.
- *
  * For example, if you create a test `myNewAwesomeTest` with following settings:
  *
  * Settings nodeSettings = Settings.builder()
@@ -74,7 +74,6 @@ import static org.hamcrest.Matchers.not;
  *  .build();
  *
  *  You need to create a file under `src/test/resources/org/opensearch/discovery/gce/` named:
- *
  *  compute/v1/projects/mynewawesometest/zones/europe-west1-b/instances.json
  *
  */
@@ -109,7 +108,7 @@ public class GceDiscoveryTests extends OpenSearchTestCase {
 
     @Before
     public void createTransportService() {
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, NoopTracer.INSTANCE);
     }
 
     @After

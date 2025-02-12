@@ -34,8 +34,6 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PrefixCodedTerms;
-import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
@@ -44,16 +42,17 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
@@ -79,8 +78,9 @@ import java.util.function.Supplier;
 /**
  * This defines the core properties and functions to operate on a field.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class MappedFieldType {
 
     private final String name;
@@ -125,7 +125,7 @@ public abstract class MappedFieldType {
 
     /**
      * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
-     *
+     * <p>
      * New field types must implement this method in order to support the search 'fields' option. Except
      * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
      * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
@@ -256,12 +256,14 @@ public abstract class MappedFieldType {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
+    // Fuzzy Query with re-write method
     public Query fuzzyQuery(
         Object value,
         Fuzziness fuzziness,
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
+        @Nullable MultiTermQuery.RewriteMethod method,
         QueryShardContext context
     ) {
         throw new IllegalArgumentException(
@@ -328,9 +330,9 @@ public abstract class MappedFieldType {
 
     public Query existsQuery(QueryShardContext context) {
         if (hasDocValues()) {
-            return new DocValuesFieldExistsQuery(name());
+            return new FieldExistsQuery(name());
         } else if (getTextSearchInfo().hasNorms()) {
-            return new NormsFieldExistsQuery(name());
+            return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
         }
@@ -342,16 +344,29 @@ public abstract class MappedFieldType {
         );
     }
 
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) throws IOException {
+        return phraseQuery(stream, slop, enablePositionIncrements);
+    }
+
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
         throw new IllegalArgumentException(
             "Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context)
+        throws IOException {
+        return multiPhraseQuery(stream, slop, enablePositionIncrements);
+    }
+
     public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
         throw new IllegalArgumentException(
             "Can only use phrase prefix queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
+    }
+
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) throws IOException {
+        return phrasePrefixQuery(stream, slop, maxExpansions);
     }
 
     public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
@@ -385,8 +400,9 @@ public abstract class MappedFieldType {
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Relation {
         WITHIN,
         INTERSECTS,
@@ -433,6 +449,15 @@ public abstract class MappedFieldType {
         }
     }
 
+    protected final void failIfNotIndexedAndNoDocValues() {
+        // we fail if a field is both not indexed and does not have doc_values enabled
+        if (isIndexed == false && hasDocValues() == false) {
+            throw new IllegalArgumentException(
+                "Cannot search on field [" + name() + "] since it is both not indexed," + " and does not have doc_values enabled."
+            );
+        }
+    }
+
     public boolean eagerGlobalOrdinals() {
         return eagerGlobalOrdinals;
     }
@@ -457,19 +482,19 @@ public abstract class MappedFieldType {
     /**
      * Extract a {@link Term} from a query created with {@link #termQuery} by
      * recursively removing {@link BoostQuery} wrappers.
+     * @throws IOException
      * @throws IllegalArgumentException if the wrapped query is not a {@link TermQuery}
      */
-    public static Term extractTerm(Query termQuery) {
+    public static Term extractTerm(Query termQuery) throws IOException {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
         }
         if (termQuery instanceof TermInSetQuery) {
             TermInSetQuery tisQuery = (TermInSetQuery) termQuery;
-            PrefixCodedTerms terms = tisQuery.getTermData();
-            if (terms.size() == 1) {
-                TermIterator it = terms.iterator();
+            if (tisQuery.getTermsCount() == 1) {
+                BytesRefIterator it = tisQuery.getBytesRefIterator();
                 BytesRef term = it.next();
-                return new Term(it.field(), term);
+                return new Term(tisQuery.getField(), term);
             }
         }
         if (termQuery instanceof TermQuery == false) {
@@ -487,7 +512,7 @@ public abstract class MappedFieldType {
 
     /**
      * Returns information on how any text in this field is indexed
-     *
+     * <p>
      * Fields that do not support any text-based queries should return
      * {@link TextSearchInfo#NONE}.  Some fields (eg numeric) may support
      * only simple match queries, and can return

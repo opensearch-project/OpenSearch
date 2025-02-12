@@ -36,26 +36,33 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.transport.PortsRange;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanBuilder;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.channels.TraceableHttpChannel;
+import org.opensearch.telemetry.tracing.channels.TraceableRestChannel;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BindTransportException;
+import org.opensearch.transport.Transport;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -63,9 +70,10 @@ import java.net.InetSocketAddress;
 import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -105,7 +113,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    private final HttpTracer tracer;
+    private final HttpTracer httpTracer;
+    private final Tracer tracer;
 
     protected AbstractHttpServerTransport(
         Settings settings,
@@ -114,7 +123,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         ThreadPool threadPool,
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer telemetryTracer
     ) {
         this.settings = settings;
         this.networkService = networkService;
@@ -138,7 +148,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.port = SETTING_HTTP_PORT.get(settings);
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
-        this.tracer = new HttpTracer(settings, clusterSettings);
+        this.httpTracer = new HttpTracer(settings, clusterSettings);
+        this.tracer = telemetryTracer;
     }
 
     @Override
@@ -181,7 +192,25 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             throw new BindTransportException("Failed to resolve publish address", e);
         }
 
-        final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
+        final int publishPort = Transport.resolveTransportPublishPort(
+            SETTING_HTTP_PUBLISH_PORT.get(settings),
+            boundAddresses,
+            publishInetAddress
+        );
+        if (publishPort < 0) {
+            throw new BindHttpException(
+                "Failed to auto-resolve http publish port, multiple bound addresses "
+                    + boundAddresses
+                    + " with distinct ports and none of them matched the publish address ("
+                    + publishInetAddress
+                    + "). "
+                    + "Please specify a unique port by setting "
+                    + SETTING_HTTP_PORT.getKey()
+                    + " or "
+                    + SETTING_HTTP_PUBLISH_PORT.getKey()
+            );
+        }
+
         TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
         this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishAddress);
         logger.info("{}", boundAddress);
@@ -247,48 +276,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      */
     protected abstract void stopInternal();
 
-    // package private for tests
-    static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
-        int publishPort = SETTING_HTTP_PUBLISH_PORT.get(settings);
-
-        if (publishPort < 0) {
-            for (TransportAddress boundAddress : boundAddresses) {
-                InetAddress boundInetAddress = boundAddress.address().getAddress();
-                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
-                    publishPort = boundAddress.getPort();
-                    break;
-                }
-            }
-        }
-
-        // if no matching boundAddress found, check if there is a unique port for all bound addresses
-        if (publishPort < 0) {
-            final Set<Integer> ports = new HashSet<>();
-            for (TransportAddress boundAddress : boundAddresses) {
-                ports.add(boundAddress.getPort());
-            }
-            if (ports.size() == 1) {
-                publishPort = ports.iterator().next();
-            }
-        }
-
-        if (publishPort < 0) {
-            throw new BindHttpException(
-                "Failed to auto-resolve http publish port, multiple bound addresses "
-                    + boundAddresses
-                    + " with distinct ports and none of them matched the publish address ("
-                    + publishInetAddress
-                    + "). "
-                    + "Please specify a unique port by setting "
-                    + SETTING_HTTP_PORT.getKey()
-                    + " or "
-                    + SETTING_HTTP_PUBLISH_PORT.getKey()
-            );
-        }
-        return publishPort;
-    }
-
     public void onException(HttpChannel channel, Exception e) {
+        channel.handleException(e);
         if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
@@ -346,25 +335,47 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     /**
+     * This method handles an incoming http request as a stream.
+     *
+     * @param httpRequest that is incoming
+     * @param httpChannel that received the http request
+     */
+    public void incomingStream(HttpRequest httpRequest, final StreamingHttpChannel httpChannel) {
+        handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+    }
+
+    /**
      * This method handles an incoming http request.
      *
      * @param httpRequest that is incoming
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+        final Span span = tracer.startSpan(SpanBuilder.from(httpRequest), extractHeaders(httpRequest.getHeaders()));
+        try (final SpanScope httpRequestSpanScope = tracer.withSpanInScope(span)) {
+            HttpChannel traceableHttpChannel = TraceableHttpChannel.create(httpChannel, span, tracer);
+            handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
+        }
     }
 
     // Visible for testing
     void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
+        RestChannel traceableRestChannel = channel;
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            if (badRequestCause != null) {
-                dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
-            } else {
-                dispatcher.dispatchRequest(restRequest, channel, threadContext);
+            final Span span = tracer.startSpan(SpanBuilder.from(restRequest));
+            try (final SpanScope spanScope = tracer.withSpanInScope(span)) {
+                if (channel != null) {
+                    traceableRestChannel = TraceableRestChannel.create(channel, span, tracer);
+                }
+                if (badRequestCause != null) {
+                    dispatcher.dispatchBadRequest(traceableRestChannel, threadContext, badRequestCause);
+                } else {
+                    dispatcher.dispatchRequest(restRequest, traceableRestChannel, threadContext);
+                }
             }
         }
+
     }
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
@@ -401,7 +412,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             restRequest = innerRestRequest;
         }
 
-        final HttpTracer trace = tracer.maybeTraceRequest(restRequest, exception);
+        final HttpTracer trace = httpTracer.maybeTraceRequest(restRequest, exception);
 
         /*
          * We now want to create a channel used to send the response on. However, creating this channel can fail if there are invalid
@@ -414,29 +425,56 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             RestChannel innerChannel;
             ThreadContext threadContext = threadPool.getThreadContext();
             try {
-                innerChannel = new DefaultRestChannel(
-                    httpChannel,
-                    httpRequest,
-                    restRequest,
-                    bigArrays,
-                    handlingSettings,
-                    threadContext,
-                    corsHandler,
-                    trace
-                );
+                if (httpChannel instanceof StreamingHttpChannel) {
+                    innerChannel = new DefaultStreamingRestChannel(
+                        (StreamingHttpChannel) httpChannel,
+                        httpRequest,
+                        restRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                } else {
+                    innerChannel = new DefaultRestChannel(
+                        httpChannel,
+                        httpRequest,
+                        restRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                }
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
-                innerChannel = new DefaultRestChannel(
-                    httpChannel,
-                    httpRequest,
-                    innerRequest,
-                    bigArrays,
-                    handlingSettings,
-                    threadContext,
-                    corsHandler,
-                    trace
-                );
+
+                if (httpChannel instanceof StreamingHttpChannel) {
+                    innerChannel = new DefaultStreamingRestChannel(
+                        (StreamingHttpChannel) httpChannel,
+                        httpRequest,
+                        innerRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                } else {
+                    innerChannel = new DefaultRestChannel(
+                        httpChannel,
+                        httpRequest,
+                        innerRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                }
             }
             channel = innerChannel;
         }
@@ -460,5 +498,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         } else {
             return NO_OP;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <Values extends Collection<String>> Map<String, Collection<String>> extractHeaders(Map<String, Values> headers) {
+        return (Map<String, Collection<String>>) headers;
     }
 }

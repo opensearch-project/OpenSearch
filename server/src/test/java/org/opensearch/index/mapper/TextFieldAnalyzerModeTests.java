@@ -59,6 +59,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
+    ParametrizedFieldMapper.TypeParser getTypeParser() {
+        return TextFieldMapper.PARSER;
+    }
 
     private static Map<String, NamedAnalyzer> defaultAnalyzers() {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
@@ -101,7 +104,7 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
 
-        TextFieldMapper.PARSER.parse("field", fieldNode, parserContext);
+        getTypeParser().parse("field", fieldNode, parserContext);
 
         // check that "analyzer" set to something that only supports AnalysisMode.SEARCH_TIME or AnalysisMode.INDEX_TIME is blocked
         AnalysisMode mode = randomFrom(AnalysisMode.SEARCH_TIME, AnalysisMode.INDEX_TIME);
@@ -110,7 +113,7 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
         indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         fieldNode.put("analyzer", "my_analyzer");
-        MapperException ex = expectThrows(MapperException.class, () -> { TextFieldMapper.PARSER.parse("name", fieldNode, parserContext); });
+        MapperException ex = expectThrows(MapperException.class, () -> { getTypeParser().parse("name", fieldNode, parserContext); });
         assertThat(
             ex.getMessage(),
             containsString("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run")
@@ -136,7 +139,7 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
 
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
             when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-            TextFieldMapper.PARSER.parse("textField", fieldNode, parserContext);
+            getTypeParser().parse("textField", fieldNode, parserContext);
 
             // check that "analyzer" set to AnalysisMode.INDEX_TIME is blocked
             mode = AnalysisMode.INDEX_TIME;
@@ -151,10 +154,7 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
             if (settingToTest.equals("search_quote_analyzer")) {
                 fieldNode.put("search_analyzer", "standard");
             }
-            MapperException ex = expectThrows(
-                MapperException.class,
-                () -> { TextFieldMapper.PARSER.parse("field", fieldNode, parserContext); }
-            );
+            MapperException ex = expectThrows(MapperException.class, () -> { getTypeParser().parse("field", fieldNode, parserContext); });
             assertEquals(
                 "analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run in search time mode.",
                 ex.getMessage()
@@ -174,10 +174,7 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
         analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode(mode)));
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        MapperException ex = expectThrows(
-            MapperException.class,
-            () -> { TextFieldMapper.PARSER.parse("field", fieldNode, parserContext); }
-        );
+        MapperException ex = expectThrows(MapperException.class, () -> { getTypeParser().parse("field", fieldNode, parserContext); });
         assertThat(
             ex.getMessage(),
             containsString("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run")
@@ -193,7 +190,6 @@ public class TextFieldAnalyzerModeTests extends OpenSearchTestCase {
 
         indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        TextFieldMapper.PARSER.parse("field", fieldNode, parserContext);
+        getTypeParser().parse("field", fieldNode, parserContext);
     }
-
 }

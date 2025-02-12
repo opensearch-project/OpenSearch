@@ -33,11 +33,12 @@
 package org.opensearch.action.search;
 
 import org.opensearch.common.MemoizedSupplier;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.SearchBackpressureTask;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -46,9 +47,10 @@ import java.util.function.Supplier;
  * Task storing information about a currently running search shard request.
  * See {@link ShardSearchRequest}, {@link ShardFetchSearchRequest}, ...
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public class SearchShardTask extends CancellableTask implements SearchBackpressureTask {
+@PublicApi(since = "1.0.0")
+public class SearchShardTask extends QueryGroupTask implements SearchBackpressureTask {
     // generating metadata in a lazy way since source can be quite big
     private final MemoizedSupplier<String> metadataSupplier;
 

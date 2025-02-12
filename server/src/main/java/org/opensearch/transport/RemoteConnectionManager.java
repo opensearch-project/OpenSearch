@@ -32,8 +32,8 @@
 package org.opensearch.transport;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -112,6 +112,16 @@ public class RemoteConnectionManager implements ConnectionManager {
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
         delegate.disconnectFromNode(node);
+    }
+
+    @Override
+    public void setPendingDisconnection(DiscoveryNode node) {
+        delegate.setPendingDisconnection(node);
+    }
+
+    @Override
+    public void clearPendingDisconnections() {
+        delegate.clearPendingDisconnections();
     }
 
     @Override

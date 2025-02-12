@@ -32,12 +32,13 @@
 
 package org.opensearch.painless;
 
-import junit.framework.AssertionFailedError;
 import org.apache.lucene.util.Constants;
 import org.opensearch.script.ScriptException;
 
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.Collections;
+
+import junit.framework.AssertionFailedError;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -353,6 +354,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to addition operation [+]");
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("Double.x() = 1;"));
         assertEquals(iae.getMessage(), "invalid assignment: cannot assign a value to method call [x/0]");
+
+        expectScriptThrows(UnsupportedOperationException.class, () -> exec("params['modifyingParamsMap'] = 2;"));
+        expectScriptThrows(UnsupportedOperationException.class, () -> exec("params.modifyingParamsMap = 2;"));
     }
 
     public void testCannotResolveSymbol() {

@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.core.common.Strings;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
@@ -51,18 +52,21 @@ public final class RenameProcessor extends AbstractProcessor {
     private final TemplateScript.Factory field;
     private final TemplateScript.Factory targetField;
     private final boolean ignoreMissing;
+    private final boolean overrideTarget;
 
     RenameProcessor(
         String tag,
         String description,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
-        boolean ignoreMissing
+        boolean ignoreMissing,
+        boolean overrideTarget
     ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
+        this.overrideTarget = overrideTarget;
     }
 
     TemplateScript.Factory getField() {
@@ -77,12 +81,19 @@ public final class RenameProcessor extends AbstractProcessor {
         return ignoreMissing;
     }
 
+    boolean isOverrideTarget() {
+        return overrideTarget;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument document) {
         String path = document.renderTemplate(field);
-        if (document.hasField(path, true) == false) {
+        final boolean fieldPathIsNullOrEmpty = Strings.isNullOrEmpty(path);
+        if (fieldPathIsNullOrEmpty || document.hasField(path, true) == false) {
             if (ignoreMissing) {
                 return document;
+            } else if (fieldPathIsNullOrEmpty) {
+                throw new IllegalArgumentException("field path cannot be null nor empty");
             } else {
                 throw new IllegalArgumentException("field [" + path + "] doesn't exist");
             }
@@ -90,9 +101,10 @@ public final class RenameProcessor extends AbstractProcessor {
         // We fail here if the target field point to an array slot that is out of range.
         // If we didn't do this then we would fail if we set the value in the target_field
         // and then on failure processors would not see that value we tried to rename as we already
-        // removed it.
+        // removed it. If the target field is out of range, we throw the exception no matter
+        // what the parameter overrideTarget is.
         String target = document.renderTemplate(targetField);
-        if (document.hasField(target, true)) {
+        if (document.hasField(target, true) && !overrideTarget) {
             throw new IllegalArgumentException("field [" + target + "] already exists");
         }
 
@@ -139,7 +151,8 @@ public final class RenameProcessor extends AbstractProcessor {
                 scriptService
             );
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new RenameProcessor(processorTag, description, fieldTemplate, targetFieldTemplate, ignoreMissing);
+            boolean overrideTarget = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override_target", false);
+            return new RenameProcessor(processorTag, description, fieldTemplate, targetFieldTemplate, ignoreMissing, overrideTarget);
         }
     }
 }

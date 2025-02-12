@@ -36,12 +36,13 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lucene.search.function.ScoreFunction;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.lucene.search.function.ScoreFunction;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentParser;
@@ -64,6 +65,7 @@ import org.opensearch.search.aggregations.pipeline.MovAvgModel;
 import org.opensearch.search.aggregations.pipeline.MovAvgPipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.query.QueryPhaseSearcher;
@@ -136,6 +138,15 @@ public interface SearchPlugin {
      */
     default Map<String, Highlighter> getHighlighters() {
         return emptyMap();
+    }
+
+    /**
+     * Allows plugins to register a factory to create custom decider for concurrent search
+     * @return A {@link ConcurrentSearchRequestDecider.Factory}
+     */
+    @ExperimentalApi
+    default Optional<ConcurrentSearchRequestDecider.Factory> getConcurrentSearchRequestDeciderFactory() {
+        return Optional.empty();
     }
 
     /**
@@ -551,8 +562,8 @@ public interface SearchPlugin {
         private final Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar;
         private final Class<?> valueSourceBuilderClass;
         @Deprecated
-        /** This is added for backward compatibility, you don't need to set it, as we use aggregationType instead of
-         * byte code
+        /* This is added for backward compatibility, you don't need to set it, as we use aggregationType instead of
+          byte code
          */
         private Byte byteCode;
         private final CompositeAggregationParsingFunction parsingFunction;

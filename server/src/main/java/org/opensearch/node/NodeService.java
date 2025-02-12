@@ -32,27 +32,32 @@
 
 package org.opensearch.node;
 
-import org.opensearch.cluster.routing.WeightedRoutingStats;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.search.SearchTransportService;
+import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
+import org.opensearch.node.remotestore.RemoteStoreNodeStats;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
@@ -83,6 +88,7 @@ public class NodeService implements Closeable {
     private final ScriptService scriptService;
     private final HttpServerTransport httpServerTransport;
     private final ResponseCollectorService responseCollectorService;
+    private final ResourceUsageCollectorService resourceUsageCollectorService;
     private final SearchTransportService searchTransportService;
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
@@ -92,6 +98,10 @@ public class NodeService implements Closeable {
     private final Discovery discovery;
     private final FileCache fileCache;
     private final TaskCancellationMonitoringService taskCancellationMonitoringService;
+    private final RepositoriesService repositoriesService;
+    private final AdmissionControlService admissionControlService;
+    private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
+    private final CacheService cacheService;
 
     NodeService(
         Settings settings,
@@ -114,7 +124,12 @@ public class NodeService implements Closeable {
         SearchBackpressureService searchBackpressureService,
         SearchPipelineService searchPipelineService,
         FileCache fileCache,
-        TaskCancellationMonitoringService taskCancellationMonitoringService
+        TaskCancellationMonitoringService taskCancellationMonitoringService,
+        ResourceUsageCollectorService resourceUsageCollectorService,
+        SegmentReplicationStatsTracker segmentReplicationStatsTracker,
+        RepositoriesService repositoriesService,
+        AdmissionControlService admissionControlService,
+        CacheService cacheService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -137,8 +152,13 @@ public class NodeService implements Closeable {
         this.clusterService = clusterService;
         this.fileCache = fileCache;
         this.taskCancellationMonitoringService = taskCancellationMonitoringService;
+        this.resourceUsageCollectorService = resourceUsageCollectorService;
+        this.repositoriesService = repositoriesService;
+        this.admissionControlService = admissionControlService;
         clusterService.addStateApplier(ingestService);
         clusterService.addStateApplier(searchPipelineService);
+        this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
+        this.cacheService = cacheService;
     }
 
     public NodeInfo info(
@@ -217,7 +237,13 @@ public class NodeService implements Closeable {
         boolean weightedRoutingStats,
         boolean fileCacheStats,
         boolean taskCancellation,
-        boolean searchPipelineStats
+        boolean searchPipelineStats,
+        boolean resourceUsageStats,
+        boolean segmentReplicationTrackerStats,
+        boolean repositoriesStats,
+        boolean admissionControl,
+        boolean cacheService,
+        boolean remoteStoreNodeStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -237,6 +263,7 @@ public class NodeService implements Closeable {
             discoveryStats ? discovery.stats() : null,
             ingest ? ingestService.stats() : null,
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
+            resourceUsageStats ? resourceUsageCollectorService.stats() : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
@@ -245,7 +272,12 @@ public class NodeService implements Closeable {
             weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
             fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null,
             taskCancellation ? this.taskCancellationMonitoringService.stats() : null,
-            searchPipelineStats ? this.searchPipelineService.stats() : null
+            searchPipelineStats ? this.searchPipelineService.stats() : null,
+            segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
+            repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null,
+            admissionControl ? this.admissionControlService.stats() : null,
+            cacheService ? this.cacheService.stats(indices) : null,
+            remoteStoreNodeStats ? new RemoteStoreNodeStats() : null
         );
     }
 

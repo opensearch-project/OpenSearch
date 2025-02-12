@@ -40,9 +40,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
@@ -208,5 +208,30 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
         assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), ft.termQuery("true", null));
         assertParseMaximalWarnings();
+    }
+
+    public void testIndexedValueForSearch() throws Exception {
+        assertEquals(new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(null), BooleanFieldMapper.Values.FALSE);
+
+        assertEquals(new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(false), BooleanFieldMapper.Values.FALSE);
+
+        assertEquals(new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(true), BooleanFieldMapper.Values.TRUE);
+
+        assertEquals(
+            new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("true")),
+            BooleanFieldMapper.Values.TRUE
+        );
+
+        assertEquals(
+            new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("false")),
+            BooleanFieldMapper.Values.FALSE
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("random"))
+        );
+
+        assertEquals("Can't parse boolean value [random], expected [true] or [false]", e.getMessage());
     }
 }

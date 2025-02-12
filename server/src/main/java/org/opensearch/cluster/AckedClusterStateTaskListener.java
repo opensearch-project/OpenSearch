@@ -44,7 +44,7 @@ public interface AckedClusterStateTaskListener extends ClusterStateTaskListener 
 
     /**
      * Called to determine which nodes the acknowledgement is expected from.
-     *
+     * <p>
      * As this method will be called multiple times to determine the set of acking nodes,
      * it is crucial for it to return consistent results: Given the same listener instance
      * and the same node parameter, the method implementation should return the same result.

@@ -67,4 +67,8 @@ final class SortableLongBitsToNumericDoubleValues extends NumericDoubleValues {
         return values;
     }
 
+    @Override
+    public int advance(int target) throws IOException {
+        return values.advance(target);
+    }
 }

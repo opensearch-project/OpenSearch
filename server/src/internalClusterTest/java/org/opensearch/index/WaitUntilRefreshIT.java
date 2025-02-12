@@ -32,7 +32,6 @@
 
 package org.opensearch.index;
 
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequestBuilder;
@@ -41,15 +40,15 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.client.Requests;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.plugins.Plugin;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
+import org.opensearch.transport.client.Requests;
 import org.junit.Before;
 
 import java.util.Collection;

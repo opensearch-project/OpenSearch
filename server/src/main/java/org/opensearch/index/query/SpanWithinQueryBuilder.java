@@ -34,6 +34,7 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanWithinQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -196,5 +197,12 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(big);
+        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(little);
     }
 }

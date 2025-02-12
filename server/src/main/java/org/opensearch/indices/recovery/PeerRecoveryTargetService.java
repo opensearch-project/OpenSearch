@@ -39,7 +39,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -47,19 +46,22 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.mapper.MapperException;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -74,7 +76,6 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
-import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
@@ -91,8 +92,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PeerRecoveryTargetService implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(PeerRecoveryTargetService.class);
@@ -187,7 +189,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.start(
-            new RecoveryTarget(indexShard, sourceNode, listener),
+            new RecoveryTarget(indexShard, sourceNode, listener, threadPool),
             recoverySettings.activityTimeout()
         );
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
@@ -244,10 +246,22 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     final boolean hasRemoteSegmentStore = indexShard.indexSettings().isRemoteStoreEnabled();
-                    if (hasRemoteSegmentStore) {
-                        indexShard.syncSegmentsFromRemoteSegmentStore(false, false);
+                    if (hasRemoteSegmentStore || indexShard.isRemoteSeeded()) {
+                        // ToDo: This is a temporary mitigation to not fail the peer recovery flow in case there is
+                        // an exception while downloading segments from remote store. For remote backed indexes, we
+                        // plan to revamp this flow so that node-node segment copy will not happen.
+                        // GitHub Issue to track the revamp: https://github.com/opensearch-project/OpenSearch/issues/11331
+                        try {
+                            indexShard.syncSegmentsFromRemoteSegmentStore(false, recoveryTarget::setLastAccessTime);
+                        } catch (Exception e) {
+                            logger.error(
+                                "Exception while downloading segment files from remote store, will continue with peer to peer segment copy",
+                                e
+                            );
+                        }
                     }
-                    final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
+                    final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false
+                        && indexShard.indexSettings().isAssignedOnRemoteNode();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();
                     final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog || hasRemoteSegmentStore) == false;
                     final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!hasRemoteTranslog);
@@ -264,7 +278,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     actionName = PeerRecoverySourceService.Actions.START_RECOVERY;
                 } catch (final Exception e) {
                     // this will be logged as warning later on...
-                    logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
+                    logger.debug("unexpected error while preparing shard for peer recovery, failing recovery", e);
                     onGoingRecoveries.fail(
                         recoveryId,
                         new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
@@ -272,14 +286,15 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     );
                     return;
                 }
-                logger.trace("{} starting recovery from {}", startRequest.shardId(), startRequest.sourceNode());
+                logger.debug("{} starting recovery from {}", startRequest.shardId(), startRequest.sourceNode());
             } else {
                 startRequest = preExistingRequest;
                 requestToSend = new ReestablishRecoveryRequest(recoveryId, startRequest.shardId(), startRequest.targetAllocationId());
                 actionName = PeerRecoverySourceService.Actions.REESTABLISH_RECOVERY;
-                logger.trace("{} reestablishing recovery from {}", startRequest.shardId(), startRequest.sourceNode());
+                logger.debug("{} reestablishing recovery from {}", startRequest.shardId(), startRequest.sourceNode());
             }
         }
+
         transportService.sendRequest(
             startRequest.sourceNode(),
             actionName,
@@ -561,7 +576,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
-                recoveryTarget.handleFileChunk(request, recoveryTarget, bytesSinceLastPause, recoverySettings.rateLimiter(), listener);
+                recoveryTarget.handleFileChunk(
+                    request,
+                    recoveryTarget,
+                    bytesSinceLastPause,
+                    recoverySettings.recoveryRateLimiter(),
+                    listener
+                );
             }
         }
     }

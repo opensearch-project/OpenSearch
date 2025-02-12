@@ -33,11 +33,11 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.WrapperQueryBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregator;
@@ -79,7 +79,7 @@ public class FiltersAggsRewriteIT extends OpenSearchSingleNodeTestCase {
         metadata.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         builder.setMetadata(metadata);
         SearchResponse searchResponse = client().prepareSearch("test").setSize(0).addAggregation(builder).get();
-        assertEquals(3, searchResponse.getHits().getTotalHits().value);
+        assertEquals(3, searchResponse.getHits().getTotalHits().value());
         InternalFilters filters = searchResponse.getAggregations().get("titles");
         assertEquals(1, filters.getBuckets().size());
         assertEquals(2, filters.getBuckets().get(0).getDocCount());

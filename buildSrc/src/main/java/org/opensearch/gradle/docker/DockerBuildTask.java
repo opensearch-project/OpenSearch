@@ -34,6 +34,7 @@ package org.opensearch.gradle.docker;
 import org.opensearch.gradle.LoggedExec;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
+import org.gradle.api.Project;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
@@ -52,6 +53,7 @@ import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
 
 import javax.inject.Inject;
+
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -59,18 +61,22 @@ public class DockerBuildTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
 
     private final WorkerExecutor workerExecutor;
-    private final RegularFileProperty markerFile = getProject().getObjects().fileProperty();
-    private final DirectoryProperty dockerContext = getProject().getObjects().directoryProperty();
+    private final RegularFileProperty markerFile;
+    private final DirectoryProperty dockerContext;
 
     private String[] tags;
     private boolean pull = true;
     private boolean noCache = true;
     private String[] baseImages;
+    private final Project project;
 
     @Inject
-    public DockerBuildTask(WorkerExecutor workerExecutor) {
+    public DockerBuildTask(WorkerExecutor workerExecutor, Project project) {
         this.workerExecutor = workerExecutor;
-        this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+        this.project = project;
+        this.markerFile = project.getObjects().fileProperty();
+        this.dockerContext = project.getObjects().directoryProperty();
+        this.markerFile.set(project.getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
     @TaskAction

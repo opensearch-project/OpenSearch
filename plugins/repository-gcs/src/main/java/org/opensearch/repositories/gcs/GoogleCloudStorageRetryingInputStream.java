@@ -106,6 +106,7 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         currentStream = openStream();
     }
 
+    @SuppressWarnings("removal")
     @SuppressForbidden(reason = "need access to storage client")
     private static com.google.api.services.storage.Storage getStorage(Storage client) {
         return AccessController.doPrivileged((PrivilegedAction<com.google.api.services.storage.Storage>) () -> {

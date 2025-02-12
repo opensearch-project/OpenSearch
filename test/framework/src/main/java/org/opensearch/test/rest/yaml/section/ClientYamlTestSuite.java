@@ -32,12 +32,12 @@
 package org.opensearch.test.rest.yaml.section;
 
 import org.opensearch.client.NodeSelector;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

@@ -34,19 +34,21 @@ package org.opensearch.plugins;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Constants;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.bootstrap.JarHell;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexModule;
+import org.opensearch.semver.SemverRange;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -359,7 +361,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(sortedBundles, Matchers.contains(bundle1, bundle2, bundle3));
     }
 
-    public void testSortBundlesMissingDep() throws Exception {
+    public void testSortBundlesMissingRequiredDep() throws Exception {
         Path pluginDir = createTempDir();
         PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.singletonList("dne"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
@@ -368,6 +370,33 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             () -> PluginsService.sortBundles(Collections.singleton(bundle))
         );
         assertEquals("Missing plugin [dne], dependency of [foo]", e.getMessage());
+    }
+
+    public void testSortBundlesMissingOptionalDep() throws Exception {
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(PluginsService.class))) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "[.test] warning",
+                    "org.opensearch.plugins.PluginsService",
+                    Level.WARN,
+                    "Missing plugin [dne], dependency of [foo]"
+                )
+            );
+            Path pluginDir = createTempDir();
+            PluginInfo info = new PluginInfo(
+                "foo",
+                "desc",
+                "1.0",
+                Version.CURRENT,
+                "1.8",
+                "MyPlugin",
+                Collections.singletonList("dne;optional=true"),
+                false
+            );
+            PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+            PluginsService.sortBundles(Collections.singleton(bundle));
+            mockLogAppender.assertAllExpectationsMatched();
+        }
     }
 
     public void testSortBundlesCommonDep() throws Exception {
@@ -717,6 +746,45 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("was built for OpenSearch version 6.0.0"));
     }
 
+    public void testCompatibleOpenSearchVersionRange() {
+        List<SemverRange> pluginCompatibilityRange = List.of(new SemverRange(Version.CURRENT, SemverRange.RangeOperator.TILDE));
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            pluginCompatibilityRange,
+            "1.8",
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false
+        );
+        PluginsService.verifyCompatibility(info);
+    }
+
+    public void testIncompatibleOpenSearchVersionRange() {
+        // Version.CURRENT is behind by one with respect to patch version in the range
+        List<SemverRange> pluginCompatibilityRange = List.of(
+            new SemverRange(
+                VersionUtils.getVersion(Version.CURRENT.major, Version.CURRENT.minor, (byte) (Version.CURRENT.revision + 1)),
+                SemverRange.RangeOperator.TILDE
+            )
+        );
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            pluginCompatibilityRange,
+            "1.8",
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("was built for OpenSearch version "));
+    }
+
     public void testIncompatibleJavaVersion() throws Exception {
         PluginInfo info = new PluginInfo(
             "my_plugin",
@@ -891,7 +959,10 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
         PluginsService.loadExtensions(
             Collections.singletonList(
-                Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin)
+                Tuple.tuple(
+                    new PluginInfo("extensible", null, null, Version.CURRENT, null, null, Collections.emptyList(), false),
+                    extensiblePlugin
+                )
             )
         );
 
@@ -902,9 +973,12 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         TestPlugin testPlugin = new TestPlugin();
         PluginsService.loadExtensions(
             Arrays.asList(
-                Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin),
                 Tuple.tuple(
-                    new PluginInfo("test", null, null, null, null, null, Collections.singletonList("extensible"), false),
+                    new PluginInfo("extensible", null, null, Version.CURRENT, null, null, Collections.emptyList(), false),
+                    extensiblePlugin
+                ),
+                Tuple.tuple(
+                    new PluginInfo("test", null, null, Version.CURRENT, null, null, Collections.singletonList("extensible"), false),
                     testPlugin
                 )
             )
@@ -1034,6 +1108,112 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(e.getCause(), instanceOf(InvocationTargetException.class));
         assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
+    }
+
+    public void testPluginCompatibilityWithSemverRange() {
+        // Compatible plugin and core versions
+        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("1.0.0"), Version.fromString("1.0.0")));
+
+        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("=1.0.0"), Version.fromString("1.0.0")));
+
+        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("~1.0.0"), Version.fromString("1.0.0")));
+
+        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("~1.0.1"), Version.fromString("1.0.2")));
+
+        // Incompatible plugin and core versions
+        assertFalse(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("1.0.0"), Version.fromString("1.0.1")));
+
+        assertFalse(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("=1.0.0"), Version.fromString("1.0.1")));
+
+        assertFalse(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("~1.0.1"), Version.fromString("1.0.0")));
+
+        assertFalse(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("~1.0.0"), Version.fromString("1.1.0")));
+    }
+
+    public void testFindPluginsByDependency() throws Exception {
+        Path tempDir = createTempDir();
+        Path pluginsDir = tempDir.resolve("plugins");
+        Files.createDirectories(pluginsDir);
+
+        Path plugin1Dir = pluginsDir.resolve("plugin1");
+        PluginTestUtil.writePluginProperties(
+            plugin1Dir,
+            "description",
+            "Plugin 1",
+            "name",
+            "plugin1",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            "1.8",
+            "classname",
+            "Plugin1",
+            "extended.plugins",
+            "base-plugin"
+        );
+
+        Path plugin2Dir = pluginsDir.resolve("plugin2");
+        PluginTestUtil.writePluginProperties(
+            plugin2Dir,
+            "description",
+            "Plugin 2",
+            "name",
+            "plugin2",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            "1.8",
+            "classname",
+            "Plugin2",
+            "extended.plugins",
+            "base-plugin,other-plugin"
+        );
+
+        Path plugin3Dir = pluginsDir.resolve("plugin3");
+        PluginTestUtil.writePluginProperties(
+            plugin3Dir,
+            "description",
+            "Plugin 3",
+            "name",
+            "plugin3",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            "1.8",
+            "classname",
+            "Plugin3",
+            "extended.plugins",
+            "other-plugin"
+        );
+
+        List<String> basePluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "base-plugin");
+        assertThat(basePluginDependents, containsInAnyOrder("plugin1", "plugin2"));
+
+        List<String> otherPluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "other-plugin");
+        assertThat(otherPluginDependents, containsInAnyOrder("plugin2", "plugin3"));
+
+        List<String> nonExistentDependents = PluginsService.findPluginsByDependency(pluginsDir, "non-existent");
+        assertTrue(nonExistentDependents.isEmpty());
+    }
+
+    private PluginInfo getPluginInfoWithWithSemverRange(String semverRange) {
+        return new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            List.of(SemverRange.fromString(semverRange)),
+            "1.8",
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false
+        );
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {

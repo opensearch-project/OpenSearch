@@ -36,19 +36,19 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.script.Script;
@@ -836,7 +836,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + TEXT_FIELD_NAME
             + "\": { "
             + "\"wildcard\" : { \"pattern\" : \"Te?m\", \"max_expansions\" : "
-            + (BooleanQuery.getMaxClauseCount() + 1)
+            + (IndexSearcher.getMaxClauseCount() + 1)
             + " } } } }";
         expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(wildcard_over_max_expand_json);
@@ -948,7 +948,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             + TEXT_FIELD_NAME
             + "\": { "
             + "\"regexp\" : { \"pattern\" : \"te.m\", \"max_expansions\" : "
-            + (BooleanQuery.getMaxClauseCount() + 1)
+            + (IndexSearcher.getMaxClauseCount() + 1)
             + " } } } }";
         expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(regexp_over_max_expand_json);

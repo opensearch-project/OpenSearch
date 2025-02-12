@@ -73,19 +73,19 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
@@ -119,7 +119,7 @@ import java.util.StringJoiner;
  * @opensearch.api
  */
 final class RequestConverters {
-    static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
+    static final MediaType REQUEST_BODY_CONTENT_TYPE = MediaTypeRegistry.JSON;
 
     private RequestConverters() {
         // Contains only status utility methods
@@ -154,6 +154,9 @@ final class RequestConverters {
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
         parameters.withRouting(bulkRequest.routing());
+        if (bulkRequest.requireAlias() != null) {
+            parameters.withRequireAlias(bulkRequest.requireAlias());
+        }
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -177,7 +180,7 @@ final class RequestConverters {
         }
 
         if (bulkContentType == null) {
-            bulkContentType = XContentType.JSON;
+            bulkContentType = REQUEST_BODY_CONTENT_TYPE;
         }
 
         final byte separator = bulkContentType.xContent().streamSeparator();
@@ -232,6 +235,10 @@ final class RequestConverters {
                             metadata.field("_source", updateRequest.fetchSource());
                         }
                     }
+
+                    if (action.isRequireAlias()) {
+                        metadata.field("require_alias", action.isRequireAlias());
+                    }
                     metadata.endObject();
                 }
                 metadata.endObject();
@@ -266,7 +273,12 @@ final class RequestConverters {
                     }
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                source = XContentHelper.toXContent((UpdateRequest) action, bulkContentType, ToXContent.EMPTY_PARAMS, false).toBytesRef();
+                source = org.opensearch.core.xcontent.XContentHelper.toXContent(
+                    (UpdateRequest) action,
+                    bulkContentType,
+                    ToXContent.EMPTY_PARAMS,
+                    false
+                ).toBytesRef();
             }
 
             if (source != null) {
@@ -412,7 +424,7 @@ final class RequestConverters {
             }
         }
         if (mediaType == null) {
-            mediaType = Requests.INDEX_CONTENT_TYPE;
+            mediaType = REQUEST_BODY_CONTENT_TYPE;
         }
         request.addParameters(parameters.asMap());
         request.setEntity(createEntity(updateRequest, mediaType));
@@ -446,9 +458,9 @@ final class RequestConverters {
             params.withIndicesOptions(searchRequest.indicesOptions());
         }
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
-        /**
-         * Merging search responses as part of CCS flow to reduce roundtrips is not supported for point in time -
-         * refer to org.opensearch.action.search.SearchResponseMerger
+        /*
+          Merging search responses as part of CCS flow to reduce roundtrips is not supported for point in time -
+          refer to org.opensearch.action.search.SearchResponseMerger
          */
         if (searchRequest.pointInTimeBuilder() != null) {
             params.putParam("ccs_minimize_roundtrips", "false");
@@ -528,7 +540,7 @@ final class RequestConverters {
         Request request;
 
         if (searchTemplateRequest.isSimulate()) {
-            request = new Request(HttpGet.METHOD_NAME, "_render/template");
+            request = new Request(HttpGet.METHOD_NAME, "/_render/template");
         } else {
             SearchRequest searchRequest = searchTemplateRequest.getRequest();
             String endpoint = endpoint(searchRequest.indices(), "_search/template");
@@ -791,8 +803,7 @@ final class RequestConverters {
     }
 
     static Request mtermVectors(MultiTermVectorsRequest mtvrequest) throws IOException {
-        String endpoint = "_mtermvectors";
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Request request = new Request(HttpGet.METHOD_NAME, "/_mtermvectors");
         request.setEntity(createEntity(mtvrequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -821,7 +832,8 @@ final class RequestConverters {
     }
 
     static HttpEntity createEntity(ToXContent toXContent, MediaType mediaType, ToXContent.Params toXContentParams) throws IOException {
-        BytesRef source = XContentHelper.toXContent(toXContent, mediaType, toXContentParams, false).toBytesRef();
+        BytesRef source = org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, mediaType, toXContentParams, false)
+            .toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(mediaType));
     }
 
@@ -868,12 +880,12 @@ final class RequestConverters {
     }
 
     /**
-     * Returns a {@link ContentType} from a given {@link XContentType}.
+     * Returns a {@link ContentType} from a given {@link MediaType}.
      *
      * @param mediaType the {@link MediaType}
      * @return the {@link ContentType}
      */
-    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
+    @SuppressForbidden(reason = "Only allowed place to convert a MediaType to a ContentType")
     public static ContentType createContentType(final MediaType mediaType) {
         return ContentType.create(mediaType.mediaTypeWithoutParameters(), (Charset) null);
     }
@@ -932,14 +944,6 @@ final class RequestConverters {
                 return putParam("fields", String.join(",", fields));
             }
             return this;
-        }
-
-        /**
-         * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #withClusterManagerTimeout(TimeValue)}
-         */
-        @Deprecated
-        Params withMasterTimeout(TimeValue clusterManagerTimeout) {
-            return putParam("master_timeout", clusterManagerTimeout);
         }
 
         Params withClusterManagerTimeout(TimeValue clusterManagerTimeout) {
@@ -1179,14 +1183,14 @@ final class RequestConverters {
             return this;
         }
 
-        Params withTaskId(org.opensearch.tasks.TaskId taskId) {
+        Params withTaskId(org.opensearch.core.tasks.TaskId taskId) {
             if (taskId != null && taskId.isSet()) {
                 return putParam("task_id", taskId.toString());
             }
             return this;
         }
 
-        Params withParentTaskId(org.opensearch.tasks.TaskId parentTaskId) {
+        Params withParentTaskId(org.opensearch.core.tasks.TaskId parentTaskId) {
             if (parentTaskId != null && parentTaskId.isSet()) {
                 return putParam("parent_task_id", parentTaskId.toString());
             }
@@ -1252,7 +1256,7 @@ final class RequestConverters {
      */
     static MediaType enforceSameContentType(IndexRequest indexRequest, @Nullable MediaType mediaType) {
         MediaType requestContentType = indexRequest.getContentType();
-        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
+        if (requestContentType != REQUEST_BODY_CONTENT_TYPE && requestContentType != MediaTypeRegistry.fromFormat("smile")) {
             throw new IllegalArgumentException(
                 "Unsupported content-type found for request with content-type ["
                     + requestContentType

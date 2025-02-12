@@ -33,13 +33,14 @@
 package org.opensearch.search;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -51,8 +52,9 @@ import java.io.IOException;
  * across search phases to ensure the same point in time snapshot is used for querying and
  * fetching etc.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SearchPhaseResult extends TransportResponse {
 
     private SearchShardTarget searchShardTarget;

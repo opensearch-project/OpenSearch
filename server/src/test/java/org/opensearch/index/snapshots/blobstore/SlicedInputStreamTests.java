@@ -33,8 +33,8 @@ package org.opensearch.index.snapshots.blobstore;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.hamcrest.MatcherAssert;
 import org.opensearch.test.OpenSearchTestCase;
+import org.hamcrest.MatcherAssert;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

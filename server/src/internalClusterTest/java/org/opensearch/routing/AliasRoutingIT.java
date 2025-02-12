@@ -36,15 +36,14 @@ import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActi
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Requests;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -147,7 +146,7 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
         logger.info("--> search with no routing, should fine one");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
+                client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value(),
                 equalTo(1L)
             );
         }
@@ -161,7 +160,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(0L)
             );
 
@@ -173,7 +173,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(0L)
             );
 
@@ -183,7 +184,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(0L)
             );
 
@@ -194,7 +196,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(0L)
             );
         }
@@ -209,7 +212,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
             assertThat(
@@ -220,7 +224,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
             assertThat(
@@ -229,7 +234,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
             assertThat(
@@ -239,7 +245,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
         }
@@ -250,7 +257,7 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
         logger.info("--> search with no routing, should fine two");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
+                client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value(),
                 equalTo(2L)
             );
             assertThat(
@@ -260,7 +267,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
         }
@@ -274,7 +282,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
             assertThat(
@@ -285,7 +294,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
             assertThat(
@@ -294,7 +304,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
             assertThat(
@@ -304,7 +315,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
         }
@@ -318,7 +330,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
             assertThat(
@@ -329,7 +342,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
             assertThat(
@@ -338,7 +352,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
             assertThat(
@@ -348,7 +363,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
         }
@@ -362,7 +378,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
             assertThat(
@@ -373,7 +390,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
             assertThat(
@@ -382,7 +400,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
             assertThat(
@@ -392,7 +411,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
         }
@@ -405,7 +425,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
             assertThat(
@@ -415,7 +436,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
         }
@@ -428,7 +450,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
             assertThat(
@@ -438,7 +461,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
         }
@@ -451,7 +475,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
             assertThat(
@@ -461,7 +486,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
         }
@@ -520,7 +546,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(0L)
             );
             assertThat(
@@ -530,7 +557,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(0L)
             );
         }
@@ -543,7 +571,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
             assertThat(
@@ -553,7 +582,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
         }
@@ -566,7 +596,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
             assertThat(
@@ -576,7 +607,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
         }
@@ -606,7 +638,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
         }
@@ -637,7 +670,7 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
             .actionGet();
 
         logger.info("--> search all on index_* should find two");
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         // Let's make sure that, even though 2 docs are available, only one is returned according to the size we set in the request
         // Therefore the reduce phase has taken place, which proves that the QUERY_AND_FETCH search type wasn't erroneously forced.
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
@@ -662,7 +695,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
             assertThat(
@@ -672,7 +706,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(1L)
             );
         }
@@ -688,7 +723,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(0L)
             );
             assertThat(
@@ -698,7 +734,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(0L)
             );
         }
@@ -725,7 +762,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
             assertThat(
@@ -735,7 +773,8 @@ public class AliasRoutingIT extends OpenSearchIntegTestCase {
                     .execute()
                     .actionGet()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 equalTo(2L)
             );
         }

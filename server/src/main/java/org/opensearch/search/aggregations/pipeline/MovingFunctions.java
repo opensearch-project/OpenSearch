@@ -75,7 +75,7 @@ public class MovingFunctions {
 
     /**
      * Calculate a simple unweighted (arithmetic) moving average.
-     *
+     * <p>
      * Only finite values are averaged.  NaN or null are ignored.
      * If all values are missing/null/NaN, the return value will be NaN.
      * The average is based on the count of non-null, non-NaN values.
@@ -94,7 +94,7 @@ public class MovingFunctions {
 
     /**
      * Calculate a standard deviation over the values using the provided average.
-     *
+     * <p>
      * Only finite values are averaged.  NaN or null are ignored.
      * If all values are missing/null/NaN, the return value will be NaN.
      * The average is based on the count of non-null, non-NaN values.
@@ -118,7 +118,7 @@ public class MovingFunctions {
     /**
      * Calculate a linearly weighted moving average, such that older values are
      * linearly less important.  "Time" is determined by position in collection
-     *
+     * <p>
      * Only finite values are averaged.  NaN or null are ignored.
      * If all values are missing/null/NaN, the return value will be NaN
      * The average is based on the count of non-null, non-NaN values.
@@ -141,11 +141,11 @@ public class MovingFunctions {
     /**
      *
      * Calculate a exponentially weighted moving average.
-     *
+     * <p>
      * Alpha controls the smoothing of the data.  Alpha = 1 retains no memory of past values
      * (e.g. a random walk), while alpha = 0 retains infinite memory of past values (e.g.
      * the series mean).  Useful values are somewhere in between.  Defaults to 0.5.
-     *
+     * <p>
      * Only finite values are averaged.  NaN or null are ignored.
      * If all values are missing/null/NaN, the return value will be NaN
      * The average is based on the count of non-null, non-NaN values.
@@ -171,13 +171,13 @@ public class MovingFunctions {
 
     /**
      * Calculate a doubly exponential weighted moving average
-     *
+     * <p>
      * Alpha controls the smoothing of the data.  Alpha = 1 retains no memory of past values
      * (e.g. a random walk), while alpha = 0 retains infinite memory of past values (e.g.
      * the series mean).  Useful values are somewhere in between.  Defaults to 0.5.
-     *
+     * <p>
      * Beta is equivalent to alpha, but controls the smoothing of the trend instead of the data
-     *
+     * <p>
      * Only finite values are averaged.  NaN or null are ignored.
      * If all values are missing/null/NaN, the return value will be NaN
      * The average is based on the count of non-null, non-NaN values.
@@ -241,14 +241,14 @@ public class MovingFunctions {
 
     /**
      * Calculate a triple exponential weighted moving average
-     *
+     * <p>
      * Alpha controls the smoothing of the data.  Alpha = 1 retains no memory of past values
      * (e.g. a random walk), while alpha = 0 retains infinite memory of past values (e.g.
      * the series mean).  Useful values are somewhere in between.  Defaults to 0.5.
-     *
+     * <p>
      * Beta is equivalent to alpha, but controls the smoothing of the trend instead of the data.
      * Gamma is equivalent to alpha, but controls the smoothing of the seasonality instead of the data
-     *
+     * <p>
      * Only finite values are averaged.  NaN or null are ignored.
      * If all values are missing/null/NaN, the return value will be NaN
      * The average is based on the count of non-null, non-NaN values.

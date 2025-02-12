@@ -70,9 +70,9 @@ public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposit
         ParsedComposite aggregation = PARSER.parse(parser, null);
         aggregation.setName(name);
         if (aggregation.afterKey == null && aggregation.getBuckets().size() > 0) {
-            /**
-             * Previous versions (< 6.3) don't send <code>afterKey</code>
-             * in the response so we set it as the last returned buckets.
+            /*
+              Previous versions (< 6.3) don't send <code>afterKey</code>
+              in the response so we set it as the last returned buckets.
              */
             aggregation.setAfterKey(aggregation.getBuckets().get(aggregation.getBuckets().size() - 1).key);
         }
@@ -130,8 +130,8 @@ public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposit
 
         @Override
         public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            /**
-             * See {@link CompositeAggregation#bucketToXContent}
+            /*
+              See {@link CompositeAggregation#bucketToXContent}
              */
             throw new UnsupportedOperationException("not implemented");
         }

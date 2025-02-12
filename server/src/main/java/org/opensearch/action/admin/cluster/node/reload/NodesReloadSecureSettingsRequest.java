@@ -33,17 +33,15 @@
 package org.opensearch.action.admin.cluster.node.reload;
 
 import org.opensearch.action.support.nodes.BaseNodesRequest;
-import org.opensearch.core.common.io.stream.StreamInput;
-
-import java.io.IOException;
-
 import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.settings.SecureString;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -62,7 +60,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
     private SecureString secureSettingsPassword;
 
     public NodesReloadSecureSettingsRequest() {
-        super((String[]) null);
+        super(true, (String[]) null);
     }
 
     public NodesReloadSecureSettingsRequest(StreamInput in) throws IOException {
@@ -86,7 +84,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
      * nodes.
      */
     public NodesReloadSecureSettingsRequest(String... nodesIds) {
-        super(nodesIds);
+        super(true, nodesIds);
     }
 
     @Nullable

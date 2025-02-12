@@ -31,42 +31,71 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.opensearch.cluster.coordination.CoordinationState.PersistedState;
+import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.Assertions;
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 public class CoordinationStateTests extends OpenSearchTestCase {
 
     private DiscoveryNode node1;
     private DiscoveryNode node2;
     private DiscoveryNode node3;
+    private DiscoveryNode nodeWithPub;
 
     private ClusterState initialStateNode1;
+    private ClusterState initialStateNode2;
 
     private PersistedState ps1;
+    private PersistedStateRegistry psr1;
 
     private CoordinationState cs1;
     private CoordinationState cs2;
@@ -77,16 +106,18 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         node1 = createNode("node1");
         node2 = createNode("node2");
         node3 = createNode("node3");
+        nodeWithPub = createNode(
+            "nodeWithPub",
+            Map.of(
+                REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "",
+                REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                ""
+            )
+        );
 
         initialStateNode1 = clusterState(0L, 0L, node1, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 42L);
-        ClusterState initialStateNode2 = clusterState(
-            0L,
-            0L,
-            node2,
-            VotingConfiguration.EMPTY_CONFIG,
-            VotingConfiguration.EMPTY_CONFIG,
-            42L
-        );
+        initialStateNode2 = clusterState(0L, 0L, node2, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 42L);
         ClusterState initialStateNode3 = clusterState(
             0L,
             0L,
@@ -97,13 +128,19 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         );
 
         ps1 = new InMemoryPersistedState(0L, initialStateNode1);
+        psr1 = persistedStateRegistry();
+        psr1.addPersistedState(PersistedStateType.LOCAL, ps1);
 
-        cs1 = createCoordinationState(ps1, node1);
-        cs2 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode2), node2);
-        cs3 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode3), node3);
+        cs1 = createCoordinationState(psr1, node1, Settings.EMPTY);
+        cs2 = createCoordinationState(createPersistedStateRegistry(initialStateNode2), node2, Settings.EMPTY);
+        cs3 = createCoordinationState(createPersistedStateRegistry(initialStateNode3), node3, Settings.EMPTY);
     }
 
     public static DiscoveryNode createNode(String id) {
+        return createNode(id, Collections.emptyMap());
+    }
+
+    public static DiscoveryNode createNode(String id, Map<String, String> attributes) {
         final TransportAddress address = buildNewFakeTransportAddress();
         return new DiscoveryNode(
             "",
@@ -112,7 +149,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             address.address().getHostString(),
             address.getAddress(),
             address,
-            Collections.emptyMap(),
+            attributes,
             DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );
@@ -200,7 +237,7 @@ public class CoordinationStateTests extends OpenSearchTestCase {
     public void testJoinWithNoStartJoinAfterReboot() {
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
-        cs1 = createCoordinationState(ps1, node1);
+        cs1 = createCoordinationState(psr1, node1, Settings.EMPTY);
         assertThat(
             expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleJoin(v1)).getMessage(),
             containsString("ignored join as term has not been incremented yet after reboot")
@@ -886,8 +923,354 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         ).runRandomly();
     }
 
-    public static CoordinationState createCoordinationState(PersistedState storage, DiscoveryNode localNode) {
-        return new CoordinationState(localNode, storage, ElectionStrategy.DEFAULT_INSTANCE);
+    public void testHandlePrePublishAndCommitWhenRemoteStateDisabled() {
+        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, ps1);
+        final PersistedStateRegistry persistedStateRegistrySpy = spy(persistedStateRegistry);
+        final CoordinationState coordinationState = createCoordinationState(persistedStateRegistrySpy, node1, Settings.EMPTY);
+        final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
+        final ClusterState clusterState = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
+        coordinationState.handlePrePublish(clusterState);
+        Mockito.verify(persistedStateRegistrySpy, Mockito.times(0)).getPersistedState(PersistedStateType.REMOTE);
+        assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE), nullValue());
+        final ClusterState clusterState2 = clusterState(0L, 1L, node1, initialConfig, initialConfig, 42L);
+        coordinationState.handlePrePublish(clusterState2);
+        Mockito.verify(persistedStateRegistrySpy, Mockito.times(0)).getPersistedState(PersistedStateType.REMOTE);
+        assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE), nullValue());
+        coordinationState.handlePreCommit();
+        Mockito.verify(persistedStateRegistrySpy, Mockito.times(0)).getPersistedState(PersistedStateType.REMOTE);
+        assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE), nullValue());
+    }
+
+    public void testHandlePrePublishAndCommitWhenRemoteStateEnabled() throws IOException {
+        final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
+        final VotingConfiguration initialConfig = VotingConfiguration.of(node1);
+        final ClusterState clusterState = clusterStateWithClusterManager(0L, 0L, node1, node1, initialConfig, initialConfig, 42L);
+        final String previousClusterUUID = "prev-cluster-uuid";
+        final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+            .clusterTerm(0L)
+            .stateVersion(0L)
+            .clusterUUID(randomAlphaOfLength(10))
+            .stateUUID(randomAlphaOfLength(10))
+            .opensearchVersion(Version.CURRENT)
+            .nodeId(randomAlphaOfLength(10))
+            .committed(false)
+            .codecVersion(1)
+            .globalMetadataFileName(randomAlphaOfLength(10))
+            .indices(Collections.emptyList())
+            .previousClusterUUID(randomAlphaOfLength(10))
+            .clusterUUIDCommitted(true)
+            .build();
+        when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID)).thenReturn(
+            new RemoteClusterStateManifestInfo(manifest, "path/to/manifest")
+        );
+
+        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, ps1);
+        persistedStateRegistry.addPersistedState(
+            PersistedStateType.REMOTE,
+            new RemotePersistedState(remoteClusterStateService, previousClusterUUID)
+        );
+
+        final CoordinationState coordinationState = createCoordinationState(persistedStateRegistry, node1, remoteStateSettings());
+        coordinationState.handlePrePublish(clusterState);
+        Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState, previousClusterUUID);
+        assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
+
+        when(remoteClusterStateService.markLastStateAsCommitted(any(), any(), eq(false))).thenReturn(
+            new RemoteClusterStateManifestInfo(manifest, "path/to/manifest")
+        );
+        coordinationState.handlePreCommit();
+        ClusterState committedClusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).clusterUUIDCommitted(true).build())
+            .build();
+        ArgumentCaptor<ClusterState> clusterStateCaptor = ArgumentCaptor.forClass(ClusterState.class);
+        verify(remoteClusterStateService, times(1)).markLastStateAsCommitted(clusterStateCaptor.capture(), any(), eq(false));
+        assertThat(clusterStateCaptor.getValue().metadata().indices(), equalTo(committedClusterState.metadata().indices()));
+        assertThat(clusterStateCaptor.getValue().metadata().clusterUUID(), equalTo(committedClusterState.metadata().clusterUUID()));
+        assertThat(clusterStateCaptor.getValue().stateUUID(), equalTo(committedClusterState.stateUUID()));
+        assertThat(
+            clusterStateCaptor.getValue().coordinationMetadata().term(),
+            equalTo(committedClusterState.coordinationMetadata().term())
+        );
+        assertThat(clusterStateCaptor.getValue().version(), equalTo(committedClusterState.version()));
+        assertThat(
+            clusterStateCaptor.getValue().metadata().clusterUUIDCommitted(),
+            equalTo(committedClusterState.metadata().clusterUUIDCommitted())
+        );
+    }
+
+    public void testHandlePublishRequestOnFollowerWhenRemotePublicationEnabled() {
+        final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
+        // cluster manager is node1 and node2 is a follower node
+        VotingConfiguration initialConfig = VotingConfiguration.of(node1);
+        ClusterState state1 = clusterState(
+            0L,
+            0L,
+            DiscoveryNodes.builder()
+                .add(node1)
+                .add(nodeWithPub)
+                .clusterManagerNodeId(node1.getId())
+                .localNodeId(nodeWithPub.getId())
+                .build(),
+            initialConfig,
+            initialConfig,
+            42L
+        );
+        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(0L, initialStateNode2));
+        persistedStateRegistry.addPersistedState(
+            PersistedStateType.REMOTE,
+            new RemotePersistedState(remoteClusterStateService, state1.metadata().clusterUUID())
+        );
+
+        final CoordinationState coordinationState = createCoordinationState(
+            persistedStateRegistry,
+            nodeWithPub,
+            remotePublicationSettings()
+        );
+        coordinationState.setInitialState(state1);
+        long newTerm = randomLongBetween(1, 10);
+        StartJoinRequest startJoinRequest = new StartJoinRequest(nodeWithPub, newTerm);
+
+        coordinationState.handleStartJoin(startJoinRequest);
+
+        ClusterState state2 = setValue(
+            ClusterState.builder(state1)
+                .metadata(
+                    Metadata.builder(state1.metadata())
+                        .coordinationMetadata(CoordinationMetadata.builder(state1.coordinationMetadata()).term(newTerm).build())
+                        .build()
+                )
+                .version(randomLongBetween(1, 10))
+                .build(),
+            43L
+        );
+        final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+            .clusterTerm(1L)
+            .stateVersion(state2.version())
+            .clusterUUID(state2.metadata().clusterUUID())
+            .nodeId(node1.getId())
+            .stateUUID(randomAlphaOfLength(10))
+            .opensearchVersion(Version.CURRENT)
+            .committed(false)
+            .codecVersion(1)
+            .globalMetadataFileName(randomAlphaOfLength(10))
+            .indices(Collections.emptyList())
+            .previousClusterUUID(randomAlphaOfLength(10))
+            .clusterUUIDCommitted(true)
+            .build();
+
+        PublishResponse publishResponse = coordinationState.handlePublishRequest(new RemoteStatePublishRequest(state2, manifest));
+        assertEquals(state2.term(), publishResponse.getTerm());
+        assertEquals(state2.version(), publishResponse.getVersion());
+        verifyNoInteractions(remoteClusterStateService);
+        assertEquals(state2, persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState());
+        assertEquals(manifest, persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedManifest());
+    }
+
+    public void testHandleCommitOnFollowerNodeWhenRemotePublicationEnabled() {
+        RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
+        VotingConfiguration initialConfig = VotingConfiguration.of(node1, nodeWithPub);
+        ClusterState state1 = clusterState(
+            0L,
+            0L,
+            DiscoveryNodes.builder()
+                .add(node1)
+                .add(nodeWithPub)
+                .clusterManagerNodeId(node1.getId())
+                .localNodeId(nodeWithPub.getId())
+                .build(),
+            initialConfig,
+            initialConfig,
+            42L
+        );
+        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(0L, initialStateNode2));
+        persistedStateRegistry.addPersistedState(
+            PersistedStateType.REMOTE,
+            new RemotePersistedState(remoteClusterStateService, state1.metadata().clusterUUID())
+        );
+
+        final CoordinationState coordinationState = createCoordinationState(
+            persistedStateRegistry,
+            nodeWithPub,
+            remotePublicationSettings()
+        );
+        coordinationState.setInitialState(state1);
+        long newTerm = randomLongBetween(1, 10);
+        StartJoinRequest startJoinRequest = new StartJoinRequest(nodeWithPub, newTerm);
+
+        Join v1 = cs1.handleStartJoin(startJoinRequest);
+        Join v2 = coordinationState.handleStartJoin(startJoinRequest);
+        assertTrue(coordinationState.handleJoin(v1));
+        assertTrue(coordinationState.handleJoin(v2));
+        assertTrue(coordinationState.electionWon());
+        VotingConfiguration newConfig = VotingConfiguration.of(node1, nodeWithPub, node3);
+        ClusterState state2 = clusterState(
+            startJoinRequest.getTerm(),
+            2L,
+            DiscoveryNodes.builder()
+                .add(node1)
+                .add(nodeWithPub)
+                .clusterManagerNodeId(node1.getId())
+                .localNodeId(nodeWithPub.getId())
+                .build(),
+            initialConfig,
+            newConfig,
+            7L
+        );
+        final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+            .clusterTerm(1L)
+            .stateVersion(state2.version())
+            .clusterUUID(state2.metadata().clusterUUID())
+            .nodeId(node1.getId())
+            .stateUUID(randomAlphaOfLength(10))
+            .opensearchVersion(Version.CURRENT)
+            .committed(false)
+            .codecVersion(1)
+            .globalMetadataFileName(randomAlphaOfLength(10))
+            .indices(Collections.emptyList())
+            .previousClusterUUID(randomAlphaOfLength(10))
+            .clusterUUIDCommitted(true)
+            .build();
+
+        PublishRequest publishRequest = coordinationState.handleClientValue(state2);
+        coordinationState.handlePublishRequest(new RemoteStatePublishRequest(publishRequest.getAcceptedState(), manifest));
+        ApplyCommitRequest applyCommitRequest = new ApplyCommitRequest(node2, state2.term(), state2.version());
+        coordinationState.handleCommit(applyCommitRequest);
+        verifyNoInteractions(remoteClusterStateService);
+        assertTrue(
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState().metadata().clusterUUIDCommitted()
+        );
+        assertTrue(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedManifest().isCommitted());
+        assertEquals(coordinationState.getLastCommittedConfiguration(), newConfig);
+    }
+
+    public void testRemotePersistedStateResetsForPublicationEnabledAfterLocalPublication() {
+        final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
+        // cluster manager is node1 and nodeWithPub is a follower node
+        VotingConfiguration initialConfig = VotingConfiguration.of(node1);
+        ClusterState state1 = clusterState(
+            0L,
+            0L,
+            DiscoveryNodes.builder()
+                .add(node1)
+                .add(nodeWithPub)
+                .clusterManagerNodeId(node1.getId())
+                .localNodeId(nodeWithPub.getId())
+                .build(),
+            initialConfig,
+            initialConfig,
+            42L
+        );
+        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(0L, initialStateNode2));
+        persistedStateRegistry.addPersistedState(
+            PersistedStateType.REMOTE,
+            new RemotePersistedState(remoteClusterStateService, state1.metadata().clusterUUID())
+        );
+
+        final CoordinationState coordinationState = createCoordinationState(
+            persistedStateRegistry,
+            nodeWithPub,
+            remotePublicationSettings()
+        );
+        coordinationState.setInitialState(state1);
+        long newTerm = randomLongBetween(1, 10);
+        StartJoinRequest startJoinRequest = new StartJoinRequest(nodeWithPub, newTerm);
+
+        coordinationState.handleStartJoin(startJoinRequest);
+
+        ClusterState state2 = setValue(
+            ClusterState.builder(state1)
+                .metadata(
+                    Metadata.builder(state1.metadata())
+                        .coordinationMetadata(CoordinationMetadata.builder(state1.coordinationMetadata()).term(newTerm).build())
+                        .build()
+                )
+                .version(randomLongBetween(1, 10))
+                .build(),
+            43L
+        );
+
+        PublishResponse publishResponse = coordinationState.handlePublishRequest(new PublishRequest(state2));
+        assertEquals(state2.term(), publishResponse.getTerm());
+        assertEquals(state2.version(), publishResponse.getVersion());
+        verifyNoInteractions(remoteClusterStateService);
+        assertNull(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState());
+        assertNull(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedManifest());
+    }
+
+    public void testHandleCommitOnFollowerNodeWhenRemotePublicationEnabledWithNullRemotePersistedState() {
+        RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
+        VotingConfiguration initialConfig = VotingConfiguration.of(node1, nodeWithPub);
+        ClusterState state1 = clusterState(
+            0L,
+            0L,
+            DiscoveryNodes.builder()
+                .add(node1)
+                .add(nodeWithPub)
+                .clusterManagerNodeId(node1.getId())
+                .localNodeId(nodeWithPub.getId())
+                .build(),
+            initialConfig,
+            initialConfig,
+            42L
+        );
+        final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(0L, initialStateNode2));
+        persistedStateRegistry.addPersistedState(
+            PersistedStateType.REMOTE,
+            new RemotePersistedState(remoteClusterStateService, state1.metadata().clusterUUID())
+        );
+
+        final CoordinationState coordinationState = createCoordinationState(
+            persistedStateRegistry,
+            nodeWithPub,
+            remotePublicationSettings()
+        );
+        coordinationState.setInitialState(state1);
+        long newTerm = randomLongBetween(1, 10);
+        StartJoinRequest startJoinRequest = new StartJoinRequest(nodeWithPub, newTerm);
+
+        Join v1 = cs1.handleStartJoin(startJoinRequest);
+        Join v2 = coordinationState.handleStartJoin(startJoinRequest);
+        assertTrue(coordinationState.handleJoin(v1));
+        assertTrue(coordinationState.handleJoin(v2));
+        assertTrue(coordinationState.electionWon());
+        VotingConfiguration newConfig = VotingConfiguration.of(node1, nodeWithPub, node3);
+        ClusterState state2 = clusterState(
+            startJoinRequest.getTerm(),
+            2L,
+            DiscoveryNodes.builder()
+                .add(node1)
+                .add(nodeWithPub)
+                .clusterManagerNodeId(node1.getId())
+                .localNodeId(nodeWithPub.getId())
+                .build(),
+            initialConfig,
+            newConfig,
+            7L
+        );
+
+        PublishRequest publishRequest = coordinationState.handleClientValue(state2);
+        coordinationState.handlePublishRequest(new PublishRequest(publishRequest.getAcceptedState()));
+        assertNull(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState());
+        assertNull(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedManifest());
+        ApplyCommitRequest applyCommitRequest = new ApplyCommitRequest(node2, state2.term(), state2.version());
+        PersistedState spyRPS = spy(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE));
+        coordinationState.handleCommit(applyCommitRequest);
+        verifyNoInteractions(spyRPS);
+        verifyNoInteractions(remoteClusterStateService);
+    }
+
+    public static CoordinationState createCoordinationState(
+        PersistedStateRegistry persistedStateRegistry,
+        DiscoveryNode localNode,
+        Settings settings
+    ) {
+        return new CoordinationState(localNode, persistedStateRegistry, ElectionStrategy.DEFAULT_INSTANCE, settings);
     }
 
     public static ClusterState clusterState(
@@ -902,6 +1285,30 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             term,
             version,
             DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build(),
+            lastCommittedConfig,
+            lastAcceptedConfig,
+            value
+        );
+    }
+
+    public static ClusterState clusterStateWithClusterManager(
+        long term,
+        long version,
+        DiscoveryNode localNode,
+        DiscoveryNode clusterManagerNode,
+        VotingConfiguration lastCommittedConfig,
+        VotingConfiguration lastAcceptedConfig,
+        long value
+    ) {
+        return clusterState(
+            term,
+            version,
+            DiscoveryNodes.builder()
+                .add(localNode)
+                .add(clusterManagerNode)
+                .localNodeId(localNode.getId())
+                .clusterManagerNodeId(clusterManagerNode.getId())
+                .build(),
             lastCommittedConfig,
             lastAcceptedConfig,
             value
@@ -949,5 +1356,37 @@ public class CoordinationStateTests extends OpenSearchTestCase {
 
     public static long value(ClusterState clusterState) {
         return clusterState.metadata().persistentSettings().getAsLong("value", 0L);
+    }
+
+    private static PersistedStateRegistry createPersistedStateRegistry(ClusterState clusterState) {
+        final PersistedStateRegistry persistedStateRegistry = new PersistedStateRegistry();
+        persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(0L, clusterState));
+        return persistedStateRegistry;
+    }
+
+    private static Settings remoteStateSettings() {
+        String randomRepoName = "randomRepoName";
+        String stateRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            randomRepoName
+        );
+        String stateRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            randomRepoName
+        );
+
+        Settings settings = Settings.builder()
+            .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, randomRepoName)
+            .put(stateRepoTypeAttributeKey, FsRepository.TYPE)
+            .put(stateRepoSettingsAttributeKeyPrefix + "location", "randomRepoPath")
+            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+            .build();
+        return settings;
+    }
+
+    private static Settings remotePublicationSettings() {
+        return Settings.builder().put(remoteStateSettings()).put(REMOTE_PUBLICATION_SETTING_KEY, true).build();
     }
 }

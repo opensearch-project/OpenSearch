@@ -38,14 +38,29 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Operations;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -55,12 +70,17 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
+
+import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -203,7 +223,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             );
         }
 
-        private KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
+        protected KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
             String normalizerName = this.normalizer.getValue();
@@ -239,6 +259,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 this
             );
         }
+
+        @Override
+        public Optional<DimensionType> getSupportedDataCubeDimensionType() {
+            return Optional.of(DimensionType.ORDINAL);
+        }
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
@@ -248,7 +273,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public static final class KeywordFieldType extends StringFieldType {
+    public static class KeywordFieldType extends StringFieldType {
 
         private final int ignoreAbove;
         private final String nullValue;
@@ -317,7 +342,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         @Override
         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't " + "support formats.");
             }
 
             return new SourceValueFetcher(name(), context, nullValue) {
@@ -372,17 +397,301 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
         }
 
+        protected Object rewriteForDocValue(Object value) {
+            return value;
+        }
+
+        @Override
+        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            if (isSearchable()) {
+                return super.termQueryCaseInsensitive(value, context);
+            } else {
+                BytesRef bytesRef = indexedValueForSearch(rewriteForDocValue(value));
+                Term term = new Term(name(), bytesRef);
+                Query query = AutomatonQueries.createAutomatonQuery(
+                    term,
+                    AutomatonQueries.toCaseInsensitiveString(bytesRef.utf8ToString(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+                if (boost() != 1f) {
+                    query = new BoostQuery(query, boost());
+                }
+                return query;
+            }
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            if (isSearchable()) {
+                return super.termQuery(value, context);
+            } else {
+                Query query = SortedSetDocValuesField.newSlowRangeQuery(
+                    name(),
+                    indexedValueForSearch(rewriteForDocValue(value)),
+                    indexedValueForSearch(rewriteForDocValue(value)),
+                    true,
+                    true
+                );
+                if (boost() != 1f) {
+                    query = new BoostQuery(query, boost());
+                }
+                return query;
+            }
+        }
+
+        @Override
+        public Query termsQuery(List<?> values, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            // has index and doc_values enabled
+            if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.termsQuery(values, context);
+                }
+                Collection<BytesRef> iBytesRefs = new ArrayList<>(values.size());
+                Collection<BytesRef> dVByteRefs = new ArrayList<>(values.size());
+                for (int i = 0; i < values.size(); i++) {
+                    iBytesRefs.add(indexedValueForSearch(values.get(i)));
+                    dVByteRefs.add(indexedValueForSearch(rewriteForDocValue(values.get(i))));
+                }
+                Query indexQuery = new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs);
+                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs);
+                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            }
+            // if we only have doc_values enabled, we construct a new query with doc_values re-written
+            if (hasDocValues()) {
+                Collection<BytesRef> bytesRefs = new ArrayList<>(values.size());
+                for (int i = 0; i < values.size(); i++) {
+                    bytesRefs.add(indexedValueForSearch(rewriteForDocValue(values.get(i))));
+                }
+                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
+            }
+            // has index enabled, we're going to return the query as is
+            return super.termsQuery(values, context);
+        }
+
+        @Override
+        public Query prefixQuery(
+            String value,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            QueryShardContext context
+        ) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new OpenSearchException(
+                    "[prefix] queries cannot be executed when '"
+                        + ALLOW_EXPENSIVE_QUERIES.getKey()
+                        + "' is set to false. For optimised prefix queries on text "
+                        + "fields please enable [index_prefixes]."
+                );
+            }
+            failIfNotIndexedAndNoDocValues();
+            if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.prefixQuery(value, method, caseInsensitive, context);
+                }
+                Query indexQuery = super.prefixQuery(value, method, caseInsensitive, context);
+                Query dvQuery = super.prefixQuery(
+                    (String) rewriteForDocValue(value),
+                    MultiTermQuery.DOC_VALUES_REWRITE,
+                    caseInsensitive,
+                    context
+                );
+                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            }
+            if (hasDocValues()) {
+                if (caseInsensitive) {
+                    return AutomatonQueries.caseInsensitivePrefixQuery(
+                        (new Term(name(), indexedValueForSearch(rewriteForDocValue(value)))),
+                        MultiTermQuery.DOC_VALUES_REWRITE
+                    );
+                }
+                return new PrefixQuery(
+                    new Term(name(), indexedValueForSearch(rewriteForDocValue(value))),
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+            }
+            return super.prefixQuery(value, method, caseInsensitive, context);
+        }
+
+        @Override
+        public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            QueryShardContext context
+        ) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new OpenSearchException(
+                    "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to " + "false."
+                );
+            }
+            failIfNotIndexedAndNoDocValues();
+            if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+                }
+                Query indexQuery = super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+                Query dvQuery = super.regexpQuery(
+                    (String) rewriteForDocValue(value),
+                    syntaxFlags,
+                    matchFlags,
+                    maxDeterminizedStates,
+                    MultiTermQuery.DOC_VALUES_REWRITE,
+                    context
+                );
+                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            }
+            if (hasDocValues()) {
+                return new RegexpQuery(
+                    new Term(name(), indexedValueForSearch(rewriteForDocValue(value))),
+                    syntaxFlags,
+                    matchFlags,
+                    RegexpQuery.DEFAULT_PROVIDER,
+                    maxDeterminizedStates,
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+            }
+            return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+        }
+
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new OpenSearchException(
+                    "[range] queries on [text] or [keyword] fields cannot be executed when '"
+                        + ALLOW_EXPENSIVE_QUERIES.getKey()
+                        + "' is set to false."
+                );
+            }
+            failIfNotIndexedAndNoDocValues();
+            if (isSearchable() && hasDocValues()) {
+                Query indexQuery = new TermRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    includeLower,
+                    includeUpper
+                );
+                Query dvQuery = new TermRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(rewriteForDocValue(lowerTerm)),
+                    upperTerm == null ? null : indexedValueForSearch(rewriteForDocValue(upperTerm)),
+                    includeLower,
+                    includeUpper,
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            }
+            if (hasDocValues()) {
+                return new TermRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(rewriteForDocValue(lowerTerm)),
+                    upperTerm == null ? null : indexedValueForSearch(rewriteForDocValue(upperTerm)),
+                    includeLower,
+                    includeUpper,
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+            }
+            return new TermRangeQuery(
+                name(),
+                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                includeLower,
+                includeUpper
+            );
+        }
+
+        @Override
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            QueryShardContext context
+        ) {
+            failIfNotIndexedAndNoDocValues();
+            if (context.allowExpensiveQueries() == false) {
+                throw new OpenSearchException(
+                    "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to " + "false."
+                );
+            }
+            if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
+                }
+                Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
+                Query dvQuery = super.fuzzyQuery(
+                    rewriteForDocValue(value),
+                    fuzziness,
+                    prefixLength,
+                    maxExpansions,
+                    transpositions,
+                    MultiTermQuery.DOC_VALUES_REWRITE,
+                    context
+                );
+                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            }
+            if (hasDocValues()) {
+                return new FuzzyQuery(
+                    new Term(name(), indexedValueForSearch(rewriteForDocValue(value))),
+                    fuzziness.asDistance(BytesRefs.toString(rewriteForDocValue(value))),
+                    prefixLength,
+                    maxExpansions,
+                    transpositions,
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+            }
+            return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
+        }
+
         @Override
         public Query wildcardQuery(
             String value,
             @Nullable MultiTermQuery.RewriteMethod method,
-            boolean caseInsensitve,
+            boolean caseInsensitive,
             QueryShardContext context
         ) {
-            // keyword field types are always normalized, so ignore case sensitivity and force normalize the wildcard
+            if (context.allowExpensiveQueries() == false) {
+                throw new OpenSearchException(
+                    "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to " + "false."
+                );
+            }
+            failIfNotIndexedAndNoDocValues();
+            // keyword field types are always normalized, so ignore case sensitivity and force normalize the
+            // wildcard
             // query text
-            return super.wildcardQuery(value, method, caseInsensitve, true, context);
+            if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.wildcardQuery(value, method, caseInsensitive, true, context);
+                }
+                Query indexQuery = super.wildcardQuery(value, method, caseInsensitive, true, context);
+                Query dvQuery = super.wildcardQuery(
+                    (String) rewriteForDocValue(value),
+                    MultiTermQuery.DOC_VALUES_REWRITE,
+                    caseInsensitive,
+                    true,
+                    context
+                );
+                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            }
+            if (hasDocValues()) {
+                Term term;
+                value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
+                term = new Term(name(), (String) rewriteForDocValue(value));
+                if (caseInsensitive) {
+                    return AutomatonQueries.caseInsensitiveWildcardQuery(term, method);
+                }
+                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+            }
+            return super.wildcardQuery(value, method, caseInsensitive, true, context);
         }
+
     }
 
     private final boolean indexed;
@@ -422,8 +731,10 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
     }
 
-    /** Values that have more chars than the return value of this method will
-     *  be skipped at parsing time. */
+    /**
+     * Values that have more chars than the return value of this method will
+     * be skipped at parsing time.
+     */
     public int ignoreAbove() {
         return ignoreAbove;
     }
@@ -477,7 +788,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
+    static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();

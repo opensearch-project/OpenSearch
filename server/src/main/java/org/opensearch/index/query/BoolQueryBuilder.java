@@ -37,11 +37,11 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -427,4 +427,35 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
         return changed;
     }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        if (mustClauses.isEmpty() == false) {
+            QueryBuilderVisitor subVisitor = visitor.getChildVisitor(Occur.MUST);
+            for (QueryBuilder mustClause : mustClauses) {
+                mustClause.visit(subVisitor);
+            }
+        }
+        if (shouldClauses.isEmpty() == false) {
+            QueryBuilderVisitor subVisitor = visitor.getChildVisitor(Occur.SHOULD);
+            for (QueryBuilder shouldClause : shouldClauses) {
+                shouldClause.visit(subVisitor);
+            }
+        }
+        if (mustNotClauses.isEmpty() == false) {
+            QueryBuilderVisitor subVisitor = visitor.getChildVisitor(Occur.MUST_NOT);
+            for (QueryBuilder mustNotClause : mustNotClauses) {
+                mustNotClause.visit(subVisitor);
+            }
+        }
+        if (filterClauses.isEmpty() == false) {
+            QueryBuilderVisitor subVisitor = visitor.getChildVisitor(Occur.FILTER);
+            for (QueryBuilder filterClause : filterClauses) {
+                filterClause.visit(subVisitor);
+            }
+        }
+
+    }
+
 }

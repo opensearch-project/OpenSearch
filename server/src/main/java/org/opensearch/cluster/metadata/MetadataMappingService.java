@@ -35,7 +35,6 @@ package org.opensearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.opensearch.cluster.AckedClusterStateTaskListener;
 import org.opensearch.cluster.ClusterState;
@@ -52,9 +51,11 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.compositeindex.CompositeIndexValidator;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
@@ -282,6 +283,7 @@ public class MetadataMappingService {
                     // first, simulate: just call merge and ignore the result
                     existingMapper.merge(newMapper.mapping(), MergeReason.MAPPING_UPDATE);
                 }
+
             }
             Metadata.Builder builder = Metadata.builder(metadata);
             boolean updated = false;
@@ -291,7 +293,7 @@ public class MetadataMappingService {
                 // we use the exact same indexService and metadata we used to validate above here to actually apply the update
                 final Index index = indexMetadata.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
-
+                boolean isCompositeFieldPresent = !mapperService.getCompositeFieldTypes().isEmpty();
                 CompressedXContent existingSource = null;
                 DocumentMapper existingMapper = mapperService.documentMapper();
                 if (existingMapper != null) {
@@ -302,6 +304,14 @@ public class MetadataMappingService {
                     mappingUpdateSource,
                     MergeReason.MAPPING_UPDATE
                 );
+
+                CompositeIndexValidator.validate(
+                    mapperService,
+                    indicesService.getCompositeIndexSettings(),
+                    mapperService.getIndexSettings(),
+                    isCompositeFieldPresent
+                );
+
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {
@@ -356,7 +366,7 @@ public class MetadataMappingService {
         clusterService.submitStateUpdateTask(
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
             request,
-            ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
+            ClusterStateTaskConfig.build(Priority.HIGH, request.clusterManagerNodeTimeout()),
             putMappingExecutor,
             new AckedClusterStateTaskListener() {
 

@@ -48,11 +48,11 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.NoOpTranslogManager;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.transport.Transports;
@@ -65,6 +65,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
 
 /**
  * A basic read-only engine that allows switching a shard to be true read-only temporarily or permanently.
@@ -150,20 +152,7 @@ public class ReadOnlyEngine extends Engine {
 
                 completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
 
-                translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, new Translog.Snapshot() {
-                    @Override
-                    public void close() {}
-
-                    @Override
-                    public int totalOperations() {
-                        return 0;
-                    }
-
-                    @Override
-                    public Translog.Operation next() {
-                        return null;
-                    }
-                });
+                translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, EMPTY_TRANSLOG_SNAPSHOT);
 
                 success = true;
             } finally {
@@ -278,7 +267,7 @@ public class ReadOnlyEngine extends Engine {
                     config.getGlobalCheckpointSupplier(),
                     config.getPrimaryTermSupplier(),
                     seqNo -> {},
-                    config.getPrimaryModeSupplier()
+                    config.getStartedPrimarySupplier()
                 )
         ) {
             return translog.stats();

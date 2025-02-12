@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SourceLookup;
@@ -42,6 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.DOC_VALUE_NO_MATCH;
 
 /**
  * Value fetcher that loads from doc values.
@@ -69,7 +71,10 @@ public final class DocValueFetcher implements ValueFetcher {
         }
         List<Object> result = new ArrayList<Object>(leaf.docValueCount());
         for (int i = 0, count = leaf.docValueCount(); i < count; ++i) {
-            result.add(leaf.nextValue());
+            Object value = leaf.nextValue();
+            if (value != DOC_VALUE_NO_MATCH) {
+                result.add(value);
+            }
         }
         return result;
     }
@@ -77,8 +82,9 @@ public final class DocValueFetcher implements ValueFetcher {
     /**
      * Leaf interface
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Leaf {
         /**
          * Advance the doc values reader to the provided doc.

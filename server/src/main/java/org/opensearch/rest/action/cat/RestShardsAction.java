@@ -32,13 +32,14 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.cluster.shards.CatShardsAction;
+import org.opensearch.action.admin.cluster.shards.CatShardsRequest;
+import org.opensearch.action.admin.cluster.shards.CatShardsResponse;
 import org.opensearch.action.admin.indices.stats.CommonStats;
-import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
-import org.opensearch.client.node.NodeClient;
+import org.opensearch.action.pagination.PageToken;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Table;
@@ -61,9 +62,10 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.rest.action.list.AbstractListAction;
 import org.opensearch.search.suggest.completion.CompletionStats;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.time.Instant;
 import java.util.List;
@@ -73,13 +75,14 @@ import java.util.function.Function;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
+import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
  * _cat API action to get shard information
  *
  * @opensearch.api
  */
-public class RestShardsAction extends AbstractCatAction {
+public class RestShardsAction extends AbstractListAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestShardsAction.class);
 
@@ -105,34 +108,45 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     @Override
+    public boolean isRequestLimitCheckSupported() {
+        return true;
+    }
+
+    @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.clusterManagerNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
-        );
-        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        final CatShardsRequest shardsRequest = new CatShardsRequest();
+        shardsRequest.local(request.paramAsBoolean("local", shardsRequest.local()));
+        shardsRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", shardsRequest.clusterManagerNodeTimeout()));
+        shardsRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", NO_TIMEOUT));
+        shardsRequest.setIndices(indices);
+        shardsRequest.setRequestLimitCheckSupported(isRequestLimitCheckSupported());
+        shardsRequest.setPageParams(pageParams);
+        parseDeprecatedMasterTimeoutParameter(shardsRequest, request, deprecationLogger, getName());
+        return channel -> client.execute(CatShardsAction.INSTANCE, shardsRequest, new RestResponseListener<CatShardsResponse>(channel) {
             @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-                indicesStatsRequest.all();
-                indicesStatsRequest.indices(indices);
-                client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
-                        return RestTable.buildResponse(buildTable(request, clusterStateResponse, indicesStatsResponse), channel);
-                    }
-                });
+            public RestResponse buildResponse(CatShardsResponse catShardsResponse) throws Exception {
+                return RestTable.buildResponse(
+                    buildTable(
+                        request,
+                        catShardsResponse.getNodes(),
+                        catShardsResponse.getIndicesStatsResponse(),
+                        catShardsResponse.getResponseShards(),
+                        catShardsResponse.getPageToken()
+                    ),
+                    channel
+                );
             }
         });
     }
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        return getTableWithHeader(request, null);
+    }
+
+    protected Table getTableWithHeader(final RestRequest request, final PageToken pageToken) {
+        Table table = new Table(pageToken);
         table.startHeaders()
             .addCell("index", "default:true;alias:i,idx;desc:index name")
             .addCell("shard", "default:true;alias:s,sh;desc:shard name")
@@ -219,6 +233,22 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("search.query_current", "alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
         table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
+        table.addCell(
+            "search.concurrent_query_current",
+            "alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
+        );
+        table.addCell(
+            "search.concurrent_query_time",
+            "alias:scqti,searchConcurrentQueryTime;default:false;text-align:right;desc:time spent in concurrent query phase"
+        );
+        table.addCell(
+            "search.concurrent_query_total",
+            "alias:scqto,searchConcurrentQueryTotal;default:false;text-align:right;desc:total concurrent query phase ops"
+        );
+        table.addCell(
+            "search.concurrent_avg_slice_count",
+            "alias:casc,searchConcurrentAvgSliceCount;default:false;text-align:right;desc:average query concurrency"
+        );
         table.addCell("search.scroll_current", "alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
         table.addCell(
             "search.scroll_time",
@@ -236,6 +266,10 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell(
             "search.point_in_time_total",
             "alias:spto,searchPointInTimeTotal;default:false;text-align:right;desc:completed point in time contexts"
+        );
+        table.addCell(
+            "search.search_idle_reactivate_count_total",
+            "alias:ssirct,searchSearchIdleReactivateCountTotal;default:false;text-align:right;desc:number of times a shard reactivated"
         );
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
@@ -264,6 +298,7 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("path.data", "alias:pd,dataPath;default:false;text-align:right;desc:shard data path");
         table.addCell("path.state", "alias:ps,statsPath;default:false;text-align:right;desc:shard state path");
+        table.addCell("docs.deleted", "alias:dd,docsDeleted;default:false;text-align:right;desc:number of deleted docs in shard");
 
         table.endHeaders();
         return table;
@@ -280,10 +315,16 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     // package private for testing
-    Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
-        Table table = getTableWithHeader(request);
+    Table buildTable(
+        RestRequest request,
+        DiscoveryNodes nodes,
+        IndicesStatsResponse stats,
+        List<ShardRouting> responseShards,
+        PageToken pageToken
+    ) {
+        Table table = getTableWithHeader(request, pageToken);
 
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+        for (ShardRouting shard : responseShards) {
             ShardStats shardStats = stats.asMap().get(shard);
             CommonStats commonStats = null;
             CommitStats commitStats = null;
@@ -300,19 +341,23 @@ public class RestShardsAction extends AbstractCatAction {
             if (shard.primary()) {
                 table.addCell("p");
             } else {
-                table.addCell("r");
+                if (shard.isSearchOnly()) {
+                    table.addCell("s");
+                } else {
+                    table.addCell("r");
+                }
             }
             table.addCell(shard.state());
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
             table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getSize));
             if (shard.assignedToNode()) {
-                String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
+                String ip = nodes.get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();
                 StringBuilder name = new StringBuilder();
-                name.append(state.getState().nodes().get(shard.currentNodeId()).getName());
+                name.append(nodes.get(shard.currentNodeId()).getName());
                 if (shard.relocating()) {
-                    String reloIp = state.getState().nodes().get(shard.relocatingNodeId()).getHostAddress();
-                    String reloNme = state.getState().nodes().get(shard.relocatingNodeId()).getName();
+                    String reloIp = nodes.get(shard.relocatingNodeId()).getHostAddress();
+                    String reloNme = nodes.get(shard.relocatingNodeId()).getName();
                     String reloNodeId = shard.relocatingNodeId();
                     name.append(" -> ");
                     name.append(reloIp);
@@ -399,12 +444,18 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryCurrent()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryTime()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentAvgSliceCount()));
+
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCount()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getPitCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getPitTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getPitCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getSearchIdleReactivateCount()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getCount));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getZeroMemory));
@@ -422,10 +473,16 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(getOrNull(shardStats, ShardStats::getDataPath, s -> s));
             table.addCell(getOrNull(shardStats, ShardStats::getStatePath, s -> s));
+            table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getDeleted));
 
             table.endRow();
         }
 
         return table;
+    }
+
+    @Override
+    public boolean isActionPaginated() {
+        return false;
     }
 }

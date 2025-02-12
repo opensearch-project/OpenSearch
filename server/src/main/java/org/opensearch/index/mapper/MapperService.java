@@ -35,10 +35,10 @@ package org.opensearch.index.mapper;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
@@ -46,10 +46,12 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentContraints;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.Assertions;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.AbstractIndexComponent;
@@ -89,8 +91,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * The core field mapping service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
@@ -98,6 +101,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *
      * @opensearch.internal
      */
+    @PublicApi(since = "1.0.0")
     public enum MergeReason {
         /**
          * Pre-flight check before sending a mapping update to the cluster-manager
@@ -146,13 +150,45 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         "index.mapping.depth.limit",
         20L,
         1,
+        Long.MAX_VALUE,
+        limit -> {
+            // Make sure XContent constraints are not exceeded (otherwise content processing will fail)
+            if (limit > XContentContraints.DEFAULT_MAX_DEPTH) {
+                throw new IllegalArgumentException(
+                    "The provided value "
+                        + limit
+                        + " of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of "
+                        + XContentContraints.DEFAULT_MAX_DEPTH
+                        + ". Please change the setting value or increase per-JVM limit "
+                        + "using '"
+                        + XContentContraints.DEFAULT_MAX_DEPTH_PROPERTY
+                        + "' system property."
+                );
+            }
+        },
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<Long> INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.field_name_length.limit",
-        Long.MAX_VALUE,
+        50000,
         1L,
+        Long.MAX_VALUE,
+        limit -> {
+            // Make sure XContent constraints are not exceeded (otherwise content processing will fail)
+            if (limit > XContentContraints.DEFAULT_MAX_NAME_LEN) {
+                throw new IllegalArgumentException(
+                    "The provided value "
+                        + limit
+                        + " of the index setting 'index.mapping.field_name_length.limit' exceeds per-JVM configured limit of "
+                        + XContentContraints.DEFAULT_MAX_NAME_LEN
+                        + ". Please change the setting value or increase per-JVM limit "
+                        + "using '"
+                        + XContentContraints.DEFAULT_MAX_NAME_LEN_PROPERTY
+                        + "' system property."
+                );
+            }
+        },
         Property.Dynamic,
         Property.IndexScope
     );
@@ -172,9 +208,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MapperService.class);
-    static final String DEFAULT_MAPPING_ERROR_MESSAGE = "[_default_] mappings are not allowed on new indices and should no "
-        + "longer be used. See [https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes-7.0.html"
-        + "#default-mapping-not-allowed] for more information.";
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -193,6 +226,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private final BooleanSupplier idFieldDataEnabled;
 
+    private volatile Set<CompositeMappedFieldType> compositeMappedFieldTypes;
+    private volatile Set<String> fieldsPartOfCompositeMappings;
+    private volatile Set<String> nestedFieldsPartOfCompositeMappings;
+
     public MapperService(
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
@@ -204,6 +241,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         ScriptService scriptService
     ) {
         super(indexSettings);
+
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.documentParser = new DocumentMapperParser(
@@ -228,7 +266,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.idFieldDataEnabled = idFieldDataEnabled;
 
         if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())) {
-            throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
+            deprecationLogger.deprecate(
+                index().getName() + INDEX_MAPPER_DYNAMIC_SETTING.getKey(),
+                "Index [{}] has setting [{}] that is not supported in OpenSearch, its value will be ignored.",
+                index().getName(),
+                INDEX_MAPPER_DYNAMIC_SETTING.getKey()
+            );
         }
     }
 
@@ -253,7 +296,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws IOException {
         try (
-            XContentParser parser = XContentType.JSON.xContent()
+            XContentParser parser = MediaTypeRegistry.JSON.xContent()
                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, mappingSource)
         ) {
             return parser.map();
@@ -348,7 +391,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         + "to be the same as new mapping ["
                         + newSource
                         + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(XContentType.JSON, mapper));
+                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(MediaTypeRegistry.JSON, mapper));
                     assert currentSource.equals(mapperSource) : "expected current mapping ["
                         + currentSource
                         + "] for type ["
@@ -503,7 +546,38 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         assert results.values().stream().allMatch(this::assertSerialization);
+
+        // initialize composite fields post merge
+        this.compositeMappedFieldTypes = getCompositeFieldTypesFromMapper();
+        buildCompositeFieldLookup();
         return results;
+    }
+
+    private void buildCompositeFieldLookup() {
+        Set<String> fieldsPartOfCompositeMappings = new HashSet<>();
+        Set<String> nestedFieldsPartOfCompositeMappings = new HashSet<>();
+
+        for (CompositeMappedFieldType fieldType : compositeMappedFieldTypes) {
+            fieldsPartOfCompositeMappings.addAll(fieldType.fields());
+
+            for (String field : fieldType.fields()) {
+                String[] parts = field.split("\\.");
+                if (parts.length > 1) {
+                    StringBuilder path = new StringBuilder();
+                    for (int i = 0; i < parts.length; i++) {
+                        if (i == 0) {
+                            path.append(parts[i]);
+                        } else {
+                            path.append(".").append(parts[i]);
+                        }
+                        nestedFieldsPartOfCompositeMappings.add(path.toString());
+                    }
+                }
+            }
+        }
+
+        this.fieldsPartOfCompositeMappings = fieldsPartOfCompositeMappings;
+        this.nestedFieldsPartOfCompositeMappings = nestedFieldsPartOfCompositeMappings;
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {
@@ -543,7 +617,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
-        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
+        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, MediaTypeRegistry.JSON).v2();
         return isMappingSourceTyped(type, root);
     }
 
@@ -611,6 +685,36 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes();
     }
 
+    public boolean isCompositeIndexPresent() {
+        return this.mapper != null && !getCompositeFieldTypes().isEmpty();
+    }
+
+    public Set<CompositeMappedFieldType> getCompositeFieldTypes() {
+        return compositeMappedFieldTypes;
+    }
+
+    private Set<CompositeMappedFieldType> getCompositeFieldTypesFromMapper() {
+        Set<CompositeMappedFieldType> compositeMappedFieldTypes = new HashSet<>();
+        if (this.mapper == null) {
+            return Collections.emptySet();
+        }
+        for (MappedFieldType type : this.mapper.fieldTypes()) {
+            if (type instanceof CompositeMappedFieldType) {
+                compositeMappedFieldTypes.add((CompositeMappedFieldType) type);
+            }
+        }
+        return compositeMappedFieldTypes;
+    }
+
+    public boolean isFieldPartOfCompositeIndex(String field) {
+        return fieldsPartOfCompositeMappings.contains(field);
+    }
+
+    public boolean isCompositeIndexFieldNestedField(String field) {
+        return nestedFieldsPartOfCompositeMappings.contains(field);
+
+    }
+
     public ObjectMapper getObjectMapper(String name) {
         return this.mapper == null ? null : this.mapper.objectMappers().get(name);
     }
@@ -673,6 +777,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public boolean isMetadataField(String field) {
         return mapperRegistry.isMetadataField(field);
+    }
+
+    /**
+     * Returns a set containing the registered metadata fields
+     */
+    public Set<String> getMetadataFields() {
+        return Collections.unmodifiableSet(mapperRegistry.getMetadataMapperParsers().keySet());
     }
 
     /**

@@ -37,8 +37,9 @@ import org.opensearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.gateway.GatewayService;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.Index;
+import org.opensearch.gateway.GatewayService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,8 +53,9 @@ import java.util.stream.Collectors;
 /**
  * An event received by the local node, signaling that the cluster state has changed.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterChangedEvent {
 
     private final String source;
@@ -212,16 +214,6 @@ public class ClusterChangedEvent {
      */
     public boolean localNodeClusterManager() {
         return state.nodes().isLocalNodeElectedClusterManager();
-    }
-
-    /**
-     * Returns <code>true</code> iff the local node is the mater node of the cluster.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #localNodeClusterManager()}
-     */
-    @Deprecated
-    public boolean localNodeMaster() {
-        return localNodeClusterManager();
     }
 
     /**

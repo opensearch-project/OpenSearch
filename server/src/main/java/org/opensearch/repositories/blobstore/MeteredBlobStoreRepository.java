@@ -34,12 +34,10 @@ package org.opensearch.repositories.blobstore;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.UUIDs;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryInfo;
 import org.opensearch.repositories.RepositoryStatsSnapshot;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
@@ -53,29 +51,24 @@ public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
 
     public MeteredBlobStoreRepository(
         RepositoryMetadata metadata,
-        boolean compress,
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         RecoverySettings recoverySettings,
         Map<String, String> location
     ) {
-        super(metadata, compress, namedXContentRegistry, clusterService, recoverySettings);
-        ThreadPool threadPool = clusterService.getClusterApplierService().threadPool();
-        this.repositoryInfo = new RepositoryInfo(
-            UUIDs.randomBase64UUID(),
-            metadata.name(),
-            metadata.type(),
-            location,
-            threadPool.absoluteTimeInMillis()
-        );
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings);
+        this.repositoryInfo = new RepositoryInfo(metadata.name(), metadata.type(), location);
+    }
+
+    @Override
+    public void reload(RepositoryMetadata repositoryMetadata) {
+        super.reload(repositoryMetadata);
+
+        // Not adding any additional reload logic here is intentional as the constructor only
+        // initializes the repositoryInfo from the repo metadata, which cannot be changed.
     }
 
     public RepositoryStatsSnapshot statsSnapshot() {
-        return new RepositoryStatsSnapshot(repositoryInfo, stats(), RepositoryStatsSnapshot.UNKNOWN_CLUSTER_VERSION, false);
-    }
-
-    public RepositoryStatsSnapshot statsSnapshotForArchival(long clusterVersion) {
-        RepositoryInfo stoppedRepoInfo = repositoryInfo.stopped(threadPool.absoluteTimeInMillis());
-        return new RepositoryStatsSnapshot(stoppedRepoInfo, stats(), clusterVersion, true);
+        return new RepositoryStatsSnapshot(repositoryInfo, stats(), RepositoryStatsSnapshot.UNKNOWN_CLUSTER_VERSION);
     }
 }

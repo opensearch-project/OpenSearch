@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.core.ParseField;
@@ -183,4 +184,11 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         InnerHitContextBuilder.extractInnerHits(filterBuilder, innerHits);
     }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        visitor.getChildVisitor(BooleanClause.Occur.FILTER).accept(filterBuilder);
+    }
+
 }

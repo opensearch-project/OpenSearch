@@ -36,10 +36,11 @@ import groovy.lang.Closure;
 import org.opensearch.gradle.FileSystemOperationsAware;
 import org.opensearch.gradle.test.Fixture;
 import org.opensearch.gradle.util.GradleUtils;
+import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.services.internal.BuildServiceProvider;
+import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
@@ -47,6 +48,8 @@ import org.gradle.api.tasks.WorkResult;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.resources.ResourceLock;
 import org.gradle.internal.resources.SharedResource;
+
+import javax.inject.Inject;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -62,12 +65,13 @@ import java.util.List;
  * {@link Nested} inputs.
  */
 @CacheableTask
-public class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
+public abstract class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
     private Collection<OpenSearchCluster> clusters = new HashSet<>();
     private Closure<Void> beforeStart;
 
-    public StandaloneRestIntegTestTask() {
+    @Inject
+    public StandaloneRestIntegTestTask(Project project) {
         this.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it uses a cluster shared by other tasks",
@@ -77,7 +81,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
                  * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
                  * multiple tasks.
                  */
-                t -> getProject().getTasks()
+                t -> project.getTasks()
                     .withType(StandaloneRestIntegTestTask.class)
                     .stream()
                     .filter(task -> task != this)

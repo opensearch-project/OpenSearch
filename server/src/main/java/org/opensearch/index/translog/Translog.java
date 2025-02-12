@@ -37,18 +37,22 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamInput;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
@@ -59,7 +63,6 @@ import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShardComponent;
-import org.opensearch.core.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -110,8 +113,9 @@ import static org.opensearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER
  * operation etc. are still preserved.
  * </p>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Translog extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
 
     /*
@@ -313,6 +317,10 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      */
     public static long parseIdFromFileName(Path translogFile) {
         final String fileName = translogFile.getFileName().toString();
+        return parseIdFromFileName(fileName);
+    }
+
+    public static long parseIdFromFileName(String fileName) {
         final Matcher matcher = PARSE_STRICT_ID_PATTERN.matcher(fileName);
         if (matcher.matches()) {
             try {
@@ -523,7 +531,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
                 tragedy,
                 persistedSequenceNumberConsumer,
                 bigArrays,
-                indexSettings.isRemoteTranslogStoreEnabled()
+                indexSettings.isAssignedOnRemoteNode()
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -840,7 +848,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
     /**
      * Closes the translog if the current translog writer experienced a tragic exception.
-     *
+     * <p>
      * Note that in case this thread closes the translog it must not already be holding a read lock on the translog as it will acquire a
      * write lock in the course of closing the translog
      *
@@ -894,8 +902,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * Location in the translot
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Location implements Comparable<Location> {
 
         public final long generation;
@@ -950,11 +959,27 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         }
     }
 
+    public static final Translog.Snapshot EMPTY_TRANSLOG_SNAPSHOT = new Translog.Snapshot() {
+        @Override
+        public void close() {}
+
+        @Override
+        public int totalOperations() {
+            return 0;
+        }
+
+        @Override
+        public Translog.Operation next() {
+            return null;
+        }
+    };
+
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Snapshot extends Closeable {
 
         /**
@@ -1039,14 +1064,16 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Operation {
         /**
          * The type of operation
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         enum Type {
             @Deprecated
             CREATE((byte) 1),
@@ -1137,8 +1164,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * The source in the translog
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Source {
 
         public final BytesReference source;
@@ -1566,8 +1594,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * How to sync the translog
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Durability {
 
         /**
@@ -1810,6 +1839,11 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     protected void onDelete() {}
 
     /**
+     * Drains ongoing syncs to the underlying store. It returns a releasable which can be closed to resume the syncs back.
+     */
+    abstract Releasable drainSync();
+
+    /**
      * deletes all files associated with a reader. package-private to be able to simulate node failures at this point
      */
     void deleteReaderFiles(TranslogReader reader) {
@@ -1833,8 +1867,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * References a transaction log generation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class TranslogGeneration {
         public final String translogUUID;
         public final long translogFileGeneration;
@@ -1976,7 +2011,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * Creates a new empty translog within the specified {@code location} that contains the given {@code initialGlobalCheckpoint},
      * {@code primaryTerm} and {@code translogUUID}.
-     *
+     * <p>
      * This method should be used directly under specific circumstances like for shards that will see no indexing. Specifying a non-unique
      * translog UUID could cause a lot of issues and that's why in all (but one) cases the method
      * {@link #createEmptyTranslog(Path, long, ShardId, long)} should be used instead.
@@ -1998,16 +2033,46 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         @Nullable final String translogUUID,
         @Nullable final ChannelFactory factory
     ) throws IOException {
+        return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, translogUUID, factory, 1);
+    }
+
+    public static String createEmptyTranslog(final Path location, final ShardId shardId, Checkpoint checkpoint) throws IOException {
+        final Path highestGenTranslogFile = location.resolve(getFilename(checkpoint.generation));
+        final TranslogHeader translogHeader;
+        try (FileChannel channel = FileChannel.open(highestGenTranslogFile, StandardOpenOption.READ)) {
+            translogHeader = TranslogHeader.read(highestGenTranslogFile, channel);
+        }
+        final String translogUUID = translogHeader.getTranslogUUID();
+        final long primaryTerm = translogHeader.getPrimaryTerm();
+        final ChannelFactory channelFactory = FileChannel::open;
+        return Translog.createEmptyTranslog(
+            location,
+            shardId,
+            SequenceNumbers.NO_OPS_PERFORMED,
+            primaryTerm,
+            translogUUID,
+            channelFactory,
+            checkpoint.generation + 1
+        );
+    }
+
+    public static String createEmptyTranslog(
+        final Path location,
+        final ShardId shardId,
+        final long initialGlobalCheckpoint,
+        final long primaryTerm,
+        @Nullable final String translogUUID,
+        @Nullable final ChannelFactory factory,
+        final long generation
+    ) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
 
-        final long generation = 1L;
-        final long minTranslogGeneration = 1L;
         final ChannelFactory channelFactory = factory != null ? factory : FileChannel::open;
         final String uuid = Strings.hasLength(translogUUID) ? translogUUID : UUIDs.randomBase64UUID();
         final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
         final Path translogFile = location.resolve(getFilename(generation));
-        final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, minTranslogGeneration);
+        final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, generation);
 
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         final TranslogWriter writer = TranslogWriter.create(
@@ -2017,7 +2082,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             translogFile,
             channelFactory,
             EMPTY_TRANSLOG_BUFFER_SIZE,
-            minTranslogGeneration,
+            generation,
             initialGlobalCheckpoint,
             () -> {
                 throw new UnsupportedOperationException();
@@ -2033,5 +2098,18 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         );
         writer.close();
         return uuid;
+    }
+
+    public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
+        return minUnrefCheckpointInLastCommit;
+    }
+
+    /**
+     * Checks whether or not the shard should be flushed based on translog files.
+     * each translog type can have it's own decider
+     * @return {@code true} if the shard should be flushed
+     */
+    protected boolean shouldFlush() {
+        return false;
     }
 }

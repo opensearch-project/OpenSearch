@@ -34,18 +34,18 @@ package org.opensearch.recovery;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
-import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.util.concurrent.CountDownLatch;
@@ -225,6 +225,6 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
         indexShard.markAsRecovering("remote", new RecoveryState(indexShard.routingEntry(), sourceNode, rNode));
         indexShard.prepareForIndexRecovery();
-        return collection.start(new RecoveryTarget(indexShard, sourceNode, listener), timeValue);
+        return collection.start(new RecoveryTarget(indexShard, sourceNode, listener, threadPool), timeValue);
     }
 }

@@ -42,7 +42,7 @@ import java.util.Map;
 
 /**
  * Wrapper around {@link TieredMergePolicy} which doesn't respect
- * {@link TieredMergePolicy#setMaxMergedSegmentMB(double)} on forced merges.
+ * {@link TieredMergePolicy#setMaxMergedSegmentMB(double)} on forced merges, but DOES respect it on only_expunge_deletes.
  * See https://issues.apache.org/jira/browse/LUCENE-7976.
  *
  * @opensearch.internal
@@ -71,7 +71,7 @@ final class OpenSearchTieredMergePolicy extends FilterMergePolicy {
 
     @Override
     public MergeSpecification findForcedDeletesMerges(SegmentInfos infos, MergeContext mergeContext) throws IOException {
-        return forcedMergePolicy.findForcedDeletesMerges(infos, mergeContext);
+        return regularMergePolicy.findForcedDeletesMerges(infos, mergeContext);
     }
 
     public void setForceMergeDeletesPctAllowed(double forceMergeDeletesPctAllowed) {
@@ -80,7 +80,7 @@ final class OpenSearchTieredMergePolicy extends FilterMergePolicy {
     }
 
     public double getForceMergeDeletesPctAllowed() {
-        return forcedMergePolicy.getForceMergeDeletesPctAllowed();
+        return regularMergePolicy.getForceMergeDeletesPctAllowed();
     }
 
     public void setFloorSegmentMB(double mbFrac) {

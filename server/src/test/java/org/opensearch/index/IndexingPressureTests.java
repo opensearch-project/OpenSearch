@@ -32,8 +32,8 @@
 
 package org.opensearch.index;
 
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.test.OpenSearchTestCase;

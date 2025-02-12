@@ -34,16 +34,18 @@ package org.opensearch.search;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.node.MockNode;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.query.QueryPhase;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -96,7 +98,8 @@ public class MockSearchService extends SearchService {
         QueryPhase queryPhase,
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
-        Executor indexSearcherExecutor
+        Executor indexSearcherExecutor,
+        TaskResourceTrackingService taskResourceTrackingService
     ) {
         super(
             clusterService,
@@ -108,7 +111,9 @@ public class MockSearchService extends SearchService {
             fetchPhase,
             null,
             circuitBreakerService,
-            indexSearcherExecutor
+            indexSearcherExecutor,
+            taskResourceTrackingService,
+            Collections.emptyList()
         );
     }
 

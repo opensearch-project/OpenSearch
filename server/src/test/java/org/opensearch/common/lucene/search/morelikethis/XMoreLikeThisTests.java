@@ -32,18 +32,18 @@
 
 package org.opensearch.common.lucene.search.morelikethis;
 
-import org.apache.lucene.tests.analysis.MockAnalyzer;
-import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.mlt.MoreLikeThis;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -99,7 +99,7 @@ public class XMoreLikeThisTests extends OpenSearchTestCase {
             expectedTerms[idx++] = new Term("text", text);
         }
         for (BooleanClause clause : clauses) {
-            Term term = ((TermQuery) clause.getQuery()).getTerm();
+            Term term = ((TermQuery) clause.query()).getTerm();
             assertTrue(Arrays.asList(expectedTerms).contains(term));
         }
 

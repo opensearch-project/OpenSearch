@@ -35,29 +35,31 @@ package org.opensearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.action.NotifyOnceListener;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
@@ -364,7 +366,7 @@ public class TaskManager implements ClusterStateApplier {
         }
         final TaskResult taskResult;
         try {
-            taskResult = task.result(localNode, error);
+            taskResult = task.result(localNode.getId(), error);
         } catch (IOException ex) {
             logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
             listener.onFailure(ex);
@@ -397,7 +399,7 @@ public class TaskManager implements ClusterStateApplier {
         }
         final TaskResult taskResult;
         try {
-            taskResult = task.result(localNode, response);
+            taskResult = task.result(localNode.getId(), response);
         } catch (IOException ex) {
             logger.warn(() -> new ParameterizedMessage("couldn't store response {}", response), ex);
             listener.onFailure(ex);
@@ -508,17 +510,22 @@ public class TaskManager implements ClusterStateApplier {
         return Collections.unmodifiableSet(banedParents.keySet());
     }
 
+    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onChildTasksCompleted) {
+        return startBanOnChildrenNodes(taskId, onChildTasksCompleted, "unknown");
+    }
+
     /**
      * Start rejecting new child requests as the parent task was cancelled.
      *
      * @param taskId                the parent task id
      * @param onChildTasksCompleted called when all child tasks are completed or failed
+     * @param reason                the ban reason
      * @return the set of current nodes that have outstanding child tasks
      */
-    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onChildTasksCompleted) {
+    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onChildTasksCompleted, String reason) {
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
-            return holder.startBan(onChildTasksCompleted);
+            return holder.startBan(onChildTasksCompleted, reason);
         } else {
             onChildTasksCompleted.run();
             return Collections.emptySet();
@@ -583,6 +590,7 @@ public class TaskManager implements ClusterStateApplier {
         private List<Runnable> cancellationListeners = null;
         private Map<DiscoveryNode, Integer> childTasksPerNode = null;
         private boolean banChildren = false;
+        private String banReason;
         private List<Runnable> childTaskCompletedListeners = null;
 
         CancellableTaskHolder(CancellableTask task) {
@@ -660,7 +668,7 @@ public class TaskManager implements ClusterStateApplier {
 
         synchronized void registerChildNode(DiscoveryNode node) {
             if (banChildren) {
-                throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
+                throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks, " + banReason);
             }
             if (childTasksPerNode == null) {
                 childTasksPerNode = new HashMap<>();
@@ -684,11 +692,13 @@ public class TaskManager implements ClusterStateApplier {
             notifyListeners(listeners);
         }
 
-        Set<DiscoveryNode> startBan(Runnable onChildTasksCompleted) {
+        Set<DiscoveryNode> startBan(Runnable onChildTasksCompleted, String reason) {
             final Set<DiscoveryNode> pendingChildNodes;
             final Runnable toRun;
             synchronized (this) {
                 banChildren = true;
+                assert reason != null;
+                banReason = reason;
                 if (childTasksPerNode == null) {
                     pendingChildNodes = Collections.emptySet();
                 } else {
