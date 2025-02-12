@@ -8,8 +8,6 @@
 
 package org.opensearch.indices;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -24,7 +22,6 @@ import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -39,8 +36,6 @@ import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,11 +48,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public CacheStatsAPIIndicesRequestCacheIT(Settings settings) {
         super(settings);
-    }
-
-    @ParametersFactory
-    public static Collection<Object[]> parameters() {
-        return Arrays.<Object[]>asList(new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build() });
     }
 
     /**
