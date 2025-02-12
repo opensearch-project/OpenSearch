@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.wlm;
+package org.opensearch.autotagging;
 
 import org.opensearch.common.ValidationException;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -35,29 +35,33 @@ import static org.opensearch.cluster.metadata.QueryGroup.isValid;
  * of a rule. The indexed view may differ in representation.
  * {
  *     "_id": "fwehf8302582mglfio349==",
- *     "index_pattern": ["logs123", "user*"],
+ *     "name": "Assign Query Group for Index Logs123"
+ *     "index_pattern": ["logs123"],
  *     "query_group": "dev_query_group_id",
  *     "updated_at": "01-10-2025T21:23:21.456Z"
  * }
  * @opensearch.experimental
  */
 public class Rule implements Writeable, ToXContentObject {
-    private final Map<RuleAttribute, Set<String>> attributeMap;
+    private final Map<Attribute, Set<String>> attributeMap;
     private final Feature feature;
+    private final String name;
     private final String label;
     private final String updatedAt;
     public static final String _ID_STRING = "_id";
+    public static final String NAME_STRING = "name";
     public static final String UPDATED_AT_STRING = "updated_at";
     public static final int MAX_NUMBER_OF_VALUES_PER_ATTRIBUTE = 10;
     public static final int MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING = 100;
 
-    public Rule(Map<RuleAttribute, Set<String>> attributeMap, String label, String updatedAt, Feature feature) {
+    public Rule(String name, Map<Attribute, Set<String>> attributeMap, String label, String updatedAt, Feature feature) {
         ValidationException validationException = new ValidationException();
-        validateRuleInputs(attributeMap, label, updatedAt, feature, validationException);
+        validateRuleInputs(name, attributeMap, label, updatedAt, feature, validationException);
         if (!validationException.validationErrors().isEmpty()) {
             throw new IllegalArgumentException(validationException);
         }
 
+        this.name = name;
         this.attributeMap = attributeMap;
         this.feature = feature;
         this.label = label;
@@ -66,26 +70,23 @@ public class Rule implements Writeable, ToXContentObject {
 
     public Rule(StreamInput in) throws IOException {
         this(
-            in.readMap((i) -> RuleAttribute.fromName(i.readString()), i -> new HashSet<>(i.readStringList())),
+            in.readString(),
+            in.readMap((i) -> Attribute.fromName(i.readString()), i -> new HashSet<>(i.readStringList())),
             in.readString(),
             in.readString(),
             Feature.fromName(in.readString())
         );
     }
 
-    public static void requireNonNullOrEmpty(String value, String message, ValidationException validationException) {
-        if (value == null || value.isEmpty()) {
-            validationException.addValidationError(message);
-        }
-    }
-
     public static void validateRuleInputs(
-        Map<RuleAttribute, Set<String>> attributeMap,
+        String name,
+        Map<Attribute, Set<String>> attributeMap,
         String label,
         String updatedAt,
         Feature feature,
         ValidationException validationException
     ) {
+        requireNonNullOrEmpty(name, "Rule name can't be null or empty", validationException);
         if (feature == null) {
             validationException.addValidationError("Couldn't identify which feature the rule belongs to. Rule feature name can't be null.");
         }
@@ -102,22 +103,28 @@ public class Rule implements Writeable, ToXContentObject {
         }
     }
 
+    public static void requireNonNullOrEmpty(String value, String message, ValidationException validationException) {
+        if (value == null || value.isEmpty()) {
+            validationException.addValidationError(message);
+        }
+    }
+
     public static void validateAttributeMap(
-        Map<RuleAttribute, Set<String>> attributeMap,
+        Map<Attribute, Set<String>> attributeMap,
         Feature feature,
         ValidationException validationException
     ) {
-        for (Map.Entry<RuleAttribute, Set<String>> entry : attributeMap.entrySet()) {
-            RuleAttribute ruleAttribute = entry.getKey();
+        for (Map.Entry<Attribute, Set<String>> entry : attributeMap.entrySet()) {
+            Attribute attribute = entry.getKey();
             Set<String> attributeValues = entry.getValue();
-            if (!feature.isValidAttribute(ruleAttribute)) {
+            if (!feature.isValidAttribute(attribute)) {
                 validationException.addValidationError(
-                    ruleAttribute.getName() + " is not a valid attribute name under the feature: " + feature.getName()
+                    attribute.getName() + " is not a valid attribute name under the feature: " + feature.getName()
                 );
             }
             if (attributeValues.size() > MAX_NUMBER_OF_VALUES_PER_ATTRIBUTE) {
                 validationException.addValidationError(
-                    "Each attribute can only have a maximum of 10 values. The input attribute " + ruleAttribute + " exceeds this limit."
+                    "Each attribute can only have a maximum of 10 values. The input attribute " + attribute + " exceeds this limit."
                 );
             }
             for (String attributeValue : attributeValues) {
@@ -132,7 +139,8 @@ public class Rule implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(attributeMap, RuleAttribute::writeTo, StreamOutput::writeStringCollection);
+        out.writeString(name);
+        out.writeMap(attributeMap, Attribute::writeTo, StreamOutput::writeStringCollection);
         out.writeString(label);
         out.writeString(updatedAt);
         out.writeString(feature.getName());
@@ -140,6 +148,10 @@ public class Rule implements Writeable, ToXContentObject {
 
     public static Rule fromXContent(final XContentParser parser) throws IOException {
         return Builder.fromXContent(parser).build();
+    }
+
+    public String getName() {
+        return name;
     }
 
     public String getLabel() {
@@ -154,7 +166,7 @@ public class Rule implements Writeable, ToXContentObject {
         return feature;
     }
 
-    public Map<RuleAttribute, Set<String>> getAttributeMap() {
+    public Map<Attribute, Set<String>> getAttributeMap() {
         return attributeMap;
     }
 
@@ -163,12 +175,12 @@ public class Rule implements Writeable, ToXContentObject {
      * @opensearch.experimental
      */
     public enum Feature {
-        QUERY_GROUP("query_group", Set.of(RuleAttribute.INDEX_PATTERN));
+        QUERY_GROUP("query_group", Set.of(Attribute.INDEX_PATTERN));
 
         private final String name;
-        private final Set<RuleAttribute> allowedAttributes;
+        private final Set<Attribute> allowedAttributes;
 
-        Feature(String name, Set<RuleAttribute> allowedAttributes) {
+        Feature(String name, Set<Attribute> allowedAttributes) {
             this.name = name;
             this.allowedAttributes = allowedAttributes;
         }
@@ -177,11 +189,11 @@ public class Rule implements Writeable, ToXContentObject {
             return name;
         }
 
-        public Set<RuleAttribute> getAllowedAttributes() {
+        public Set<Attribute> getAllowedAttributes() {
             return allowedAttributes;
         }
 
-        public boolean isValidAttribute(RuleAttribute attribute) {
+        public boolean isValidAttribute(Attribute attribute) {
             return allowedAttributes.contains(attribute);
         }
 
@@ -198,15 +210,15 @@ public class Rule implements Writeable, ToXContentObject {
     }
 
     /**
-     * This RuleAttribute enum contains the attribute names for a rule.
+     * This Attribute enum contains the attribute names for a rule.
      * @opensearch.experimental
      */
-    public enum RuleAttribute {
+    public enum Attribute {
         INDEX_PATTERN("index_pattern");
 
         private final String name;
 
-        RuleAttribute(String name) {
+        Attribute(String name) {
             this.name = name;
         }
 
@@ -214,16 +226,16 @@ public class Rule implements Writeable, ToXContentObject {
             return name;
         }
 
-        public static void writeTo(StreamOutput out, RuleAttribute ruleAttribute) throws IOException {
-            out.writeString(ruleAttribute.getName());
+        public static void writeTo(StreamOutput out, Attribute attribute) throws IOException {
+            out.writeString(attribute.getName());
         }
 
-        public static RuleAttribute fromName(String s) {
-            for (RuleAttribute attribute : values()) {
+        public static Attribute fromName(String s) {
+            for (Attribute attribute : values()) {
                 if (attribute.getName().equalsIgnoreCase(s)) return attribute;
 
             }
-            throw new IllegalArgumentException("Invalid value for RuleAttribute: " + s);
+            throw new IllegalArgumentException("Invalid value for Attribute: " + s);
         }
     }
 
@@ -234,7 +246,8 @@ public class Rule implements Writeable, ToXContentObject {
         if (id != null) {
             builder.field(_ID_STRING, id);
         }
-        for (Map.Entry<RuleAttribute, Set<String>> entry : attributeMap.entrySet()) {
+        builder.field(NAME_STRING, name);
+        for (Map.Entry<Attribute, Set<String>> entry : attributeMap.entrySet()) {
             builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
         }
         builder.field(feature.getName(), label);
@@ -248,7 +261,8 @@ public class Rule implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Rule that = (Rule) o;
-        return Objects.equals(label, that.label)
+        return Objects.equals(name, that.name)
+            && Objects.equals(label, that.label)
             && Objects.equals(feature, that.feature)
             && Objects.equals(attributeMap, that.attributeMap)
             && Objects.equals(updatedAt, that.updatedAt);
@@ -256,7 +270,7 @@ public class Rule implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(label, feature, attributeMap, updatedAt);
+        return Objects.hash(name, label, feature, attributeMap, updatedAt);
     }
 
     /**
@@ -272,7 +286,8 @@ public class Rule implements Writeable, ToXContentObject {
      * @opensearch.experimental
      */
     public static class Builder {
-        private Map<RuleAttribute, Set<String>> attributeMap;
+        private String name;
+        private Map<Attribute, Set<String>> attributeMap;
         private Feature feature;
         private String label;
         private String updatedAt;
@@ -289,7 +304,7 @@ public class Rule implements Writeable, ToXContentObject {
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Expected START_OBJECT token but found [" + parser.currentName() + "]");
             }
-            Map<RuleAttribute, Set<String>> attributeMap1 = new HashMap<>();
+            Map<Attribute, Set<String>> attributeMap1 = new HashMap<>();
             String fieldName = "";
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -298,6 +313,8 @@ public class Rule implements Writeable, ToXContentObject {
                     if (Feature.isValidFeature(fieldName)) {
                         builder.feature(fieldName);
                         builder.label(parser.text());
+                    } else if (fieldName.equals(NAME_STRING)) {
+                        builder.name(parser.text());
                     } else if (fieldName.equals(UPDATED_AT_STRING)) {
                         builder.updatedAt(parser.text());
                     } else {
@@ -310,9 +327,9 @@ public class Rule implements Writeable, ToXContentObject {
             return builder.attributeMap(attributeMap1);
         }
 
-        public static void fromXContentParseArray(XContentParser parser, String fieldName, Map<RuleAttribute, Set<String>> attributeMap)
+        public static void fromXContentParseArray(XContentParser parser, String fieldName, Map<Attribute, Set<String>> attributeMap)
             throws IOException {
-            RuleAttribute ruleAttribute = RuleAttribute.fromName(fieldName);
+            Attribute attribute = Attribute.fromName(fieldName);
             Set<String> attributeValueSet = new HashSet<>();
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -321,7 +338,12 @@ public class Rule implements Writeable, ToXContentObject {
                     throw new XContentParseException("Unexpected token in array: " + parser.currentToken());
                 }
             }
-            attributeMap.put(ruleAttribute, attributeValueSet);
+            attributeMap.put(attribute, attributeValueSet);
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
         }
 
         public Builder label(String label) {
@@ -329,7 +351,7 @@ public class Rule implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder attributeMap(Map<RuleAttribute, Set<String>> attributeMap) {
+        public Builder attributeMap(Map<Attribute, Set<String>> attributeMap) {
             this.attributeMap = attributeMap;
             return this;
         }
@@ -345,7 +367,7 @@ public class Rule implements Writeable, ToXContentObject {
         }
 
         public Rule build() {
-            return new Rule(attributeMap, label, updatedAt, feature);
+            return new Rule(name, attributeMap, label, updatedAt, feature);
         }
 
         public String getLabel() {
