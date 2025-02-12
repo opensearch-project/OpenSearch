@@ -290,22 +290,26 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
                     unassignedPrimaryShardsByIndex.put(index, indexUnassignedPrimaryShards);
                 }
 
-                assertEquals("Total assigned shards should be 22", 22, totalAssignedShards);
-                assertEquals("Total unassigned shards should be 2", 2, totalUnassignedShards);
+                assertEquals("Total assigned shards should be 20", 20, totalAssignedShards);
+                assertEquals("Total unassigned shards should be 4", 4, totalUnassignedShards);
                 assertEquals("test1 should have 2 unassigned shards", 2, unassignedShardsByIndex.get("test1").intValue());
                 assertEquals("test1 should have 1 unassigned primary shard", 1, unassignedPrimaryShardsByIndex.get("test1").intValue());
-                assertEquals("test2 should have 0 unassigned shards", 0, unassignedShardsByIndex.getOrDefault("test2", 0).intValue());
+                assertEquals("test2 should have 2 unassigned shards", 2, unassignedShardsByIndex.getOrDefault("test2", 0).intValue());
+                assertEquals("test2 should have 1 unassigned primary shards", 1, unassignedPrimaryShardsByIndex.get("test2").intValue());
                 assertEquals("test3 should have 0 unassigned shards", 0, unassignedShardsByIndex.getOrDefault("test3", 0).intValue());
 
                 // Check primary shard distribution for test1 across nodes
                 for (RoutingNode routingNode : state.getRoutingNodes()) {
-                    int test1PrimaryShardCount = 0;
+                    int test1PrimaryShardCount = 0, test2PrimaryShardCount = 0;
                     for (ShardRouting shardRouting : routingNode) {
                         if (shardRouting.index().getName().equals("test1") && shardRouting.primary()) {
                             test1PrimaryShardCount++;
+                        } else if (shardRouting.index().getName().equals("test2") && shardRouting.primary()) {
+                            test2PrimaryShardCount++;
                         }
                     }
                     assertTrue("Each node should have at most 1 primary shard for test1", test1PrimaryShardCount <= 1);
+                    assertTrue("Each node should have at most 1 primary shard for test2", test2PrimaryShardCount <= 1);
                 }
 
                 // Verify that test1 uses segment replication

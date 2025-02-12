@@ -41,7 +41,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.function.BiPredicate;
 
@@ -100,7 +99,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * Controls the maximum number of shards per node on a global level.
+     * Controls the maximum number of shards per node on a cluster level.
      * Negative values are interpreted as unlimited.
      */
     public static final Setting<Integer> CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING = Setting.intSetting(
@@ -112,7 +111,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * Controls the maximum number of primary shards per node on a global level.
+     * Controls the maximum number of primary shards per node on a cluster level.
      * Negative values are interpreted as unlimited.
      */
     public static final Setting<Integer> CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING = Setting.intSetting(
@@ -151,25 +150,15 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         return doDecide(shardRouting, node, allocation, (count, limit) -> count > limit);
     }
 
-    /**
-     * Checks whether the given shardRouting's index uses segment replication
-     */
-    private boolean isSegRepEnabledIndex(RoutingAllocation allocation, ShardRouting shardRouting) {
-        IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        Settings indexSettings = indexMetadata.getSettings();
-        return IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexSettings) == ReplicationType.SEGMENT;
-    }
-
     private Decision doDecide(
         ShardRouting shardRouting,
         RoutingNode node,
         RoutingAllocation allocation,
         BiPredicate<Integer, Integer> decider
     ) {
-        final int indexShardLimit = allocation.metadata().getIndexSafe(shardRouting.index()).getIndexTotalShardsPerNodeLimit();
-        final int indexPrimaryShardLimit = allocation.metadata()
-            .getIndexSafe(shardRouting.index())
-            .getIndexTotalPrimaryShardsPerNodeLimit();
+        IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        final int indexShardLimit = indexMetadata.getIndexTotalShardsPerNodeLimit();
+        final int indexPrimaryShardLimit = indexMetadata.getIndexTotalPrimaryShardsPerNodeLimit();
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = this.clusterShardLimit;
@@ -223,9 +212,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
                 );
             }
         }
-
-        final boolean isIndexSegRepEnabled = isSegRepEnabledIndex(allocation, shardRouting);
-        if (indexPrimaryShardLimit > 0 && isIndexSegRepEnabled && shardRouting.primary()) {
+        if (indexPrimaryShardLimit > 0 && shardRouting.primary()) {
             final int indexPrimaryShardCount = node.numberOfOwningPrimaryShardsForIndex(shardRouting.index());
             if (decider.test(indexPrimaryShardCount, indexPrimaryShardLimit)) {
                 return allocation.decision(
