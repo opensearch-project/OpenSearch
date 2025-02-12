@@ -70,7 +70,9 @@ public class ConstraintTypes {
         return (params) -> {
             int perIndexPrimaryShardCount = params.getNode().numPrimaryShards(params.getIndex());
             int perIndexAllowedPrimaryShardCount = (int) Math.ceil(params.getBalancer().avgPrimaryShardsPerNode(params.getIndex()));
-            return rebalance ? perIndexPrimaryShardCount > perIndexAllowedPrimaryShardCount : perIndexPrimaryShardCount >= perIndexAllowedPrimaryShardCount;
+            return rebalance
+                ? perIndexPrimaryShardCount > perIndexAllowedPrimaryShardCount
+                : perIndexPrimaryShardCount >= perIndexAllowedPrimaryShardCount;
         };
     }
 
