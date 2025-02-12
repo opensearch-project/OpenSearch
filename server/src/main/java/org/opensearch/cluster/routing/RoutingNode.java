@@ -384,6 +384,16 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return shards.size() - relocatingShards.size();
     }
 
+    public int numberOfOwningPrimaryShards() {
+        int primaryShardsCount = 0;
+        for (ShardRouting shard : this) {
+            if (shard.primary() && !shard.relocating()) {
+                primaryShardsCount++;
+            }
+        }
+        return primaryShardsCount;
+    }
+
     public int numberOfOwningShardsForIndex(final Index index) {
         final LinkedHashSet<ShardRouting> shardRoutings = shardsByIndex.get(index);
         if (shardRoutings == null) {

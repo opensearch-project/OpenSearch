@@ -29,6 +29,7 @@ import java.util.Set;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
@@ -314,6 +315,83 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
         } catch (Exception e) {
             logger.error("Failed to assert shard allocation", e);
             fail("Failed to assert shard allocation: " + e.getMessage());
+        }
+    }
+
+    public void testClusterSpecificPrimaryShardLimit() {
+        // Set cluster-level settings
+        updateClusterSetting(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 3);
+        updateClusterSetting(CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 2);
+
+        // Settings for test1: 3 primaries, 1 replica
+        Settings test1Settings = Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 3)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .build();
+
+        // Settings for test2: 2 primaries, 1 replica
+        Settings test2Settings = Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 2)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .build();
+
+        // Settings for test3: 2 primaries, no replicas
+        Settings test3Settings = Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 2)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .build();
+
+        // Create the indices
+        createIndex("test1", test1Settings);
+        createIndex("test2", test2Settings);
+        createIndex("test3", test3Settings);
+
+        try {
+            assertBusy(() -> {
+                ClusterState state = client().admin().cluster().prepareState().get().getState();
+
+                // Track shard statistics
+                int totalAssignedShards = 0;
+                int totalUnassignedShards = 0;
+
+                // Check shard allocation for each index
+                for (IndexRoutingTable indexRoutingTable : state.getRoutingTable()) {
+                    for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+                        for (ShardRouting shardRouting : shardRoutingTable) {
+                            if (shardRouting.unassigned()) {
+                                totalUnassignedShards++;
+                            } else {
+                                totalAssignedShards++;
+                            }
+                        }
+                    }
+                }
+
+                // Assert shard allocation
+                assertEquals("Total assigned shards should be 6", 6, totalAssignedShards);
+                assertEquals("Total unassigned shards should be 1", 1, totalUnassignedShards);
+
+                // Verify node-level shard distribution
+                for (RoutingNode routingNode : state.getRoutingNodes()) {
+                    int primaryCount = 0;
+                    int totalCount = 0;
+
+                    for (ShardRouting shardRouting : routingNode) {
+                        if (shardRouting.primary()) {
+                            primaryCount++;
+                        }
+                        totalCount++;
+                    }
+
+                    assertTrue("Each node should have at most 2 primary shards", primaryCount <= 2);
+                    assertTrue("Each node should have at most 3 total shards", totalCount <= 3);
+                }
+            });
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 

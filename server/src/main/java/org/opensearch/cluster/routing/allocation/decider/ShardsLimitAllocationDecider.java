@@ -48,8 +48,9 @@ import java.util.function.BiPredicate;
 /**
  * This {@link AllocationDecider} limits the number of shards per node on a per
  * index or node-wide basis. The allocator prevents a single node to hold more
- * than {@code index.routing.allocation.total_shards_per_node} per index, {@code index.routing.allocation.total_primary_shards_per_node} per index and
- * {@code cluster.routing.allocation.total_shards_per_node} globally during the allocation
+ * than {@code index.routing.allocation.total_shards_per_node} per index, {@code index.routing.allocation.total_primary_shards_per_node} per index,
+ * {@code cluster.routing.allocation.total_shards_per_node} globally and
+ * {@code cluster.routing.allocation.total_primary_shards_per_node} globally during the allocation
  * process. The limits of this decider can be changed in real-time via a the
  * index settings API.
  * <p>
@@ -72,6 +73,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     public static final String NAME = "shards_limit";
 
     private volatile int clusterShardLimit;
+    private volatile int clusterPrimaryShardLimit;
 
     /**
      * Controls the maximum number of shards per index on a single OpenSearch
@@ -109,16 +111,34 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Property.NodeScope
     );
 
+    /**
+     * Controls the maximum number of primary shards per node on a global level.
+     * Negative values are interpreted as unlimited.
+     */
+    public static final Setting<Integer> CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING = Setting.intSetting(
+        "cluster.routing.allocation.total_primary_shards_per_node",
+        -1,
+        -1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private final Settings settings;
 
     public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.settings = settings;
         this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
+        this.clusterPrimaryShardLimit = CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING, this::setClusterPrimaryShardLimit);
     }
 
     private void setClusterShardLimit(int clusterShardLimit) {
         this.clusterShardLimit = clusterShardLimit;
+    }
+
+    private void setClusterPrimaryShardLimit(int clusterPrimaryShardLimit) {
+        this.clusterPrimaryShardLimit = clusterPrimaryShardLimit;
     }
 
     @Override
@@ -153,7 +173,8 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = this.clusterShardLimit;
-        if (indexShardLimit <= 0 && indexPrimaryShardLimit <= 0 && clusterShardLimit <= 0) {
+        final int clusterPrimaryShardLimit = this.clusterPrimaryShardLimit;
+        if (indexShardLimit <= 0 && indexPrimaryShardLimit <= 0 && clusterShardLimit <= 0 && clusterPrimaryShardLimit <= 0) {
             return allocation.decision(
                 Decision.YES,
                 NAME,
@@ -174,6 +195,19 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
                 CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
                 clusterShardLimit
             );
+        }
+        if (shardRouting.primary() && clusterPrimaryShardLimit > 0) {
+            final int nodePrimaryShardCount = node.numberOfOwningPrimaryShards();
+            if (decider.test(nodePrimaryShardCount, clusterPrimaryShardLimit)) {
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "too many primary shards [%d] allocated to this node, cluster setting [%s=%d]",
+                    nodePrimaryShardCount,
+                    CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(),
+                    clusterPrimaryShardLimit
+                );
+            }
         }
         if (indexShardLimit > 0) {
             final int indexShardCount = node.numberOfOwningShardsForIndex(shardRouting.index());

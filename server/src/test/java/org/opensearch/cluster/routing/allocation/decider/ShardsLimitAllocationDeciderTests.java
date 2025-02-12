@@ -114,6 +114,86 @@ public class ShardsLimitAllocationDeciderTests extends OpenSearchTestCase {
         assertEquals(YES, decider.canAllocate(shard3, clusterState.getRoutingNodes().node("node2"), allocation).type());
     }
 
+    public void testClusterPrimaryShardLimit() {
+        Settings settings = Settings.builder()
+            .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 2)
+            .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 3)
+            .build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ShardsLimitAllocationDecider decider = new ShardsLimitAllocationDecider(settings, clusterSettings);
+
+        // Create metadata for two indices
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+            .build();
+
+        // Create routing table
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+
+        // Setup routing for test1 (3 primaries)
+        IndexRoutingTable.Builder test1RoutingTableBuilder = IndexRoutingTable.builder(metadata.index("test1").getIndex());
+
+        // test1: First primary on node1
+        test1RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test1", 0, "node1", null, true, ShardRoutingState.STARTED));
+
+        // test1: Second primary on node2
+        test1RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test1", 1, "node2", null, true, ShardRoutingState.STARTED));
+
+        // test1: Third primary unassigned
+        test1RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test1", 2, null, null, true, ShardRoutingState.UNASSIGNED));
+
+        // Setup routing for test2 (2 primaries, 1 replica)
+        IndexRoutingTable.Builder test2RoutingTableBuilder = IndexRoutingTable.builder(metadata.index("test2").getIndex());
+
+        // test2: First primary on node1
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 0, "node1", null, true, ShardRoutingState.STARTED));
+
+        // test2: Second primary on node2
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 1, "node2", null, true, ShardRoutingState.STARTED));
+
+        // test2: First replica on node2
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 0, "node2", null, false, ShardRoutingState.STARTED));
+        // test2: Second replica unassigned
+        test2RoutingTableBuilder.addShard(TestShardRouting.newShardRouting("test2", 1, null, null, false, ShardRoutingState.UNASSIGNED));
+
+        routingTableBuilder.add(test1RoutingTableBuilder.build());
+        routingTableBuilder.add(test2RoutingTableBuilder.build());
+        RoutingTable routingTable = routingTableBuilder.build();
+
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
+
+        RoutingAllocation allocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, null, 0);
+        allocation.debugDecision(true);
+
+        // Get shards for testing
+        ShardRouting test1Shard1 = routingTable.index("test1").shard(0).primaryShard();
+        ShardRouting test1Shard3 = routingTable.index("test1").shard(2).primaryShard();
+        ShardRouting test2Replica2 = routingTable.index("test2").shard(1).replicaShards().get(0);
+
+        // Test allocation decisions
+        // Cannot allocate third primary to node1 (would exceed primary shard limit)
+        assertEquals(NO, decider.canAllocate(test1Shard3, clusterState.getRoutingNodes().node("node1"), allocation).type());
+
+        // Cannot allocate third primary to node2 (would exceed primary shard limit)
+        assertEquals(NO, decider.canAllocate(test1Shard3, clusterState.getRoutingNodes().node("node2"), allocation).type());
+
+        // Can allocate second replica to node1 (within total shard limit)
+        assertEquals(YES, decider.canAllocate(test2Replica2, clusterState.getRoutingNodes().node("node1"), allocation).type());
+
+        // Cannot allocate second replica to node2 (would exceed total shard limit)
+        assertEquals(NO, decider.canAllocate(test2Replica2, clusterState.getRoutingNodes().node("node2"), allocation).type());
+
+        // Existing primary can remain
+        assertEquals(YES, decider.canRemain(test1Shard1, clusterState.getRoutingNodes().node("node1"), allocation).type());
+
+    }
+
     public void testIndexShardLimit() {
         Settings clusterSettings = Settings.builder()
             .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)
