@@ -267,7 +267,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         for (LeafSlice leafSlice : leafSlices) {
             search(leafSlice.partitions, weight, collector);
         }
-        searchContext.bucketCollectorProcessor().processPostCollection(collector);
     }
 
     public void search(
