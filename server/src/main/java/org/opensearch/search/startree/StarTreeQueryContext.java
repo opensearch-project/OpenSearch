@@ -163,8 +163,7 @@ public class StarTreeQueryContext {
         CompositeDataCubeFieldType compositeIndexFieldInfo,
         AggregatorFactory aggregatorFactory
     ) {
-        if (!(aggregatorFactory instanceof TermsAggregatorFactory termsAggregatorFactory)
-            || aggregatorFactory.getSubFactories().getFactories().length < 1) {
+        if (!(aggregatorFactory instanceof TermsAggregatorFactory termsAggregatorFactory)) {
             return false;
         }
 
