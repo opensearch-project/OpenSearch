@@ -65,7 +65,6 @@ apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 apply from: 'gradle/local-distribution.gradle'
-apply from: 'gradle/fips.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
@@ -472,8 +471,8 @@ gradle.projectsEvaluated {
   }
 }
 
-// test retry configuration
 subprojects {
+  // test retry configuration
   tasks.withType(Test).configureEach {
     develocity.testRetry {
       if (BuildParams.isCi()) {
@@ -556,6 +555,22 @@ subprojects {
         includeClasses.add("org.opensearch.test.rest.ClientYamlTestSuiteIT")
         includeClasses.add("org.opensearch.upgrade.DetectEsInstallationTaskTests")
         includeClasses.add("org.opensearch.cluster.MinimumClusterManagerNodesIT")
+      }
+    }
+  }
+
+  // test with FIPS-140-3 enabled
+  plugins.withType(JavaPlugin).configureEach {
+    tasks.withType(Test).configureEach { testTask ->
+      if (BuildParams.inFipsJvm) {
+        testTask.jvmArgs += "-Dorg.bouncycastle.fips.approved_only=true"
+      }
+    }
+  }
+  plugins.withId('opensearch.testclusters') {
+    testClusters.configureEach {
+      if (BuildParams.inFipsJvm) {
+        keystorePassword 'notarealpasswordphrase'
       }
     }
   }

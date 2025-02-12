@@ -47,17 +47,17 @@ import java.util.Enumeration;
 final class StoreTrustConfig implements SslTrustConfig {
     private final Path path;
     private final char[] password;
-    private final String type;
+    private final KeyStoreType type;
     private final String algorithm;
 
     /**
      * @param path      The path to the keystore file
      * @param password  The password for the keystore
      * @param type      The {@link KeyStore#getType() type} of the keystore (typically "PKCS12" or "jks").
-     *                  See {@link KeyStoreUtil#inferKeyStoreType(Path)}.
+     *                  See {@link KeyStoreType#inferStoreType(String)}.
      * @param algorithm The algorithm to use for the Trust Manager (see {@link javax.net.ssl.TrustManagerFactory#getAlgorithm()}).
      */
-    StoreTrustConfig(Path path, char[] password, String type, String algorithm) {
+    StoreTrustConfig(Path path, char[] password, KeyStoreType type, String algorithm) {
         this.path = path;
         this.type = type;
         this.algorithm = algorithm;

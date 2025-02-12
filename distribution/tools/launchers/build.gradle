@@ -36,6 +36,7 @@ dependencies {
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 }
 
 base {

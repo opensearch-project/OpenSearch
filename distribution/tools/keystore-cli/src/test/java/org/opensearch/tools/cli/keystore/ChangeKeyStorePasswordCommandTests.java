@@ -54,6 +54,7 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
     }
 
     public void testSetKeyStorePassword() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         createKeystore("");
         loadKeystore("");
         terminal.addSecretInput("thepassword");
@@ -67,14 +68,15 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
         createKeystore("theoldpassword");
         loadKeystore("theoldpassword");
         terminal.addSecretInput("theoldpassword");
-        terminal.addSecretInput("thepassword");
-        terminal.addSecretInput("thepassword");
+        terminal.addSecretInput("thenewpassword");
+        terminal.addSecretInput("thenewpassword");
         // Prompted thrice: Once for the existing and twice for the new password
         execute();
-        loadKeystore("thepassword");
+        loadKeystore("thenewpassword");
     }
 
     public void testChangeKeyStorePasswordToEmpty() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         createKeystore("theoldpassword");
         loadKeystore("theoldpassword");
         terminal.addSecretInput("theoldpassword");
@@ -104,16 +106,12 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
         // We'll only be prompted once (for the old password)
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        if (inFipsJvm()) {
-            assertThat(
-                e.getMessage(),
-                anyOf(
-                    containsString("Provided keystore password was incorrect"),
-                    containsString("Keystore has been corrupted or tampered with")
-                )
-            );
-        } else {
-            assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
-        }
+        assertThat(
+            e.getMessage(),
+            anyOf(
+                containsString("Provided keystore password was incorrect"),
+                containsString("Keystore has been corrupted or tampered with")
+            )
+        );
     }
 }

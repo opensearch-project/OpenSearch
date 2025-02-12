@@ -78,6 +78,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingCreateWithEmptyPasswordWhenPrompted() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         String password = "";
         Path file1 = createRandomFile();
         terminal.addTextInput("y");
@@ -86,6 +87,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingCreateWithEmptyPasswordWithoutPromptIfForced() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         String password = "";
         Path file1 = createRandomFile();
         execute("-f", "foo", file1.toString());
@@ -93,7 +95,8 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingNoCreate() throws Exception {
-        terminal.addSecretInput(randomFrom("", "keystorepassword"));
+        var password = inFipsJvm() ? "keystorepassword" : randomFrom("", "keystorepassword");
+        terminal.addSecretInput(password);
         terminal.addTextInput("n"); // explicit no
         execute("foo");
         assertNull(KeyStoreWrapper.load(env.configDir()));
@@ -211,20 +214,17 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput("thewrongkeystorepassword");
         UserException e = expectThrows(UserException.class, () -> execute("foo", file.toString()));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        if (inFipsJvm()) {
-            assertThat(
-                e.getMessage(),
-                anyOf(
-                    containsString("Provided keystore password was incorrect"),
-                    containsString("Keystore has been corrupted or tampered with")
-                )
-            );
-        } else {
-            assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
-        }
+        assertThat(
+            e.getMessage(),
+            anyOf(
+                containsString("Provided keystore password was incorrect"),
+                containsString("Keystore has been corrupted or tampered with")
+            )
+        );
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         String password = "";
         Path file = createRandomFile();
         KeyStoreWrapper keystore = createKeystore(password);

@@ -213,16 +213,6 @@ thirdPartyAudit {
     // Worth nothing that, the latest dependency "net.shibboleth.utilities:java-support:8.0.0" has many vulnerabilities.
     // Hence ignored.
     'net.shibboleth.utilities.java.support.xml.SerializeSupport',
-    'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
-    'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
-    'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
-    'org.bouncycastle.cert.X509CertificateHolder',
-    'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
-    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
-    'org.bouncycastle.openssl.PEMKeyPair',
-    'org.bouncycastle.openssl.PEMParser',
-    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
-    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
     'org.cryptomator.siv.SivMode',
     'org.opensaml.core.config.InitializationException',
     'org.opensaml.core.config.InitializationService',
@@ -312,6 +302,10 @@ Map<String, Object> expansions = [
   'container': azureContainer,
   'base_path': azureBasePath + "_integration_tests"
 ]
+
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false }
+}
 
 processYamlRestTestResources {
   inputs.properties(expansions)

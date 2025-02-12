@@ -34,6 +34,7 @@ import org.opensearch.gradle.test.RestIntegTestTask
 import org.opensearch.gradle.test.TestTask
 import org.opensearch.gradle.test.rest.YamlRestTestPlugin
 import org.opensearch.gradle.test.InternalClusterTestPlugin
+import org.opensearch.gradle.testclusters.OpenSearchCluster
 
 import static org.opensearch.gradle.PropertyNormalization.IGNORE_VALUE
 
@@ -292,7 +293,7 @@ testClusters.yamlRestTest {
     setting 's3.client.integration_test_eks.region', { "us-east-2" }, IGNORE_VALUE
 
     // to redirect InstanceProfileCredentialsProvider to custom auth point
-    systemProperty "aws.ec2MetadataServiceEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
+    systemProperty "aws.ec2MetadataServiceEndpoint", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
     // to redirect AWSSecurityTokenServiceClient to custom auth point
     systemProperty "aws.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
   } else {
@@ -473,17 +474,6 @@ thirdPartyAudit {
     'net.jpountz.lz4.LZ4FastDecompressor',
     'net.jpountz.xxhash.XXHash32',
     'net.jpountz.xxhash.XXHashFactory',
-
-    // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
-    'org.bouncycastle.cert.X509v3CertificateBuilder',
-    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
-    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
-    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
-    'org.bouncycastle.openssl.PEMParser',
-    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
-    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
-    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
-    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
 
     'org.conscrypt.AllocatedBuffer',
     'org.conscrypt.BufferAllocator',

@@ -32,13 +32,14 @@
 
 package org.opensearch.common.ssl;
 
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -66,12 +67,7 @@ public class SslConfiguration {
     static final Map<String, String> ORDERED_PROTOCOL_ALGORITHM_MAP;
     static {
         LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
-        try {
-            SSLContext.getInstance("TLSv1.3");
-            protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
-        } catch (NoSuchAlgorithmException e) {
-            // ignore since we support JVMs (and BC JSSE in FIPS mode) that do not support TLSv1.3
-        }
+        protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
         protocolAlgorithmMap.put("TLSv1.2", "TLSv1.2");
         protocolAlgorithmMap.put("TLSv1.1", "TLSv1.1");
         protocolAlgorithmMap.put("TLSv1", "TLSv1");
@@ -168,8 +164,12 @@ public class SslConfiguration {
      * {@link #getSupportedProtocols() configured protocols}.
      */
     private String contextProtocol() {
-        if (supportedProtocols.isEmpty()) {
-            throw new SslConfigException("no SSL/TLS protocols have been configured");
+        if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
+            if (!new HashSet<>(SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS).containsAll(supportedProtocols)) {
+                throw new SslConfigException(
+                    "in FIPS mode only the following SSL/TLS protocols are allowed: " + SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS
+                );
+            }
         }
         for (Entry<String, String> entry : ORDERED_PROTOCOL_ALGORITHM_MAP.entrySet()) {
             if (supportedProtocols.contains(entry.getKey())) {

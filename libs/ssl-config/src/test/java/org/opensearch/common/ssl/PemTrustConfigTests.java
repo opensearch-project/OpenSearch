@@ -42,7 +42,6 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.security.GeneralSecurityException;
 import java.security.Principal;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
@@ -74,7 +73,7 @@ public class PemTrustConfigTests extends OpenSearchTestCase {
         Files.write(ca, generateRandomByteArrayOfLength(128), StandardOpenOption.APPEND);
         final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca));
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ca));
-        assertInvalidFileFormat(trustConfig, ca);
+        assertFailedToParse(trustConfig, ca);
     }
 
     public void testEmptyFileFails() throws Exception {
@@ -121,7 +120,7 @@ public class PemTrustConfigTests extends OpenSearchTestCase {
         assertFileNotFound(trustConfig, ca1);
 
         Files.write(ca1, generateRandomByteArrayOfLength(128), StandardOpenOption.CREATE);
-        assertInvalidFileFormat(trustConfig, ca1);
+        assertFailedToParse(trustConfig, ca1);
     }
 
     private void assertCertificateChain(PemTrustConfig trustConfig, String... caNames) {
@@ -139,20 +138,14 @@ public class PemTrustConfigTests extends OpenSearchTestCase {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         logger.info("failure", exception);
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
-        assertThat(exception.getMessage(), Matchers.containsString("failed to parse any certificates"));
+        assertThat(exception.getMessage(), Matchers.containsString("Failed to parse any certificate from"));
     }
 
-    private void assertInvalidFileFormat(PemTrustConfig trustConfig, Path file) {
+    private void assertFailedToParse(PemTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
+        logger.info("failure", exception);
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
-        // When running on BC-FIPS, an invalid file format *might* just fail to parse, without any errors (just like an empty file)
-        // or it might behave per the SUN provider, and throw a GSE (depending on exactly what was invalid)
-        if (inFipsJvm() && exception.getMessage().contains("failed to parse any certificates")) {
-            return;
-        }
-        assertThat(exception.getMessage(), Matchers.containsString("cannot create trust"));
-        assertThat(exception.getMessage(), Matchers.containsString("PEM"));
-        assertThat(exception.getCause(), Matchers.instanceOf(GeneralSecurityException.class));
+        assertThat(exception.getMessage(), Matchers.containsString("Failed to parse any certificate from"));
     }
 
     private void assertFileNotFound(PemTrustConfig trustConfig, Path file) {

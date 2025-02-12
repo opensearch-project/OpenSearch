@@ -67,6 +67,7 @@ import org.opensearch.client.ResponseListener;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.RestClientBuilder.HttpClientConfigCallback;
+import org.opensearch.common.ssl.KeyStoreFactory;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -83,6 +84,8 @@ import java.security.cert.CertificateFactory;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
+
+import static org.opensearch.common.ssl.KeyStoreType.PKCS_12;
 
 /**
  * This class is used to generate the Java low-level REST client documentation.
@@ -436,7 +439,7 @@ public class RestClientDocumentation {
             String keyStorePass = "";
             //tag::rest-client-config-encrypted-communication
             Path trustStorePath = Paths.get("/path/to/truststore.p12");
-            KeyStore truststore = KeyStore.getInstance("pkcs12");
+            KeyStore truststore = KeyStoreFactory.getInstance(PKCS_12);
             try (InputStream is = Files.newInputStream(trustStorePath)) {
                 truststore.load(is, keyStorePass.toCharArray());
             }
@@ -478,7 +481,7 @@ public class RestClientDocumentation {
             try (InputStream is = Files.newInputStream(caCertificatePath)) {
                 trustedCa = factory.generateCertificate(is);
             }
-            KeyStore trustStore = KeyStore.getInstance("pkcs12");
+            KeyStore trustStore = KeyStoreFactory.getInstance(PKCS_12);
             trustStore.load(null, null);
             trustStore.setCertificateEntry("ca", trustedCa);
             SSLContextBuilder sslContextBuilder = SSLContexts.custom()
@@ -516,8 +519,8 @@ public class RestClientDocumentation {
             //tag::rest-client-config-mutual-tls-authentication
             Path trustStorePath = Paths.get("/path/to/your/truststore.p12");
             Path keyStorePath = Paths.get("/path/to/your/keystore.p12");
-            KeyStore trustStore = KeyStore.getInstance("pkcs12");
-            KeyStore keyStore = KeyStore.getInstance("pkcs12");
+            KeyStore trustStore = KeyStoreFactory.getInstance(PKCS_12);
+            KeyStore keyStore = KeyStoreFactory.getInstance(PKCS_12);
             try (InputStream is = Files.newInputStream(trustStorePath)) {
                 trustStore.load(is, trustStorePass.toCharArray());
             }
