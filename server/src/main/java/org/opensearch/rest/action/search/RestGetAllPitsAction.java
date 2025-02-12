@@ -11,7 +11,6 @@ package org.opensearch.rest.action.search;
 
 import org.opensearch.action.search.GetAllPitNodesRequest;
 import org.opensearch.action.search.GetAllPitNodesResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.rest.RestStatus;
@@ -21,6 +20,7 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestBuilderListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.ArrayList;

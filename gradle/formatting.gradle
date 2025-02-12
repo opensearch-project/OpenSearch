@@ -82,7 +82,7 @@ allprojects {
               '\\#java|\\#org.opensearch|\\#org.hamcrest|\\#'
           )
 
-          eclipse().configFile rootProject.file('buildSrc/formatterConfig.xml')
+          eclipse().withP2Mirrors(Map.of("https://download.eclipse.org/", "https://mirror.umd.edu/eclipse/")).configFile rootProject.file('buildSrc/formatterConfig.xml')
           trimTrailingWhitespace()
           endWithNewline()
 

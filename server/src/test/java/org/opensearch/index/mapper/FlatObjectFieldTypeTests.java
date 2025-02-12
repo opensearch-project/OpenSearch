@@ -197,7 +197,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             );
             Query expected = AutomatonQueries.createAutomatonQuery(
                 new Term("field" + VALUE_SUFFIX, "field.fOo"),
-                AutomatonQueries.toCaseInsensitiveString("field.fOo", Integer.MAX_VALUE),
+                AutomatonQueries.toCaseInsensitiveString("field.fOo"),
                 MultiTermQuery.DOC_VALUES_REWRITE
             );
             assertEquals(expected, ft.termQueryCaseInsensitive("fOo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
@@ -213,7 +213,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             );
             Query expected = AutomatonQueries.createAutomatonQuery(
                 new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field.field1=fOo"),
-                AutomatonQueries.toCaseInsensitiveString("field.field.field1=fOo", Integer.MAX_VALUE),
+                AutomatonQueries.toCaseInsensitiveString("field.field.field1=fOo"),
                 MultiTermQuery.DOC_VALUES_REWRITE
             );
 
@@ -418,8 +418,12 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 ft.getValueFieldType(),
                 ft.getValueAndPathFieldType()
             );
-            assertEquals(new TermQuery(new Term("field", "field.bar")), dynamicMappedFieldType.existsQuery(null));
-
+            Automaton termAutomaton = PrefixQuery.toAutomaton(new BytesRef("field.bar="));
+            Automaton dvAutomaton = PrefixQuery.toAutomaton(new BytesRef("field.field.bar="));
+            Query indexQuery = new AutomatonQuery(new Term("field" + VALUE_AND_PATH_SUFFIX), termAutomaton, true);
+            Query dvQuery = new AutomatonQuery(new Term("field" + VALUE_AND_PATH_SUFFIX), dvAutomaton, true, DOC_VALUES_REWRITE);
+            Query expected = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            assertEquals(expected, dynamicMappedFieldType.existsQuery(MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
         {
@@ -1176,8 +1180,8 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                         );
                         continue;
                     }
-                    boolean nullLowerTerm = true;// randomBoolean();
-                    boolean nullUpperTerm = true;// nullLowerTerm == false || randomBoolean();
+                    boolean nullLowerTerm = randomBoolean();
+                    boolean nullUpperTerm = nullLowerTerm == false || randomBoolean();
 
                     Automaton a1 = PrefixQuery.toAutomaton(new BytesRef("field.field1="));
                     Automaton a2 = TermRangeQuery.toAutomaton(

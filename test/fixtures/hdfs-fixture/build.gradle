@@ -55,13 +55,13 @@ dependencies {
     exclude group: 'com.nimbusds'
     exclude module: "commons-configuration2"
   }
-  api "dnsjava:dnsjava:3.6.2"
+  api "dnsjava:dnsjava:3.6.3"
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api "io.netty:netty-all:${versions.netty}"
-  api 'com.google.code.gson:gson:2.11.0'
+  api 'com.google.code.gson:gson:2.12.1'
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
@@ -75,9 +75,9 @@ dependencies {
   api "org.apache.commons:commons-text:1.13.0"
   api "commons-net:commons-net:3.11.1"
   api "ch.qos.logback:logback-core:1.5.16"
-  api "ch.qos.logback:logback-classic:1.5.15"
+  api "ch.qos.logback:logback-classic:1.5.16"
   api "org.jboss.xnio:xnio-nio:3.8.16.Final"
-  api 'org.jline:jline:3.28.0'
+  api 'org.jline:jline:3.29.0'
   api 'org.apache.commons:commons-configuration2:2.11.0'
   api 'com.nimbusds:nimbus-jose-jwt:10.0.1'
   api ('org.apache.kerby:kerb-admin:2.1.0') {

@@ -33,6 +33,7 @@ public class QueryGroupTask extends CancellableTask {
     public static final Supplier<String> DEFAULT_QUERY_GROUP_ID_SUPPLIER = () -> "DEFAULT_QUERY_GROUP";
     private final LongSupplier nanoTimeSupplier;
     private String queryGroupId;
+    private boolean isQueryGroupSet = false;
 
     public QueryGroupTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT, System::nanoTime);
@@ -81,6 +82,7 @@ public class QueryGroupTask extends CancellableTask {
      * @param threadContext current threadContext
      */
     public final void setQueryGroupId(final ThreadContext threadContext) {
+        isQueryGroupSet = true;
         if (threadContext != null && threadContext.getHeader(QUERY_GROUP_ID_HEADER) != null) {
             this.queryGroupId = threadContext.getHeader(QUERY_GROUP_ID_HEADER);
         } else {
@@ -90,6 +92,10 @@ public class QueryGroupTask extends CancellableTask {
 
     public long getElapsedTime() {
         return nanoTimeSupplier.getAsLong() - getStartTimeNanos();
+    }
+
+    public boolean isQueryGroupSet() {
+        return isQueryGroupSet;
     }
 
     @Override

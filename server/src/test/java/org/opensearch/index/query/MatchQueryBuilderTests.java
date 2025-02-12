@@ -35,7 +35,6 @@ package org.opensearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
@@ -65,6 +64,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.index.search.MatchQuery.Type;
 import org.opensearch.index.search.MatchQuery.ZeroTermsQuery;
+import org.opensearch.lucene.queries.ExtendedCommonTermsQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 

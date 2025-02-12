@@ -36,7 +36,6 @@ import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -68,6 +67,7 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 

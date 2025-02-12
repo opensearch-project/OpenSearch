@@ -180,7 +180,7 @@ final class RequestConverters {
         }
 
         if (bulkContentType == null) {
-            bulkContentType = MediaTypeRegistry.JSON;
+            bulkContentType = REQUEST_BODY_CONTENT_TYPE;
         }
 
         final byte separator = bulkContentType.xContent().streamSeparator();
@@ -424,7 +424,7 @@ final class RequestConverters {
             }
         }
         if (mediaType == null) {
-            mediaType = Requests.INDEX_CONTENT_TYPE;
+            mediaType = REQUEST_BODY_CONTENT_TYPE;
         }
         request.addParameters(parameters.asMap());
         request.setEntity(createEntity(updateRequest, mediaType));
@@ -946,14 +946,6 @@ final class RequestConverters {
             return this;
         }
 
-        /**
-         * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #withClusterManagerTimeout(TimeValue)}
-         */
-        @Deprecated
-        Params withMasterTimeout(TimeValue clusterManagerTimeout) {
-            return putParam("master_timeout", clusterManagerTimeout);
-        }
-
         Params withClusterManagerTimeout(TimeValue clusterManagerTimeout) {
             return putParam("cluster_manager_timeout", clusterManagerTimeout);
         }
@@ -1264,7 +1256,7 @@ final class RequestConverters {
      */
     static MediaType enforceSameContentType(IndexRequest indexRequest, @Nullable MediaType mediaType) {
         MediaType requestContentType = indexRequest.getContentType();
-        if (requestContentType != MediaTypeRegistry.JSON && requestContentType != MediaTypeRegistry.fromFormat("smile")) {
+        if (requestContentType != REQUEST_BODY_CONTENT_TYPE && requestContentType != MediaTypeRegistry.fromFormat("smile")) {
             throw new IllegalArgumentException(
                 "Unsupported content-type found for request with content-type ["
                     + requestContentType

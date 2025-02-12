@@ -161,35 +161,16 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
     protected abstract Response read(StreamInput in) throws IOException;
 
-    /**
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)}
-     */
-    @Deprecated
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        throw new UnsupportedOperationException("Must be overridden");
-    }
-
     // TODO: Add abstract keyword after removing the deprecated masterOperation()
-    protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        masterOperation(request, state, listener);
-    }
-
-    /**
-     * Override this operation if access to the task parameter is needed
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)}
-     */
-    @Deprecated
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        clusterManagerOperation(request, state, listener);
-    }
+    protected abstract void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+        throws Exception;
 
     /**
      * Override this operation if access to the task parameter is needed
      */
-    // TODO: Change the implementation to call 'clusterManagerOperation(request...)' after removing the deprecated masterOperation()
     protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
-        masterOperation(task, request, state, listener);
+        clusterManagerOperation(request, state, listener);
     }
 
     protected boolean localExecute(Request request) {
@@ -265,7 +246,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
          */
         @Override
         public Exception getTimeoutException(Exception e) {
-            return new ProcessClusterEventTimeoutException(request.masterNodeTimeout, actionName);
+            return new ProcessClusterEventTimeoutException(request.clusterManagerNodeTimeout, actionName);
         }
 
         protected void doStart(ClusterState clusterState) {
@@ -549,17 +530,6 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
      */
     protected String getClusterManagerActionName(DiscoveryNode node) {
         return actionName;
-    }
-
-    /**
-     * Allows to conditionally return a different cluster-manager node action name in the case an action gets renamed.
-     * This mainly for backwards compatibility should be used rarely
-     *
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #getClusterManagerActionName(DiscoveryNode)}
-     */
-    @Deprecated
-    protected String getMasterActionName(DiscoveryNode node) {
-        return getClusterManagerActionName(node);
     }
 
     /**

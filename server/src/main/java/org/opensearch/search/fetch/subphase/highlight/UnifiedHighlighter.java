@@ -36,12 +36,8 @@ import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenOffsetFilter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
-import org.apache.lucene.search.uhighlight.CustomPassageFormatter;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
-import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
-import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter.OffsetSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
@@ -54,6 +50,10 @@ import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
+import org.opensearch.lucene.search.uhighlight.CustomPassageFormatter;
+import org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.opensearch.lucene.search.uhighlight.Snippet;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
 
@@ -67,7 +67,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
+import static org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 /**
  * Uses lucene's unified highlighter implementation

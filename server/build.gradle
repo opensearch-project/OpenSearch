@@ -104,7 +104,7 @@ dependencies {
   api libs.jzlib
 
   // reactor
-  api libs.reactorcore
+  api libs.reactor.core
   api libs.reactivestreams
 
   // protobuf
@@ -113,7 +113,7 @@ dependencies {
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
-
+  testImplementation 'org.awaitility:awaitility:4.2.2'
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -370,7 +370,6 @@ tasks.named("licenseHeaders").configure {
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
-    excludes << 'org/opensearch/client/documentation/placeholder.txt'
     // Ignore for protobuf generated code
     excludes << 'org/opensearch/extensions/proto/*'
 }
