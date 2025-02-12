@@ -3122,6 +3122,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     }
                 }
             );
+            closeConnectionChannel(connection);
             assertThat(te.get(), not(nullValue()));
 
             if (failToSendException instanceof IllegalStateException) {
