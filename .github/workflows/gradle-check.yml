@@ -33,7 +33,6 @@ jobs:
 
   gradle-check:
     needs: check-files
-    if: needs.check-files.outputs.RUN_GRADLE_CHECK == 'true'
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
