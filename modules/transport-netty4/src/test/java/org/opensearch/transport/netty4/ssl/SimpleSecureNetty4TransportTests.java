@@ -8,6 +8,8 @@
 
 package org.opensearch.transport.netty4.ssl;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
+
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
@@ -66,6 +68,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@ThreadLeakLingering(linger = 5000)
 public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTestCase {
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
