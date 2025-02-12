@@ -3122,6 +3122,8 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     }
                 }
             );
+            connection.close();
+            serviceC.disconnectFromNode(nodeA);
             assertThat(te.get(), not(nullValue()));
 
             if (failToSendException instanceof IllegalStateException) {
@@ -3132,8 +3134,6 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 assertThat(te.get().getMessage(), equalTo("fail to send"));
                 assertThat(te.get().getCause(), nullValue());
             }
-        } finally {
-            IOUtils.close(serviceC);
         }
 
     }
