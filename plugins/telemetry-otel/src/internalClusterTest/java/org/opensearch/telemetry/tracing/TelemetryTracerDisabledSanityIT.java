@@ -8,7 +8,6 @@
 
 package org.opensearch.telemetry.tracing;
 
-import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
@@ -16,6 +15,7 @@ import org.opensearch.telemetry.IntegrationTestOTelTelemetryPlugin;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.util.Arrays;
 import java.util.Collection;

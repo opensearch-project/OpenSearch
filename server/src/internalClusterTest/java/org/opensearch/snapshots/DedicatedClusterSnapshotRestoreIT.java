@@ -43,8 +43,6 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.Client;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -98,6 +96,8 @@ import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

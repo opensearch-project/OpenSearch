@@ -36,8 +36,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
-import org.opensearch.client.Client;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -47,6 +45,8 @@ import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;

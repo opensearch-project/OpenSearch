@@ -43,13 +43,13 @@ import org.opensearch.action.admin.indices.dangling.find.NodeFindDanglingIndexRe
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.LocalAllocateDangledIndices;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
 import java.util.Comparator;

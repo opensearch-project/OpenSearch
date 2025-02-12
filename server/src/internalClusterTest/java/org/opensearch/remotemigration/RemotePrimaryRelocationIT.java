@@ -13,8 +13,6 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -25,6 +23,8 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.util.Collection;
 import java.util.List;

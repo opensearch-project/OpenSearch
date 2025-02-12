@@ -156,6 +156,8 @@ class ReactorNetty4HttpRequest implements HttpRequest {
             return HttpRequest.HttpVersion.HTTP_1_0;
         } else if (protocol.equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1.toString())) {
             return HttpRequest.HttpVersion.HTTP_1_1;
+        } else if (protocol.equals("HTTP/2.0")) {
+            return HttpRequest.HttpVersion.HTTP_2_0;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + protocol);
         }

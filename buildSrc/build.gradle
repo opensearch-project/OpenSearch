@@ -104,7 +104,7 @@ dependencies {
 
   api "commons-codec:commons-codec:${props.getProperty('commonscodec')}"
   api "org.apache.commons:commons-compress:${props.getProperty('commonscompress')}"
-  api 'org.apache.ant:ant:1.10.14'
+  api 'org.apache.ant:ant:1.10.15'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:10.0.0'
   api 'com.netflix.nebula:nebula-publishing-plugin:21.1.0'
   api 'com.netflix.nebula:gradle-info-plugin:12.1.6'
@@ -120,7 +120,7 @@ dependencies {
   api 'org.apache.maven:maven-model:3.9.6'
   api 'com.networknt:json-schema-validator:1.2.0'
   api 'org.jruby.jcodings:jcodings:1.0.58'
-  api 'org.jruby.joni:joni:2.2.1'
+  api 'org.jruby.joni:joni:2.2.3'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.2.1"
 

@@ -33,8 +33,6 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.opensearch.client.Requests;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -47,6 +45,8 @@ import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.transport.client.Requests;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Collections;

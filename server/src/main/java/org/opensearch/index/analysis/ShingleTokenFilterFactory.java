@@ -33,11 +33,11 @@
 package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 
 /**
  * Factory for shingle analyzer token filters

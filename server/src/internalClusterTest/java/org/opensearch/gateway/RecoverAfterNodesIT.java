@@ -32,7 +32,6 @@
 
 package org.opensearch.gateway;
 
-import org.opensearch.client.Client;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.common.settings.Settings;
@@ -40,6 +39,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.transport.client.Client;
 
 import java.util.Set;
 

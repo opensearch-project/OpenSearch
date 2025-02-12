@@ -36,7 +36,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.action.admin.indices.recovery.RecoveryRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.common.Table;
@@ -47,6 +46,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.time.Instant;
 import java.util.Comparator;

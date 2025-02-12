@@ -34,9 +34,9 @@ package org.opensearch.action.admin.indices.settings.get;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport request builder for getting index segments

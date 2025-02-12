@@ -33,9 +33,9 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.

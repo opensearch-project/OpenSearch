@@ -40,8 +40,6 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.IndexMetric;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Priority;
@@ -53,6 +51,8 @@ import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

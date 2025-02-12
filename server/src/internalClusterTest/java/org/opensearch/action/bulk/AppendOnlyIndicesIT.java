@@ -11,7 +11,6 @@ package org.opensearch.action.bulk;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -22,6 +21,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
 
 import java.util.Arrays;
 import java.util.Collection;

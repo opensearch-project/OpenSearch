@@ -32,14 +32,15 @@
 package org.opensearch.index.similarity;
 
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.misc.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.lucene.similarity.LegacyBM25Similarity;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
@@ -51,6 +52,13 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimilarityServiceTests extends OpenSearchTestCase {
     public void testDefaultSimilarity() {
         Settings settings = Settings.builder().build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
+        assertThat(service.getDefaultSimilarity(), instanceOf(BM25Similarity.class));
+    }
+
+    public void testLegacySimilarity() {
+        Settings settings = Settings.builder().put("index.similarity.default.type", "LegacyBM25").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
         assertThat(service.getDefaultSimilarity(), instanceOf(LegacyBM25Similarity.class));

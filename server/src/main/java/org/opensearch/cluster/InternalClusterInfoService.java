@@ -44,7 +44,6 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -63,6 +62,7 @@ import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ReceiveTimeoutTransportException;
+import org.opensearch.transport.client.Client;
 
 import java.util.Collections;
 import java.util.HashMap;

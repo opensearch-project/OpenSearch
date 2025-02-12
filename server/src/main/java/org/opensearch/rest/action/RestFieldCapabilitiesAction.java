@@ -34,10 +34,10 @@ package org.opensearch.rest.action;
 
 import org.opensearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;

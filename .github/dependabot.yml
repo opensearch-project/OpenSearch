@@ -1,7 +1,13 @@
+registries:
+  gradle-maven:
+    type: maven-repository
+    url: https://repo1.maven.org/maven2
 updates:
   - directory: /
     open-pull-requests-limit: 1
     package-ecosystem: gradle
+    registries:
+      - gradle-maven
     schedule:
       interval: weekly
     labels:

@@ -43,7 +43,6 @@ import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
@@ -64,6 +63,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -76,7 +77,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
- * created using {@link org.opensearch.client.Requests#indexRequest(String)}.
+ * created using {@link Requests#indexRequest(String)}.
  * <p>
  * The index requires the {@link #index()}, {@link #id(String)} and
  * {@link #source(byte[], MediaType)} to be set.
@@ -88,8 +89,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
  * @see IndexResponse
- * @see org.opensearch.client.Requests#indexRequest(String)
- * @see org.opensearch.client.Client#index(IndexRequest)
+ * @see Requests#indexRequest(String)
+ * @see Client#index(IndexRequest)
  *
  * @opensearch.api
  */

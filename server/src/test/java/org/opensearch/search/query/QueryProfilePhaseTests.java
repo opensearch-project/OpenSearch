@@ -32,7 +32,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.IndexSearcher.LeafReaderContextPartition;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;

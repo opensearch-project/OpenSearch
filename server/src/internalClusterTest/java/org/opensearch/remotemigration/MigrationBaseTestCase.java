@@ -20,7 +20,6 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -36,6 +35,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Requests;
 import org.junit.Before;
 
 import java.nio.file.Path;

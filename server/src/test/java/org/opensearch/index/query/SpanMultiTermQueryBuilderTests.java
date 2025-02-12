@@ -37,7 +37,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
@@ -56,6 +55,7 @@ import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

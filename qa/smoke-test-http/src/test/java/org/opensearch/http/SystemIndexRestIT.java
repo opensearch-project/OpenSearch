@@ -37,7 +37,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
-import org.opensearch.client.node.NodeClient;
+import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;

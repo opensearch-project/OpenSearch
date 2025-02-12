@@ -117,7 +117,7 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
             indexName,
             request.index()
         ).ackTimeout(request.timeout())
-            .masterNodeTimeout(request.clusterManagerNodeTimeout())
+            .clusterManagerNodeTimeout(request.clusterManagerNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
             .aliases(request.aliases())

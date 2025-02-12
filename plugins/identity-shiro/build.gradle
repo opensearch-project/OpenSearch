@@ -31,7 +31,6 @@ dependencies {
   implementation "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
 
   testImplementation project(path: ':modules:transport-netty4') // for http
-  testImplementation project(path: ':plugins:transport-nio') // for http
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
   testImplementation project(path: ':client:rest-high-level')
   testImplementation 'junit:junit:4.13.2'

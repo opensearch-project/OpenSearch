@@ -34,7 +34,6 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.service.ClusterService;
@@ -50,6 +49,7 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;

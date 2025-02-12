@@ -33,7 +33,6 @@ package org.opensearch.validate;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -48,6 +47,7 @@ import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.transport.client.Client;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;

@@ -51,7 +51,6 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.InternalClusterInfoService;
@@ -77,6 +76,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.transport.client.Client;
 
 import java.util.Arrays;
 import java.util.Map;

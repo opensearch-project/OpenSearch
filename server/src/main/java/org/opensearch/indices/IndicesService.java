@@ -49,7 +49,6 @@ import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -168,6 +167,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.io.Closeable;
 import java.io.IOException;

@@ -30,23 +30,12 @@ opensearchplugin {
 
 dependencies {
   // network stack
-  api "io.netty:netty-buffer:${versions.netty}"
-  api "io.netty:netty-codec:${versions.netty}"
-  api "io.netty:netty-codec-dns:${versions.netty}"
-  api "io.netty:netty-codec-http:${versions.netty}"
-  api "io.netty:netty-codec-http2:${versions.netty}"
-  api "io.netty:netty-common:${versions.netty}"
-  api "io.netty:netty-handler:${versions.netty}"
-  api "io.netty:netty-resolver-dns:${versions.netty}"
-  api "io.netty:netty-resolver:${versions.netty}"
-  api "io.netty:netty-transport:${versions.netty}"
-  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  api libs.bundles.netty
 
-  api "io.projectreactor.netty:reactor-netty-http:${versions.reactor_netty}"
-  api "io.projectreactor.netty:reactor-netty-core:${versions.reactor_netty}"
+  api libs.bundles.reactornetty
 
-  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  javaRestTestImplementation "io.projectreactor:reactor-test:${versions.reactor}"
+  testImplementation libs.log4jslf4jimpl
+  javaRestTestImplementation libs.reactor.test
   testImplementation project(":modules:transport-netty4")
 }
 

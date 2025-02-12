@@ -40,8 +40,6 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.client.Client;
-import org.opensearch.client.OriginSettingClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -61,6 +59,8 @@ import org.opensearch.tasks.TaskResultsService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.OriginSettingClient;
 
 import java.io.IOException;
 

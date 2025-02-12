@@ -34,9 +34,9 @@ package org.opensearch.action.support.single.instance;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.ActionType;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Request builder for a shard operation

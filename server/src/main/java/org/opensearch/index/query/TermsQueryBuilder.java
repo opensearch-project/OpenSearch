@@ -39,7 +39,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
-import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -58,6 +57,7 @@ import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.indices.TermsLookup;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.nio.CharBuffer;

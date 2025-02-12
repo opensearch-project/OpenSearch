@@ -46,10 +46,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 
 import static java.util.Collections.singleton;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CONTAINS;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROSSES;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
+import static org.opensearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CONTAINS;
+import static org.opensearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROSSES;
+import static org.opensearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
+import static org.opensearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
 
 public class BinaryDocValuesRangeQueryTests extends OpenSearchTestCase {
 

@@ -47,7 +47,6 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRespo
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.settings.Settings;
@@ -60,6 +59,7 @@ import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.transport.client.Requests;
 import org.junit.Before;
 
 import java.util.concurrent.ExecutionException;

@@ -39,7 +39,6 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.pagination.PageToken;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
@@ -66,6 +65,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rest.action.list.AbstractListAction;
 import org.opensearch.search.suggest.completion.CompletionStats;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.time.Instant;
 import java.util.List;

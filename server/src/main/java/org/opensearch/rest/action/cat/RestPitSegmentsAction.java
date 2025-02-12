@@ -14,7 +14,6 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.ShardSegments;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
 import org.opensearch.index.engine.Segment;
@@ -23,6 +22,7 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;
