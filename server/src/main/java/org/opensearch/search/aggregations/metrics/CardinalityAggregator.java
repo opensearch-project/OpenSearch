@@ -157,7 +157,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 ordinalsCollectorsUsed++;
                 collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
             } else if (executionMode == null) {
-                //no hint provided, fall back to heuristics
+                // no hint provided, fall back to heuristics
                 final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
                 final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
                 // only use ordinals if they don't increase memory usage by more than 25%
