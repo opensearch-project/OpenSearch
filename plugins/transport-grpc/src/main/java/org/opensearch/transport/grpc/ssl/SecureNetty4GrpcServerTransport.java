@@ -22,7 +22,6 @@ import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 
 import javax.net.ssl.SSLException;
 
-import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Locale;
 
@@ -36,6 +35,7 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
  */
 public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
     private final SecureAuxTransportSettingsProvider secureAuxTransportSettingsProvider;
+    private final SslContext sslContext;
 
     /**
      * Hide parent GRPC_TRANSPORT_SETTING_KEY and SETTING_GRPC_PORT.
@@ -65,19 +65,24 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         this.secureAuxTransportSettingsProvider = secureTransportSettingsProvider;
         this.port = SecureNetty4GrpcServerTransport.SETTING_GRPC_PORT.get(settings);
 
-        this.addServerConfig((NettyServerBuilder builder) -> {
-            try {
-                return builder.sslContext(buildSslContext());
-            } catch (SSLException | NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        try {
+            this.sslContext = buildSslContext();
+        } catch (SSLException e) {
+            throw new RuntimeException(SecureNetty4GrpcServerTransport.class + " failed to build SslContext", e);
+        }
+
+        this.addServerConfig((NettyServerBuilder builder) -> builder.sslContext(this.sslContext));
+    }
+
+    @Override
+    public void doClose() {
+        super.doClose();
     }
 
     /**
      * @return io.grpc SslContext from SecureAuxTransportSettingsProvider.
      */
-    private SslContext buildSslContext() throws SSLException, NoSuchAlgorithmException {
+    private SslContext buildSslContext() throws SSLException {
         if (secureAuxTransportSettingsProvider.parameters(settings).isEmpty()) {
             throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: provider empty");
         }

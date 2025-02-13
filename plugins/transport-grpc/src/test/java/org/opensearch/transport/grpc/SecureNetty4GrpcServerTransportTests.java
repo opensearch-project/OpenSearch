@@ -31,7 +31,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -40,7 +39,6 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManagerFactory;
 
 public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
-    private TestThreadPool threadPool;
     private NetworkService networkService;
     private final List<BindableService> services = new ArrayList<>();
     private SecureAuxTransportSettingsProvider settingsProvider;
@@ -122,54 +120,49 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        threadPool = new TestThreadPool("test");
         networkService = new NetworkService(Collections.emptyList());
         settingsProvider = getSecureSettingsProvider();
     }
 
     @After
     public void shutdown() {
-        if (threadPool != null) {
-            threadPool.shutdownNow();
-        }
-        threadPool = null;
         networkService = null;
     }
 
     public void testGrpcSecureTransportStartStop() {
-        try (SecureNetty4GrpcServerTransport serverTransport = new SecureNetty4GrpcServerTransport(
+        try (SecureNetty4GrpcServerTransport transport = new SecureNetty4GrpcServerTransport(
             createSettings(),
             services,
             networkService,
             settingsProvider
         )) {
-            serverTransport.start();
-            assertTrue(serverTransport.boundAddress().boundAddresses().length > 0);
-            assertNotNull(serverTransport.boundAddress().publishAddress().address());
-            serverTransport.stop();
+            transport.start();
+            assertTrue(transport.boundAddress().boundAddresses().length > 0);
+            assertNotNull(transport.boundAddress().publishAddress().address());
+            transport.stop();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     public void testGrpcSecureTransportHealthcheck() {
-        try (SecureNetty4GrpcServerTransport serverTransport = new SecureNetty4GrpcServerTransport(
+        try (SecureNetty4GrpcServerTransport transport = new SecureNetty4GrpcServerTransport(
             createSettings(),
             services,
             networkService,
             settingsProvider
         )) {
-            serverTransport.start();
-            assertTrue(serverTransport.boundAddress().boundAddresses().length > 0);
-            assertNotNull(serverTransport.boundAddress().publishAddress().address());
-            final TransportAddress remoteAddress = randomFrom(serverTransport.boundAddress().boundAddresses());
+            transport.start();
+            assertTrue(transport.boundAddress().boundAddresses().length > 0);
+            assertNotNull(transport.boundAddress().publishAddress().address());
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try(NettyGrpcClient client = new NettyGrpcClient.Builder()
                 .setAddress(remoteAddress)
                 .setSecureSettingsProvider(settingsProvider)
                 .build()){
                 assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
             }
-            serverTransport.stop();
+            transport.stop();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
