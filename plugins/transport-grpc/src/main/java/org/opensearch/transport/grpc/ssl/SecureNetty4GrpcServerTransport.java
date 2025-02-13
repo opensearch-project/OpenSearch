@@ -8,8 +8,11 @@
 
 package org.opensearch.transport.grpc.ssl;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -17,12 +20,11 @@ import org.opensearch.common.transport.PortsRange;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
-import java.util.Optional;
+import java.util.Locale;
 
 import io.grpc.BindableService;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
@@ -33,8 +35,6 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
  * Security settings injected through a SecureAuxTransportSettingsProvider.
  */
 public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
-    private static final Logger logger = LogManager.getLogger(SecureNetty4GrpcServerTransport.class);
-
     private final SecureAuxTransportSettingsProvider secureAuxTransportSettingsProvider;
 
     /**
@@ -74,13 +74,25 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         });
     }
 
+    /**
+     * @return io.grpc SslContext from SecureAuxTransportSettingsProvider.
+     */
     private SslContext buildSslContext() throws SSLException, NoSuchAlgorithmException {
-        Optional<SSLContext> SSLCtxt = secureAuxTransportSettingsProvider.buildSecureAuxServerSSLContext(this.settings, this);
-
-        if (SSLCtxt.isEmpty()) {
-            throw new SSLException("SSLContext could not be built from secureAuxTransportSettingsProvider.");
+        if (secureAuxTransportSettingsProvider.parameters(settings).isEmpty()) {
+            throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: provider empty");
         }
-
-        return new SSLContextWrapper(SSLCtxt.get(), false);
+        SecureAuxTransportSettingsProvider.SecureTransportParameters params = secureAuxTransportSettingsProvider.parameters(settings).get();
+        return SslContextBuilder.forServer(params.keyManagerFactory())
+            .trustManager(params.trustManagerFactory())
+            .sslProvider(SslProvider.valueOf(params.sslProvider().toUpperCase(Locale.ROOT)))
+            .clientAuth(ClientAuth.valueOf(params.clientAuth().toUpperCase(Locale.ROOT)))
+            .protocols(params.protocols())
+            .ciphers(params.cipherSuites())
+            .applicationProtocolConfig(new ApplicationProtocolConfig(
+                ApplicationProtocolConfig.Protocol.ALPN,
+                ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                ApplicationProtocolNames.HTTP_2))
+            .build();
     }
 }
