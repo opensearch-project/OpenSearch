@@ -33,12 +33,12 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
 public class RuleTests extends AbstractSerializingTestCase<Rule> {
     public static final String _ID = "test_id_AgfUfjw039vhdONlYi3TQ==";
     public static final String LABEL = "test_label";
-    public static final String NAME = "test_name";
+    public static final String DESCRIPTION = "test_description";
 
-    static Rule createRandomRule(String name, String label) {
+    static Rule createRandomRule(String description, String label) {
         Feature feature = randomFeature();
         return Rule.builder()
-            .name(name)
+            .description(description)
             .label(label)
             .feature(feature.getName())
             .attributeMap(randomAttributeMaps(feature))
@@ -88,11 +88,17 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
 
     @Override
     protected Rule createTestInstance() {
-        return createRandomRule(NAME, LABEL);
+        return createRandomRule(DESCRIPTION, LABEL);
     }
 
     static Rule buildRule(String feature, Map<Attribute, Set<String>> attributeListMap, String updatedAt) {
-        return Rule.builder().name(NAME).label(LABEL).feature(feature).attributeMap(attributeListMap).updatedAt(updatedAt).build();
+        return Rule.builder()
+            .description(DESCRIPTION)
+            .label(LABEL)
+            .feature(feature)
+            .attributeMap(attributeListMap)
+            .updatedAt(updatedAt)
+            .build();
     }
 
     public void testInvalidFeature() {
@@ -100,14 +106,14 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         assertThrows(IllegalArgumentException.class, () -> buildRule("invalid", randomAttributeMaps(null), Instant.now().toString()));
     }
 
-    public void testInvalidName() {
+    public void testInvalidDescription() {
         assertThrows(IllegalArgumentException.class, () -> createRandomRule(null, LABEL));
         assertThrows(IllegalArgumentException.class, () -> createRandomRule("", LABEL));
     }
 
     public void testInvalidLabel() {
-        assertThrows(IllegalArgumentException.class, () -> createRandomRule(NAME, null));
-        assertThrows(IllegalArgumentException.class, () -> createRandomRule(NAME, ""));
+        assertThrows(IllegalArgumentException.class, () -> createRandomRule(DESCRIPTION, null));
+        assertThrows(IllegalArgumentException.class, () -> createRandomRule(DESCRIPTION, ""));
     }
 
     public void testInvalidUpdateTime() {
@@ -160,7 +166,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         rule.toXContent(builder, new ToXContent.MapParams(Map.of(_ID_STRING, _ID)));
 
         assertEquals(
-            "{\"_id\":\"test_id_AgfUfjw039vhdONlYi3TQ==\",\"name\":\"test_name\",\"index_pattern\":[\"log*\"],\"query_group\":\"test_label\",\"updated_at\":\""
+            "{\"_id\":\"test_id_AgfUfjw039vhdONlYi3TQ==\",\"description\":\"test_description\",\"index_pattern\":[\"log*\"],\"query_group\":\"test_label\",\"updated_at\":\""
                 + updatedAt
                 + "\"}",
             builder.toString()
