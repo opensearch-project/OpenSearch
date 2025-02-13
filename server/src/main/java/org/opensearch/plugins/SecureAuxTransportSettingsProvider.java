@@ -10,14 +10,9 @@ package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.http.HttpServerTransport;
-import org.opensearch.transport.TransportAdapterProvider;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
-import java.util.Collection;
-import java.util.Collections;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
 import java.util.Optional;
 
 /**
@@ -28,11 +23,20 @@ import java.util.Optional;
 @ExperimentalApi
 public interface SecureAuxTransportSettingsProvider {
     /**
-     * If supported, builds an {@link SSLContext} instance for {@link NetworkPlugin.AuxTransport} instance
+     * Provides access to SSL params directly for cases where it is not convenient to consume a pre-built javax.net.ssl SSLContext.
      * @param settings settings
-     * @param transport {@link NetworkPlugin.AuxTransport} instance
-     * @return if supported, builds the {@link SSLContext} instance
-     * @throws SSLException throws SSLException if the {@link SSLEngine} instance cannot be built
+     * @return an instance of {@link SecureAuxTransportSettingsProvider.SecureTransportParameters}
      */
-    Optional<SSLContext> buildSecureAuxServerSSLContext(Settings settings, NetworkPlugin.AuxTransport transport) throws SSLException;
+    Optional<SecureAuxTransportSettingsProvider.SecureTransportParameters> parameters(Settings settings);
+
+    @ExperimentalApi
+    interface SecureTransportParameters {
+        boolean dualModeEnabled();
+        String sslProvider();
+        String clientAuth();
+        Iterable<String> protocols();
+        Iterable<String> cipherSuites();
+        KeyManagerFactory keyManagerFactory();
+        TrustManagerFactory trustManagerFactory();
+    }
 }

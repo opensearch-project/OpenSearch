@@ -14,23 +14,32 @@ import io.grpc.health.v1.HealthCheckRequest;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.health.v1.HealthGrpc;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 import io.grpc.reflection.v1alpha.ServerReflectionGrpc;
 import io.grpc.reflection.v1alpha.ServerReflectionRequest;
 import io.grpc.reflection.v1alpha.ServerReflectionResponse;
 import io.grpc.reflection.v1alpha.ServiceResponse;
 import io.grpc.stub.StreamObserver;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 
+import javax.net.ssl.SSLException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
+import static org.opensearch.transport.grpc.SecureNetty4GrpcServerTransportTests.createSettings;
 
-public class NettyGrpcClient {
+public class NettyGrpcClient implements AutoCloseable {
     private final ManagedChannel channel;
     private final HealthGrpc.HealthBlockingStub healthStub;
     private final ServerReflectionGrpc.ServerReflectionStub reflectionStub;
@@ -43,11 +52,20 @@ public class NettyGrpcClient {
 
     public void shutdown() throws InterruptedException {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+        if (!channel.awaitTermination(5, TimeUnit.SECONDS)) {
+            channel.shutdownNow();
+        }
+    }
+
+    @Override
+    public void close() throws Exception {
+        shutdown();
     }
 
     /**
-     * ProtoReflectionService only implements a streaming interface and has no blocking stub.
-     * @return List<ServiceResponse> services reported
+     * List available gRPC services available on server.
+     * Note: ProtoReflectionService only implements a streaming interface and has no blocking stub.
+     * @return List<ServiceResponse> services reported.
      */
     public List<ServiceResponse> listServices() {
         List<ServiceResponse> respServices = new ArrayList<>();
@@ -90,33 +108,50 @@ public class NettyGrpcClient {
         return respServices;
     }
 
+    /**
+     * Request server status.
+     * @return HealthCheckResponse.ServingStatus.
+     */
     public HealthCheckResponse.ServingStatus checkHealth() {
         return healthStub.check(HealthCheckRequest.newBuilder().build()).getStatus();
     }
 
     public static class Builder {
-        private SslContext sslCtxt = null;
+        private SecureAuxTransportSettingsProvider settingsProvider = null;
         private TransportAddress addr = new TransportAddress(new InetSocketAddress("localhost", 9300));
         private final ProxyDetector proxyDetector = NOOP_PROXY_DETECTOR; // No proxy detection for test client
 
         Builder () {}
 
-        public NettyGrpcClient build() {
+        public NettyGrpcClient build() throws SSLException {
             NettyChannelBuilder channelBuilder = NettyChannelBuilder
                 .forAddress(addr.getAddress(), addr.getPort())
                 .proxyDetector(proxyDetector);
 
-            if (sslCtxt == null) {
+            if (settingsProvider == null) {
                 channelBuilder.usePlaintext();
             } else {
-                channelBuilder.sslContext(sslCtxt);
+                SecureAuxTransportSettingsProvider.SecureTransportParameters params = settingsProvider.parameters(createSettings()).get();
+                SslContext ctxt = SslContextBuilder.forClient()
+                    .trustManager(params.trustManagerFactory())
+                    .sslProvider(SslProvider.valueOf(params.sslProvider().toUpperCase(Locale.ROOT)))
+                    .clientAuth(ClientAuth.valueOf(params.clientAuth().toUpperCase(Locale.ROOT)))
+                    .protocols(params.protocols())
+                    .ciphers(params.cipherSuites())
+                    .applicationProtocolConfig(new ApplicationProtocolConfig(
+                        ApplicationProtocolConfig.Protocol.ALPN,
+                        ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                        ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                        ApplicationProtocolNames.HTTP_2))
+                    .build();
+                channelBuilder.sslContext(ctxt);
             }
 
             return new NettyGrpcClient(addr, channelBuilder);
         }
 
-        public Builder setSslContext(SslContext sslCtxt) {
-            this.sslCtxt = sslCtxt;
+        public Builder setSecureSettingsProvider(SecureAuxTransportSettingsProvider settingsProvider) {
+            this.settingsProvider = settingsProvider;
             return this;
         }
 
