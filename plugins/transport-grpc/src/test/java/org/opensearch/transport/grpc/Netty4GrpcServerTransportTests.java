@@ -43,19 +43,19 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testGrpcTransportHealthcheck() {
-        try (Netty4GrpcServerTransport serverTransport = new Netty4GrpcServerTransport(
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(
             createSettings(),
             services,
             networkService
         )) {
-            serverTransport.start();
-            final TransportAddress remoteAddress = randomFrom(serverTransport.boundAddress().boundAddresses());
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try(NettyGrpcClient client = new NettyGrpcClient.Builder()
                 .setAddress(remoteAddress)
                 .build()){
                 assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
             }
-            serverTransport.stop();
+            transport.stop();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
