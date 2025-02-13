@@ -11,6 +11,7 @@ package org.opensearch.action.admin.cluster.node.tasks;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
