@@ -35,7 +35,7 @@ import static org.opensearch.cluster.metadata.QueryGroup.isValid;
  * of a rule. The indexed view may differ in representation.
  * {
  *     "_id": "fwehf8302582mglfio349==",
- *     "name": "Assign Query Group for Index Logs123"
+ *     "description": "Assign Query Group for Index Logs123"
  *     "index_pattern": ["logs123"],
  *     "query_group": "dev_query_group_id",
  *     "updated_at": "01-10-2025T21:23:21.456Z"
@@ -45,23 +45,23 @@ import static org.opensearch.cluster.metadata.QueryGroup.isValid;
 public class Rule implements Writeable, ToXContentObject {
     private final Map<Attribute, Set<String>> attributeMap;
     private final Feature feature;
-    private final String name;
+    private final String description;
     private final String label;
     private final String updatedAt;
     public static final String _ID_STRING = "_id";
-    public static final String NAME_STRING = "name";
+    public static final String DESCRIPTION_STRING = "description";
     public static final String UPDATED_AT_STRING = "updated_at";
     public static final int MAX_NUMBER_OF_VALUES_PER_ATTRIBUTE = 10;
     public static final int MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING = 100;
 
-    public Rule(String name, Map<Attribute, Set<String>> attributeMap, String label, String updatedAt, Feature feature) {
+    public Rule(String description, Map<Attribute, Set<String>> attributeMap, String label, String updatedAt, Feature feature) {
         ValidationException validationException = new ValidationException();
-        validateRuleInputs(name, attributeMap, label, updatedAt, feature, validationException);
+        validateRuleInputs(description, attributeMap, label, updatedAt, feature, validationException);
         if (!validationException.validationErrors().isEmpty()) {
             throw new IllegalArgumentException(validationException);
         }
 
-        this.name = name;
+        this.description = description;
         this.attributeMap = attributeMap;
         this.feature = feature;
         this.label = label;
@@ -79,14 +79,14 @@ public class Rule implements Writeable, ToXContentObject {
     }
 
     public static void validateRuleInputs(
-        String name,
+        String description,
         Map<Attribute, Set<String>> attributeMap,
         String label,
         String updatedAt,
         Feature feature,
         ValidationException validationException
     ) {
-        requireNonNullOrEmpty(name, "Rule name can't be null or empty", validationException);
+        requireNonNullOrEmpty(description, "Rule description can't be null or empty", validationException);
         if (feature == null) {
             validationException.addValidationError("Couldn't identify which feature the rule belongs to. Rule feature name can't be null.");
         }
@@ -139,7 +139,7 @@ public class Rule implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        out.writeString(description);
         out.writeMap(attributeMap, Attribute::writeTo, StreamOutput::writeStringCollection);
         out.writeString(label);
         out.writeString(updatedAt);
@@ -150,8 +150,8 @@ public class Rule implements Writeable, ToXContentObject {
         return Builder.fromXContent(parser).build();
     }
 
-    public String getName() {
-        return name;
+    public String getDescription() {
+        return description;
     }
 
     public String getLabel() {
@@ -246,7 +246,7 @@ public class Rule implements Writeable, ToXContentObject {
         if (id != null) {
             builder.field(_ID_STRING, id);
         }
-        builder.field(NAME_STRING, name);
+        builder.field(DESCRIPTION_STRING, description);
         for (Map.Entry<Attribute, Set<String>> entry : attributeMap.entrySet()) {
             builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
         }
@@ -261,7 +261,7 @@ public class Rule implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Rule that = (Rule) o;
-        return Objects.equals(name, that.name)
+        return Objects.equals(description, that.description)
             && Objects.equals(label, that.label)
             && Objects.equals(feature, that.feature)
             && Objects.equals(attributeMap, that.attributeMap)
@@ -270,7 +270,7 @@ public class Rule implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, label, feature, attributeMap, updatedAt);
+        return Objects.hash(description, label, feature, attributeMap, updatedAt);
     }
 
     /**
@@ -286,7 +286,7 @@ public class Rule implements Writeable, ToXContentObject {
      * @opensearch.experimental
      */
     public static class Builder {
-        private String name;
+        private String description;
         private Map<Attribute, Set<String>> attributeMap;
         private Feature feature;
         private String label;
@@ -313,8 +313,8 @@ public class Rule implements Writeable, ToXContentObject {
                     if (Feature.isValidFeature(fieldName)) {
                         builder.feature(fieldName);
                         builder.label(parser.text());
-                    } else if (fieldName.equals(NAME_STRING)) {
-                        builder.name(parser.text());
+                    } else if (fieldName.equals(DESCRIPTION_STRING)) {
+                        builder.description(parser.text());
                     } else if (fieldName.equals(UPDATED_AT_STRING)) {
                         builder.updatedAt(parser.text());
                     } else {
@@ -341,8 +341,8 @@ public class Rule implements Writeable, ToXContentObject {
             attributeMap.put(attribute, attributeValueSet);
         }
 
-        public Builder name(String name) {
-            this.name = name;
+        public Builder description(String description) {
+            this.description = description;
             return this;
         }
 
@@ -367,7 +367,7 @@ public class Rule implements Writeable, ToXContentObject {
         }
 
         public Rule build() {
-            return new Rule(name, attributeMap, label, updatedAt, feature);
+            return new Rule(description, attributeMap, label, updatedAt, feature);
         }
 
         public String getLabel() {
