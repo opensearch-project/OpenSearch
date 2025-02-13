@@ -52,6 +52,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private IngestionShardPointer batchStartPointer;
 
     private ResetState resetState;
+    private final long resetValue;
 
     private Set<IngestionShardPointer> persistedPointers;
 
@@ -68,14 +69,16 @@ public class DefaultStreamPoller implements StreamPoller {
         Set<IngestionShardPointer> persistedPointers,
         IngestionShardConsumer consumer,
         IngestionEngine ingestionEngine,
-        ResetState resetState
+        ResetState resetState,
+        long resetValue
     ) {
         this(
             startPointer,
             persistedPointers,
             consumer,
             new MessageProcessorRunnable(new ArrayBlockingQueue<>(100), ingestionEngine),
-            resetState
+            resetState,
+            resetValue
         );
     }
 
@@ -84,10 +87,12 @@ public class DefaultStreamPoller implements StreamPoller {
         Set<IngestionShardPointer> persistedPointers,
         IngestionShardConsumer consumer,
         MessageProcessorRunnable processorRunnable,
-        ResetState resetState
+        ResetState resetState,
+        long resetValue
     ) {
         this.consumer = Objects.requireNonNull(consumer);
         this.resetState = resetState;
+        this.resetValue = resetValue;
         batchStartPointer = startPointer;
         this.persistedPointers = persistedPointers;
         if (!this.persistedPointers.isEmpty()) {
@@ -150,6 +155,18 @@ public class DefaultStreamPoller implements StreamPoller {
                         case LATEST:
                             batchStartPointer = consumer.latestPointer();
                             logger.info("Resetting offset by seeking to latest offset {}", batchStartPointer.asString());
+                            break;
+                        case REWIND_BY_OFFSET:
+                            batchStartPointer = consumer.pointerFromOffset(resetValue);
+                            logger.info("Resetting offset by seeking to offset {}", batchStartPointer.asString());
+                            break;
+                        case REWIND_BY_TIMESTAMP:
+                            batchStartPointer = consumer.pointerFromTimestampMillis(resetValue);
+                            logger.info(
+                                "Resetting offset by seeking to timestamp {}, corresponding offset {}",
+                                resetValue,
+                                batchStartPointer.asString()
+                            );
                             break;
                     }
                     resetState = ResetState.NONE;

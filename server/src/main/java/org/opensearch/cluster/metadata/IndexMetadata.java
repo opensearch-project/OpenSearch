@@ -716,8 +716,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public void validate(final String value) {
-                if (!(value.equalsIgnoreCase(StreamPoller.ResetState.LATEST.name())
-                    || value.equalsIgnoreCase(StreamPoller.ResetState.EARLIEST.name()))) {
+                if (!isValidResetState(value)) {
                     throw new IllegalArgumentException(
                         "Invalid value for " + SETTING_INGESTION_SOURCE_POINTER_INIT_RESET + " [" + value + "]"
                     );
@@ -725,8 +724,47 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             @Override
-            public void validate(final String value, final Map<Setting<?>, Object> settings) {}
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                if (isRewindState(value)) {
+                    // Ensure the reset value setting is provided when rewinding.
+                    final long resetValue = (long) settings.get(INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING);
+                    if (resetValue <= 0) {
+                        throw new IllegalArgumentException(
+                            "Setting " + INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING.getKey() + " should be set and greater than 0"
+                        );
+                    }
+                }
+            }
+
+            private boolean isValidResetState(String value) {
+                return StreamPoller.ResetState.LATEST.name().equalsIgnoreCase(value)
+                    || StreamPoller.ResetState.EARLIEST.name().equalsIgnoreCase(value)
+                    || isRewindState(value);
+            }
+
+            private boolean isRewindState(String value) {
+                return StreamPoller.ResetState.REWIND_BY_OFFSET.name().equalsIgnoreCase(value)
+                    || StreamPoller.ResetState.REWIND_BY_TIMESTAMP.name().equalsIgnoreCase(value);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING);
+                return settings.iterator();
+            }
         },
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Defines the setting for the value to be used when resetting by offset or timestamp.
+     */
+    public static final String SETTING_INGESTION_SOURCE_POINTER_INIT_RESET_VALUE = "index.ingestion_source.pointer.init.reset.value";
+    public static final Setting<Long> INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING = Setting.longSetting(
+        SETTING_INGESTION_SOURCE_POINTER_INIT_RESET_VALUE,
+        0,
+        0,
         Property.IndexScope,
         Property.Dynamic
     );
@@ -954,7 +992,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public IngestionSource getIngestionSource() {
         final String ingestionSourceType = INGESTION_SOURCE_TYPE_SETTING.get(settings);
         if (ingestionSourceType != null && !(NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType))) {
-            final String pointerInitReset = INGESTION_SOURCE_POINTER_INIT_RESET_SETTING.get(settings);
+            final String pointerInitResetType = INGESTION_SOURCE_POINTER_INIT_RESET_SETTING.get(settings);
+            final long pointerInitResetValue = INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING.get(settings);
+            IngestionSource.PointerInitReset pointerInitReset = new IngestionSource.PointerInitReset(
+                pointerInitResetType,
+                pointerInitResetValue
+            );
             final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
             return new IngestionSource(ingestionSourceType, pointerInitReset, ingestionSourceParams);
         }

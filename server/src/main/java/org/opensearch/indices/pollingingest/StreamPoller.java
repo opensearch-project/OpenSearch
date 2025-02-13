@@ -66,6 +66,8 @@ public interface StreamPoller extends Closeable {
     enum ResetState {
         EARLIEST,
         LATEST,
+        REWIND_BY_OFFSET,
+        REWIND_BY_TIMESTAMP,
         NONE,
     }
 }

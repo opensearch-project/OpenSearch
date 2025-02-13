@@ -12,6 +12,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -138,6 +139,21 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             (PrivilegedAction<Long>) () -> consumer.endOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L)
         );
         return new KafkaOffset(endOffset);
+    }
+
+    @Override
+    public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
+        long offset = AccessController.doPrivileged(
+            (PrivilegedAction<Long>) () -> consumer.offsetsForTimes(Collections.singletonMap(topicPartition, timestampMillis))
+                .getOrDefault(topicPartition, new OffsetAndTimestamp(0L, timestampMillis))
+                .offset()
+        );
+        return new KafkaOffset(offset);
+    }
+
+    @Override
+    public IngestionShardPointer pointerFromOffset(long offset) {
+        return new KafkaOffset(offset);
     }
 
     private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {

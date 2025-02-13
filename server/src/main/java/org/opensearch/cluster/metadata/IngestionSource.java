@@ -19,10 +19,10 @@ import java.util.Objects;
 @ExperimentalApi
 public class IngestionSource {
     private String type;
-    private String pointerInitReset;
+    private PointerInitReset pointerInitReset;
     private Map<String, Object> params;
 
-    public IngestionSource(String type, String pointerInitReset, Map<String, Object> params) {
+    public IngestionSource(String type, PointerInitReset pointerInitReset, Map<String, Object> params) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
         this.params = params;
@@ -32,7 +32,7 @@ public class IngestionSource {
         return type;
     }
 
-    public String getPointerInitReset() {
+    public PointerInitReset getPointerInitReset() {
         return pointerInitReset;
     }
 
@@ -58,5 +58,42 @@ public class IngestionSource {
     @Override
     public String toString() {
         return "IngestionSource{" + "type='" + type + '\'' + ",pointer_init_reset='" + pointerInitReset + '\'' + ", params=" + params + '}';
+    }
+
+    @ExperimentalApi
+    public static class PointerInitReset {
+        private final String type;
+        private final long value;
+
+        public PointerInitReset(String policy, long value) {
+            this.type = policy;
+            this.value = value;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public long getValue() {
+            return value;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PointerInitReset pointerInitReset = (PointerInitReset) o;
+            return Objects.equals(type, pointerInitReset.type) && Objects.equals(value, pointerInitReset.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, value);
+        }
+
+        @Override
+        public String toString() {
+            return "PointerInitReset{" + "type='" + type + '\'' + ", value=" + value + '}';
+        }
     }
 }

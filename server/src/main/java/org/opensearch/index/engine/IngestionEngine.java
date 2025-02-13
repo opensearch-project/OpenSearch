@@ -173,7 +173,7 @@ public class IngestionEngine extends Engine {
 
         Map<String, String> commitData = commitDataAsMap();
         StreamPoller.ResetState resetState = StreamPoller.ResetState.valueOf(
-            ingestionSource.getPointerInitReset().toUpperCase(Locale.ROOT)
+            ingestionSource.getPointerInitReset().getType().toUpperCase(Locale.ROOT)
         );
         IngestionShardPointer startPointer = null;
         Set<IngestionShardPointer> persistedPointers = new HashSet<>();
@@ -191,7 +191,8 @@ public class IngestionEngine extends Engine {
             resetState = StreamPoller.ResetState.NONE;
         }
 
-        streamPoller = new DefaultStreamPoller(startPointer, persistedPointers, ingestionShardConsumer, this, resetState);
+        long resetValue = ingestionSource.getPointerInitReset().getValue();
+        streamPoller = new DefaultStreamPoller(startPointer, persistedPointers, ingestionShardConsumer, this, resetState, resetValue);
         streamPoller.start();
     }
 
