@@ -2073,6 +2073,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             public void handleException(TransportException exp) {
                 logger.debug((Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
                 allRequestsDone.countDown();
+                logger.error("Received TransportException: " + exp);
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
                 assertNotNull(unwrap);
                 assertEquals(IOException.class, unwrap.getClass());
