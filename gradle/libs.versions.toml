@@ -52,7 +52,7 @@ commonslang       = "3.14.0"
 commonscompress   = "1.26.1"
 commonsio         = "2.16.0"
 # plugin dependencies
-aws               = "2.20.86"
+aws               = "2.21.30"
 reactivestreams   = "1.0.4"
 
 # when updating this version, you need to ensure compatibility with:
