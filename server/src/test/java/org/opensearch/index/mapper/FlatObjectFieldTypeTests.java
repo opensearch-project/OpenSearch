@@ -197,7 +197,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             );
             Query expected = AutomatonQueries.createAutomatonQuery(
                 new Term("field" + VALUE_SUFFIX, "field.fOo"),
-                AutomatonQueries.toCaseInsensitiveString("field.fOo", Integer.MAX_VALUE),
+                AutomatonQueries.toCaseInsensitiveString("field.fOo"),
                 MultiTermQuery.DOC_VALUES_REWRITE
             );
             assertEquals(expected, ft.termQueryCaseInsensitive("fOo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
@@ -213,7 +213,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             );
             Query expected = AutomatonQueries.createAutomatonQuery(
                 new Term("field" + VALUE_AND_PATH_SUFFIX, "field.field.field1=fOo"),
-                AutomatonQueries.toCaseInsensitiveString("field.field.field1=fOo", Integer.MAX_VALUE),
+                AutomatonQueries.toCaseInsensitiveString("field.field.field1=fOo"),
                 MultiTermQuery.DOC_VALUES_REWRITE
             );
 

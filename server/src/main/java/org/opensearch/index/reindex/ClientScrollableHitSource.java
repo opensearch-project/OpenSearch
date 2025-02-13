@@ -42,8 +42,6 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.ShardSearchFailure;
-import org.opensearch.client.Client;
-import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -54,6 +52,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.search.SearchHit;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.ParentTaskAssigningClient;
 
 import java.util.ArrayList;
 import java.util.List;

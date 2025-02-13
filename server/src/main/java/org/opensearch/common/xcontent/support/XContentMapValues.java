@@ -45,9 +45,12 @@ import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -216,6 +219,54 @@ public class XContentMapValues {
      * @see #filter(Map, String[], String[]) for details
      */
     public static Function<Map<String, ?>, Map<String, Object>> filter(String[] includes, String[] excludes) {
+        if (hasNoWildcardsOrDots(includes) && hasNoWildcardsOrDots(excludes)) {
+            return createSetBasedFilter(includes, excludes);
+        }
+        return createAutomatonFilter(includes, excludes);
+    }
+
+    private static boolean hasNoWildcardsOrDots(String[] fields) {
+        if (fields == null || fields.length == 0) {
+            return true;
+        }
+
+        for (String field : fields) {
+            if (field.indexOf('*') != -1 || field.indexOf('.') != -1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Creates a simple HashSet-based filter for exact field name matching
+     */
+    private static Function<Map<String, ?>, Map<String, Object>> createSetBasedFilter(String[] includes, String[] excludes) {
+        Set<String> includeSet = (includes == null || includes.length == 0) ? null : new HashSet<>(Arrays.asList(includes));
+        Set<String> excludeSet = (excludes == null || excludes.length == 0)
+            ? Collections.emptySet()
+            : new HashSet<>(Arrays.asList(excludes));
+
+        return (map) -> {
+            Map<String, Object> filtered = new HashMap<>();
+            for (Map.Entry<String, ?> entry : map.entrySet()) {
+                String key = entry.getKey();
+                int dotPos = key.indexOf('.');
+                if (dotPos > 0) {
+                    key = key.substring(0, dotPos);
+                }
+                if ((includeSet == null || includeSet.contains(key)) && !excludeSet.contains(key)) {
+                    filtered.put(entry.getKey(), entry.getValue());
+                }
+            }
+            return filtered;
+        };
+    }
+
+    /**
+     * Creates an automaton-based filter for complex pattern matching
+     */
+    public static Function<Map<String, ?>, Map<String, Object>> createAutomatonFilter(String[] includes, String[] excludes) {
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
 
         CharacterRunAutomaton include;
