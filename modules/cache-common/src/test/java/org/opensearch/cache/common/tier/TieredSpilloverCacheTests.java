@@ -1540,7 +1540,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         TieredSpilloverCache<String, String> tieredSpilloverCache = (TieredSpilloverCache<String, String>) tieredSpilloverICache;
 
         // Change setting values to the target values to show both updates work as expected.
-
         clusterSettings.applySettings(
             Settings.builder()
                 .put(
@@ -1556,8 +1555,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         Map<String, Tuple<String, Boolean>> loaderMap = new HashMap<>();
         for (String key : keyValueMap.keySet()) {
-            loaderMap.put(key, new Tuple<>(keyValueMap.get(key), false)); // The boolean here is not needed, just to fit with the get loader
-                                                                          // method
+            // The boolean here is not needed, just to fit with the get loader method
+            loaderMap.put(key, new Tuple<>(keyValueMap.get(key), false));
         }
         LoadAwareCacheLoader<ICacheKey<String>, String> loader = getLoadAwareCacheLoader(loaderMap);
         // First check whether keys respect the heap tier threshold.
@@ -1568,11 +1567,12 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 expectedKeys++;
             }
         }
+        assertEquals(keyValueMap.size() - expectedKeys, removalListener.evictionsMetric.count());
+        assertEquals(0, getHitsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         assertEquals(expectedKeys, tieredSpilloverCache.count());
 
-        // Ensure all these keys get evicted from the on heap tier by adding > heap tier size worth of random keys (this works as we have 1
-        // segment)
-        // Set heap threshold to 0 to ensure random keys can all enter
+        // Ensure all these keys get evicted from the on heap tier by adding > heap tier size worth of random keys
+        // (this works as we have 1 segment). Set heap threshold to 0 to ensure random keys can all enter
         clusterSettings.applySettings(
             Settings.builder()
                 .put(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), TimeValue.ZERO)
@@ -1688,7 +1688,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         );
 
         // To test concurrently, run for each key multiple times in parallel threads
-        int numRepetitionsPerKey = 5;
+        int numRepetitionsPerKey = 10;
         int numThreads = keyValuePairs.size() * numRepetitionsPerKey;
 
         Thread[] threads = new Thread[numThreads];
@@ -1723,6 +1723,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
 
+        assertEquals(0, getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
+        assertEquals(expectedKeys, getItemsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         // We should have (numRepetitionsPerKey - 1) * (expectedKeys) hits
         assertEquals((numRepetitionsPerKey - 1) * expectedKeys, getHitsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         // We should have numRepetitionsPerKey misses for each rejected key, and 1 miss for each accepted key
@@ -1746,8 +1748,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         assertEquals(0, getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         assertEquals(expectedKeys, getTotalStatsSnapshot(tieredSpilloverCache).getItems());
-        assertEquals(keyValuePairs.size() - expectedKeys, removalListener.evictionsMetric.count()); // Policy rejects should send a removal
-                                                                                                    // notification
+        // Policy rejects should send a removal notification every time the caller attempts to put them in
+        assertEquals((keyValuePairs.size() - expectedKeys) * numRepetitionsPerKey, removalListener.evictionsMetric.count());
     }
 
     public void testPutWithDiskCacheDisabledSetting() throws Exception {

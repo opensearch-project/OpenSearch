@@ -317,7 +317,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 if (computedValueTuple.v2()) {
                     // The value was just computed and added to the cache by this thread, or it was rejected by the policy.
                     // Register a miss for the heap cache, and the disk cache if present
-                    updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, computedValueTuple.v1());
                     statsHolder.incrementMisses(heapDimensionValues);
                     if (caches.get(diskCache).isEnabled()) {
                         statsHolder.incrementMisses(diskDimensionValues);
@@ -359,6 +358,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                         // exception.
                         logger.warn("Exception occurred while putting item onto heap cache", e);
                     }
+                    updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, pair.v2());
                 } else {
                     if (ex != null) {
                         logger.warn("Exception occurred while trying to compute the value", ex);
@@ -394,7 +394,16 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 }
             } else {
                 try {
-                    value = future.get().v2();
+                    Tuple<ICacheKey<K>, V> futureTuple = future.get();
+                    if (futureTuple == null) {
+                        // This case can happen if we earlier completed the future with null to skip putting the value into the cache.
+                        // It should behave the same as a cache miss.
+                        wasCacheMiss = true;
+                        value = loader.load(key);
+                        removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
+                    } else {
+                        value = futureTuple.v2();
+                    }
                 } catch (InterruptedException ex) {
                     throw new IllegalStateException(ex);
                 }
