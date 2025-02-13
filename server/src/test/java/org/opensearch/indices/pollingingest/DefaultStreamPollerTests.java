@@ -149,6 +149,22 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(2), poller.getBatchStartPointer());
     }
 
+    public void testResetStateRewindByOffset() throws InterruptedException {
+        poller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(2),
+            persistedPointers,
+            fakeConsumer,
+            processorRunnable,
+            StreamPoller.ResetState.REWIND_BY_OFFSET,
+            1L
+        );
+
+        poller.start();
+        Thread.sleep(sleepTime); // Allow some time for the poller to run
+        // 1 message is processed
+        verify(processor, times(1)).process(any(), any());
+    }
+
     public void testStartPollWithoutStart() {
         try {
             poller.startPoll();

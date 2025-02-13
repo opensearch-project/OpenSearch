@@ -28,6 +28,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
 
@@ -143,11 +144,24 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
 
     @Override
     public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
-        long offset = AccessController.doPrivileged(
-            (PrivilegedAction<Long>) () -> consumer.offsetsForTimes(Collections.singletonMap(topicPartition, timestampMillis))
-                .getOrDefault(topicPartition, new OffsetAndTimestamp(0L, timestampMillis))
-                .offset()
-        );
+        long offset = AccessController.doPrivileged((PrivilegedAction<Long>) () -> {
+            Map<TopicPartition, OffsetAndTimestamp> position = consumer.offsetsForTimes(
+                Collections.singletonMap(topicPartition, timestampMillis)
+            );
+            if (position == null || position.isEmpty()) {
+                return -1L;
+            }
+            OffsetAndTimestamp offsetAndTimestamp = position.values().iterator().next();
+            if (offsetAndTimestamp == null) {
+                return -1L;
+            }
+            return offsetAndTimestamp.offset();
+        });
+        if (offset < 0) {
+            // no message found for the timestamp, return the latest offset
+            logger.warn("No message found for timestamp {}, seeking to the latest", timestampMillis);
+            return latestPointer();
+        }
         return new KafkaOffset(offset);
     }
 

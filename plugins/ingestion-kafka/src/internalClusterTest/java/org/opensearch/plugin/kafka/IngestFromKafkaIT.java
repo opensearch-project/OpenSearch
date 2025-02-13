@@ -102,6 +102,67 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testKafkaIngestion_RewindByTimeStamp() {
+        try {
+            setupKafka();
+            // create an index with ingestion source from kafka
+            createIndex(
+                "test_rewind_by_timestamp",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("ingestion_source.type", "kafka")
+                    .put("ingestion_source.pointer.init.reset", "rewind_by_timestamp")
+                    // 1739459500000 is the timestamp of the first message
+                    // 1739459800000 is the timestamp of the second message
+                    // by resetting to 1739459600000, only the second message will be ingested
+                    .put("ingestion_source.pointer.init.reset.value", 1739459600000L)
+                    .put("ingestion_source.param.topic", "test")
+                    .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                    .build(),
+                "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+            );
+
+            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
+            await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+                refresh("test_rewind_by_timestamp");
+                SearchResponse response = client().prepareSearch("test_rewind_by_timestamp").setQuery(query).get();
+                assertThat(response.getHits().getTotalHits().value(), is(1L));
+            });
+        } finally {
+            stopKafka();
+        }
+    }
+
+    public void testKafkaIngestion_RewindByOffset() {
+        try {
+            setupKafka();
+            // create an index with ingestion source from kafka
+            createIndex(
+                "test_rewind_by_offset",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("ingestion_source.type", "kafka")
+                    .put("ingestion_source.pointer.init.reset", "rewind_by_offset")
+                    .put("ingestion_source.pointer.init.reset.value", 1L)
+                    .put("ingestion_source.param.topic", "test")
+                    .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                    .build(),
+                "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+            );
+
+            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
+            await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+                refresh("test_rewind_by_offset");
+                SearchResponse response = client().prepareSearch("test_rewind_by_offset").setQuery(query).get();
+                assertThat(response.getHits().getTotalHits().value(), is(1L));
+            });
+        } finally {
+            stopKafka();
+        }
+    }
+
     private void setupKafka() {
         kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.2.1"))
             // disable topic auto creation
@@ -122,10 +183,14 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
         Properties props = new Properties();
         props.put("bootstrap.servers", kafka.getBootstrapServers());
         Producer<String, String> producer = new KafkaProducer<>(props, new StringSerializer(), new StringSerializer());
-        producer.send(new ProducerRecord<>(topicName, "null", "{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}"));
+        producer.send(
+            new ProducerRecord<>(topicName, null, 1739459500000L, "null", "{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}")
+        );
         producer.send(
             new ProducerRecord<>(
                 topicName,
+                null,
+                1739459800000L,
                 "null",
                 "{\"_id\":\"2\", \"_op_type:\":\"index\",\"_source\":{\"name\":\"alice\", \"age\": 20}}"
             )
