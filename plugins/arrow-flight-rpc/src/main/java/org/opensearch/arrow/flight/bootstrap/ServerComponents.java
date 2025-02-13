@@ -11,6 +11,7 @@ package org.opensearch.arrow.flight.bootstrap;
 import org.apache.arrow.flight.FlightProducer;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.OSFlightServer;
+import org.apache.arrow.flight.OSFlightServerBuilder;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.AutoCloseables;
 import org.apache.logging.log4j.LogManager;
@@ -147,7 +148,7 @@ final class ServerComponents implements AutoCloseable {
     }
 
     private OSFlightServer buildAndStartServer(Location location, FlightProducer producer) throws IOException {
-        OSFlightServer server = OSFlightServer.builder(
+        OSFlightServer server = OSFlightServerBuilder.builder(
             allocator,
             location,
             producer,

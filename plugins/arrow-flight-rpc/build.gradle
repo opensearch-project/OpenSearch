@@ -76,6 +76,14 @@ tasks.named('test').configure {
   }
 }
 
+spotless {
+  java {
+    // Files to exclude from formatting
+    targetExclude 'src/main/java/org/apache/arrow/flight/**/*.java'
+  }
+}
+
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
   mapping from: /grpc-.*/, to: 'grpc'
@@ -94,6 +102,7 @@ tasks.named('forbiddenApisMain').configure {
     'org/apache/arrow/flight/OpenSearchFlightClient$Builder.class'
   ]
 }
+
 
 tasks.named('thirdPartyAudit').configure {
   ignoreMissingClasses(
