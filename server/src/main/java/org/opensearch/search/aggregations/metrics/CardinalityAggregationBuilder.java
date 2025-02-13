@@ -157,22 +157,9 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         return this;
     }
 
-    /**
-     * Get the precision threshold. Higher values improve accuracy but also
-     * increase memory usage. Will return <code>null</code> if the
-     * precisionThreshold has not been set yet.
-     */
-    public Long precisionThreshold() {
-        return precisionThreshold;
-    }
-
     public CardinalityAggregationBuilder executionHint(String executionHint) {
         this.executionHint = executionHint;
         return this;
-    }
-
-    public String executionHint() {
-        return executionHint;
     }
 
     @Override

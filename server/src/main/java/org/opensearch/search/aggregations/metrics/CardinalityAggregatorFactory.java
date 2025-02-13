@@ -69,7 +69,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
             try {
                 return ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [direct, ordinals]");
+                throw new IllegalArgumentException("Unknown execution_hint: [" + value + "], expected any of [direct, ordinals]");
             }
         }
 
