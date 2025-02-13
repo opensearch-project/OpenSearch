@@ -14,9 +14,7 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
 import org.opensearch.common.network.NetworkService;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.PortsRange;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
 
@@ -36,17 +34,6 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
     private final SecureAuxTransportSettingsProvider secureAuxTransportSettingsProvider;
     private final SslContext sslContext;
-
-    /**
-     * Hide parent GRPC_TRANSPORT_SETTING_KEY and SETTING_GRPC_PORT.
-     * Overwrite port in constructor with configuration as specified by
-     * SecureNetty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY and
-     * SecureNetty4GrpcServerTransport.SETTING_GRPC_PORT.
-     */
-    public static final String GRPC_TRANSPORT_SETTING_KEY = "experimental-secure-transport-grpc";
-    public static final Setting<PortsRange> SETTING_GRPC_PORT = AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(
-        GRPC_TRANSPORT_SETTING_KEY
-    );
 
     /**
      * Creates a new SecureNetty4GrpcServerTransport instance.
@@ -72,11 +59,6 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         }
 
         this.addServerConfig((NettyServerBuilder builder) -> builder.sslContext(this.sslContext));
-    }
-
-    @Override
-    public void doClose() {
-        super.doClose();
     }
 
     /**
