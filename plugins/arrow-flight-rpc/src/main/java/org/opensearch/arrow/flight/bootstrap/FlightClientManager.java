@@ -9,6 +9,7 @@ package org.opensearch.arrow.flight.bootstrap;
 
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.OSFlightClient;
+import org.apache.arrow.flight.OSFlightClientBuilder;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
@@ -174,7 +175,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
     }
 
     private OSFlightClient buildClient(Location location) {
-        return OSFlightClient.builder(
+        return new OSFlightClientBuilder(
             clientConfig.allocator,
             location,
             ServerConfig.clientChannelType(),

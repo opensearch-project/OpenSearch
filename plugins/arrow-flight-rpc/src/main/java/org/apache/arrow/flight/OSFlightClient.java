@@ -5,8 +5,39 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
+
 package org.apache.arrow.flight;
 
+import io.grpc.Channel;
+import io.grpc.ClientCall;
+import io.grpc.ClientInterceptor;
+import io.grpc.ClientInterceptors;
+import io.grpc.ManagedChannel;
+import io.grpc.MethodDescriptor;
+import io.grpc.StatusRuntimeException;
+import io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.NettyChannelBuilder;
+import io.grpc.stub.ClientCallStreamObserver;
+import io.grpc.stub.ClientCalls;
+import io.grpc.stub.ClientResponseObserver;
+import io.grpc.stub.StreamObserver;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.ServerChannel;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
+import javax.net.ssl.SSLException;
 import org.apache.arrow.flight.FlightProducer.StreamListener;
 import org.apache.arrow.flight.auth.BasicClientAuthHandler;
 import org.apache.arrow.flight.auth.ClientAuthHandler;
@@ -30,47 +61,15 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.dictionary.DictionaryProvider;
 import org.apache.arrow.vector.dictionary.DictionaryProvider.MapDictionaryProvider;
 
-import javax.net.ssl.SSLException;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
-import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.function.BooleanSupplier;
-
-import io.grpc.Channel;
-import io.grpc.ClientCall;
-import io.grpc.ClientInterceptor;
-import io.grpc.ClientInterceptors;
-import io.grpc.ManagedChannel;
-import io.grpc.MethodDescriptor;
-import io.grpc.StatusRuntimeException;
-import io.grpc.netty.GrpcSslContexts;
-import io.grpc.netty.NettyChannelBuilder;
-import io.grpc.stub.ClientCallStreamObserver;
-import io.grpc.stub.ClientCalls;
-import io.grpc.stub.ClientResponseObserver;
-import io.grpc.stub.StreamObserver;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-
 /**
- * Clone of {@link FlightClient} to support setting SslContext directly. It can be discarded once
- * FlightClient.Builder supports setting SslContext directly.
+ * Clone of {@link org.apache.arrow.flight.FlightClient} to support setting SslContext and other settings like SslContext, workerELG,
+ * executorService and channelType directly. It can be discarded once FlightClient.Builder supports setting SslContext directly.
+ * <p>
+ * It changes {@link org.apache.arrow.flight.FlightClient.Builder} to non-final for overriding purposes and adds an overridable method {@link Builder#configureBuilder(NettyChannelBuilder)}
+ * to allow hook to configure the NettyChannelBuilder.
+ * <p>
+ * Note: This file needs to be cloned with version upgrade of arrow flight-core with above changes.
  */
-@SuppressWarnings("forbiddenApisMain")
 public class OSFlightClient implements AutoCloseable {
     private static final int PENDING_REQUESTS = 5;
     /**
@@ -91,13 +90,17 @@ public class OSFlightClient implements AutoCloseable {
     private final List<FlightClientMiddleware.Factory> middleware;
 
     /** Create a Flight client from an allocator and a gRPC channel. */
-    OSFlightClient(BufferAllocator incomingAllocator, ManagedChannel channel, List<FlightClientMiddleware.Factory> middleware) {
+    OSFlightClient(
+        BufferAllocator incomingAllocator,
+        ManagedChannel channel,
+        List<FlightClientMiddleware.Factory> middleware) {
         this.allocator = incomingAllocator.newChildAllocator("flight-client", 0, Long.MAX_VALUE);
         this.channel = channel;
         this.middleware = middleware;
 
         final ClientInterceptor[] interceptors;
-        interceptors = new ClientInterceptor[] { authInterceptor, new ClientInterceptorAdapter(middleware) };
+        interceptors =
+            new ClientInterceptor[] {authInterceptor, new ClientInterceptorAdapter(middleware)};
 
         // Create a channel with interceptors pre-applied for DoGet and DoPut
         Channel interceptedChannel = ClientInterceptors.intercept(channel, interceptors);
@@ -123,16 +126,19 @@ public class OSFlightClient implements AutoCloseable {
         } catch (StatusRuntimeException sre) {
             throw StatusUtils.fromGrpcRuntimeException(sre);
         }
-        return () -> StatusUtils.wrapIterator(flights, t -> {
-            try {
-                return new FlightInfo(t);
-            } catch (URISyntaxException e) {
-                // We don't expect this will happen for conforming Flight implementations. For
-                // instance, a Java server
-                // itself wouldn't be able to construct an invalid Location.
-                throw new RuntimeException(e);
-            }
-        });
+        return () ->
+            StatusUtils.wrapIterator(
+                flights,
+                t -> {
+                    try {
+                        return new FlightInfo(t);
+                    } catch (URISyntaxException e) {
+                        // We don't expect this will happen for conforming Flight implementations. For
+                        // instance, a Java server
+                        // itself wouldn't be able to construct an invalid Location.
+                        throw new RuntimeException(e);
+                    }
+                });
     }
 
     /**
@@ -158,7 +164,8 @@ public class OSFlightClient implements AutoCloseable {
      * @return An iterator of results.
      */
     public Iterator<Result> doAction(Action action, CallOption... options) {
-        return StatusUtils.wrapIterator(CallOptions.wrapStub(blockingStub, options).doAction(action.toProtocol()), Result::new);
+        return StatusUtils.wrapIterator(
+            CallOptions.wrapStub(blockingStub, options).doAction(action.toProtocol()), Result::new);
     }
 
     /** Authenticates with a username and password. */
@@ -188,9 +195,8 @@ public class OSFlightClient implements AutoCloseable {
      *     no bearer token was returned. This can be used in subsequent API calls.
      */
     public Optional<CredentialCallOption> authenticateBasicToken(String username, String password) {
-        final ClientIncomingAuthHeaderMiddleware.Factory clientAuthMiddleware = new ClientIncomingAuthHeaderMiddleware.Factory(
-            new ClientBearerHeaderHandler()
-        );
+        final ClientIncomingAuthHeaderMiddleware.Factory clientAuthMiddleware =
+            new ClientIncomingAuthHeaderMiddleware.Factory(new ClientBearerHeaderHandler());
         middleware.add(clientAuthMiddleware);
         handshake(new CredentialCallOption(new BasicAuthCredentialWriter(username, password)));
 
@@ -220,8 +226,7 @@ public class OSFlightClient implements AutoCloseable {
         FlightDescriptor descriptor,
         VectorSchemaRoot root,
         PutListener metadataListener,
-        CallOption... options
-    ) {
+        CallOption... options) {
         return startPut(descriptor, root, new MapDictionaryProvider(), metadataListener, options);
     }
 
@@ -241,8 +246,7 @@ public class OSFlightClient implements AutoCloseable {
         VectorSchemaRoot root,
         DictionaryProvider provider,
         PutListener metadataListener,
-        CallOption... options
-    ) {
+        CallOption... options) {
         Preconditions.checkNotNull(root, "root must not be null");
         Preconditions.checkNotNull(provider, "provider must not be null");
         final ClientStreamListener writer = startPut(descriptor, metadataListener, options);
@@ -260,18 +264,20 @@ public class OSFlightClient implements AutoCloseable {
      *     ClientStreamListener#start(VectorSchemaRoot, DictionaryProvider)} will NOT already have
      *     been called.
      */
-    public ClientStreamListener startPut(FlightDescriptor descriptor, PutListener metadataListener, CallOption... options) {
+    public ClientStreamListener startPut(
+        FlightDescriptor descriptor, PutListener metadataListener, CallOption... options) {
         Preconditions.checkNotNull(descriptor, "descriptor must not be null");
         Preconditions.checkNotNull(metadataListener, "metadataListener must not be null");
 
         try {
-            final ClientCall<ArrowMessage, Flight.PutResult> call = asyncStubNewCall(doPutDescriptor, options);
+            final ClientCall<ArrowMessage, Flight.PutResult> call =
+                asyncStubNewCall(doPutDescriptor, options);
             final SetStreamObserver resultObserver = new SetStreamObserver(allocator, metadataListener);
-            ClientCallStreamObserver<ArrowMessage> observer = (ClientCallStreamObserver<ArrowMessage>) ClientCalls.asyncBidiStreamingCall(
-                call,
-                resultObserver
-            );
-            return new PutObserver(descriptor, observer, metadataListener::isCancelled, metadataListener::getResult);
+            ClientCallStreamObserver<ArrowMessage> observer =
+                (ClientCallStreamObserver<ArrowMessage>)
+                    ClientCalls.asyncBidiStreamingCall(call, resultObserver);
+            return new PutObserver(
+                descriptor, observer, metadataListener::isCancelled, metadataListener::getResult);
         } catch (StatusRuntimeException sre) {
             throw StatusUtils.fromGrpcRuntimeException(sre);
         }
@@ -285,7 +291,8 @@ public class OSFlightClient implements AutoCloseable {
      */
     public FlightInfo getInfo(FlightDescriptor descriptor, CallOption... options) {
         try {
-            return new FlightInfo(CallOptions.wrapStub(blockingStub, options).getFlightInfo(descriptor.toProtocol()));
+            return new FlightInfo(
+                CallOptions.wrapStub(blockingStub, options).getFlightInfo(descriptor.toProtocol()));
         } catch (URISyntaxException e) {
             // We don't expect this will happen for conforming Flight implementations. For instance, a
             // Java server
@@ -305,7 +312,8 @@ public class OSFlightClient implements AutoCloseable {
      */
     public PollInfo pollInfo(FlightDescriptor descriptor, CallOption... options) {
         try {
-            return new PollInfo(CallOptions.wrapStub(blockingStub, options).pollFlightInfo(descriptor.toProtocol()));
+            return new PollInfo(
+                CallOptions.wrapStub(blockingStub, options).pollFlightInfo(descriptor.toProtocol()));
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         } catch (StatusRuntimeException sre) {
@@ -321,7 +329,8 @@ public class OSFlightClient implements AutoCloseable {
      */
     public SchemaResult getSchema(FlightDescriptor descriptor, CallOption... options) {
         try {
-            return SchemaResult.fromProtocol(CallOptions.wrapStub(blockingStub, options).getSchema(descriptor.toProtocol()));
+            return SchemaResult.fromProtocol(
+                CallOptions.wrapStub(blockingStub, options).getSchema(descriptor.toProtocol()));
         } catch (StatusRuntimeException sre) {
             throw StatusUtils.fromGrpcRuntimeException(sre);
         }
@@ -335,38 +344,38 @@ public class OSFlightClient implements AutoCloseable {
      */
     public FlightStream getStream(Ticket ticket, CallOption... options) {
         final ClientCall<Flight.Ticket, ArrowMessage> call = asyncStubNewCall(doGetDescriptor, options);
-        FlightStream stream = new FlightStream(
-            allocator,
-            PENDING_REQUESTS,
-            (String message, Throwable cause) -> call.cancel(message, cause),
-            (count) -> call.request(count)
-        );
+        FlightStream stream =
+            new FlightStream(
+                allocator,
+                PENDING_REQUESTS,
+                (String message, Throwable cause) -> call.cancel(message, cause),
+                (count) -> call.request(count));
 
         final StreamObserver<ArrowMessage> delegate = stream.asObserver();
-        ClientResponseObserver<Flight.Ticket, ArrowMessage> clientResponseObserver = new ClientResponseObserver<
-            Flight.Ticket,
-            ArrowMessage>() {
+        ClientResponseObserver<Flight.Ticket, ArrowMessage> clientResponseObserver =
+            new ClientResponseObserver<Flight.Ticket, ArrowMessage>() {
 
-            @Override
-            public void beforeStart(ClientCallStreamObserver<org.apache.arrow.flight.impl.Flight.Ticket> requestStream) {
-                requestStream.disableAutoInboundFlowControl();
-            }
+                @Override
+                public void beforeStart(
+                    ClientCallStreamObserver<org.apache.arrow.flight.impl.Flight.Ticket> requestStream) {
+                    requestStream.disableAutoInboundFlowControl();
+                }
 
-            @Override
-            public void onNext(ArrowMessage value) {
-                delegate.onNext(value);
-            }
+                @Override
+                public void onNext(ArrowMessage value) {
+                    delegate.onNext(value);
+                }
 
-            @Override
-            public void onError(Throwable t) {
-                delegate.onError(StatusUtils.toGrpcException(t));
-            }
+                @Override
+                public void onError(Throwable t) {
+                    delegate.onError(StatusUtils.toGrpcException(t));
+                }
 
-            @Override
-            public void onCompleted() {
-                delegate.onCompleted();
-            }
-        };
+                @Override
+                public void onCompleted() {
+                    delegate.onCompleted();
+                }
+            };
 
         ClientCalls.asyncServerStreamingCall(call, ticket.toProtocol(), clientResponseObserver);
         return stream;
@@ -383,29 +392,42 @@ public class OSFlightClient implements AutoCloseable {
         Preconditions.checkNotNull(descriptor, "descriptor must not be null");
 
         try {
-            final ClientCall<ArrowMessage, ArrowMessage> call = asyncStubNewCall(doExchangeDescriptor, options);
-            final FlightStream stream = new FlightStream(allocator, PENDING_REQUESTS, call::cancel, call::request);
-            final ClientCallStreamObserver<ArrowMessage> observer = (ClientCallStreamObserver<ArrowMessage>) ClientCalls
-                .asyncBidiStreamingCall(call, stream.asObserver());
-            final ClientStreamListener writer = new PutObserver(descriptor, observer, stream.cancelled::isDone, () -> {
-                try {
-                    stream.completed.get();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw CallStatus.INTERNAL.withDescription("Client error: interrupted while completing call")
-                        .withCause(e)
-                        .toRuntimeException();
-                } catch (ExecutionException e) {
-                    throw CallStatus.INTERNAL.withDescription("Client error: internal while completing call")
-                        .withCause(e)
-                        .toRuntimeException();
-                }
-            });
+            final ClientCall<ArrowMessage, ArrowMessage> call =
+                asyncStubNewCall(doExchangeDescriptor, options);
+            final FlightStream stream =
+                new FlightStream(allocator, PENDING_REQUESTS, call::cancel, call::request);
+            final ClientCallStreamObserver<ArrowMessage> observer =
+                (ClientCallStreamObserver<ArrowMessage>)
+                    ClientCalls.asyncBidiStreamingCall(call, stream.asObserver());
+            final ClientStreamListener writer =
+                new PutObserver(
+                    descriptor,
+                    observer,
+                    stream.cancelled::isDone,
+                    () -> {
+                        try {
+                            stream.completed.get();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw CallStatus.INTERNAL
+                                .withDescription("Client error: interrupted while completing call")
+                                .withCause(e)
+                                .toRuntimeException();
+                        } catch (ExecutionException e) {
+                            throw CallStatus.INTERNAL
+                                .withDescription("Client error: internal while completing call")
+                                .withCause(e)
+                                .toRuntimeException();
+                        }
+                    });
             // Send the descriptor to start.
             try (final ArrowMessage message = new ArrowMessage(descriptor.toProtocol())) {
                 observer.onNext(message);
             } catch (Exception e) {
-                throw CallStatus.INTERNAL.withCause(e).withDescription("Could not write descriptor " + descriptor).toRuntimeException();
+                throw CallStatus.INTERNAL
+                    .withCause(e)
+                    .withDescription("Could not write descriptor " + descriptor)
+                    .toRuntimeException();
             }
             return new ExchangeReaderWriter(stream, writer);
         } catch (StatusRuntimeException sre) {
@@ -440,8 +462,7 @@ public class OSFlightClient implements AutoCloseable {
          */
         public void getResult() {
             // After exchange is complete, make sure stream is drained to propagate errors through reader
-            while (reader.next()) {
-            }
+            while (reader.next()) {}
         }
 
         /** Shut down the streams in this call. */
@@ -497,8 +518,7 @@ public class OSFlightClient implements AutoCloseable {
             FlightDescriptor descriptor,
             ClientCallStreamObserver<ArrowMessage> observer,
             BooleanSupplier isCancelled,
-            Runnable getResult
-        ) {
+            Runnable getResult) {
             super(descriptor, observer);
             Preconditions.checkNotNull(descriptor, "descriptor must be provided");
             Preconditions.checkNotNull(isCancelled, "isCancelled must be provided");
@@ -530,18 +550,25 @@ public class OSFlightClient implements AutoCloseable {
      * @param options Call options.
      * @return The server response.
      */
-    public CancelFlightInfoResult cancelFlightInfo(CancelFlightInfoRequest request, CallOption... options) {
-        Action action = new Action(FlightConstants.CANCEL_FLIGHT_INFO.getType(), request.serialize().array());
+    public CancelFlightInfoResult cancelFlightInfo(
+        CancelFlightInfoRequest request, CallOption... options) {
+        Action action =
+            new Action(FlightConstants.CANCEL_FLIGHT_INFO.getType(), request.serialize().array());
         Iterator<Result> results = doAction(action, options);
         if (!results.hasNext()) {
-            throw CallStatus.INTERNAL.withDescription("Server did not return a response").toRuntimeException();
+            throw CallStatus.INTERNAL
+                .withDescription("Server did not return a response")
+                .toRuntimeException();
         }
 
         CancelFlightInfoResult result;
         try {
             result = CancelFlightInfoResult.deserialize(ByteBuffer.wrap(results.next().getBody()));
         } catch (IOException e) {
-            throw CallStatus.INTERNAL.withDescription("Failed to parse server response: " + e).withCause(e).toRuntimeException();
+            throw CallStatus.INTERNAL
+                .withDescription("Failed to parse server response: " + e)
+                .withCause(e)
+                .toRuntimeException();
         }
         results.forEachRemaining((ignored) -> {});
         return result;
@@ -554,18 +581,25 @@ public class OSFlightClient implements AutoCloseable {
      * @param options Call options.
      * @return The new endpoint with an updated expiration time.
      */
-    public FlightEndpoint renewFlightEndpoint(RenewFlightEndpointRequest request, CallOption... options) {
-        Action action = new Action(FlightConstants.RENEW_FLIGHT_ENDPOINT.getType(), request.serialize().array());
+    public FlightEndpoint renewFlightEndpoint(
+        RenewFlightEndpointRequest request, CallOption... options) {
+        Action action =
+            new Action(FlightConstants.RENEW_FLIGHT_ENDPOINT.getType(), request.serialize().array());
         Iterator<Result> results = doAction(action, options);
         if (!results.hasNext()) {
-            throw CallStatus.INTERNAL.withDescription("Server did not return a response").toRuntimeException();
+            throw CallStatus.INTERNAL
+                .withDescription("Server did not return a response")
+                .toRuntimeException();
         }
 
         FlightEndpoint result;
         try {
             result = FlightEndpoint.deserialize(ByteBuffer.wrap(results.next().getBody()));
         } catch (IOException | URISyntaxException e) {
-            throw CallStatus.INTERNAL.withDescription("Failed to parse server response: " + e).withCause(e).toRuntimeException();
+            throw CallStatus.INTERNAL
+                .withDescription("Failed to parse server response: " + e)
+                .withCause(e)
+                .toRuntimeException();
         }
         results.forEachRemaining((ignored) -> {});
         return result;
@@ -580,18 +614,25 @@ public class OSFlightClient implements AutoCloseable {
      * @param options Call options.
      * @return The result containing per-value error statuses, if any.
      */
-    public SetSessionOptionsResult setSessionOptions(SetSessionOptionsRequest request, CallOption... options) {
-        Action action = new Action(FlightConstants.SET_SESSION_OPTIONS.getType(), request.serialize().array());
+    public SetSessionOptionsResult setSessionOptions(
+        SetSessionOptionsRequest request, CallOption... options) {
+        Action action =
+            new Action(FlightConstants.SET_SESSION_OPTIONS.getType(), request.serialize().array());
         Iterator<Result> results = doAction(action, options);
         if (!results.hasNext()) {
-            throw CallStatus.INTERNAL.withDescription("Server did not return a response").toRuntimeException();
+            throw CallStatus.INTERNAL
+                .withDescription("Server did not return a response")
+                .toRuntimeException();
         }
 
         SetSessionOptionsResult result;
         try {
             result = SetSessionOptionsResult.deserialize(ByteBuffer.wrap(results.next().getBody()));
         } catch (IOException e) {
-            throw CallStatus.INTERNAL.withDescription("Failed to parse server response: " + e).withCause(e).toRuntimeException();
+            throw CallStatus.INTERNAL
+                .withDescription("Failed to parse server response: " + e)
+                .withCause(e)
+                .toRuntimeException();
         }
         results.forEachRemaining((ignored) -> {});
         return result;
@@ -606,18 +647,25 @@ public class OSFlightClient implements AutoCloseable {
      * @param options Call options.
      * @return The result containing the set of session options configured on the server.
      */
-    public GetSessionOptionsResult getSessionOptions(GetSessionOptionsRequest request, CallOption... options) {
-        Action action = new Action(FlightConstants.GET_SESSION_OPTIONS.getType(), request.serialize().array());
+    public GetSessionOptionsResult getSessionOptions(
+        GetSessionOptionsRequest request, CallOption... options) {
+        Action action =
+            new Action(FlightConstants.GET_SESSION_OPTIONS.getType(), request.serialize().array());
         Iterator<Result> results = doAction(action, options);
         if (!results.hasNext()) {
-            throw CallStatus.INTERNAL.withDescription("Server did not return a response").toRuntimeException();
+            throw CallStatus.INTERNAL
+                .withDescription("Server did not return a response")
+                .toRuntimeException();
         }
 
         GetSessionOptionsResult result;
         try {
             result = GetSessionOptionsResult.deserialize(ByteBuffer.wrap(results.next().getBody()));
         } catch (IOException e) {
-            throw CallStatus.INTERNAL.withDescription("Failed to parse server response: " + e).withCause(e).toRuntimeException();
+            throw CallStatus.INTERNAL
+                .withDescription("Failed to parse server response: " + e)
+                .withCause(e)
+                .toRuntimeException();
         }
         results.forEachRemaining((ignored) -> {});
         return result;
@@ -633,17 +681,23 @@ public class OSFlightClient implements AutoCloseable {
      * @return The result containing the status of the close operation.
      */
     public CloseSessionResult closeSession(CloseSessionRequest request, CallOption... options) {
-        Action action = new Action(FlightConstants.CLOSE_SESSION.getType(), request.serialize().array());
+        Action action =
+            new Action(FlightConstants.CLOSE_SESSION.getType(), request.serialize().array());
         Iterator<Result> results = doAction(action, options);
         if (!results.hasNext()) {
-            throw CallStatus.INTERNAL.withDescription("Server did not return a response").toRuntimeException();
+            throw CallStatus.INTERNAL
+                .withDescription("Server did not return a response")
+                .toRuntimeException();
         }
 
         CloseSessionResult result;
         try {
             result = CloseSessionResult.deserialize(ByteBuffer.wrap(results.next().getBody()));
         } catch (IOException e) {
-            throw CallStatus.INTERNAL.withDescription("Failed to parse server response: " + e).withCause(e).toRuntimeException();
+            throw CallStatus.INTERNAL
+                .withDescription("Failed to parse server response: " + e)
+                .withCause(e)
+                .toRuntimeException();
         }
         results.forEachRemaining((ignored) -> {});
         return result;
@@ -715,44 +769,22 @@ public class OSFlightClient implements AutoCloseable {
         return new Builder(allocator, location);
     }
 
-    public static Builder builder(
-        BufferAllocator allocator,
-        Location location,
-        Class<? extends io.netty.channel.Channel> channelType,
-        ExecutorService executorService,
-        EventLoopGroup workerELG,
-        SslContext sslContext
-    ) {
-        Builder builder = new Builder(allocator, location);
-        builder.channelType(channelType);
-        builder.executor(executorService);
-        builder.eventLoopGroup(workerELG);
-        if (sslContext != null) {
-            builder.useTLS(sslContext);
-        }
-        return builder;
-    }
-
     /** A builder for Flight clients. */
-    public static final class Builder {
+    public static class Builder {
         private BufferAllocator allocator;
         private Location location;
         private boolean forceTls = false;
-        private int maxInboundMessageSize = FlightServer.MAX_GRPC_MESSAGE_SIZE;
+        private int maxInboundMessageSize = OSFlightServer.MAX_GRPC_MESSAGE_SIZE;
         private InputStream trustedCertificates = null;
         private InputStream clientCertificate = null;
         private InputStream clientKey = null;
         private String overrideHostname = null;
         private List<FlightClientMiddleware.Factory> middleware = new ArrayList<>();
         private boolean verifyServer = true;
-        private EventLoopGroup workerELG;
-        private ExecutorService executorService;
-        private Class<? extends io.netty.channel.Channel> channelType;
-        private SslContext sslContext;
 
         private Builder() {}
 
-        private Builder(BufferAllocator allocator, Location location) {
+        Builder(BufferAllocator allocator, Location location) {
             this.allocator = Preconditions.checkNotNull(allocator);
             this.location = Preconditions.checkNotNull(location);
         }
@@ -783,7 +815,8 @@ public class OSFlightClient implements AutoCloseable {
         }
 
         /** Set the trusted TLS certificates. */
-        public Builder clientCertificate(final InputStream clientCertificate, final InputStream clientKey) {
+        public Builder clientCertificate(
+            final InputStream clientCertificate, final InputStream clientKey) {
             Preconditions.checkNotNull(clientKey);
             this.clientCertificate = Preconditions.checkNotNull(clientCertificate);
             this.clientKey = Preconditions.checkNotNull(clientKey);
@@ -810,26 +843,6 @@ public class OSFlightClient implements AutoCloseable {
             return this;
         }
 
-        public Builder eventLoopGroup(EventLoopGroup elg) {
-            this.workerELG = elg;
-            return this;
-        }
-
-        public Builder executor(ExecutorService executorService) {
-            this.executorService = executorService;
-            return this;
-        }
-
-        public Builder channelType(Class<? extends io.netty.channel.Channel> channelType) {
-            this.channelType = channelType;
-            return this;
-        }
-
-        public Builder useTLS(SslContext sslContext) {
-            this.sslContext = Objects.requireNonNull(sslContext);
-            return this;
-        }
-
         /** Create the client from this builder. */
         public OSFlightClient build() {
             final NettyChannelBuilder builder;
@@ -837,58 +850,52 @@ public class OSFlightClient implements AutoCloseable {
             switch (location.getUri().getScheme()) {
                 case LocationSchemes.GRPC:
                 case LocationSchemes.GRPC_INSECURE:
-                case LocationSchemes.GRPC_TLS: {
+                case LocationSchemes.GRPC_TLS:
+                {
                     builder = NettyChannelBuilder.forAddress(location.toSocketAddress());
-                    if (workerELG != null) {
-                        builder.eventLoopGroup(workerELG);
-                    }
-                    if (executorService != null) {
-                        builder.executor(executorService);
-                    }
-                    if (channelType != null) {
-                        builder.channelType(channelType);
-                    }
-                    if (sslContext != null) {
-                        builder.sslContext(sslContext);
-                    }
                     break;
                 }
-                case LocationSchemes.GRPC_DOMAIN_SOCKET: {
+                case LocationSchemes.GRPC_DOMAIN_SOCKET:
+                {
                     // The implementation is platform-specific, so we have to find the classes at runtime
                     builder = NettyChannelBuilder.forAddress(location.toSocketAddress());
                     try {
                         try {
                             // Linux
                             builder.channelType(
-                                Class.forName("io.netty.channel.epoll.EpollDomainSocketChannel").asSubclass(ServerChannel.class)
-                            );
-                            final EventLoopGroup elg = Class.forName("io.netty.channel.epoll.EpollEventLoopGroup")
-                                .asSubclass(EventLoopGroup.class)
-                                .getDeclaredConstructor()
-                                .newInstance();
+                                Class.forName("io.netty.channel.epoll.EpollDomainSocketChannel")
+                                    .asSubclass(ServerChannel.class));
+                            final EventLoopGroup elg =
+                                Class.forName("io.netty.channel.epoll.EpollEventLoopGroup")
+                                    .asSubclass(EventLoopGroup.class)
+                                    .getDeclaredConstructor()
+                                    .newInstance();
                             builder.eventLoopGroup(elg);
                         } catch (ClassNotFoundException e) {
                             // BSD
-                            // this might not work as io.netty.channel.kqueue classes aren't present in grpc-netty-shaded
                             builder.channelType(
-                                Class.forName("io.netty.channel.kqueue.KQueueDomainSocketChannel").asSubclass(ServerChannel.class)
-                            );
-                            final EventLoopGroup elg = Class.forName("io.netty.channel.kqueue.KQueueEventLoopGroup")
-                                .asSubclass(EventLoopGroup.class)
-                                .getDeclaredConstructor()
-                                .newInstance();
+                                Class.forName("io.netty.channel.kqueue.KQueueDomainSocketChannel")
+                                    .asSubclass(ServerChannel.class));
+                            final EventLoopGroup elg =
+                                Class.forName("io.netty.channel.kqueue.KQueueEventLoopGroup")
+                                    .asSubclass(EventLoopGroup.class)
+                                    .getDeclaredConstructor()
+                                    .newInstance();
                             builder.eventLoopGroup(elg);
                         }
-                    } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | NoSuchMethodException
-                        | InvocationTargetException e) {
+                    } catch (ClassNotFoundException
+                             | InstantiationException
+                             | IllegalAccessException
+                             | NoSuchMethodException
+                             | InvocationTargetException e) {
                         throw new UnsupportedOperationException(
-                            "Could not find suitable Netty native transport implementation for domain socket address."
-                        );
+                            "Could not find suitable Netty native transport implementation for domain socket address.");
                     }
                     break;
                 }
                 default:
-                    throw new IllegalArgumentException("Scheme is not supported: " + location.getUri().getScheme());
+                    throw new IllegalArgumentException(
+                        "Scheme is not supported: " + location.getUri().getScheme());
             }
 
             if (this.forceTls || LocationSchemes.GRPC_TLS.equals(location.getUri().getScheme())) {
@@ -898,15 +905,17 @@ public class OSFlightClient implements AutoCloseable {
                 final boolean hasKeyCertPair = this.clientCertificate != null && this.clientKey != null;
                 if (!this.verifyServer && (hasTrustedCerts || hasKeyCertPair)) {
                     throw new IllegalArgumentException(
-                        "FlightClient has been configured to disable server verification, " + "but certificate options have been specified."
-                    );
+                        "FlightClient has been configured to disable server verification, "
+                            + "but certificate options have been specified.");
                 }
 
                 final SslContextBuilder sslContextBuilder = GrpcSslContexts.forClient();
 
                 if (!this.verifyServer) {
                     sslContextBuilder.trustManager(InsecureTrustManagerFactory.INSTANCE);
-                } else if (this.trustedCertificates != null || this.clientCertificate != null || this.clientKey != null) {
+                } else if (this.trustedCertificates != null
+                    || this.clientCertificate != null
+                    || this.clientKey != null) {
                     if (this.trustedCertificates != null) {
                         sslContextBuilder.trustManager(this.trustedCertificates);
                     }
@@ -927,10 +936,18 @@ public class OSFlightClient implements AutoCloseable {
                 builder.usePlaintext();
             }
 
-            builder.maxTraceEvents(MAX_CHANNEL_TRACE_EVENTS)
+            builder
+                .maxTraceEvents(MAX_CHANNEL_TRACE_EVENTS)
                 .maxInboundMessageSize(maxInboundMessageSize)
                 .maxInboundMetadataSize(maxInboundMessageSize);
+            configureBuilder(builder);
             return new OSFlightClient(allocator, builder.build(), middleware);
+        }
+
+        /**
+         * Override this method to configure the builder.
+         */
+        public void configureBuilder(NettyChannelBuilder builder) {
         }
     }
 
@@ -939,9 +956,7 @@ public class OSFlightClient implements AutoCloseable {
      * options.
      */
     private <RequestT, ResponseT> ClientCall<RequestT, ResponseT> asyncStubNewCall(
-        MethodDescriptor<RequestT, ResponseT> descriptor,
-        CallOption... options
-    ) {
+        MethodDescriptor<RequestT, ResponseT> descriptor, CallOption... options) {
         FlightServiceStub wrappedStub = CallOptions.wrapStub(asyncStub, options);
         return wrappedStub.getChannel().newCall(descriptor, wrappedStub.getCallOptions());
     }

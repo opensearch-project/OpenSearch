@@ -8,22 +8,15 @@
 
 package org.apache.arrow.flight;
 
-import org.apache.arrow.flight.auth.ServerAuthHandler;
-import org.apache.arrow.flight.auth.ServerAuthInterceptor;
-import org.apache.arrow.flight.auth2.Auth2Constants;
-import org.apache.arrow.flight.auth2.CallHeaderAuthenticator;
-import org.apache.arrow.flight.auth2.ServerCallHeaderAuthMiddleware;
-import org.apache.arrow.flight.grpc.ServerBackpressureThresholdInterceptor;
-import org.apache.arrow.flight.grpc.ServerInterceptorAdapter;
-import org.apache.arrow.flight.grpc.ServerInterceptorAdapter.KeyFactory;
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.util.Preconditions;
-import org.apache.arrow.util.VisibleForTesting;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import javax.net.ssl.SSLException;
-
+import io.grpc.Server;
+import io.grpc.ServerInterceptors;
+import io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.NettyServerBuilder;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.ServerChannel;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -36,38 +29,42 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-
-import io.grpc.Server;
-import io.grpc.ServerInterceptors;
-import io.grpc.netty.GrpcSslContexts;
-import io.grpc.netty.NettyServerBuilder;
-import io.netty.channel.Channel;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
-import io.netty.handler.ssl.ClientAuth;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
+import javax.net.ssl.SSLException;
+import org.apache.arrow.flight.auth.ServerAuthHandler;
+import org.apache.arrow.flight.auth.ServerAuthInterceptor;
+import org.apache.arrow.flight.auth2.Auth2Constants;
+import org.apache.arrow.flight.auth2.CallHeaderAuthenticator;
+import org.apache.arrow.flight.auth2.ServerCallHeaderAuthMiddleware;
+import org.apache.arrow.flight.grpc.ServerBackpressureThresholdInterceptor;
+import org.apache.arrow.flight.grpc.ServerInterceptorAdapter;
+import org.apache.arrow.flight.grpc.ServerInterceptorAdapter.KeyFactory;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.util.Preconditions;
+import org.apache.arrow.util.VisibleForTesting;
 
 /**
- * Clone of {@link FlightServer} to support setting SslContext directly. It can be discarded once
- * FlightServer.Builder supports setting SslContext directly.
+ * Clone of {@link org.apache.arrow.flight.FlightServer} to support setting SslContext. It can be discarded once FlightServer.Builder supports setting SslContext directly.
+ * <p>
+ * It changes {@link org.apache.arrow.flight.FlightServer.Builder} to non-final for overriding purposes and adds an overridable method {@link OSFlightServer.Builder#configureBuilder(NettyServerBuilder)}
+ * to allow hook to configure the NettyServerBuilder.
+ * <p>
+ * Note: This file needs to be cloned with version upgrade of arrow flight-core with above changes.
  */
 public class OSFlightServer implements AutoCloseable {
 
-    private static final Logger logger = LogManager.getLogger(OSFlightServer.class);
+    private static final org.slf4j.Logger logger =
+        org.slf4j.LoggerFactory.getLogger(OSFlightServer.class);
 
     private final Location location;
     private final Server server;
     // The executor used by the gRPC server. We don't use it here, but we do need to clean it up with
     // the server.
     // May be null, if a user-supplied executor was provided (as we do not want to clean that up)
-    @VisibleForTesting
-    final ExecutorService grpcExecutor;
+    @VisibleForTesting final ExecutorService grpcExecutor;
 
     /** The maximum size of an individual gRPC message. This effectively disables the limit. */
     static final int MAX_GRPC_MESSAGE_SIZE = Integer.MAX_VALUE;
@@ -100,8 +97,14 @@ public class OSFlightServer implements AutoCloseable {
             final URI uri = location.getUri();
             try {
                 return new Location(
-                    new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), getPort(), uri.getPath(), uri.getQuery(), uri.getFragment())
-                );
+                    new URI(
+                        uri.getScheme(),
+                        uri.getUserInfo(),
+                        uri.getHost(),
+                        getPort(),
+                        uri.getPath(),
+                        uri.getQuery(),
+                        uri.getFragment()));
             } catch (URISyntaxException e) {
                 // We don't expect this to happen
                 throw new RuntimeException(e);
@@ -128,7 +131,8 @@ public class OSFlightServer implements AutoCloseable {
      *
      * @return true if the server shut down successfully.
      */
-    public boolean awaitTermination(final long timeout, final TimeUnit unit) throws InterruptedException {
+    public boolean awaitTermination(final long timeout, final TimeUnit unit)
+        throws InterruptedException {
         return server.awaitTermination(timeout, unit);
     }
 
@@ -163,33 +167,13 @@ public class OSFlightServer implements AutoCloseable {
     }
 
     /** Create a builder for a Flight server. */
-    public static Builder builder(BufferAllocator allocator, Location location, FlightProducer producer) {
+    public static Builder builder(
+        BufferAllocator allocator, Location location, FlightProducer producer) {
         return new Builder(allocator, location, producer);
     }
 
-    public static Builder builder(
-        BufferAllocator allocator,
-        Location location,
-        FlightProducer producer,
-        SslContext sslContext,
-        Class<? extends Channel> channelType,
-        EventLoopGroup bossELG,
-        EventLoopGroup workerELG,
-        ExecutorService grpcExecutor
-    ) {
-        Builder builder = new Builder(allocator, location, producer);
-        if (sslContext != null) {
-            builder.useTls(sslContext);
-        }
-        builder.transportHint("netty.channelType", channelType);
-        builder.transportHint("netty.bossEventLoopGroup", bossELG);
-        builder.transportHint("netty.workerEventLoopGroup", workerELG);
-        builder.executor(grpcExecutor);
-        return builder;
-    }
-
     /** A builder for Flight servers. */
-    public static final class Builder {
+    public static class Builder {
         private BufferAllocator allocator;
         private Location location;
         private FlightProducer producer;
@@ -228,65 +212,72 @@ public class OSFlightServer implements AutoCloseable {
             if (headerAuthenticator != CallHeaderAuthenticator.NO_OP) {
                 this.middleware(
                     FlightServerMiddleware.Key.of(Auth2Constants.AUTHORIZATION_HEADER),
-                    new ServerCallHeaderAuthMiddleware.Factory(headerAuthenticator)
-                );
+                    new ServerCallHeaderAuthMiddleware.Factory(headerAuthenticator));
             }
 
             this.middleware(FlightConstants.HEADER_KEY, new ServerHeaderMiddleware.Factory());
 
             final NettyServerBuilder builder;
             switch (location.getUri().getScheme()) {
-                case LocationSchemes.GRPC_DOMAIN_SOCKET: {
+                case LocationSchemes.GRPC_DOMAIN_SOCKET:
+                {
                     // The implementation is platform-specific, so we have to find the classes at runtime
                     builder = NettyServerBuilder.forAddress(location.toSocketAddress());
                     try {
                         try {
                             // Linux
                             builder.channelType(
-                                Class.forName("io.netty.channel.epoll.EpollServerDomainSocketChannel").asSubclass(ServerChannel.class)
-                            );
-                            final EventLoopGroup elg = Class.forName("io.netty.channel.epoll.EpollEventLoopGroup")
-                                .asSubclass(EventLoopGroup.class)
-                                .getConstructor()
-                                .newInstance();
+                                Class.forName("io.netty.channel.epoll.EpollServerDomainSocketChannel")
+                                    .asSubclass(ServerChannel.class));
+                            final EventLoopGroup elg =
+                                Class.forName("io.netty.channel.epoll.EpollEventLoopGroup")
+                                    .asSubclass(EventLoopGroup.class)
+                                    .getConstructor()
+                                    .newInstance();
                             builder.bossEventLoopGroup(elg).workerEventLoopGroup(elg);
                         } catch (ClassNotFoundException e) {
                             // BSD
-                            // below logic may not work as the kqueue classes aren't present in grpc-netty-shaded
                             builder.channelType(
-                                Class.forName("io.netty.channel.kqueue.KQueueServerDomainSocketChannel").asSubclass(ServerChannel.class)
-                            );
-                            final EventLoopGroup elg = Class.forName("io.netty.channel.kqueue.KQueueEventLoopGroup")
-                                .asSubclass(EventLoopGroup.class)
-                                .getConstructor()
-                                .newInstance();
+                                Class.forName("io.netty.channel.kqueue.KQueueServerDomainSocketChannel")
+                                    .asSubclass(ServerChannel.class));
+                            final EventLoopGroup elg =
+                                Class.forName("io.netty.channel.kqueue.KQueueEventLoopGroup")
+                                    .asSubclass(EventLoopGroup.class)
+                                    .getConstructor()
+                                    .newInstance();
                             builder.bossEventLoopGroup(elg).workerEventLoopGroup(elg);
                         }
-                    } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | NoSuchMethodException
-                        | InvocationTargetException e) {
+                    } catch (ClassNotFoundException
+                             | InstantiationException
+                             | IllegalAccessException
+                             | NoSuchMethodException
+                             | InvocationTargetException e) {
                         throw new UnsupportedOperationException(
-                            "Could not find suitable Netty native transport implementation for domain socket address."
-                        );
+                            "Could not find suitable Netty native transport implementation for domain socket address.");
                     }
                     break;
                 }
                 case LocationSchemes.GRPC:
-                case LocationSchemes.GRPC_INSECURE: {
+                case LocationSchemes.GRPC_INSECURE:
+                {
                     builder = NettyServerBuilder.forAddress(location.toSocketAddress());
                     break;
                 }
-                case LocationSchemes.GRPC_TLS: {
+                case LocationSchemes.GRPC_TLS:
+                {
                     if (certChain == null) {
-                        throw new IllegalArgumentException("Must provide a certificate and key to serve gRPC over TLS");
+                        throw new IllegalArgumentException(
+                            "Must provide a certificate and key to serve gRPC over TLS");
                     }
                     builder = NettyServerBuilder.forAddress(location.toSocketAddress());
                     break;
                 }
                 default:
-                    throw new IllegalArgumentException("Scheme is not supported: " + location.getUri().getScheme());
+                    throw new IllegalArgumentException(
+                        "Scheme is not supported: " + location.getUri().getScheme());
             }
 
-            if (sslContext != null && certChain != null) {
+            if (certChain != null) {
                 SslContextBuilder sslContextBuilder = GrpcSslContexts.forServer(certChain, key);
 
                 if (mTlsCACert != null) {
@@ -318,42 +309,52 @@ public class OSFlightServer implements AutoCloseable {
                 throw new IllegalStateException("GRPC executor must be passed to start Flight server.");
             }
 
-            final FlightBindingService flightService = new FlightBindingService(allocator, producer, authHandler, exec);
-            builder.executor(exec)
+            final FlightBindingService flightService =
+                new FlightBindingService(allocator, producer, authHandler, exec);
+            builder
+                .executor(exec)
                 .maxInboundMessageSize(maxInboundMessageSize)
                 .maxInboundMetadataSize(maxHeaderListSize)
                 .addService(
                     ServerInterceptors.intercept(
                         flightService,
                         new ServerBackpressureThresholdInterceptor(backpressureThreshold),
-                        new ServerAuthInterceptor(authHandler)
-                    )
-                );
+                        new ServerAuthInterceptor(authHandler)));
 
             // Allow hooking into the gRPC builder. This is not guaranteed to be available on all Arrow
             // versions or
             // Flight implementations.
-            builderOptions.computeIfPresent("grpc.builderConsumer", (key, builderConsumer) -> {
-                final Consumer<NettyServerBuilder> consumer = (Consumer<NettyServerBuilder>) builderConsumer;
-                consumer.accept(builder);
-                return null;
-            });
+            builderOptions.computeIfPresent(
+                "grpc.builderConsumer",
+                (key, builderConsumer) -> {
+                    final Consumer<NettyServerBuilder> consumer =
+                        (Consumer<NettyServerBuilder>) builderConsumer;
+                    consumer.accept(builder);
+                    return null;
+                });
 
             // Allow explicitly setting some Netty-specific options
-            builderOptions.computeIfPresent("netty.channelType", (key, channelType) -> {
-                builder.channelType((Class<? extends ServerChannel>) channelType);
-                return null;
-            });
-            builderOptions.computeIfPresent("netty.bossEventLoopGroup", (key, elg) -> {
-                builder.bossEventLoopGroup((EventLoopGroup) elg);
-                return null;
-            });
-            builderOptions.computeIfPresent("netty.workerEventLoopGroup", (key, elg) -> {
-                builder.workerEventLoopGroup((EventLoopGroup) elg);
-                return null;
-            });
+            builderOptions.computeIfPresent(
+                "netty.channelType",
+                (key, channelType) -> {
+                    builder.channelType((Class<? extends ServerChannel>) channelType);
+                    return null;
+                });
+            builderOptions.computeIfPresent(
+                "netty.bossEventLoopGroup",
+                (key, elg) -> {
+                    builder.bossEventLoopGroup((EventLoopGroup) elg);
+                    return null;
+                });
+            builderOptions.computeIfPresent(
+                "netty.workerEventLoopGroup",
+                (key, elg) -> {
+                    builder.workerEventLoopGroup((EventLoopGroup) elg);
+                    return null;
+                });
 
             builder.intercept(new ServerInterceptorAdapter(interceptors));
+            configureBuilder(builder);
             return new OSFlightServer(location, builder.build(), grpcExecutor);
         }
 
@@ -468,15 +469,6 @@ public class OSFlightServer implements AutoCloseable {
         }
 
         /**
-         * Enable TLS on the server.
-         * @param sslContext SslContext to use.
-         */
-        public Builder useTls(SslContext sslContext) {
-            this.sslContext = Objects.requireNonNull(sslContext);
-            return this;
-        }
-
-        /**
          * Enable mTLS on the server.
          *
          * @param mTlsCACert The CA certificate to use for verifying clients.
@@ -527,9 +519,7 @@ public class OSFlightServer implements AutoCloseable {
          * @throws IllegalArgumentException if the key already exists
          */
         public <T extends FlightServerMiddleware> Builder middleware(
-            final FlightServerMiddleware.Key<T> key,
-            final FlightServerMiddleware.Factory<T> factory
-        ) {
+            final FlightServerMiddleware.Key<T> key, final FlightServerMiddleware.Factory<T> factory) {
             if (interceptorKeys.contains(key.key)) {
                 throw new IllegalArgumentException("Key already exists: " + key.key);
             }
@@ -551,6 +541,12 @@ public class OSFlightServer implements AutoCloseable {
         public Builder producer(FlightProducer producer) {
             this.producer = Preconditions.checkNotNull(producer);
             return this;
+        }
+
+        /**
+         * Hook to allow custom configuration of the NettyServerBuilder.
+         */
+        public void configureBuilder(NettyServerBuilder builder) {
         }
     }
 }
