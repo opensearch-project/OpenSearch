@@ -164,6 +164,7 @@ import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
@@ -436,6 +437,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,
                 NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
                 HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
+                ContextIndexSearcher.CLUSTER_USE_EXPERIMENTAL_SLICE,
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
                 TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND,
                 TransportReplicationAction.REPLICATION_RETRY_TIMEOUT,
