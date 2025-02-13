@@ -113,8 +113,10 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             // Concurrent search forks each slice of 5 segments to different thread (see please
             // https://github.com/apache/lucene/issues/12498)
             Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
-            assertEquals(Integer.parseInt(metadata.index(INDEX_NAME).getSettings().get(IndexMetadata.MAX_SLICE_COUNT)) + 1, threadStats.size());
-
+            assertEquals(
+                Integer.parseInt(metadata.index(INDEX_NAME).getSettings().get(IndexMetadata.MAX_SLICE_COUNT)) + 1,
+                threadStats.size()
+            );
             // assert that all task descriptions have non-zero length
             MatcherAssert.assertThat(taskInfo.getDescription().length(), greaterThan(0));
         }
