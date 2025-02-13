@@ -147,8 +147,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         Collector collector = null;
-        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
-            ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals source) {
             final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
             final long maxOrd = ordinalValues.getValueCount();
             if (maxOrd == 0) {
@@ -157,7 +156,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             } else if (executionMode == CardinalityAggregatorFactory.ExecutionMode.ORDINALS) { // Force OrdinalsCollector
                 ordinalsCollectorsUsed++;
                 collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
-            } else {
+            } else if (executionMode == null) {
+                //no hint provided, fall back to heuristics
                 final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
                 final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
                 // only use ordinals if they don't increase memory usage by more than 25%
@@ -170,7 +170,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
         }
 
-        if (collector == null) { // not able to build an OrdinalsCollector
+        if (collector == null) { // not able to build an OrdinalsCollector, or hint is direct
             stringHashingCollectorsUsed++;
             collector = new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
         }

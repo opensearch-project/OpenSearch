@@ -60,17 +60,12 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
      * @opensearch.internal
      */
     public enum ExecutionMode {
-
-        UNSET,
         DIRECT,
         ORDINALS;
 
         ExecutionMode() {}
 
         public static ExecutionMode fromString(String value) {
-            if (value == null) {
-                return UNSET;
-            }
             try {
                 return ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
@@ -100,7 +95,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.precisionThreshold = precisionThreshold;
-        this.executionMode = ExecutionMode.fromString(executionHint);
+        this.executionMode = executionHint == null ? null : ExecutionMode.fromString(executionHint);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {

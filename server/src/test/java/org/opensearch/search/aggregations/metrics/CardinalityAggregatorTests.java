@@ -601,8 +601,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testNoExecutionHintWithByteValues() throws IOException {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field")
-            .executionHint("direct");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("field");
+
         testAggregationExecutionHint(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("field", new BytesRef())));
         }, card -> {
@@ -620,7 +620,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, collector -> { assertTrue(collector instanceof CardinalityAggregator.OrdinalsCollector); }, fieldType);
+        }, collector -> { assertTrue(collector instanceof CardinalityAggregator.DirectCollector); }, fieldType);
     }
 
     public void testOrdinalsExecutionHintWithByteValues() throws IOException {
