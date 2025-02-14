@@ -64,6 +64,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.index.remote.RemoteStoreUtils.checkAndFinalizeRemoteStoreMigration;
 
 /**
@@ -257,6 +258,14 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
+                    if (request.transientSettings().hasValue(CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey())
+                        || request.persistentSettings().hasValue(CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey())) {
+
+                        Settings settings = Settings.builder().put(request.transientSettings()).put(request.persistentSettings()).build();
+
+                        int newValue = CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings);
+                        validateClusterTotalPrimaryShardsPerNodeSetting(currentState, newValue);
+                    }
                     boolean isCompatibilityModeChanging = validateCompatibilityModeSettingRequest(request, state);
                     ClusterState clusterState = updater.updateSettings(
                         currentState,
@@ -321,6 +330,26 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         if (allNodesDocrepEnabled == false && allNodesRemoteStoreEnabled == false) {
             throw new SettingsException(
                 "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes"
+            );
+        }
+    }
+
+    private void validateClusterTotalPrimaryShardsPerNodeSetting(ClusterState currentState, int newValue) {
+        // If default value (-1), no validation needed
+        if (newValue == -1) {
+            return;
+        }
+
+        // Check current state
+        boolean allNodesRemoteStoreEnabled = currentState.nodes()
+            .getNodes()
+            .values()
+            .stream()
+            .allMatch(discoveryNode -> discoveryNode.isRemoteStoreNode());
+
+        if (!allNodesRemoteStoreEnabled) {
+            throw new IllegalArgumentException(
+                "Setting [" + CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store domains"
             );
         }
     }
