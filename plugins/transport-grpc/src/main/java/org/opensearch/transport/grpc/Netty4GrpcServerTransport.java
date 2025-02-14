@@ -35,7 +35,6 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import io.grpc.BindableService;
-import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
@@ -257,8 +256,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
             try {
 
                 final InetSocketAddress address = new InetSocketAddress(hostAddress, portNumber);
-                final NettyServerBuilder serverBuilder = NettyServerBuilder
-                    .forAddress(address)
+                final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(address)
                     .directExecutor()
                     .bossEventLoopGroup(eventLoopGroup)
                     .workerEventLoopGroup(eventLoopGroup)

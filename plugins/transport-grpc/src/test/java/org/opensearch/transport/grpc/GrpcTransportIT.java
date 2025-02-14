@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -19,9 +18,7 @@ import java.util.Collections;
 public class GrpcTransportIT extends OpenSearchIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     @Override
@@ -30,6 +27,6 @@ public class GrpcTransportIT extends OpenSearchIntegTestCase {
     }
 
     public void testGrpcTransport() {
-        System.out.println("TESTING GRPC TRANSPORT");
+
     }
 }

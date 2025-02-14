@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.health.v1.HealthCheckResponse;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -19,6 +18,7 @@ import org.junit.Before;
 import java.util.List;
 
 import io.grpc.BindableService;
+import io.grpc.health.v1.HealthCheckResponse;
 
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.not;
@@ -43,16 +43,10 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testGrpcTransportHealthcheck() {
-        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(
-            createSettings(),
-            services,
-            networkService
-        )) {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try(NettyGrpcClient client = new NettyGrpcClient.Builder()
-                .setAddress(remoteAddress)
-                .build()){
+            try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress).build()) {
                 assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
             }
             transport.stop();

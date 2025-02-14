@@ -8,6 +8,17 @@
 
 package org.opensearch.transport.grpc;
 
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
+
+import javax.net.ssl.SSLException;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import io.grpc.ManagedChannel;
 import io.grpc.ProxyDetector;
 import io.grpc.health.v1.HealthCheckRequest;
@@ -25,18 +36,9 @@ import io.grpc.reflection.v1alpha.ServerReflectionRequest;
 import io.grpc.reflection.v1alpha.ServerReflectionResponse;
 import io.grpc.reflection.v1alpha.ServiceResponse;
 import io.grpc.stub.StreamObserver;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 
-import javax.net.ssl.SSLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
-import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
 import static org.opensearch.transport.grpc.SecureNetty4GrpcServerTransportTests.createSettings;
+import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
 
 public class NettyGrpcClient implements AutoCloseable {
     private final ManagedChannel channel;
@@ -91,9 +93,7 @@ public class NettyGrpcClient implements AutoCloseable {
         };
 
         StreamObserver<ServerReflectionRequest> requestObserver = reflectionStub.serverReflectionInfo(responseObserver);
-        requestObserver.onNext(ServerReflectionRequest.newBuilder()
-            .setListServices("")
-            .build());
+        requestObserver.onNext(ServerReflectionRequest.newBuilder().setListServices("").build());
         requestObserver.onCompleted();
 
         try {
@@ -120,11 +120,10 @@ public class NettyGrpcClient implements AutoCloseable {
         private TransportAddress addr;
         private final ProxyDetector proxyDetector = NOOP_PROXY_DETECTOR; // No proxy detection for test client
 
-        Builder () {}
+        Builder() {}
 
         public NettyGrpcClient build() throws SSLException {
-            NettyChannelBuilder channelBuilder = NettyChannelBuilder
-                .forAddress(addr.getAddress(), addr.getPort())
+            NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(addr.getAddress(), addr.getPort())
                 .proxyDetector(proxyDetector);
 
             if (settingsProvider == null) {
@@ -137,11 +136,14 @@ public class NettyGrpcClient implements AutoCloseable {
                     .clientAuth(ClientAuth.valueOf(params.clientAuth().toUpperCase(Locale.ROOT)))
                     .protocols(params.protocols())
                     .ciphers(params.cipherSuites())
-                    .applicationProtocolConfig(new ApplicationProtocolConfig(
-                        ApplicationProtocolConfig.Protocol.ALPN,
-                        ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                        ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-                        ApplicationProtocolNames.HTTP_2))
+                    .applicationProtocolConfig(
+                        new ApplicationProtocolConfig(
+                            ApplicationProtocolConfig.Protocol.ALPN,
+                            ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                            ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                            ApplicationProtocolNames.HTTP_2
+                        )
+                    )
                     .build();
                 channelBuilder.sslContext(ctxt);
             }
