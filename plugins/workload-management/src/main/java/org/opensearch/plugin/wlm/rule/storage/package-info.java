@@ -6,7 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.rule.storage;
 /**
  * This package contains interfaces and implementations for in memory rule storage mechanisms
  */
+
+package org.opensearch.plugin.wlm.rule.storage;

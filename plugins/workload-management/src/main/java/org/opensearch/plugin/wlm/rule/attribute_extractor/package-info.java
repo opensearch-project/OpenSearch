@@ -6,8 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.rule.attribute_extractor;
-
 /**
  * This package contains feature attribute extractor interface and its implementations
  */
+package org.opensearch.plugin.wlm.rule.attribute_extractor;
