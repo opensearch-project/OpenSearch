@@ -2620,7 +2620,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         // Verify error message
         assertEquals(
-            "Setting [index.routing.allocation.total_primary_shards_per_node] can only be used with remote store domains",
+            "Setting [index.routing.allocation.total_primary_shards_per_node] can only be used with remote store enabled clusters",
             exception.getMessage()
         );
     }

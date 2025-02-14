@@ -1862,7 +1862,7 @@ public class MetadataCreateIndexService {
         boolean isRemoteStoreEnabled = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings);
         if (!isRemoteStoreEnabled) {
             throw new IllegalArgumentException(
-                "Setting [" + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store domains"
+                "Setting [" + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store enabled clusters"
             );
         }
     }

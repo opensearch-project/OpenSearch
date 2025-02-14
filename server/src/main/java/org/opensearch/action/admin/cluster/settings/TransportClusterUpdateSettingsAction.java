@@ -258,14 +258,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
-                    if (request.transientSettings().hasValue(CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey())
-                        || request.persistentSettings().hasValue(CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey())) {
-
-                        Settings settings = Settings.builder().put(request.transientSettings()).put(request.persistentSettings()).build();
-
-                        int newValue = CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings);
-                        validateClusterTotalPrimaryShardsPerNodeSetting(currentState, newValue);
-                    }
+                    validateClusterTotalPrimaryShardsPerNodeSetting(currentState, request);
                     boolean isCompatibilityModeChanging = validateCompatibilityModeSettingRequest(request, state);
                     ClusterState clusterState = updater.updateSettings(
                         currentState,
@@ -334,23 +327,31 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         }
     }
 
-    private void validateClusterTotalPrimaryShardsPerNodeSetting(ClusterState currentState, int newValue) {
-        // If default value (-1), no validation needed
-        if (newValue == -1) {
-            return;
-        }
+    private void validateClusterTotalPrimaryShardsPerNodeSetting(ClusterState currentState, ClusterUpdateSettingsRequest request) {
+        if (request.transientSettings().hasValue(CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey())
+            || request.persistentSettings().hasValue(CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey())) {
 
-        // Check current state
-        boolean allNodesRemoteStoreEnabled = currentState.nodes()
-            .getNodes()
-            .values()
-            .stream()
-            .allMatch(discoveryNode -> discoveryNode.isRemoteStoreNode());
+            Settings settings = Settings.builder().put(request.transientSettings()).put(request.persistentSettings()).build();
 
-        if (!allNodesRemoteStoreEnabled) {
-            throw new IllegalArgumentException(
-                "Setting [" + CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store domains"
-            );
+            int newValue = CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings);
+
+            // If default value (-1), no validation needed
+            if (newValue == -1) {
+                return;
+            }
+
+            // Check current state
+            boolean allNodesRemoteStoreEnabled = currentState.nodes()
+                .getNodes()
+                .values()
+                .stream()
+                .allMatch(discoveryNode -> discoveryNode.isRemoteStoreNode());
+
+            if (!allNodesRemoteStoreEnabled) {
+                throw new IllegalArgumentException(
+                    "Setting [" + CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store enabled clusters"
+                );
+            }
         }
     }
 }
