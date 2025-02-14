@@ -22,12 +22,7 @@ public enum SearchPhaseName {
     FETCH("fetch"),
     DFS_QUERY("dfs_query"),
     EXPAND("expand"),
-    CAN_MATCH("can_match"),
-
-    /**
-     A catch-all for other phase types which shouldn't appear in the search phase stats API.
-     */
-    OTHER_PHASE_TYPES("other_phase_types");
+    CAN_MATCH("can_match");
 
     private final String name;
 
