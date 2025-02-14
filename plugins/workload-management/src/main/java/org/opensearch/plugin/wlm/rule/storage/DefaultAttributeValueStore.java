@@ -50,7 +50,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
          * 1. There is a Rule which has this prefix as one of the attribute values. In this case we should return the
          *     Rule's label otherwise send empty
          */
-        for (Map.Entry<String, V> possibleMatch :trie.prefixMap(longestMatchingPrefix).entrySet()) {
+        for (Map.Entry<String, V> possibleMatch : trie.prefixMap(longestMatchingPrefix).entrySet()) {
             if (key.startsWith(possibleMatch.getKey())) {
                 return Optional.of(possibleMatch.getValue());
             }
@@ -61,7 +61,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
 
     private String findLongestMatchingPrefix(String key) {
         int low = 0;
-        int high = key.length()-1;
+        int high = key.length() - 1;
 
         while (low < high) {
             int mid = low + (high - low + 1) / 2;
@@ -73,7 +73,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
             if (!trie.prefixMap(possibleMatchingPrefix).isEmpty()) {
                 low = mid;
             } else {
-                high = mid-1;
+                high = mid - 1;
             }
         }
 
