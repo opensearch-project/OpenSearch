@@ -173,11 +173,11 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
             name,
             config,
             precisionThreshold,
-            executionHint,
             queryShardContext,
             parent,
             subFactoriesBuilder,
-            metadata
+            metadata,
+            executionHint
         );
     }
 

@@ -112,10 +112,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         String name,
         ValuesSourceConfig valuesSourceConfig,
         int precision,
-        CardinalityAggregatorFactory.ExecutionMode executionMode,
         SearchContext context,
         Aggregator parent,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        CardinalityAggregatorFactory.ExecutionMode executionMode
     ) throws IOException {
         super(name, context, parent, metadata);
         // TODO: Stop using nulls here

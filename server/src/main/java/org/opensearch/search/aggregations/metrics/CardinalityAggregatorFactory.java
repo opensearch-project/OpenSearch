@@ -87,11 +87,11 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         String name,
         ValuesSourceConfig config,
         Long precisionThreshold,
-        String executionHint,
         QueryShardContext queryShardContext,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        String executionHint
     ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.precisionThreshold = precisionThreshold;
@@ -104,7 +104,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), executionMode, searchContext, parent, metadata);
+        return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
     }
 
     @Override
@@ -116,7 +116,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(CardinalityAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, precision(), executionMode, searchContext, parent, metadata);
+            .build(name, config, precision(), searchContext, parent, metadata, executionMode);
     }
 
     @Override
