@@ -7,8 +7,8 @@
  */
 package org.opensearch.arrow.flight.bootstrap;
 
+import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.Location;
-import org.apache.arrow.flight.OSFlightClient;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.Version;
@@ -237,7 +237,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
     public void testCloseWithActiveClients() throws Exception {
         for (DiscoveryNode node : state.nodes()) {
-            OSFlightClient client = clientManager.getFlightClient(node.getId());
+            FlightClient client = clientManager.getFlightClient(node.getId());
             assertNotNull(client);
         }
 
@@ -386,7 +386,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
     private void validateNodes() {
         for (DiscoveryNode node : state.nodes()) {
-            OSFlightClient client = clientManager.getFlightClient(node.getId());
+            FlightClient client = clientManager.getFlightClient(node.getId());
             assertNotNull("Flight client should be created for existing node", client);
         }
     }

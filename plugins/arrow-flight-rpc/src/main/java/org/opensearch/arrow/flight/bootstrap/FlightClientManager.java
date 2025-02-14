@@ -7,9 +7,9 @@
  */
 package org.opensearch.arrow.flight.bootstrap;
 
+import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.OSFlightClient;
-import org.apache.arrow.flight.OSFlightClientBuilder;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import io.netty.channel.EventLoopGroup;
 
@@ -96,7 +97,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
      * @param nodeId The ID of the node for which to retrieve the Flight client
      * @return An OpenSearchFlightClient instance for the specified node
      */
-    public OSFlightClient getFlightClient(String nodeId) {
+    public FlightClient getFlightClient(String nodeId) {
         ClientHolder clientHolder = flightClients.getOrDefault(nodeId, null);
         return clientHolder != null ? clientHolder.flightClient : null;
     }
@@ -142,7 +143,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
             );
             return;
         }
-        OSFlightClient flightClient = buildClient(location);
+        FlightClient flightClient = buildClient(location);
         flightClients.put(node.getId(), new ClientHolder(location, flightClient));
     }
 
@@ -174,15 +175,15 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         });
     }
 
-    private OSFlightClient buildClient(Location location) {
-        return new OSFlightClientBuilder(
-            clientConfig.allocator,
-            location,
-            ServerConfig.clientChannelType(),
-            clientConfig.grpcExecutor,
-            clientConfig.workerELG,
-            clientConfig.sslContextProvider != null ? clientConfig.sslContextProvider.getClientSslContext() : null
-        ).build();
+    private FlightClient buildClient(Location location) {
+        return OSFlightClient.builder()
+            .allocator(clientConfig.allocator)
+            .location(location)
+            .channelType(ServerConfig.clientChannelType())
+            .eventLoopGroup(clientConfig.workerELG)
+            .sslContext(clientConfig.sslContextProvider != null ? clientConfig.sslContextProvider.getClientSslContext() : null)
+            .executor(clientConfig.grpcExecutor)
+            .build();
     }
 
     private DiscoveryNode getNodeFromClusterState(String nodeId) {
@@ -199,9 +200,10 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         }
         flightClients.clear();
         grpcExecutor.shutdown();
+        grpcExecutor.awaitTermination(5, TimeUnit.SECONDS);
     }
 
-    private record ClientHolder(Location location, OSFlightClient flightClient) {
+    private record ClientHolder(Location location, FlightClient flightClient) {
     }
 
     /**

@@ -9,7 +9,7 @@
 package org.opensearch.arrow.flight;
 
 import org.apache.arrow.flight.CallOptions;
-import org.apache.arrow.flight.OSFlightClient;
+import org.apache.arrow.flight.FlightClient;
 import org.opensearch.arrow.flight.bootstrap.FlightClientManager;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
 import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
@@ -50,7 +50,7 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
 
     public void testArrowFlightEndpoint() throws Exception {
         for (DiscoveryNode node : getClusterState().nodes()) {
-            try (OSFlightClient flightClient = flightClientManager.getFlightClient(node.getId())) {
+            try (FlightClient flightClient = flightClientManager.getFlightClient(node.getId())) {
                 assertNotNull(flightClient);
                 flightClient.handshake(CallOptions.timeout(5000L, TimeUnit.MILLISECONDS));
             }
