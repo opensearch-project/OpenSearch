@@ -727,10 +727,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             public void validate(final String value, final Map<Setting<?>, Object> settings) {
                 if (isRewindState(value)) {
                     // Ensure the reset value setting is provided when rewinding.
-                    final long resetValue = (long) settings.get(INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING);
-                    if (resetValue <= 0) {
+                    final String resetValue = (String) settings.get(INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING);
+                    if (resetValue == null || resetValue.isEmpty()) {
                         throw new IllegalArgumentException(
-                            "Setting " + INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING.getKey() + " should be set and greater than 0"
+                            "Setting "
+                                + INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING.getKey()
+                                + " should be set when REWIND_BY_OFFSET or REWIND_BY_TIMESTAMP"
                         );
                     }
                 }
@@ -754,19 +756,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         },
         Property.IndexScope,
-        Property.Dynamic
+        Property.Final
     );
 
     /**
      * Defines the setting for the value to be used when resetting by offset or timestamp.
      */
     public static final String SETTING_INGESTION_SOURCE_POINTER_INIT_RESET_VALUE = "index.ingestion_source.pointer.init.reset.value";
-    public static final Setting<Long> INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING = Setting.longSetting(
+    public static final Setting<String> INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING = Setting.simpleString(
         SETTING_INGESTION_SOURCE_POINTER_INIT_RESET_VALUE,
-        0,
-        0,
+        "",
         Property.IndexScope,
-        Property.Dynamic
+        Property.Final
     );
 
     public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
@@ -992,8 +993,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public IngestionSource getIngestionSource() {
         final String ingestionSourceType = INGESTION_SOURCE_TYPE_SETTING.get(settings);
         if (ingestionSourceType != null && !(NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType))) {
-            final String pointerInitResetType = INGESTION_SOURCE_POINTER_INIT_RESET_SETTING.get(settings);
-            final long pointerInitResetValue = INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING.get(settings);
+            final StreamPoller.ResetState pointerInitResetType = StreamPoller.ResetState.valueOf(
+                INGESTION_SOURCE_POINTER_INIT_RESET_SETTING.get(settings).toUpperCase(Locale.ROOT)
+            );
+            final String pointerInitResetValue = INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING.get(settings);
             IngestionSource.PointerInitReset pointerInitReset = new IngestionSource.PointerInitReset(
                 pointerInitResetType,
                 pointerInitResetValue

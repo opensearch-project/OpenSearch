@@ -143,8 +143,9 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
-    public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
+    public IngestionShardPointer pointerFromTimestampMillis(String timestampMillisStr) {
         long offset = AccessController.doPrivileged((PrivilegedAction<Long>) () -> {
+            long timestampMillis = Long.parseLong(timestampMillisStr);
             Map<TopicPartition, OffsetAndTimestamp> position = consumer.offsetsForTimes(
                 Collections.singletonMap(topicPartition, timestampMillis)
             );
@@ -159,15 +160,16 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         });
         if (offset < 0) {
             // no message found for the timestamp, return the latest offset
-            logger.warn("No message found for timestamp {}, seeking to the latest", timestampMillis);
+            logger.warn("No message found for timestamp {}, seeking to the latest", timestampMillisStr);
             return latestPointer();
         }
         return new KafkaOffset(offset);
     }
 
     @Override
-    public IngestionShardPointer pointerFromOffset(long offset) {
-        return new KafkaOffset(offset);
+    public IngestionShardPointer pointerFromOffset(String offset) {
+        long offsetValue = Long.parseLong(offset);
+        return new KafkaOffset(offsetValue);
     }
 
     private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {

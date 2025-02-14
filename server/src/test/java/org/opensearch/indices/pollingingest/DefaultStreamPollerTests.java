@@ -53,7 +53,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             fakeConsumer,
             processorRunnable,
             StreamPoller.ResetState.NONE,
-            0L
+            ""
         );
     }
 
@@ -92,7 +92,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             fakeConsumer,
             processorRunnable,
             StreamPoller.ResetState.NONE,
-            0L
+            ""
         );
         poller.start();
         Thread.sleep(sleepTime); // Allow some time for the poller to run
@@ -121,7 +121,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             fakeConsumer,
             processorRunnable,
             StreamPoller.ResetState.EARLIEST,
-            0L
+            ""
         );
 
         poller.start();
@@ -138,7 +138,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             fakeConsumer,
             processorRunnable,
             StreamPoller.ResetState.LATEST,
-            0L
+            ""
         );
 
         poller.start();
@@ -156,7 +156,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             fakeConsumer,
             processorRunnable,
             StreamPoller.ResetState.REWIND_BY_OFFSET,
-            1L
+            "1"
         );
 
         poller.start();

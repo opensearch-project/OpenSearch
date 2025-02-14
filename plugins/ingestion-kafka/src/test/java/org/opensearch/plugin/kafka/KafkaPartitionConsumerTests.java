@@ -96,7 +96,7 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
             Collections.singletonMap(topicPartition, new org.apache.kafka.clients.consumer.OffsetAndTimestamp(5L, 1000L))
         );
 
-        KafkaOffset offset = (KafkaOffset) consumer.pointerFromTimestampMillis(1000L);
+        KafkaOffset offset = (KafkaOffset) consumer.pointerFromTimestampMillis("1000");
 
         assertEquals(5L, offset.getOffset());
     }
