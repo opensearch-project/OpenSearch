@@ -5063,7 +5063,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void deleteRemoteStoreContents() throws IOException {
         deleteTranslogFilesFromRemoteTranslog();
-        getRemoteDirectory().deleteStaleSegments(0);
+        getRemoteDirectory().delete();
     }
 
     public void syncTranslogFilesFromRemoteTranslog() throws IOException {
