@@ -24,17 +24,17 @@ public class TrieBasedStore implements AttributeValueStore {
     }
 
     @Override
-    public void addValue(String key, String value) {
+    public void add(String key, String value) {
         trie.put(key, value);
     }
 
     @Override
-    public void removeValue(String key) {
+    public void remove(String key) {
         trie.remove(key);
     }
 
     @Override
-    public Optional<String> getValue(String key) {
+    public Optional<String> get(String key) {
         /**
          * Since we are inserting prefixes into the trie and searching for larger strings
          * It is important to find the largest matching prefix key in the trie efficiently
