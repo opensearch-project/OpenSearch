@@ -29,7 +29,6 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 
 import javax.net.ssl.SSLException;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -65,7 +64,7 @@ public class NettyGrpcClient implements AutoCloseable {
     /**
      * List available gRPC services available on server.
      * Note: ProtoReflectionService only implements a streaming interface and has no blocking stub.
-     * @return List<ServiceResponse> services reported.
+     * @return services registered on the server.
      */
     public List<ServiceResponse> listServices() {
         List<ServiceResponse> respServices = new ArrayList<>();
@@ -118,7 +117,7 @@ public class NettyGrpcClient implements AutoCloseable {
 
     public static class Builder {
         private SecureAuxTransportSettingsProvider settingsProvider = null;
-        private TransportAddress addr = new TransportAddress(new InetSocketAddress("localhost", 9300));
+        private TransportAddress addr;
         private final ProxyDetector proxyDetector = NOOP_PROXY_DETECTOR; // No proxy detection for test client
 
         Builder () {}
