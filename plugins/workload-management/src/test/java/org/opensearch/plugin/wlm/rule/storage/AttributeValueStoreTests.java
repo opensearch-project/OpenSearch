@@ -21,34 +21,34 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
         subjectUnderTest = new TrieBasedStore(new PatriciaTrie<>());
     }
 
-    public void testAddValue() {
-        subjectUnderTest.addValue("foo", "bar");
-        assertEquals("bar", subjectUnderTest.getValue("foo").get());
+    public void testAdd() {
+        subjectUnderTest.add("foo", "bar");
+        assertEquals("bar", subjectUnderTest.get("foo").get());
     }
 
-    public void testRemoveValue() {
-        subjectUnderTest.addValue("foo", "bar");
-        subjectUnderTest.removeValue("foo");
+    public void testRemove() {
+        subjectUnderTest.add("foo", "bar");
+        subjectUnderTest.remove("foo");
         assertEquals(0, subjectUnderTest.size());
     }
 
-    public void tesGetValue() {
-        subjectUnderTest.addValue("foo", "bar");
-        assertEquals("bar", subjectUnderTest.getValue("foo").get());
+    public void tesGet() {
+        subjectUnderTest.add("foo", "bar");
+        assertEquals("bar", subjectUnderTest.get("foo").get());
     }
 
-    public void testGetValueWhenNoProperPrefixIsPresent() {
-        subjectUnderTest.addValue("foo", "bar");
-        subjectUnderTest.addValue("foodip", "sing");
-        assertTrue(subjectUnderTest.getValue("foxtail").isEmpty());
-        subjectUnderTest.addValue("fox", "lucy");
+    public void testGetWhenNoProperPrefixIsPresent() {
+        subjectUnderTest.add("foo", "bar");
+        subjectUnderTest.add("foodip", "sing");
+        assertTrue(subjectUnderTest.get("foxtail").isEmpty());
+        subjectUnderTest.add("fox", "lucy");
 
-        assertFalse(subjectUnderTest.getValue("foxtail").isEmpty());
+        assertFalse(subjectUnderTest.get("foxtail").isEmpty());
     }
 
 
     public void testClear() {
-        subjectUnderTest.addValue("foo", "bar");
+        subjectUnderTest.add("foo", "bar");
         subjectUnderTest.clear();
         assertEquals(0, subjectUnderTest.size());
     }

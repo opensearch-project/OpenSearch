@@ -19,20 +19,20 @@ public interface AttributeValueStore {
      * @param key to be added
      * @param value to be added
      */
-    void addValue(String key, String value);
+    void add(String key, String value);
 
     /**
      * removes the key and associated value from the data structure
      * @param key to be removed
      */
-    void removeValue(String key);
+    void remove(String key);
 
     /**
      * Returns the value associated with the key
      * @param key in the data structure
      * @return
      */
-    Optional<String> getValue(String key);
+    Optional<String> get(String key);
 
     /**
      * Clears all the keys and their associated values from the structure
