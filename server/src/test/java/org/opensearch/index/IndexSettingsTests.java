@@ -607,8 +607,11 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals(actual, settings.getGenerationThresholdSize());
     }
 
+    /**
+     * Test private setting validation for private settings defined in {@link IndexScopedSettings#isPrivateSetting(String)}
+     */
     public void testPrivateSettingsValidation() {
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, System.currentTimeMillis()).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.V_EMPTY).build();
         final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
 
         {
@@ -617,7 +620,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 SettingsException.class,
                 () -> indexScopedSettings.validate(settings, randomBoolean())
             );
-            assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
+            assertThat(e, hasToString(containsString("unknown setting [index.version.upgraded]")));
         }
 
         {
@@ -626,7 +629,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 SettingsException.class,
                 () -> indexScopedSettings.validate(settings, randomBoolean(), false, randomBoolean())
             );
-            assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
+            assertThat(e, hasToString(containsString("unknown setting [index.version.upgraded]")));
         }
 
         // nothing should happen since we are ignoring private settings

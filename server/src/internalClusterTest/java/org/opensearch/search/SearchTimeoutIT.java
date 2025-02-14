@@ -110,7 +110,7 @@ public class SearchTimeoutIT extends ParameterizedStaticSettingsOpenSearchIntegT
             .get();
         assertFalse(searchResponse.isTimedOut());
         assertEquals(0, searchResponse.getFailedShards());
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value());
     }
 
     public void testPartialResultsIntolerantTimeout() throws Exception {

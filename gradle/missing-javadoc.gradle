@@ -140,6 +140,7 @@ configure([
   project(":plugins:discovery-gce:qa:gce"),
   project(":plugins:identity-shiro"),
   project(":plugins:ingest-attachment"),
+  project(":plugins:ingestion-kafka"),
   project(":plugins:mapper-annotated-text"),
   project(":plugins:mapper-murmur3"),
   project(":plugins:mapper-size"),
@@ -148,7 +149,6 @@ configure([
   project(":plugins:repository-hdfs"),
   project(":plugins:repository-s3"),
   project(":plugins:store-smb"),
-  project(":plugins:transport-nio"),
   project(":plugins:crypto-kms"),
   project(":qa:die-with-dignity"),
   project(":qa:wildfly"),
@@ -303,7 +303,7 @@ class MissingJavadocTask extends DefaultTask {
       opts << [ '--missing-method', String.join(',', javadocMissingMethod) ]
     }
     opts << [ '-quiet' ]
-    opts << [ '--release', 11 ]
+    opts << [ '--release', 21 ]
     opts << '-Xdoclint:all,-missing'
 
     // Temporary file that holds all javadoc options for the current task.
@@ -356,6 +356,7 @@ class MissingJavadocTask extends DefaultTask {
         args += [ "-J-Xmx512m" ]
         // force locale to be "en_US" (fix for: https://bugs.openjdk.java.net/browse/JDK-8222793)
         args += [ "-J-Duser.language=en", "-J-Duser.country=US" ]
+        args += ["--add-modules", "jdk.incubator.vector"]
 
         ignoreExitValue = true
       }

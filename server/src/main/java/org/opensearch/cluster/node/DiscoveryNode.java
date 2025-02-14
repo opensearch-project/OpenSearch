@@ -105,12 +105,6 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) || hasRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerNode(Settings)} */
-    @Deprecated
-    public static boolean isMasterNode(Settings settings) {
-        return isClusterManagerNode(settings);
-    }
-
     /**
      * Due to the way that plugins may not be available when settings are being initialized,
      * not all roles may be available from a static/initializing context such as a {@link Setting}
@@ -467,16 +461,6 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      */
     public boolean isClusterManagerNode() {
         return roles.contains(DiscoveryNodeRole.MASTER_ROLE) || roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
-    }
-
-    /**
-     * Can this node become cluster-manager or not.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerNode()}
-     */
-    @Deprecated
-    public boolean isMasterNode() {
-        return isClusterManagerNode();
     }
 
     /**

@@ -52,13 +52,7 @@ import java.util.Objects;
 public class ScriptScoreFunction extends ScoreFunction {
 
     static final class CannedScorer extends Scorable {
-        protected int docid;
         protected float score;
-
-        @Override
-        public int docID() {
-            return docid;
-        }
 
         @Override
         public float score() {
@@ -104,7 +98,6 @@ public class ScriptScoreFunction extends ScoreFunction {
             @Override
             public double score(int docId, float subQueryScore) throws IOException {
                 leafScript.setDocument(docId);
-                scorer.docid = docId;
                 scorer.score = subQueryScore;
                 double result = leafScript.execute(null);
                 if (result < 0f) {
@@ -118,7 +111,6 @@ public class ScriptScoreFunction extends ScoreFunction {
                 Explanation exp;
                 if (leafScript instanceof ExplainableScoreScript) {
                     leafScript.setDocument(docId);
-                    scorer.docid = docId;
                     scorer.score = subQueryScore.getValue().floatValue();
                     exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore, functionName);
                 } else {

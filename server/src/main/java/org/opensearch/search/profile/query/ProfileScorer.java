@@ -35,7 +35,6 @@ package org.opensearch.search.profile.query;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.search.Weight;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 
@@ -51,15 +50,12 @@ import java.util.Collection;
 final class ProfileScorer extends Scorer {
 
     private final Scorer scorer;
-    private ProfileWeight profileWeight;
 
     private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
         setMinCompetitiveScoreTimer;
 
-    ProfileScorer(ProfileWeight w, Scorer scorer, AbstractProfileBreakdown<QueryTimingType> profile) throws IOException {
-        super(w);
+    ProfileScorer(Scorer scorer, AbstractProfileBreakdown<QueryTimingType> profile) throws IOException {
         this.scorer = scorer;
-        this.profileWeight = w;
         scoreTimer = profile.getTimer(QueryTimingType.SCORE);
         nextDocTimer = profile.getTimer(QueryTimingType.NEXT_DOC);
         advanceTimer = profile.getTimer(QueryTimingType.ADVANCE);
@@ -82,11 +78,6 @@ final class ProfileScorer extends Scorer {
         } finally {
             scoreTimer.stop();
         }
-    }
-
-    @Override
-    public Weight getWeight() {
-        return profileWeight;
     }
 
     @Override

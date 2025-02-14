@@ -35,7 +35,6 @@ package org.opensearch.rest.action.cat;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
@@ -47,6 +46,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.time.Instant;
 import java.time.ZoneOffset;

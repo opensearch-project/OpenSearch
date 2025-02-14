@@ -60,16 +60,6 @@ public interface ClusterStateTaskExecutor<T> {
     }
 
     /**
-     * indicates whether this executor should only run if the current node is cluster-manager
-     *
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #runOnlyOnClusterManager()}
-     */
-    @Deprecated
-    default boolean runOnlyOnMaster() {
-        return runOnlyOnClusterManager();
-    }
-
-    /**
      * Callback invoked after new cluster state is published. Note that
      * this method is not invoked if the cluster state was not updated.
      * <p>

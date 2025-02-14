@@ -43,11 +43,10 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
@@ -115,7 +114,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         expected = AutomatonQueries.createAutomatonQuery(
             term,
-            AutomatonQueries.toCaseInsensitiveString("foo", Integer.MAX_VALUE),
+            AutomatonQueries.toCaseInsensitiveString("foo"),
             MultiTermQuery.DOC_VALUES_REWRITE
         );
         assertEquals(expected, ft.termQueryCaseInsensitive("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
@@ -201,13 +200,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testExistsQuery() {
         {
             KeywordFieldType ft = new KeywordFieldType("field");
-            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(null));
         }
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
             KeywordFieldType ft = new KeywordFieldType("field", fieldType);
-            assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(null));
         }
         {
             KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
@@ -311,9 +310,12 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
         );
 
-        Query indexExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true);
+        Query indexExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        assertEquals(indexExpected, onlyIndexed.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
+        assertEquals(
+            indexExpected,
+            onlyIndexed.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC)
+        );
 
         Query dvExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, MultiTermQuery.DOC_VALUES_REWRITE);
         MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
@@ -334,7 +336,15 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,
-            () -> ft.fuzzyQuery("foo", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1, randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE)
+            () -> ft.fuzzyQuery(
+                "foo",
+                Fuzziness.AUTO,
+                randomInt(10) + 1,
+                randomInt(10) + 1,
+                randomBoolean(),
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                MOCK_QSC_DISALLOW_EXPENSIVE
+            )
         );
         assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }

@@ -17,7 +17,6 @@ import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.identity.shiro.ShiroIdentityPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.core.rest.RestStatus;
@@ -25,7 +24,6 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Netty4ModulePlugin;
-import org.opensearch.transport.nio.NioTransportPlugin;
 import org.opensearch.transport.reactor.ReactorNetty4Plugin;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -43,7 +41,7 @@ public class IdentityAuthenticationIT extends HttpSmokeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(OpenSearchTestCase.getTestTransportPlugin(), Netty4ModulePlugin.class, NioTransportPlugin.class, ReactorNetty4Plugin.class, ShiroIdentityPlugin.class);
+        return Arrays.asList(OpenSearchTestCase.getTestTransportPlugin(), Netty4ModulePlugin.class, ReactorNetty4Plugin.class, ShiroIdentityPlugin.class);
     }
 
 

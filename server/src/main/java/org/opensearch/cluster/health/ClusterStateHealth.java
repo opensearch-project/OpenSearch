@@ -331,12 +331,6 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         return hasDiscoveredClusterManager;
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #hasDiscoveredClusterManager()} */
-    @Deprecated
-    public boolean hasDiscoveredMaster() {
-        return hasDiscoveredClusterManager();
-    }
-
     @Override
     public Iterator<ClusterIndexHealth> iterator() {
         return indices.values().iterator();

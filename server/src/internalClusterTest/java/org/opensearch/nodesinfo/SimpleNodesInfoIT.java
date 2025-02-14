@@ -45,7 +45,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import java.util.List;
 
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.INDICES;
-import static org.opensearch.client.Requests.nodesInfoRequest;
+import static org.opensearch.transport.client.Requests.nodesInfoRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;

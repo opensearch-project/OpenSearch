@@ -442,7 +442,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             .addAggregation(scriptedMetric("scripted").mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript))
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -492,7 +492,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -546,7 +546,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -601,7 +601,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -666,7 +666,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -736,7 +736,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -795,7 +795,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             .get();
 
         assertSearchResponse(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -853,7 +853,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -903,7 +903,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -947,7 +947,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -1005,7 +1005,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -1040,7 +1040,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
         assertThat(aggregation, notNullValue());
@@ -1100,7 +1100,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
         Aggregation aggregation = response.getAggregations().get("histo");
         assertThat(aggregation, notNullValue());
         assertThat(aggregation, instanceOf(Histogram.class));
@@ -1173,7 +1173,7 @@ public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchInteg
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);

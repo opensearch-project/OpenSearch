@@ -57,6 +57,6 @@ public abstract class AbstractAzureFsTestCase extends OpenSearchIntegTestCase {
         }
         refresh();
         SearchResponse response = client().prepareSearch("test").get();
-        assertThat(response.getHits().getTotalHits().value, is(nbDocs));
+        assertThat(response.getHits().getTotalHits().value(), is(nbDocs));
     }
 }

@@ -101,6 +101,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
 
             this.compositeDocValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
                 consumerWriteState,
+                4096, /* Lucene90DocValuesFormat#DEFAULT_SKIP_INDEX_INTERVAL_SIZE */
                 Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
                 Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
                 Composite912DocValuesFormat.META_DOC_VALUES_CODEC,

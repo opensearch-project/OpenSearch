@@ -46,6 +46,7 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -57,7 +58,7 @@ import java.util.Objects;
  * The response of a get action.
  *
  * @see GetRequest
- * @see org.opensearch.client.Client#get(GetRequest)
+ * @see Client#get(GetRequest)
  *
  * @opensearch.api
  */

@@ -38,12 +38,11 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.util.SPIClassIterator;
 import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.opensearch.bootstrap.JarHell;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.lifecycle.LifecycleComponent;
@@ -53,6 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.index.IndexModule;
+import org.opensearch.lucene.util.SPIClassIterator;
 import org.opensearch.semver.SemverRange;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.transport.TransportSettings;
@@ -356,6 +356,37 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    public static void checkJarHellForPlugin(
+        Set<URL> classpath,
+        PluginInfo candidateInfo,
+        Path candidateDir,
+        Path pluginsDir,
+        Path modulesDir
+    ) throws Exception {
+        Set<Bundle> bundles = new HashSet<>(getPluginBundles(pluginsDir));
+        bundles.addAll(getModuleBundles(modulesDir));
+        bundles.add(new Bundle(candidateInfo, candidateDir));
+
+        List<Bundle> sortedBundles = sortBundles(bundles);
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        for (Bundle bundle : sortedBundles) {
+            checkBundleJarHell(classpath, bundle, transitiveUrls);
+        }
+    }
+
+    public static List<String> findPluginsByDependency(Path pluginsDir, String pluginName) throws IOException {
+        List<String> usedBy = new ArrayList<>();
+        Set<Bundle> bundles = getPluginBundles(pluginsDir);
+        for (Bundle bundle : bundles) {
+            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
+                if (extendedPlugin.equals(pluginName)) {
+                    usedBy.add(bundle.plugin.getName());
+                }
+            }
+        }
+        return usedBy;
+    }
+
     /**
      * Extracts all installed plugin directories from the provided {@code rootPath}.
      *
@@ -388,7 +419,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * Verify the given plugin is compatible with the current OpenSearch installation.
      */
-    static void verifyCompatibility(PluginInfo info) {
+    public static void verifyCompatibility(PluginInfo info) {
         if (!isPluginVersionCompatible(info, Version.CURRENT)) {
             throw new IllegalArgumentException(
                 "Plugin ["
@@ -413,7 +444,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return true;
     }
 
-    static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
+    public static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
         /*
          * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
          * plugin.
