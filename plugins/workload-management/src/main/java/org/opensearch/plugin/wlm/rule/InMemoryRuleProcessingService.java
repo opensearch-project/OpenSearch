@@ -21,12 +21,16 @@ import java.util.Optional;
 public class InMemoryRuleProcessingService {
 
     /**
+     * Default constructor
+     */
+    public InMemoryRuleProcessingService() {}
+
+    /**
      * Adds the rule to in-memory view
      * @param rule to be added
      */
     public void add(final Rule rule) {
-        new AddRuleOperation(rule)
-            .perform();
+        new AddRuleOperation(rule).perform();
     }
 
     /**
@@ -34,8 +38,7 @@ public class InMemoryRuleProcessingService {
      * @param rule to be removed
      */
     public void remove(final Rule rule) {
-        new DeleteRuleOperation(rule)
-            .perform();
+        new DeleteRuleOperation(rule).perform();
     }
 
     /**
@@ -47,9 +50,9 @@ public class InMemoryRuleProcessingService {
      */
     public Optional<String> evaluateLabel(List<AttributeExtractor<String>> attributeExtractors) {
         Optional<String> result = Optional.empty();
-        for(AttributeExtractor<String> attributeExtractor : attributeExtractors) {
+        for (AttributeExtractor<String> attributeExtractor : attributeExtractors) {
             AttributeValueStore valueStore = attributeExtractor.getAttribute().getValueStore();
-            for (String value: attributeExtractor.extract()) {
+            for (String value : attributeExtractor.extract()) {
                 Optional<String> possibleMatch = valueStore.get(value);
 
                 if (possibleMatch.isEmpty()) {
@@ -80,7 +83,7 @@ public class InMemoryRuleProcessingService {
             final Rule.Feature feature = rule.getFeature();
             final String label = rule.getLabel();
 
-            for (Map.Entry<Rule.Attribute, List<String>> attributeEntry: rule.getAttributeMap().entrySet()) {
+            for (Map.Entry<Rule.Attribute, List<String>> attributeEntry : rule.getAttributeMap().entrySet()) {
                 processAttributeEntry(attributeEntry);
             }
         }

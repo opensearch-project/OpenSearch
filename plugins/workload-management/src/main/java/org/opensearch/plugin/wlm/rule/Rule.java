@@ -25,8 +25,29 @@ public class Rule {
     String label;
     long updatedAt;
 
+    /**
+     * Test constructor
+     * @param attributeMap
+     * @param feature
+     * @param label
+     * @param updatedAt
+     */
+    public Rule(Map<Attribute, List<String>> attributeMap, Feature feature, String label, long updatedAt) {
+        this.attributeMap = attributeMap;
+        this.feature = feature;
+        this.label = label;
+        this.updatedAt = updatedAt;
+    }
+
+    /**
+     * Stub enum
+     */
     public enum Feature {
+        /**
+         * WLM Feature
+         */
         WLM(Set.of(Attribute.STUB_ATTRIBUTE));
+
         private final Set<Attribute> allowedAttributes;
 
         Feature(Set<Attribute> allowedAttributes) {
@@ -34,31 +55,50 @@ public class Rule {
         }
     }
 
+    /**
+     * Stub Attribute
+     */
     public enum Attribute {
+        /**
+         * Stub attribute
+         */
         STUB_ATTRIBUTE(new TrieBasedStore(new PatriciaTrie<>()));
+
         private final AttributeValueStore valueStore;
 
         Attribute(AttributeValueStore valueStore) {
             this.valueStore = valueStore;
         }
 
+        /**
+         * attribute value store getter
+         * @return
+         */
         public AttributeValueStore getValueStore() {
             return valueStore;
         }
     }
 
+    /**
+     * stub getter
+     * @return
+     */
     public Feature getFeature() {
         return feature;
     }
 
-    public long getUpdatedAt() {
-        return updatedAt;
-    }
-
+    /**
+     * stub getter
+     * @return
+     */
     public Map<Attribute, List<String>> getAttributeMap() {
         return attributeMap;
     }
 
+    /**
+     * stub getter
+     * @return
+     */
     public String getLabel() {
         return label;
     }
