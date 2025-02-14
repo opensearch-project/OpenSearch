@@ -22,6 +22,17 @@ import java.util.Optional;
 public class DefaultAttributeValueStore<K extends String, V> implements AttributeValueStore<K, V> {
     PatriciaTrie<V> trie;
 
+    /**
+     * Default constructor
+     */
+    public DefaultAttributeValueStore() {
+        this(new PatriciaTrie<>());
+    }
+
+    /**
+     * Main constructor
+     * @param trie A Patricia Trie
+     */
     public DefaultAttributeValueStore(PatriciaTrie<V> trie) {
         this.trie = trie;
     }
