@@ -95,7 +95,7 @@ public class PendingTasksBlocksIT extends OpenSearchIntegTestCase {
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
-                return Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), nodeCount + 1).build();
+                return Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), nodeCount + 1).build();
             }
 
             @Override
