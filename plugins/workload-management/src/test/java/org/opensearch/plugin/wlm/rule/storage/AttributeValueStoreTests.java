@@ -11,7 +11,6 @@ package org.opensearch.plugin.wlm.rule.storage;
 import org.apache.commons.collections4.trie.PatriciaTrie;
 import org.opensearch.test.OpenSearchTestCase;
 
-
 public class AttributeValueStoreTests extends OpenSearchTestCase {
 
     AttributeValueStore<String, String> subjectUnderTest;
@@ -45,7 +44,6 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
 
         assertFalse(subjectUnderTest.get("foxtail").isEmpty());
     }
-
 
     public void testClear() {
         subjectUnderTest.add("foo", "bar");
