@@ -9,6 +9,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.indices.pollingingest.StreamPoller;
 
 import java.util.Map;
 import java.util.Objects;
@@ -62,19 +63,19 @@ public class IngestionSource {
 
     @ExperimentalApi
     public static class PointerInitReset {
-        private final String type;
-        private final long value;
+        private final StreamPoller.ResetState type;
+        private final String value;
 
-        public PointerInitReset(String policy, long value) {
-            this.type = policy;
+        public PointerInitReset(StreamPoller.ResetState type, String value) {
+            this.type = type;
             this.value = value;
         }
 
-        public String getType() {
+        public StreamPoller.ResetState getType() {
             return type;
         }
 
-        public long getValue() {
+        public String getValue() {
             return value;
         }
 

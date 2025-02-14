@@ -116,7 +116,7 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
                     // 1739459500000 is the timestamp of the first message
                     // 1739459800000 is the timestamp of the second message
                     // by resetting to 1739459600000, only the second message will be ingested
-                    .put("ingestion_source.pointer.init.reset.value", 1739459600000L)
+                    .put("ingestion_source.pointer.init.reset.value", "1739459600000")
                     .put("ingestion_source.param.topic", "test")
                     .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                     .build(),
@@ -145,7 +145,7 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put("ingestion_source.type", "kafka")
                     .put("ingestion_source.pointer.init.reset", "rewind_by_offset")
-                    .put("ingestion_source.pointer.init.reset.value", 1L)
+                    .put("ingestion_source.pointer.init.reset.value", "1")
                     .put("ingestion_source.param.topic", "test")
                     .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                     .build(),

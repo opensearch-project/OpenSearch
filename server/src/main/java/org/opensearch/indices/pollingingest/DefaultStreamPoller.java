@@ -52,7 +52,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private IngestionShardPointer batchStartPointer;
 
     private ResetState resetState;
-    private final long resetValue;
+    private final String resetValue;
 
     private Set<IngestionShardPointer> persistedPointers;
 
@@ -70,7 +70,7 @@ public class DefaultStreamPoller implements StreamPoller {
         IngestionShardConsumer consumer,
         IngestionEngine ingestionEngine,
         ResetState resetState,
-        long resetValue
+        String resetValue
     ) {
         this(
             startPointer,
@@ -88,7 +88,7 @@ public class DefaultStreamPoller implements StreamPoller {
         IngestionShardConsumer consumer,
         MessageProcessorRunnable processorRunnable,
         ResetState resetState,
-        long resetValue
+        String resetValue
     ) {
         this.consumer = Objects.requireNonNull(consumer);
         this.resetState = resetState;
