@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor `:server` module `org.apacge.lucene` package to eliminate top level split packages for JPMS support ([#17241](https://github.com/opensearch-project/OpenSearch/pull/17241))
 - Stop minimizing automata used for case-insensitive matches ([#17268](https://github.com/opensearch-project/OpenSearch/pull/17268))
 - Refactor the `:server` module `org.opensearch.client` to `org.opensearch.transport.client` to eliminate top level split packages for JPMS support ([#17272](https://github.com/opensearch-project/OpenSearch/pull/17272))
+- Use Lucene `BM25Similarity` as default since the `LegacyBM25Similarity` is marked as deprecated ([#17306](https://github.com/opensearch-project/OpenSearch/pull/17306))
 
 ### Deprecated
 
@@ -57,6 +58,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove `index.store.hybrid.mmap.extensions` setting in favor of `index.store.hybrid.nio.extensions` setting ([#9392](https://github.com/opensearch-project/OpenSearch/pull/9392))
 - Remove package org.opensearch.action.support.master ([#4856](https://github.com/opensearch-project/OpenSearch/issues/4856))
 - Remove transport-nio plugin ([#16887](https://github.com/opensearch-project/OpenSearch/issues/16887))
+- Remove deprecated 'gateway' settings used to defer cluster recovery ([#3117](https://github.com/opensearch-project/OpenSearch/issues/3117))
 
 ### Fixed
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
