@@ -8,16 +8,19 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.BindableService;
-import io.grpc.health.v1.HealthCheckResponse;
-import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import org.junit.After;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
+import org.junit.After;
 import org.junit.Before;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
 import java.security.KeyManagementException;
@@ -31,12 +34,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
-
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.TrustManagerFactory;
+import io.grpc.BindableService;
+import io.grpc.health.v1.HealthCheckResponse;
+import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private NetworkService networkService;
@@ -95,11 +95,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                     final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
                     keyManagerFactory.init(keyStore, "password".toCharArray());
                     return keyManagerFactory;
-                } catch (UnrecoverableKeyException |
-                         CertificateException |
-                         KeyStoreException |
-                         IOException |
-                         NoSuchAlgorithmException e) {
+                } catch (UnrecoverableKeyException | CertificateException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -112,10 +108,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     static Settings createSettings() {
-        return Settings.builder().put(
-                SecureNetty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(),
-                getPortRange())
-            .build();
+        return Settings.builder().put(SecureNetty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), getPortRange()).build();
     }
 
     @Before
@@ -130,12 +123,14 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testGrpcSecureTransportStartStop() {
-        try (SecureNetty4GrpcServerTransport transport = new SecureNetty4GrpcServerTransport(
-            createSettings(),
-            services,
-            networkService,
-            settingsProvider
-        )) {
+        try (
+            SecureNetty4GrpcServerTransport transport = new SecureNetty4GrpcServerTransport(
+                createSettings(),
+                services,
+                networkService,
+                settingsProvider
+            )
+        ) {
             transport.start();
             assertTrue(transport.boundAddress().boundAddresses().length > 0);
             assertNotNull(transport.boundAddress().publishAddress().address());
@@ -146,20 +141,23 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testGrpcSecureTransportHealthcheck() {
-        try (SecureNetty4GrpcServerTransport transport = new SecureNetty4GrpcServerTransport(
-            createSettings(),
-            services,
-            networkService,
-            settingsProvider
-        )) {
+        try (
+            SecureNetty4GrpcServerTransport transport = new SecureNetty4GrpcServerTransport(
+                createSettings(),
+                services,
+                networkService,
+                settingsProvider
+            )
+        ) {
             transport.start();
             assertTrue(transport.boundAddress().boundAddresses().length > 0);
             assertNotNull(transport.boundAddress().publishAddress().address());
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try(NettyGrpcClient client = new NettyGrpcClient.Builder()
-                .setAddress(remoteAddress)
-                .setSecureSettingsProvider(settingsProvider)
-                .build()){
+            try (
+                NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress)
+                    .setSecureSettingsProvider(settingsProvider)
+                    .build()
+            ) {
                 assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
             }
             transport.stop();
