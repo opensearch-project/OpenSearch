@@ -71,7 +71,7 @@ public abstract class SearchPhase implements CheckedRunnable<IOException> {
 
     /**
      * Returns the SearchPhase name as {@link SearchPhaseName}. Exception will come if SearchPhase name is not defined.
-     * Deprecated; use getSearchPhaseNameOptional() to avoid possible exceptions.
+     * @deprecated Use getSearchPhaseNameOptional() to avoid possible exceptions.
      * in {@link SearchPhaseName}
      * @return {@link SearchPhaseName}
      */
