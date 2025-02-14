@@ -88,7 +88,7 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @param timestampMillis the timestamp in milliseconds
      * @return the ingestion shard pointer corresponding to the given timestamp
      */
-    IngestionShardPointer pointerFromTimestampMillis(long timestampMillis);
+    IngestionShardPointer pointerFromTimestampMillis(String timestampMillis);
 
     /**
      * Returns an ingestion shard pointer based on the provided offset.
@@ -96,7 +96,7 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @param offset the offset value
      * @return the ingestion shard pointer corresponding to the given offset
      */
-    IngestionShardPointer pointerFromOffset(long offset);
+    IngestionShardPointer pointerFromOffset(String offset);
 
     /**
      * @return the shard id

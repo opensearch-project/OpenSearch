@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -15,7 +16,10 @@ import java.util.Map;
 
 public class IngestionSourceTests extends OpenSearchTestCase {
 
-    private final IngestionSource.PointerInitReset pointerInitReset = new IngestionSource.PointerInitReset("pointerInitReset", 1000L);
+    private final IngestionSource.PointerInitReset pointerInitReset = new IngestionSource.PointerInitReset(
+        StreamPoller.ResetState.REWIND_BY_OFFSET,
+        "1000"
+    );
 
     public void testConstructorAndGetters() {
         Map<String, Object> params = new HashMap<>();
@@ -23,8 +27,8 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         IngestionSource source = new IngestionSource("type", pointerInitReset, params);
 
         assertEquals("type", source.getType());
-        assertEquals("pointerInitReset", source.getPointerInitReset().getType());
-        assertEquals(1000L, source.getPointerInitReset().getValue());
+        assertEquals(StreamPoller.ResetState.REWIND_BY_OFFSET, source.getPointerInitReset().getType());
+        assertEquals("1000", source.getPointerInitReset().getValue());
         assertEquals(params, source.params());
     }
 
@@ -64,7 +68,8 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         params.put("key", "value");
         IngestionSource source = new IngestionSource("type", pointerInitReset, params);
 
-        String expected = "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='pointerInitReset', value=1000}', params={key=value}}";
+        String expected =
+            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='REWIND_BY_OFFSET', value=1000}', params={key=value}}";
         assertEquals(expected, source.toString());
     }
 }

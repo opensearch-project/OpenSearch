@@ -65,7 +65,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -172,9 +171,7 @@ public class IngestionEngine extends Engine {
         logger.info("created ingestion consumer for shard [{}]", engineConfig.getShardId());
 
         Map<String, String> commitData = commitDataAsMap();
-        StreamPoller.ResetState resetState = StreamPoller.ResetState.valueOf(
-            ingestionSource.getPointerInitReset().getType().toUpperCase(Locale.ROOT)
-        );
+        StreamPoller.ResetState resetState = ingestionSource.getPointerInitReset().getType();
         IngestionShardPointer startPointer = null;
         Set<IngestionShardPointer> persistedPointers = new HashSet<>();
         if (commitData.containsKey(StreamPoller.BATCH_START)) {
@@ -191,7 +188,7 @@ public class IngestionEngine extends Engine {
             resetState = StreamPoller.ResetState.NONE;
         }
 
-        long resetValue = ingestionSource.getPointerInitReset().getValue();
+        String resetValue = ingestionSource.getPointerInitReset().getValue();
         streamPoller = new DefaultStreamPoller(startPointer, persistedPointers, ingestionShardConsumer, this, resetState, resetValue);
         streamPoller.start();
     }
