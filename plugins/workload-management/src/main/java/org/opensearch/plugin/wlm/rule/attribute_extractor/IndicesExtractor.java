@@ -19,6 +19,10 @@ import java.util.List;
 public class IndicesExtractor implements AttributeExtractor<String> {
     private final IndicesRequest indicesRequest;
 
+    /**
+     * Default constructor
+     * @param indicesRequest
+     */
     public IndicesExtractor(IndicesRequest indicesRequest) {
         this.indicesRequest = indicesRequest;
     }
