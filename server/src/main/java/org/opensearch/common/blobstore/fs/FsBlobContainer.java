@@ -225,6 +225,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
+        Files.createDirectories(path);
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             final int bufferSize = blobStore.bufferSizeInBytes();
             org.opensearch.common.util.io.Streams.copy(
