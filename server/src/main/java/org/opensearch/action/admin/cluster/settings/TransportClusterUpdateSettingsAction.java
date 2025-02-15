@@ -349,7 +349,9 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
             if (!allNodesRemoteStoreEnabled) {
                 throw new IllegalArgumentException(
-                    "Setting [" + CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store enabled clusters"
+                    "Setting ["
+                        + CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
+                        + "] can only be used with remote store enabled clusters"
                 );
             }
         }
