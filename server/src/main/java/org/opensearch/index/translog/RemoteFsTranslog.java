@@ -376,7 +376,7 @@ public class RemoteFsTranslog extends Translog {
         // action which re-downloads the segments and translog on the new primary. We are ensuring 2 things here -
         // 1. Using startedPrimarySupplier, we prevent the new primary to do pre-emptive syncs
         // 2. Using syncPermit, we prevent syncs at the desired time during primary relocation.
-        if (startedPrimarySupplier.getAsBoolean() == false || syncPermit.isHeldByCurrentThread() || syncPermit.tryAcquire() == null) {
+        if (startedPrimarySupplier.getAsBoolean() == false || pauseSync.get() || syncPermit.tryAcquire() == null) {
             logger.debug("skipped uploading translog for {} {} isLockAvailable={}", primaryTerm, generation, isLockAvailable());
             // NO-OP
             return false;
