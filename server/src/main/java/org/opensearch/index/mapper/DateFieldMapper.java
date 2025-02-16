@@ -37,7 +37,9 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -55,6 +57,7 @@ import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -331,7 +334,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 buildFormatter(),
                 resolution,
                 nullValue.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                true
             );
             ft.setBoost(boost.getValue());
             Long nullTimestamp = parseNullValue(ft);
@@ -373,13 +377,27 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateFormatter dateTimeFormatter,
             Resolution resolution,
             String nullValue,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean derivedSourceSupported
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta, derivedSourceSupported);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
             this.nullValue = nullValue;
+        }
+
+        public DateFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            Map<String, String> meta
+        ) {
+            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, false);
         }
 
         public DateFieldType(String name) {
@@ -800,5 +818,32 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public Long getNullValue() {
         return nullValue;
+    }
+
+    @Override
+    protected void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        validateDerivedSourceAllowed();
+        SortedNumericDocValues sortedNumericDocValues = leafReader.getSortedNumericDocValues(name());
+        if (sortedNumericDocValues != null && sortedNumericDocValues.advanceExact(docId)) {
+            int size = sortedNumericDocValues.docValueCount();
+            String[] values = new String[size];
+            DateFormatter dateFormatter = fieldType().dateTimeFormatter;
+            for (int i = 0; i < size; i++)
+                values[i] = dateFormatter.formatMillis(sortedNumericDocValues.nextValue());
+            if (size == 1) {
+                builder.field(name(), values[0]);
+            } else {
+                builder.array(name(), values);
+            }
+        }
+    }
+
+    private void validateDerivedSourceAllowed() {
+        if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with copyTo parameter set");
+        }
+        if (mappedFieldType.hasDocValues() == false) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with docValues disabled");
+        }
     }
 }
