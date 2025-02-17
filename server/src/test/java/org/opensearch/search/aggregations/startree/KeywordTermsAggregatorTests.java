@@ -152,6 +152,12 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         supportedDimensions.put(new NumericDimension(SIZE), SIZE_FIELD_NAME);
         supportedDimensions.put(new OrdinalDimension(CLIENTIP), CLIENTIP_FIELD_NAME);
 
+        Query query = new MatchAllDocsQuery();
+        QueryBuilder queryBuilder = null;
+        TermsAggregationBuilder termsAggregationBuilder = terms("terms_agg").field(CLIENTIP)
+            .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
+        testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+
         ValuesSourceAggregationBuilder[] aggBuilders = {
             sum("_sum").field(SIZE),
             max("_max").field(SIZE),
@@ -160,10 +166,10 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
             avg("_avg").field(SIZE) };
 
         for (ValuesSourceAggregationBuilder aggregationBuilder : aggBuilders) {
-            Query query = new MatchAllDocsQuery();
-            QueryBuilder queryBuilder = null;
+            query = new MatchAllDocsQuery();
+            queryBuilder = null;
 
-            TermsAggregationBuilder termsAggregationBuilder = terms("terms_agg").field(CLIENTIP)
+            termsAggregationBuilder = terms("terms_agg").field(CLIENTIP)
                 .subAggregation(aggregationBuilder)
                 .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
             testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);

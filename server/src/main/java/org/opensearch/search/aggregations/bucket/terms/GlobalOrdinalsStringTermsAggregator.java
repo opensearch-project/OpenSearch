@@ -230,6 +230,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
+        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            globalOperator = valuesSource.globalOrdinalsMapping(ctx);
+            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+            return true;
+        }
         if (collectionStrategy instanceof DenseGlobalOrds
             && this.resultStrategy instanceof StandardTermsResults
             && subAggregators.length == 0) {
@@ -238,12 +245,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 globalOrds,
                 (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, ord), docCount)
             );
-        }
-        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
-        if (supportedStarTree != null) {
-            globalOperator = valuesSource.globalOrdinalsMapping(ctx);
-            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
-            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
         }
         return false;
     }

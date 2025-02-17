@@ -164,6 +164,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         if (supportedStarTree != null) {
             StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
             StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+            return true;
         }
         return false;
     }
