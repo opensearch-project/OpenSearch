@@ -36,7 +36,6 @@ import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
@@ -45,11 +44,12 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.transport.client.Requests;
 
-import static org.opensearch.client.Requests.createIndexRequest;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.NodeRoles.nonDataNode;
+import static org.opensearch.transport.client.Requests.createIndexRequest;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)

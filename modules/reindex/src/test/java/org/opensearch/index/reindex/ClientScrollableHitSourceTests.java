@@ -41,8 +41,6 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.SearchScrollRequest;
-import org.opensearch.client.ParentTaskAssigningClient;
-import org.opensearch.client.support.AbstractClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -56,6 +54,8 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.ParentTaskAssigningClient;
+import org.opensearch.transport.client.support.AbstractClient;
 import org.junit.After;
 import org.junit.Before;
 

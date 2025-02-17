@@ -48,7 +48,6 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.support.replication.TransportReplicationAction;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
@@ -89,6 +88,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -121,6 +121,7 @@ import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.TransportSettings;
+import org.opensearch.transport.client.Client;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -2086,13 +2087,12 @@ public final class InternalTestCluster extends TestCluster {
      * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
      */
     public String getClusterManagerName(@Nullable String viaNode) {
-        try {
-            Client client = viaNode != null ? client(viaNode) : client();
-            return client.admin().cluster().prepareState().get().getState().nodes().getClusterManagerNode().getName();
-        } catch (Exception e) {
-            logger.warn("Can't fetch cluster state", e);
-            throw new RuntimeException("Can't get cluster-manager node " + e.getMessage(), e);
+        Client client = viaNode != null ? client(viaNode) : client();
+        DiscoveryNode clusterManagerNode = client.admin().cluster().prepareState().get().getState().nodes().getClusterManagerNode();
+        if (clusterManagerNode == null) {
+            throw new ClusterManagerNotDiscoveredException("Cluster manager node not discovered");
         }
+        return clusterManagerNode.getName();
     }
 
     synchronized Set<String> allDataNodesButN(int count) {

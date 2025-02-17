@@ -32,8 +32,8 @@
 package org.opensearch.action.admin.indices.template.get;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Request builder to retrieve one or more Index templates

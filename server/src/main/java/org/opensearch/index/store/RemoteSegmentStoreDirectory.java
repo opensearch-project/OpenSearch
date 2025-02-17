@@ -1061,7 +1061,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return delete();
     }
 
-    private boolean delete() {
+    public boolean delete() {
         try {
             remoteDataDirectory.delete();
             remoteMetadataDirectory.delete();

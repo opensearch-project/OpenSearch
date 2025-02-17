@@ -34,7 +34,6 @@ package org.opensearch.node;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -76,6 +75,7 @@ import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;

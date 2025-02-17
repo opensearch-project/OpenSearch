@@ -32,9 +32,9 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.HashMap;

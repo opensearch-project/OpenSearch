@@ -36,7 +36,6 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -73,6 +72,7 @@ import org.opensearch.snapshots.SnapshotShardPaths;
 import org.opensearch.snapshots.SnapshotShardPaths.ShardInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
