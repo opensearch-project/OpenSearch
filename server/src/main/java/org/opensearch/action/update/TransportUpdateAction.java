@@ -247,7 +247,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         response.getSeqNo(),
                         response.getPrimaryTerm(),
                         response.getVersion(),
-                        response.getResult()
+                        response.getResult(),
+                        response.writeStrategy()
                     );
                     if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
                         Tuple<? extends MediaType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
@@ -296,7 +297,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         response.getSeqNo(),
                         response.getPrimaryTerm(),
                         response.getVersion(),
-                        response.getResult()
+                        response.getResult(),
+                        response.writeStrategy()
                     );
                     update.setGetResult(
                         UpdateHelper.extractGetResult(
@@ -324,7 +326,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         response.getSeqNo(),
                         response.getPrimaryTerm(),
                         response.getVersion(),
-                        response.getResult()
+                        response.getResult(),
+                        response.writeStrategy()
                     );
                     update.setGetResult(
                         UpdateHelper.extractGetResult(

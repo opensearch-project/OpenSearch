@@ -36,14 +36,17 @@ import org.opensearch.action.DocWriteResponse;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 
+import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -57,20 +60,53 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 @PublicApi(since = "1.0.0")
 public class IndexResponse extends DocWriteResponse {
 
+    private final InternalEngine.IndexingStrategy indexingStrategy;
+
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
+        if (in.getVersion().onOrAfter(V_3_0_0) && in.readBoolean()) {
+            this.indexingStrategy = new InternalEngine.IndexingStrategy(in);
+        } else {
+            this.indexingStrategy = null;
+        }
     }
 
     public IndexResponse(StreamInput in) throws IOException {
         super(in);
+        if (in.getVersion().onOrAfter(V_3_0_0) && in.readBoolean()) {
+            this.indexingStrategy = new InternalEngine.IndexingStrategy(in);
+        } else {
+            this.indexingStrategy = null;
+        }
     }
 
     public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created) {
-        this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
+        this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED, null);
     }
 
-    private IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+    public IndexResponse(
+        ShardId shardId,
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        boolean created,
+        InternalEngine.IndexingStrategy indexingStrategy
+    ) {
+        this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED, indexingStrategy);
+    }
+
+    private IndexResponse(
+        ShardId shardId,
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        Result result,
+        InternalEngine.IndexingStrategy indexingStrategy
+    ) {
         super(shardId, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
+        this.indexingStrategy = indexingStrategy;
     }
 
     private static Result assertCreatedOrUpdated(Result result) {
@@ -114,6 +150,37 @@ public class IndexResponse extends DocWriteResponse {
         DocWriteResponse.parseInnerToXContent(parser, context);
     }
 
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        if (out.getVersion().onOrAfter(V_3_0_0)) {
+            if (indexingStrategy != null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                indexingStrategy.writeTo(out);
+            }
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (out.getVersion().onOrAfter(V_3_0_0)) {
+            if (indexingStrategy != null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                indexingStrategy.writeTo(out);
+            }
+        }
+    }
+
+    @Override
+    public InternalEngine.IndexingStrategy writeStrategy() {
+        return indexingStrategy;
+    }
+
     /**
      * Builder class for {@link IndexResponse}. This builder is usually used during xcontent parsing to
      * temporarily store the parsed values, then the {@link Builder#build()} method is called to
@@ -125,7 +192,7 @@ public class IndexResponse extends DocWriteResponse {
     public static class Builder extends DocWriteResponse.Builder {
         @Override
         public IndexResponse build() {
-            IndexResponse indexResponse = new IndexResponse(shardId, id, seqNo, primaryTerm, version, result);
+            IndexResponse indexResponse = new IndexResponse(shardId, id, seqNo, primaryTerm, version, result, null);
             indexResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 indexResponse.setShardInfo(shardInfo);

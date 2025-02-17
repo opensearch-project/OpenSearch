@@ -231,7 +231,7 @@ public class NRTReplicationEngine extends Engine {
     @Override
     public IndexResult index(Index index) throws IOException {
         ensureOpen();
-        IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false);
+        IndexResult indexResult = new IndexResult(index.version(), index.primaryTerm(), index.seqNo(), false, index.indexingStrategy());
         final Translog.Location location = translogManager.add(new Translog.Index(index, indexResult));
         indexResult.setTranslogLocation(location);
         indexResult.setTook(System.nanoTime() - index.startTime());
@@ -243,7 +243,13 @@ public class NRTReplicationEngine extends Engine {
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
         ensureOpen();
-        DeleteResult deleteResult = new DeleteResult(delete.version(), delete.primaryTerm(), delete.seqNo(), true);
+        DeleteResult deleteResult = new DeleteResult(
+            delete.version(),
+            delete.primaryTerm(),
+            delete.seqNo(),
+            true,
+            delete.deletionStrategy()
+        );
         final Translog.Location location = translogManager.add(new Translog.Delete(delete, deleteResult));
         deleteResult.setTranslogLocation(location);
         deleteResult.setTook(System.nanoTime() - delete.startTime());

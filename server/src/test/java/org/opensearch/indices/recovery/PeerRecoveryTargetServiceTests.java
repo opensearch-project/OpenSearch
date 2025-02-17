@@ -190,7 +190,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 shard.getOperationPrimaryTerm(),
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(shard.shardId().getIndexName(), UUIDs.randomBase64UUID(), new BytesArray("{}"), MediaTypeRegistry.JSON)
+                new SourceToParse(shard.shardId().getIndexName(), UUIDs.randomBase64UUID(), new BytesArray("{}"), MediaTypeRegistry.JSON),
+                null
             );
             if (randomInt(100) < 5) {
                 shard.flush(new FlushRequest().waitIfOngoing(true));

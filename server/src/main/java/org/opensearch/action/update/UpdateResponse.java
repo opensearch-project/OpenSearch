@@ -40,10 +40,12 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.get.GetResult;
 
 import java.io.IOException;
 
+import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -58,10 +60,21 @@ public class UpdateResponse extends DocWriteResponse {
 
     private GetResult getResult;
 
+    private final InternalEngine.WriteStrategy writeStrategy;
+
     public UpdateResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
         if (in.readBoolean()) {
             getResult = new GetResult(in);
+        }
+        if (in.getVersion().onOrAfter(V_3_0_0) && in.readBoolean()) {
+            if (in.readBoolean()) {
+                this.writeStrategy = new InternalEngine.IndexingStrategy(in);
+            } else {
+                this.writeStrategy = new InternalEngine.DeletionStrategy(in);
+            }
+        } else {
+            this.writeStrategy = null;
         }
     }
 
@@ -69,6 +82,15 @@ public class UpdateResponse extends DocWriteResponse {
         super(in);
         if (in.readBoolean()) {
             getResult = new GetResult(in);
+        }
+        if (in.getVersion().onOrAfter(V_3_0_0) && in.readBoolean()) {
+            if (in.readBoolean()) {
+                this.writeStrategy = new InternalEngine.IndexingStrategy(in);
+            } else {
+                this.writeStrategy = new InternalEngine.DeletionStrategy(in);
+            }
+        } else {
+            this.writeStrategy = null;
         }
     }
 
@@ -81,8 +103,22 @@ public class UpdateResponse extends DocWriteResponse {
     }
 
     public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+        this(shardInfo, shardId, id, seqNo, primaryTerm, version, result, null);
+    }
+
+    public UpdateResponse(
+        ShardInfo shardInfo,
+        ShardId shardId,
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        Result result,
+        InternalEngine.WriteStrategy writeStrategy
+    ) {
         super(shardId, id, seqNo, primaryTerm, version, result);
         setShardInfo(shardInfo);
+        this.writeStrategy = writeStrategy;
     }
 
     public void setGetResult(GetResult getResult) {
@@ -102,12 +138,41 @@ public class UpdateResponse extends DocWriteResponse {
     public void writeThin(StreamOutput out) throws IOException {
         super.writeThin(out);
         writeGetResult(out);
+        if (out.getVersion().onOrAfter(V_3_0_0)) {
+            if (writeStrategy == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                if (writeStrategy instanceof InternalEngine.IndexingStrategy) {
+                    out.writeBoolean(true);
+                    ((InternalEngine.IndexingStrategy) writeStrategy).writeTo(out);
+                } else {
+                    out.writeBoolean(false);
+                    ((InternalEngine.DeletionStrategy) writeStrategy).writeTo(out);
+                }
+            }
+        }
+
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeGetResult(out);
+        if (out.getVersion().onOrAfter(V_3_0_0)) {
+            if (writeStrategy == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                if (writeStrategy instanceof InternalEngine.IndexingStrategy) {
+                    out.writeBoolean(true);
+                    ((InternalEngine.IndexingStrategy) writeStrategy).writeTo(out);
+                } else {
+                    out.writeBoolean(false);
+                    ((InternalEngine.DeletionStrategy) writeStrategy).writeTo(out);
+                }
+            }
+        }
     }
 
     private void writeGetResult(StreamOutput out) throws IOException {
@@ -129,6 +194,11 @@ public class UpdateResponse extends DocWriteResponse {
         }
         return builder;
     }
+
+    @Override
+    public InternalEngine.WriteStrategy writeStrategy() {
+        return writeStrategy;
+    };
 
     @Override
     public String toString() {

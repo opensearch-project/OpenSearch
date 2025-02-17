@@ -49,6 +49,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 
@@ -391,6 +392,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             parser.skipChildren(); // skip potential inner arrays for forward compatibility
         }
     }
+
+    public InternalEngine.WriteStrategy writeStrategy() {
+        return null;
+    };
 
     /**
      * Base class of all {@link DocWriteResponse} builders. These {@link DocWriteResponse.Builder} are used during

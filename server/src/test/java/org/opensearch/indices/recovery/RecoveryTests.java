@@ -190,7 +190,8 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id", new BytesArray("{}"), MediaTypeRegistry.JSON)
+                new SourceToParse(indexName, "id", new BytesArray("{}"), MediaTypeRegistry.JSON),
+                null
             );
             // index #3
             orgReplica.applyIndexOperationOnReplica(
@@ -200,7 +201,8 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-3", new BytesArray("{}"), MediaTypeRegistry.JSON)
+                new SourceToParse(indexName, "id-3", new BytesArray("{}"), MediaTypeRegistry.JSON),
+                null
             );
             // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
@@ -212,7 +214,8 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-2", new BytesArray("{}"), MediaTypeRegistry.JSON)
+                new SourceToParse(indexName, "id-2", new BytesArray("{}"), MediaTypeRegistry.JSON),
+                null
             );
             orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
@@ -224,7 +227,8 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-5", new BytesArray("{}"), MediaTypeRegistry.JSON)
+                new SourceToParse(indexName, "id-5", new BytesArray("{}"), MediaTypeRegistry.JSON),
+                null
             );
 
             if (randomBoolean()) {

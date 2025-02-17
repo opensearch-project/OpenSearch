@@ -276,7 +276,8 @@ class BulkPrimaryExecutionContext {
                         result.getSeqNo(),
                         result.getTerm(),
                         indexResult.getVersion(),
-                        indexResult.isCreated()
+                        indexResult.isCreated(),
+                        indexResult.indexingStrategy()
                     );
                 } else if (result.getOperationType() == Engine.Operation.TYPE.DELETE) {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;
@@ -286,7 +287,8 @@ class BulkPrimaryExecutionContext {
                         deleteResult.getSeqNo(),
                         result.getTerm(),
                         deleteResult.getVersion(),
-                        deleteResult.isFound()
+                        deleteResult.isFound(),
+                        deleteResult.deletionStrategy()
                     );
 
                 } else {

@@ -1335,7 +1335,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 0,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                sourceToParse
+                sourceToParse,
+                null
             );
             shard.sync(); // advance local checkpoint
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
