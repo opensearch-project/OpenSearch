@@ -140,6 +140,11 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         supportedDimensions.put(new NumericDimension(STATUS), STATUS_FIELD_TYPE);
         supportedDimensions.put(new NumericDimension(SIZE), SIZE_FIELD_NAME);
 
+        Query query = new MatchAllDocsQuery();
+        QueryBuilder queryBuilder = null;
+        TermsAggregationBuilder termsAggregationBuilder = terms("terms_agg").field(STATUS);
+        testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+
         ValuesSourceAggregationBuilder[] aggBuilders = {
             sum("_sum").field(SIZE),
             max("_max").field(SIZE),
@@ -148,10 +153,9 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             avg("_avg").field(SIZE) };
 
         for (ValuesSourceAggregationBuilder aggregationBuilder : aggBuilders) {
-            Query query = new MatchAllDocsQuery();
-            QueryBuilder queryBuilder = null;
-
-            TermsAggregationBuilder termsAggregationBuilder = terms("terms_agg").field(STATUS).subAggregation(aggregationBuilder);
+            query = new MatchAllDocsQuery();
+            queryBuilder = null;
+            termsAggregationBuilder = terms("terms_agg").field(STATUS).subAggregation(aggregationBuilder);
             testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
 
             // Numeric-terms query with numeric terms aggregation
@@ -181,10 +185,10 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             avg("_avg").field(STATUS) };
 
         for (ValuesSourceAggregationBuilder aggregationBuilder : aggBuilders) {
-            Query query = new MatchAllDocsQuery();
-            QueryBuilder queryBuilder = null;
+            query = new MatchAllDocsQuery();
+            queryBuilder = null;
 
-            TermsAggregationBuilder termsAggregationBuilder = terms("terms_agg").field(SIZE).subAggregation(aggregationBuilder);
+            termsAggregationBuilder = terms("terms_agg").field(SIZE).subAggregation(aggregationBuilder);
             testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
         }
 
