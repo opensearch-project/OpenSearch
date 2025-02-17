@@ -13,29 +13,29 @@ import java.util.Optional;
 /**
  * This interface provides apis to store Rule attribute values
  */
-public interface AttributeValueStore {
+public interface AttributeValueStore<K, V> {
     /**
-     * Adds the value to the data structure
+     * Adds the value to attribute value store
      * @param key to be added
      * @param value to be added
      */
-    void add(String key, String value);
+    void put(K key, V value);
 
     /**
-     * removes the key and associated value from the data structure
+     * removes the key and associated value from attribute value store
      * @param key to be removed
      */
-    void remove(String key);
+    void remove(K key);
 
     /**
      * Returns the value associated with the key
      * @param key in the data structure
      * @return
      */
-    Optional<String> get(String key);
+    Optional<V> get(K key);
 
     /**
-     * Clears all the keys and their associated values from the structure
+     * Clears all the keys and their associated values from the attribute value store
      */
     void clear();
 
