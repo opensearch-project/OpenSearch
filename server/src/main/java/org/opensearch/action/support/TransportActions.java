@@ -34,8 +34,10 @@ package org.opensearch.action.support;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.ShardNotFoundException;
@@ -62,6 +64,10 @@ public class TransportActions {
      */
     public static boolean isReadOverrideException(Exception e) {
         return !isShardNotAvailableException(e);
+    }
+
+    public static boolean inValidRetrySearchException(final Exception e) {
+        return (OpenSearchException.status(e).getStatus() / 100 == 4) || (e.getCause() instanceof TaskCancelledException);
     }
 
 }
