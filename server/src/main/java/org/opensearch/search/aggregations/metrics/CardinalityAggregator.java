@@ -89,6 +89,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     private static final Logger logger = LogManager.getLogger(CardinalityAggregator.class);
 
+    private final CardinalityAggregatorFactory.ExecutionMode executionMode;
     private final int precision;
     private final ValuesSource valuesSource;
 
@@ -111,6 +112,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         String name,
         ValuesSourceConfig valuesSourceConfig,
         int precision,
+        CardinalityAggregatorFactory.ExecutionMode executionMode,
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata
@@ -121,6 +123,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
         this.valuesSourceConfig = valuesSourceConfig;
+        this.executionMode = executionMode;
     }
 
     @Override
@@ -151,6 +154,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             if (maxOrd == 0) {
                 emptyCollectorsUsed++;
                 return new EmptyCollector();
+            } else if (executionMode == CardinalityAggregatorFactory.ExecutionMode.ORDINALS) { // Force OrdinalsCollector
+                ordinalsCollectorsUsed++;
+                collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
             } else {
                 final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
                 final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
@@ -480,7 +486,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private static class DirectCollector extends Collector {
+    public static class DirectCollector extends Collector {
 
         private final MurmurHash3Values hashes;
         private final HyperLogLogPlusPlus counts;
@@ -517,7 +523,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private static class OrdinalsCollector extends Collector {
+    public static class OrdinalsCollector extends Collector {
 
         private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 
