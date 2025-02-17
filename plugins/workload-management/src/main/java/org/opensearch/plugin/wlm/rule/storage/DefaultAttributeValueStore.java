@@ -75,7 +75,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
         int high = key.length() - 1;
 
         while (low < high) {
-            int mid = low + (high - low + 1) / 2;
+            int mid = (high + low + 1) / 2;
             /**
              * This operation has O(1) complexity because prefixMap returns only the iterator
              */
