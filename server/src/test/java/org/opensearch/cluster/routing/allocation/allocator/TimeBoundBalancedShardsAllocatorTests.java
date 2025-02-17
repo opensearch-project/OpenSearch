@@ -23,7 +23,10 @@ import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.allocation.AllocationConstraints;
+import org.opensearch.cluster.routing.allocation.RebalanceConstraints;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WeightFunction;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
@@ -45,7 +48,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
+import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID;
+import static org.opensearch.cluster.routing.allocation.ConstraintTypes.INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
 import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.ALLOCATOR_TIMEOUT_SETTING;
+import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING;
+import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE;
 
 public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationTestCase {
 
@@ -559,6 +567,29 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         // Valid setting with timeout = -1
         build = Settings.builder().put(settingKey, "-1").build();
         assertEquals(-1, ALLOCATOR_TIMEOUT_SETTING.get(build).getMillis());
+    }
+
+    public void testUpdateWeightFunction() {
+        Settings settings = Settings.builder().put(PREFER_PRIMARY_SHARD_BALANCE.getKey(), true).build();
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings);
+        assertEquals(INDEX_BALANCE_FACTOR_SETTING.get(Settings.EMPTY), allocator.getIndexBalance(), 0);
+        WeightFunction weightFunction = allocator.getWeightFunction();
+        AllocationConstraints constraints = weightFunction.getAllocationConstraints();
+        assertTrue(constraints.getConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID).isEnable());
+        assertTrue(constraints.getConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID).isEnable());
+        RebalanceConstraints rebalanceConstraints = weightFunction.getRebalanceConstraints();
+        assertFalse(rebalanceConstraints.getConstraint(CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID).isEnable());
+        assertFalse(rebalanceConstraints.getConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID).isEnable());
+
+        allocator.setPreferPrimaryShardRebalance(true);
+        rebalanceConstraints = weightFunction.getRebalanceConstraints();
+        assertTrue(rebalanceConstraints.getConstraint(CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID).isEnable());
+        assertTrue(rebalanceConstraints.getConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID).isEnable());
+
+        allocator.setPreferPrimaryShardBalanceBuffer(0.5f);
+        rebalanceConstraints = weightFunction.getRebalanceConstraints();
+        assertTrue(rebalanceConstraints.getConstraint(CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID).isEnable());
+        assertTrue(rebalanceConstraints.getConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID).isEnable());
     }
 
     private RoutingTable buildRoutingTable(Metadata metadata) {
