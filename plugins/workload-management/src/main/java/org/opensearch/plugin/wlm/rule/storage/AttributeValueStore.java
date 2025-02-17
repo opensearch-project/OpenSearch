@@ -15,14 +15,14 @@ import java.util.Optional;
  */
 public interface AttributeValueStore<K, V> {
     /**
-     * Adds the value to the data structure
+     * Adds the value to attribute value store
      * @param key to be added
      * @param value to be added
      */
-    void add(K key, V value);
+    void put(K key, V value);
 
     /**
-     * removes the key and associated value from the data structure
+     * removes the key and associated value from attribute value store
      * @param key to be removed
      */
     void remove(K key);
@@ -35,7 +35,7 @@ public interface AttributeValueStore<K, V> {
     Optional<V> get(K key);
 
     /**
-     * Clears all the keys and their associated values from the structure
+     * Clears all the keys and their associated values from the attribute value store
      */
     void clear();
 
