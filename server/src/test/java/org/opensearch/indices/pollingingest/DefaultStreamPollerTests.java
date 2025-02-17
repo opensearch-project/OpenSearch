@@ -52,7 +52,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             persistedPointers,
             fakeConsumer,
             processorRunnable,
-            StreamPoller.ResetState.NONE
+            StreamPoller.ResetState.NONE,
+            ""
         );
     }
 
@@ -90,7 +91,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             persistedPointers,
             fakeConsumer,
             processorRunnable,
-            StreamPoller.ResetState.NONE
+            StreamPoller.ResetState.NONE,
+            ""
         );
         poller.start();
         Thread.sleep(sleepTime); // Allow some time for the poller to run
@@ -118,7 +120,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             persistedPointers,
             fakeConsumer,
             processorRunnable,
-            StreamPoller.ResetState.EARLIEST
+            StreamPoller.ResetState.EARLIEST,
+            ""
         );
 
         poller.start();
@@ -134,7 +137,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             persistedPointers,
             fakeConsumer,
             processorRunnable,
-            StreamPoller.ResetState.LATEST
+            StreamPoller.ResetState.LATEST,
+            ""
         );
 
         poller.start();
@@ -143,6 +147,22 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         verify(processor, never()).process(any(), any());
         // reset to the latest
         assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(2), poller.getBatchStartPointer());
+    }
+
+    public void testResetStateRewindByOffset() throws InterruptedException {
+        poller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(2),
+            persistedPointers,
+            fakeConsumer,
+            processorRunnable,
+            StreamPoller.ResetState.REWIND_BY_OFFSET,
+            "1"
+        );
+
+        poller.start();
+        Thread.sleep(sleepTime); // Allow some time for the poller to run
+        // 1 message is processed
+        verify(processor, times(1)).process(any(), any());
     }
 
     public void testStartPollWithoutStart() {

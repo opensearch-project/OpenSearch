@@ -12,6 +12,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -27,6 +28,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
 
@@ -138,6 +140,36 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             (PrivilegedAction<Long>) () -> consumer.endOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L)
         );
         return new KafkaOffset(endOffset);
+    }
+
+    @Override
+    public IngestionShardPointer pointerFromTimestampMillis(String timestampMillisStr) {
+        long offset = AccessController.doPrivileged((PrivilegedAction<Long>) () -> {
+            long timestampMillis = Long.parseLong(timestampMillisStr);
+            Map<TopicPartition, OffsetAndTimestamp> position = consumer.offsetsForTimes(
+                Collections.singletonMap(topicPartition, timestampMillis)
+            );
+            if (position == null || position.isEmpty()) {
+                return -1L;
+            }
+            OffsetAndTimestamp offsetAndTimestamp = position.values().iterator().next();
+            if (offsetAndTimestamp == null) {
+                return -1L;
+            }
+            return offsetAndTimestamp.offset();
+        });
+        if (offset < 0) {
+            // no message found for the timestamp, return the latest offset
+            logger.warn("No message found for timestamp {}, seeking to the latest", timestampMillisStr);
+            return latestPointer();
+        }
+        return new KafkaOffset(offset);
+    }
+
+    @Override
+    public IngestionShardPointer pointerFromOffset(String offset) {
+        long offsetValue = Long.parseLong(offset);
+        return new KafkaOffset(offsetValue);
     }
 
     private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {
