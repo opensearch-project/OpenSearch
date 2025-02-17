@@ -37,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Stop minimizing automata used for case-insensitive matches ([#17268](https://github.com/opensearch-project/OpenSearch/pull/17268))
 - Refactor the `:server` module `org.opensearch.client` to `org.opensearch.transport.client` to eliminate top level split packages for JPMS support ([#17272](https://github.com/opensearch-project/OpenSearch/pull/17272))
 - Use Lucene `BM25Similarity` as default since the `LegacyBM25Similarity` is marked as deprecated ([#17306](https://github.com/opensearch-project/OpenSearch/pull/17306))
+- Bump `aws-sdk-java` from 2.20.86 to 2.21.30 ([#17351](https://github.com/opensearch-project/OpenSearch/pull/17351))
 
 ### Deprecated
 
