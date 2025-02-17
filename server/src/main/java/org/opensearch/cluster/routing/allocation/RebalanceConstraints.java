@@ -31,10 +31,10 @@ public class RebalanceConstraints {
 
     public RebalanceConstraints(RebalanceParameter rebalanceParameter) {
         this.constraints = new HashMap<>();
-        this.constraints.put(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, new Constraint(isPerIndexPrimaryShardsPerNodeBreached()));
+        this.constraints.put(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, new Constraint(isPerIndexPrimaryShardsPerNodeBreached(true)));
         this.constraints.put(
             CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID,
-            new Constraint(isPrimaryShardsPerNodeBreached(rebalanceParameter.getPreferPrimaryBalanceBuffer()))
+            new Constraint(isPrimaryShardsPerNodeBreached(true, rebalanceParameter.getPreferPrimaryBalanceBuffer()))
         );
     }
 
