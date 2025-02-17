@@ -17,7 +17,7 @@ import org.opensearch.action.ActionType;
  */
 public class CatShardsAction extends ActionType<CatShardsResponse> {
     public static final CatShardsAction INSTANCE = new CatShardsAction();
-    public static final String NAME = "cluster:monitor/shards";
+    public static final String NAME = "internal:monitor/shards";
 
     private CatShardsAction() {
         super(NAME, CatShardsResponse::new);
