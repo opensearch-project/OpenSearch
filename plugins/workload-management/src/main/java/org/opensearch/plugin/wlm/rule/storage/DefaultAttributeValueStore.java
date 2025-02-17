@@ -38,7 +38,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     }
 
     @Override
-    public void add(K key, V value) {
+    public void put(K key, V value) {
         trie.put(key, value);
     }
 
@@ -54,7 +54,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
          * It is important to find the largest matching prefix key in the trie efficiently
          * Hence we can do binary search
          */
-        String longestMatchingPrefix = findLongestMatchingPrefix(key);
+        final String longestMatchingPrefix = findLongestMatchingPrefix(key);
 
         /**
          * Now there are following cases for this prefix
@@ -76,12 +76,10 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
 
         while (low < high) {
             int mid = low + (high - low + 1) / 2;
-            String possibleMatchingPrefix = key.substring(0, mid);
-
             /**
              * This operation has O(1) complexity because prefixMap returns only the iterator
              */
-            if (!trie.prefixMap(possibleMatchingPrefix).isEmpty()) {
+            if (!trie.prefixMap(key.substring(0, mid)).isEmpty()) {
                 low = mid;
             } else {
                 high = mid - 1;
