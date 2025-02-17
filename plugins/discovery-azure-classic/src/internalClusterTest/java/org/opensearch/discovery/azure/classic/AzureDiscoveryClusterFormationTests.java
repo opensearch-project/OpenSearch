@@ -43,6 +43,8 @@ import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.ssl.KeyStoreFactory;
+import org.opensearch.common.ssl.KeyStoreType;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
@@ -278,14 +280,14 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
 
     private static SSLContext getSSLContext() throws Exception {
         char[] passphrase = "keypass".toCharArray();
-        KeyStore ks = KeyStore.getInstance("JKS");
+        KeyStore ks = KeyStoreFactory.getInstance(KeyStoreType.JKS);
         try (InputStream stream = AzureDiscoveryClusterFormationTests.class.getResourceAsStream("/test-node.jks")) {
             assertNotNull("can't find keystore file", stream);
             ks.load(stream, passphrase);
         }
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(ks, passphrase);
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         tmf.init(ks);
         SSLContext ssl = SSLContext.getInstance(getProtocol());
         ssl.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
