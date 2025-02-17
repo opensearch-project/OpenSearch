@@ -53,6 +53,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SslConfigurationLoaderTests extends OpenSearchTestCase {
 
+    protected static final String BCFKS = "BCFKS";
+    private final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/=";
     private final Path certRoot = getDataPath("/certs/ca1/ca.crt").getParent().getParent();
 
     private Settings settings;
@@ -98,6 +100,14 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
         if (verificationMode == SslVerificationMode.NONE) {
             final SslTrustConfig trustConfig = configuration.getTrustConfig();
             assertThat(trustConfig, instanceOf(TrustEverythingConfig.class));
+
+            if (inFipsJvm()) {
+                assertThrows(
+                    "The use of TrustEverythingConfig is not permitted in FIPS mode. This issue may be caused by the 'ssl.verification_mode=NONE' setting.",
+                    IllegalStateException.class,
+                    trustConfig::createTrustManager
+                );
+            }
         }
     }
 
@@ -113,7 +123,30 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
         assertThat(trustConfig.createTrustManager(), notNullValue());
     }
 
+    public void testLoadTrustFromBCFKS() {
+        final Settings.Builder builder = Settings.builder().put("test.ssl.truststore.path", "ca-all/ca.bcfks");
+        if (randomBoolean()) {
+            builder.put("test.ssl.truststore.password", "bcfks-pass");
+        } else {
+            secureSettings.setString("test.ssl.truststore.secure_password", "bcfks-pass");
+        }
+        if (randomBoolean()) {
+            // If this is not set, the loader will guess from the extension
+            builder.put("test.ssl.truststore.type", BCFKS);
+        }
+        if (randomBoolean()) {
+            builder.put("test.ssl.truststore.algorithm", TrustManagerFactory.getDefaultAlgorithm());
+        }
+        settings = builder.build();
+        final SslConfiguration configuration = loader.load(certRoot);
+        final SslTrustConfig trustConfig = configuration.getTrustConfig();
+        assertThat(trustConfig, instanceOf(StoreTrustConfig.class));
+        assertThat(trustConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/ca-all/ca.bcfks")));
+        assertThat(trustConfig.createTrustManager(), notNullValue());
+    }
+
     public void testLoadTrustFromPkcs12() {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Settings.Builder builder = Settings.builder().put("test.ssl.truststore.path", "ca-all/ca.p12");
         if (randomBoolean()) {
             builder.put("test.ssl.truststore.password", "p12-pass");
@@ -136,6 +169,7 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
     }
 
     public void testLoadTrustFromJKS() {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Settings.Builder builder = Settings.builder().put("test.ssl.truststore.path", "ca-all/ca.jks");
         if (randomBoolean()) {
             builder.put("test.ssl.truststore.password", "jks-pass");
@@ -166,9 +200,9 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
             .put("test.ssl.key", certName + "/" + certName + ".key");
         if (usePassword) {
             if (useLegacyPassword) {
-                builder.put("test.ssl.key_passphrase", "c2-pass");
+                builder.put("test.ssl.key_passphrase", STRONG_PRIVATE_SECRET);
             } else {
-                secureSettings.setString("test.ssl.secure_key_passphrase", "c2-pass");
+                secureSettings.setString("test.ssl.secure_key_passphrase", STRONG_PRIVATE_SECRET);
             }
         }
         settings = builder.build();
@@ -185,7 +219,30 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
         assertThat(keyConfig.createKeyManager(), notNullValue());
     }
 
+    public void testLoadKeysFromBCFKS() {
+        final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.bcfks");
+        if (randomBoolean()) {
+            builder.put("test.ssl.keystore.password", "bcfks-pass");
+        } else {
+            secureSettings.setString("test.ssl.keystore.secure_password", "bcfks-pass");
+        }
+        if (randomBoolean()) {
+            // If this is not set, the loader will guess from the extension
+            builder.put("test.ssl.keystore.type", BCFKS);
+        }
+        if (randomBoolean()) {
+            builder.put("test.ssl.keystore.algorithm", KeyManagerFactory.getDefaultAlgorithm());
+        }
+        settings = builder.build();
+        final SslConfiguration configuration = loader.load(certRoot);
+        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
+        assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.bcfks")));
+        assertThat(keyConfig.createKeyManager(), notNullValue());
+    }
+
     public void testLoadKeysFromPKCS12() {
+        assumeFalse("Can't use PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.p12");
         if (randomBoolean()) {
             builder.put("test.ssl.keystore.password", "p12-pass");

@@ -58,7 +58,11 @@ reactivestreams   = "1.0.4"
 # when updating this version, you need to ensure compatibility with:
 #  - plugins/ingest-attachment (transitive dependency, check the upstream POM)
 #  - distribution/tools/plugin-cli
-bouncycastle="1.78"
+bouncycastle_jce  = "2.0.0"
+bouncycastle_tls  = "2.0.19"
+bouncycastle_pkix = "2.0.7"
+bouncycastle_pg   = "2.0.8"
+bouncycastle_util = "2.0.3"
 # test dependencies
 randomizedrunner  = "2.7.1"
 junit             = "4.13.2"
@@ -131,6 +135,9 @@ reactor-netty-http = { group = "io.projectreactor.netty", name = "reactor-netty-
 roaringbitmap = { group = "org.roaringbitmap", name = "RoaringBitmap", version.ref = "roaringbitmap" }
 spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }
 tdigest = { group = "com.tdunning", name = "t-digest", version.ref = "tdigest" }
+bcjce = { group = "org.bouncycastle", name = "bc-fips", version.ref = "bouncycastle_jce" }
+bctls = { group = "org.bouncycastle", name = "bctls-fips", version.ref = "bouncycastle_tls" }
+bcutil = { group = "org.bouncycastle", name = "bcutil-fips", version.ref = "bouncycastle_util" }
 
 [bundles]
 lucene = [

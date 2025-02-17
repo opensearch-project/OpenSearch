@@ -41,11 +41,11 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PemKeyConfigTests extends OpenSearchTestCase {
     private static final int IP_NAME = 7;
     private static final int DNS_NAME = 2;
+    private static final Supplier<char[]> STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/="::toCharArray;
 
     public void testBuildKeyConfigFromPkcs1PemFilesWithoutPassword() throws Exception {
         final Path cert = getDataPath("/certs/cert1/cert1.crt");
@@ -68,8 +69,9 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
     }
 
     public void testBuildKeyConfigFromPkcs1PemFilesWithPassword() throws Exception {
-        final Path cert = getDataPath("/certs/cert2/cert2.crt");
-        final Path key = getDataPath("/certs/cert2/cert2.key");
+        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
+        final Path cert = getDataPath("/certs/cert2/cert2-pkcs1.crt");
+        final Path key = getDataPath("/certs/cert2/cert2-pkcs1.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray());
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
         assertCertificateAndKey(keyConfig, "CN=cert2");
@@ -77,17 +79,16 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
 
     public void testBuildKeyConfigFromPkcs8PemFilesWithoutPassword() throws Exception {
         final Path cert = getDataPath("/certs/cert1/cert1.crt");
-        final Path key = getDataPath("/certs/cert1/cert1-pkcs8.key");
+        final Path key = getDataPath("/certs/cert1/cert1.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0]);
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
         assertCertificateAndKey(keyConfig, "CN=cert1");
     }
 
     public void testBuildKeyConfigFromPkcs8PemFilesWithPassword() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
         final Path cert = getDataPath("/certs/cert2/cert2.crt");
-        final Path key = getDataPath("/certs/cert2/cert2-pkcs8.key");
-        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray());
+        final Path key = getDataPath("/certs/cert2/cert2.key");
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, STRONG_PRIVATE_SECRET.get());
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
         assertCertificateAndKey(keyConfig, "CN=cert2");
     }
@@ -131,7 +132,7 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
 
         Files.copy(cert2, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key2, key, StandardCopyOption.REPLACE_EXISTING);
-        assertPasswordIsIncorrect(keyConfig, key);
+        assertPasswordNotSet(keyConfig, key);
 
         Files.copy(cert1, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key1, key, StandardCopyOption.REPLACE_EXISTING);
@@ -166,7 +167,15 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
         final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
         assertThat(exception.getMessage(), containsString("private key file"));
         assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
-        assertThat(exception.getCause(), instanceOf(GeneralSecurityException.class));
+        assertThat(exception, instanceOf(SslConfigException.class));
+    }
+
+    private void assertPasswordNotSet(PemKeyConfig keyConfig, Path key) {
+        final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
+        assertThat(exception.getMessage(), containsString("cannot read encrypted key"));
+        assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
+        assertThat(exception.getMessage(), containsString("without a password"));
+        assertThat(exception, instanceOf(SslConfigException.class));
     }
 
     private void assertFileNotFound(PemKeyConfig keyConfig, String type, Path file) {
