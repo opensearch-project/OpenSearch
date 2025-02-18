@@ -243,6 +243,14 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
     }
 
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        // clear any FeatureFlags needed for individual tests
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        clusterSettings = null;
+    }
+
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
         int numRoutingShards = settings.getAsInt(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), numShards);
         Metadata.Builder metaBuilder = Metadata.builder();
@@ -2339,42 +2347,35 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testCreateIndexWithContextAbsent() throws Exception {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
-        try {
-            request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
-            withTemporaryClusterService((clusterService, threadPool) -> {
-                MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
-                    Settings.EMPTY,
-                    clusterService,
-                    indicesServices,
-                    null,
-                    null,
-                    createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
-                    mock(Environment.class),
-                    IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                    threadPool,
-                    null,
-                    new SystemIndices(Collections.emptyMap()),
-                    false,
-                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                    DefaultRemoteStoreSettings.INSTANCE,
-                    repositoriesServiceSupplier
-                );
-                CountDownLatch counter = new CountDownLatch(1);
-                InvalidIndexContextException exception = expectThrows(
-                    InvalidIndexContextException.class,
-                    () -> checkerService.validateContext(request)
-                );
-                assertTrue(
-                    "Invalid exception message." + exception.getMessage(),
-                    exception.getMessage().contains("index specifies a context which is not loaded on the cluster.")
-                );
-            });
-        } finally {
-            // Disable so that other tests which are not dependent on this are not impacted.
-            FeatureFlags.initializeFeatureFlags(
-                Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, false).build()
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesServices,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                mock(Environment.class),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
             );
-        }
+            CountDownLatch counter = new CountDownLatch(1);
+            InvalidIndexContextException exception = expectThrows(
+                InvalidIndexContextException.class,
+                () -> checkerService.validateContext(request)
+            );
+            assertTrue(
+                "Invalid exception message." + exception.getMessage(),
+                exception.getMessage().contains("index specifies a context which is not loaded on the cluster.")
+            );
+        });
     }
 
     public void testApplyContext() throws IOException {
@@ -2419,63 +2420,59 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             )
         ) {
             componentTemplate.set(ComponentTemplate.parse(contentParser));
-            String contextName = randomAlphaOfLength(5);
-            request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(contextName));
-            withTemporaryClusterService((clusterService, threadPool) -> {
-                MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
-                    Settings.EMPTY,
-                    clusterService,
-                    indicesServices,
-                    null,
-                    null,
-                    createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
-                    mock(Environment.class),
-                    IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                    threadPool,
-                    null,
-                    new SystemIndices(Collections.emptyMap()),
-                    false,
-                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                    DefaultRemoteStoreSettings.INSTANCE,
-                    repositoriesServiceSupplier
+        }
+
+        String contextName = randomAlphaOfLength(5);
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(contextName));
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesServices,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                mock(Environment.class),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
+            );
+
+            ClusterState mockState = mock(ClusterState.class);
+            Metadata metadata = mock(Metadata.class);
+
+            when(mockState.metadata()).thenReturn(metadata);
+            when(metadata.systemTemplatesLookup()).thenReturn(Map.of(contextName, new TreeMap<>() {
+                {
+                    put(1L, contextName);
+                }
+            }));
+            when(metadata.componentTemplates()).thenReturn(Map.of(contextName, componentTemplate.get()));
+
+            try {
+                Template template = checkerService.applyContext(request, mockState, allMappings, settingsBuilder);
+                assertEquals(componentTemplate.get().template(), template);
+
+                assertEquals(2, allMappings.size());
+                assertEquals(mappings, allMappings.get(0));
+                assertEquals(
+                    MapperService.parseMapping(NamedXContentRegistry.EMPTY, componentTemplate.get().template().mappings().toString()),
+                    allMappings.get(1)
                 );
 
-                ClusterState mockState = mock(ClusterState.class);
-                Metadata metadata = mock(Metadata.class);
-
-                when(mockState.metadata()).thenReturn(metadata);
-                when(metadata.systemTemplatesLookup()).thenReturn(Map.of(contextName, new TreeMap<>() {
-                    {
-                        put(1L, contextName);
-                    }
-                }));
-                when(metadata.componentTemplates()).thenReturn(Map.of(contextName, componentTemplate.get()));
-
-                try {
-                    Template template = checkerService.applyContext(request, mockState, allMappings, settingsBuilder);
-                    assertEquals(componentTemplate.get().template(), template);
-
-                    assertEquals(2, allMappings.size());
-                    assertEquals(mappings, allMappings.get(0));
-                    assertEquals(
-                        MapperService.parseMapping(NamedXContentRegistry.EMPTY, componentTemplate.get().template().mappings().toString()),
-                        allMappings.get(1)
-                    );
-
-                    assertEquals("60s", settingsBuilder.get(INDEX_REFRESH_INTERVAL_SETTING.getKey()));
-                    assertEquals("log_byte_size", settingsBuilder.get(INDEX_MERGE_POLICY.getKey()));
-                    assertEquals("best_compression", settingsBuilder.get(EngineConfig.INDEX_CODEC_SETTING.getKey()));
-                    assertEquals("false", settingsBuilder.get(INDEX_SOFT_DELETES_SETTING.getKey()));
-                } catch (IOException ex) {
-                    throw new AssertionError(ex);
-                }
-            });
-        } finally {
-            // Disable so that other tests which are not dependent on this are not impacted.
-            FeatureFlags.initializeFeatureFlags(
-                Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, false).build()
-            );
-        }
+                assertEquals("60s", settingsBuilder.get(INDEX_REFRESH_INTERVAL_SETTING.getKey()));
+                assertEquals("log_byte_size", settingsBuilder.get(INDEX_MERGE_POLICY.getKey()));
+                assertEquals("best_compression", settingsBuilder.get(EngineConfig.INDEX_CODEC_SETTING.getKey()));
+                assertEquals("false", settingsBuilder.get(INDEX_SOFT_DELETES_SETTING.getKey()));
+            } catch (IOException ex) {
+                throw new AssertionError(ex);
+            }
+        });
     }
 
     public void testApplyContextWithSettingsOverlap() throws IOException {
@@ -2507,55 +2504,48 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         }
 
         String contextName = randomAlphaOfLength(5);
-        try {
-            request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(contextName));
-            withTemporaryClusterService((clusterService, threadPool) -> {
-                MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
-                    Settings.EMPTY,
-                    clusterService,
-                    indicesServices,
-                    null,
-                    null,
-                    createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
-                    mock(Environment.class),
-                    IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                    threadPool,
-                    null,
-                    new SystemIndices(Collections.emptyMap()),
-                    false,
-                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                    DefaultRemoteStoreSettings.INSTANCE,
-                    repositoriesServiceSupplier
-                );
-
-                ClusterState mockState = mock(ClusterState.class);
-                Metadata metadata = mock(Metadata.class);
-
-                when(mockState.metadata()).thenReturn(metadata);
-                when(metadata.systemTemplatesLookup()).thenReturn(Map.of(contextName, new TreeMap<>() {
-                    {
-                        put(1L, contextName);
-                    }
-                }));
-                when(metadata.componentTemplates()).thenReturn(Map.of(contextName, componentTemplate.get()));
-
-                ValidationException validationException = expectThrows(
-                    ValidationException.class,
-                    () -> checkerService.applyContext(request, mockState, List.of(), settingsBuilder)
-                );
-                assertEquals(1, validationException.validationErrors().size());
-                assertTrue(
-                    "Invalid exception message: " + validationException.getMessage(),
-                    validationException.getMessage()
-                        .contains("Cannot apply context template as user provide settings have overlap with the included context template")
-                );
-            });
-        } finally {
-            // Disable so that other tests which are not dependent on this are not impacted.
-            FeatureFlags.initializeFeatureFlags(
-                Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, false).build()
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(contextName));
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesServices,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                mock(Environment.class),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
             );
-        }
+
+            ClusterState mockState = mock(ClusterState.class);
+            Metadata metadata = mock(Metadata.class);
+
+            when(mockState.metadata()).thenReturn(metadata);
+            when(metadata.systemTemplatesLookup()).thenReturn(Map.of(contextName, new TreeMap<>() {
+                {
+                    put(1L, contextName);
+                }
+            }));
+            when(metadata.componentTemplates()).thenReturn(Map.of(contextName, componentTemplate.get()));
+
+            ValidationException validationException = expectThrows(
+                ValidationException.class,
+                () -> checkerService.applyContext(request, mockState, List.of(), settingsBuilder)
+            );
+            assertEquals(1, validationException.validationErrors().size());
+            assertTrue(
+                "Invalid exception message: " + validationException.getMessage(),
+                validationException.getMessage()
+                    .contains("Cannot apply context template as user provide settings have overlap with the included context template")
+            );
+        });
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
@@ -2629,11 +2619,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );
-    }
-
-    @After
-    public void shutdown() throws Exception {
-        clusterSettings = null;
     }
 
 }
