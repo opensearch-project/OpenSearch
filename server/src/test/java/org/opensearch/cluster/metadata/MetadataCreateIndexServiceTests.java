@@ -2244,7 +2244,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         }
     }
 
-    private ShardLimitValidator randomShardLimitService() {
+    public static ShardLimitValidator randomShardLimitService() {
         return createTestShardLimitService(randomIntBetween(10, 10000), false);
     }
 
@@ -2258,7 +2258,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         }
     }
 
-    private void verifyRemoteStoreIndexSettings(
+    public static void verifyRemoteStoreIndexSettings(
         Settings indexSettings,
         String isRemoteSegmentEnabled,
         String remoteSegmentRepo,
@@ -2273,7 +2273,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(translogBufferInterval, indexSettings.get(INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()));
     }
 
-    private DiscoveryNode getRemoteNode() {
+    public static DiscoveryNode getRemoteNode() {
         Map<String, String> attributes = new HashMap<>();
         attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
         attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");

@@ -46,7 +46,6 @@ import org.opensearch.common.ValidationException;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -59,7 +58,6 @@ import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexContextException;
-import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
@@ -85,20 +83,17 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.aggregateIndexSettings;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexServiceTests.getRemoteNode;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexServiceTests.randomShardLimitService;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexServiceTests.verifyRemoteStoreIndexSettings;
 import static org.opensearch.index.IndexSettings.INDEX_MERGE_POLICY;
 import static org.opensearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
-import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -109,7 +104,6 @@ public class MetadataCreateIndexServiceFFEnabledTests extends OpenSearchTestCase
 
     private CreateIndexClusterStateUpdateRequest request;
     private IndicesService indicesServices;
-    private RepositoriesService repositoriesService;
     private Supplier<RepositoriesService> repositoriesServiceSupplier;
 
     @BeforeClass
@@ -132,7 +126,6 @@ public class MetadataCreateIndexServiceFFEnabledTests extends OpenSearchTestCase
         super.setUp();
         indicesServices = mock(IndicesService.class);
         repositoriesServiceSupplier = mock(Supplier.class);
-        repositoriesService = mock(RepositoriesService.class);
     }
 
     @Before
@@ -451,10 +444,6 @@ public class MetadataCreateIndexServiceFFEnabledTests extends OpenSearchTestCase
         });
     }
 
-    private ShardLimitValidator randomShardLimitService() {
-        return createTestShardLimitService(randomIntBetween(10, 10000), false);
-    }
-
     private void withTemporaryClusterService(BiConsumer<ClusterService, ThreadPool> consumer) {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
@@ -463,35 +452,6 @@ public class MetadataCreateIndexServiceFFEnabledTests extends OpenSearchTestCase
         } finally {
             threadPool.shutdown();
         }
-    }
-
-    private void verifyRemoteStoreIndexSettings(
-        Settings indexSettings,
-        String isRemoteSegmentEnabled,
-        String remoteSegmentRepo,
-        String remoteTranslogRepo,
-        String replicationType,
-        TimeValue translogBufferInterval
-    ) {
-        assertEquals(replicationType, indexSettings.get(SETTING_REPLICATION_TYPE));
-        assertEquals(isRemoteSegmentEnabled, indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
-        assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
-        assertEquals(remoteTranslogRepo, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
-        assertEquals(translogBufferInterval, indexSettings.get(INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()));
-    }
-
-    private DiscoveryNode getRemoteNode() {
-        Map<String, String> attributes = new HashMap<>();
-        attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
-        attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
-        attributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
-        return new DiscoveryNode(
-            UUIDs.base64UUID(),
-            buildNewFakeTransportAddress(),
-            attributes,
-            DiscoveryNodeRole.BUILT_IN_ROLES,
-            Version.CURRENT
-        );
     }
 
 }
