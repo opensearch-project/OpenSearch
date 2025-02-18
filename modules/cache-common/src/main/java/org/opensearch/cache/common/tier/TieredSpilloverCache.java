@@ -261,31 +261,26 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         public void put(ICacheKey<K> key, V value) {
             // First check in case the key is already present in either of tiers.
             Tuple<V, String> cacheValueTuple = getValueFromTieredCache(true).apply(key);
-            if (cacheValueTuple == null) {
-                // In case it is not present in any tier, put it inside onHeap cache by default.
-                if (evaluatePoliciesList(value, policies)) {
+            if (evaluatePoliciesList(value, policies)) {
+                if (cacheValueTuple == null) {
+                    // In case it is not present in any tier, put it inside onHeap cache by default.
                     try (ReleasableLock ignore = writeLock.acquire()) {
                         onHeapCache.put(key, value);
                     }
                     updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, value);
                 } else {
-                    // Signal to the caller that the key didn't enter the cache by sending a removal notification.
-                    removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
-                }
-            } else {
-                // Put it inside desired tier.
-                if (evaluatePoliciesList(value, policies)) {
                     try (ReleasableLock ignore = writeLock.acquire()) {
                         for (Map.Entry<ICache<K, V>, TierInfo> entry : this.caches.entrySet()) {
                             if (cacheValueTuple.v2().equals(entry.getValue().tierName)) {
                                 entry.getKey().put(key, value);
                             }
                         }
-                        updateStatsOnPut(cacheValueTuple.v2(), key, value);
                     }
-                } else {
-                    removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
+                    updateStatsOnPut(cacheValueTuple.v2(), key, value);
                 }
+            } else {
+                // Signal to the caller that the key didn't enter the cache by sending a removal notification.
+                removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
             }
         }
 
@@ -350,15 +345,19 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             boolean wasCacheMiss = false;
             BiFunction<Tuple<ICacheKey<K>, V>, Throwable, Void> handler = (pair, ex) -> {
                 if (pair != null) {
+                    boolean didAddToCache = false;
                     try (ReleasableLock ignore = writeLock.acquire()) {
                         onHeapCache.put(pair.v1(), pair.v2());
+                        didAddToCache = true;
                     } catch (Exception e) {
                         // TODO: Catch specific exceptions to know whether this resulted from cache or underlying removal
                         // listeners/stats. Needs better exception handling at underlying layers.For now swallowing
                         // exception.
                         logger.warn("Exception occurred while putting item onto heap cache", e);
                     }
-                    updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, pair.v2());
+                    if (didAddToCache) {
+                        updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, pair.v2());
+                    }
                 } else {
                     if (ex != null) {
                         logger.warn("Exception occurred while trying to compute the value", ex);
