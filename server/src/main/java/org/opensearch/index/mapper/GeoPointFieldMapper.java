@@ -35,6 +35,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
@@ -197,6 +198,51 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
     @Override
     public GeoPointFieldType fieldType() {
         return (GeoPointFieldType) mappedFieldType;
+    }
+
+    @Override
+    protected void canDeriveSourceInternal() {
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [ " + name() + "] with stored and docValues disabled");
+        }
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Considerations:
+     *    1. Result would be returned in fixed format: {"lat", lat_val, "lon": lon_val} for both doc values and
+     *       stored field
+     *    2. There might be precision loss in a result
+     *    3. When using doc values, for multi value field, result would be in sorted order
+     *    4. When using stored field, order and duplicate values would be preserved
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
+            @Override
+            public Object convert(Object value) {
+                Long val = (Long) value;
+                if (val == null) {
+                    return null;
+                }
+                long encoded = val;
+                return new GeoPoint(
+                    GeoEncodingUtils.decodeLatitude((int) (encoded >> 32)),
+                    GeoEncodingUtils.decodeLongitude((int) (encoded))
+                );
+            }
+        }, new StoredFieldFetcher(mappedFieldType, simpleName()) {
+            @Override
+            public Object convert(Object value) {
+                String val = (String) value;
+                if (val == null) {
+                    return null;
+                }
+                return new GeoPoint(val);
+            }
+        });
     }
 
     /**

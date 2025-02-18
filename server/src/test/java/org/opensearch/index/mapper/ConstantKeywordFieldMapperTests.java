@@ -8,10 +8,17 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.store.Directory;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -29,6 +36,8 @@ import java.util.Collection;
 import static org.hamcrest.Matchers.containsString;
 
 public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCase {
+
+    private static final String FIELD_NAME = "field";
 
     private IndexService indexService;
     private DocumentMapperParser parser;
@@ -118,5 +127,41 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
         build.accept(builder);
         builder.endObject();
         return new SourceToParse("test", "1", BytesReference.bytes(builder), MediaTypeRegistry.JSON);
+    }
+
+    public void testPossibleToDeriveSource_WhenCopyToPresent() {
+        FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();
+        ConstantKeywordFieldMapper mapper = getMapper(copyTo);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testDerivedValueFetching() throws IOException {
+        try (Directory directory = newDirectory()) {
+            ConstantKeywordFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty());
+
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                Document doc = new Document();
+                doc.add(new StoredField(FIELD_NAME, "default_value"));
+                iw.addDocument(doc);
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + "\"default_value\"" + "}", source);
+            }
+        }
+    }
+
+    private ConstantKeywordFieldMapper getMapper(FieldMapper.CopyTo copyTo) {
+        indexService = createIndex("test-index", Settings.EMPTY, "constant_keyword", "field", "type=constant_keyword,value=default_value");
+        ConstantKeywordFieldMapper mapper = (ConstantKeywordFieldMapper) indexService.mapperService()
+            .documentMapper()
+            .mappers()
+            .getMapper(FIELD_NAME);
+        mapper.copyTo = copyTo;
+        return mapper;
     }
 }

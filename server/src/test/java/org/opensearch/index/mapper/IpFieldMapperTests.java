@@ -32,14 +32,22 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.termvectors.TermVectorsService;
 
@@ -49,6 +57,8 @@ import java.net.InetAddress;
 import static org.hamcrest.Matchers.containsString;
 
 public class IpFieldMapperTests extends MapperTestCase {
+
+    private static final String FIELD_NAME = "field";
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -207,5 +217,75 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("null_value", ":1");
         }));
         assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
+    }
+
+    public void testPossibleToDeriveSource_WhenDocValuesAndStoredDisabled() throws IOException {
+        IpFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, false);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
+        FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();
+        IpFieldMapper mapper = getMapper(copyTo, true, true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testDerivedValueFetching_DocValues() throws IOException {
+        try (Directory directory = newDirectory()) {
+            IpFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), true, false);
+            String ip = "1.2.3.4";
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocument(createDocument(ip, true));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + "\"" + ip + "\"" + "}", source);
+            }
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField() throws IOException {
+        try (Directory directory = newDirectory()) {
+            IpFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, true);
+            String ip = "1.2.3.4";
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocument(createDocument(ip, false));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + "\"" + ip + "\"" + "}", source);
+            }
+        }
+    }
+
+    private IpFieldMapper getMapper(FieldMapper.CopyTo copyTo, boolean hasDocValues, boolean isStored) throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "ip").field("store", isStored).field("doc_values", hasDocValues))
+        );
+        IpFieldMapper mapper = (IpFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+        mapper.copyTo = copyTo;
+        return mapper;
+    }
+
+    /**
+     * Helper method to create a document with both doc values and stored fields
+     */
+    private Document createDocument(String value, boolean hasDocValues) {
+        InetAddress address = InetAddresses.forString(value);
+        Document doc = new Document();
+        if (hasDocValues) {
+            doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef(InetAddressPoint.encode(address))));
+        } else {
+            doc.add(new StoredField(FIELD_NAME, new BytesRef(InetAddressPoint.encode(address))));
+        }
+        return doc;
     }
 }
