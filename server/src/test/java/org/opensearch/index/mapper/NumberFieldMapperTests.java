@@ -32,8 +32,19 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.Numbers;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -51,6 +62,8 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 
 public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
+
+    private static final String FIELD_NAME = "field";
 
     @Override
     protected Set<String> types() {
@@ -318,5 +331,167 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), MediaTypeRegistry.JSON))
         );
         assertEquals(0, doc.rootDoc().getFields("field").length);
+    }
+
+    public void testPossibleToDeriveSource_WhenDocValuesAndStoredDisabled() throws IOException {
+        NumberFieldMapper mapper = getMapper(NumberFieldMapper.NumberType.HALF_FLOAT, FieldMapper.CopyTo.empty(), false, false);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
+        FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();
+        NumberFieldMapper mapper = getMapper(NumberFieldMapper.NumberType.HALF_FLOAT, copyTo, true, true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testFloatFieldDerivedValueFetching_DocValues() throws IOException {
+        NumberType[] floatTypes = { NumberType.FLOAT, NumberType.HALF_FLOAT, NumberType.DOUBLE };
+        for (NumberType type : floatTypes) {
+            try (Directory directory = newDirectory()) {
+                NumberFieldMapper mapper = getMapper(type, FieldMapper.CopyTo.empty(), true, false);
+                float value = 1.5f;
+                try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                    iw.addDocument(createDocument(type, value, true));
+                }
+
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                    mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                    builder.endObject();
+                    String source = builder.toString();
+                    assertEquals("{\"" + FIELD_NAME + "\":" + value + "}", source);
+                }
+            }
+        }
+    }
+
+    public void testFloatFieldDerivedValueFetching_StoredField() throws IOException {
+        NumberType[] floatTypes = { NumberType.FLOAT, NumberType.HALF_FLOAT, NumberType.DOUBLE };
+        for (NumberType type : floatTypes) {
+            try (Directory directory = newDirectory()) {
+                NumberFieldMapper mapper = getMapper(type, FieldMapper.CopyTo.empty(), false, true);
+                float value = 1.5f;
+                try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                    iw.addDocument(createDocument(type, value, false));
+                }
+
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                    mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                    builder.endObject();
+                    String source = builder.toString();
+                    assertEquals("{\"" + FIELD_NAME + "\":" + value + "}", source);
+                }
+            }
+        }
+    }
+
+    public void testIntFieldDerivedValueFetching_DocValues() throws IOException {
+        NumberType[] floatTypes = { NumberType.INTEGER, NumberType.LONG, NumberType.SHORT, NumberType.BYTE };
+        for (NumberType type : floatTypes) {
+            try (Directory directory = newDirectory()) {
+                NumberFieldMapper mapper = getMapper(type, FieldMapper.CopyTo.empty(), true, false);
+                int value = 123;
+                try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                    iw.addDocument(createDocument(type, value, true));
+                }
+
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                    mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                    builder.endObject();
+                    String source = builder.toString();
+                    assertEquals("{\"" + FIELD_NAME + "\":" + value + "}", source);
+                }
+            }
+        }
+    }
+
+    public void testIntFieldDerivedValueFetching_StoredField() throws IOException {
+        NumberType[] floatTypes = { NumberType.INTEGER, NumberType.LONG, NumberType.UNSIGNED_LONG, NumberType.SHORT, NumberType.BYTE };
+        for (NumberType type : floatTypes) {
+            try (Directory directory = newDirectory()) {
+                NumberFieldMapper mapper = getMapper(type, FieldMapper.CopyTo.empty(), false, true);
+                int value = 123;
+                try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                    iw.addDocument(createDocument(type, value, false));
+                }
+
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                    mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                    builder.endObject();
+                    String source = builder.toString();
+                    assertEquals("{\"" + FIELD_NAME + "\":" + value + "}", source);
+                }
+            }
+        }
+    }
+
+    private NumberFieldMapper getMapper(NumberType numberType, FieldMapper.CopyTo copyTo, boolean hasDocValues, boolean isStored)
+        throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", numberType.typeName()).field("store", isStored).field("doc_values", hasDocValues))
+        );
+        NumberFieldMapper mapper = (NumberFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+        mapper.copyTo = copyTo;
+        return mapper;
+    }
+
+    /**
+     * Helper method to create a document with both doc values and stored fields
+     */
+    private Document createDocument(NumberFieldMapper.NumberType type, Number value, boolean hasDocValues) {
+        Document doc = new Document();
+
+        // Add doc values field
+        if (hasDocValues) {
+            switch (type) {
+                case HALF_FLOAT:
+                    doc.add(new SortedNumericDocValuesField(FIELD_NAME, HalfFloatPoint.halfFloatToSortableShort(value.floatValue())));
+                    break;
+                case FLOAT:
+                    doc.add(new SortedNumericDocValuesField(FIELD_NAME, NumericUtils.floatToSortableInt(value.floatValue())));
+                    break;
+                case DOUBLE:
+                    doc.add(new SortedNumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(value.doubleValue())));
+                    break;
+                case BYTE:
+                case SHORT:
+                case INTEGER:
+                    doc.add(new SortedNumericDocValuesField(FIELD_NAME, value.intValue()));
+                    break;
+                case LONG:
+                    doc.add(new SortedNumericDocValuesField(FIELD_NAME, value.longValue()));
+                    break;
+                case UNSIGNED_LONG:
+                    doc.add(new SortedNumericDocValuesField(FIELD_NAME, Numbers.toUnsignedLongExact(value).longValue()));
+                    break;
+            }
+            return doc;
+        }
+
+        // Add stored field
+        switch (type) {
+            case HALF_FLOAT:
+            case FLOAT:
+                doc.add(new StoredField(FIELD_NAME, value.floatValue()));
+                break;
+            case DOUBLE:
+                doc.add(new StoredField(FIELD_NAME, value.doubleValue()));
+                break;
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+                doc.add(new StoredField(FIELD_NAME, value.intValue()));
+                break;
+            case LONG:
+                doc.add(new StoredField(FIELD_NAME, value.longValue()));
+                break;
+            case UNSIGNED_LONG:
+                doc.add(new StoredField(FIELD_NAME, value.toString()));
+                break;
+        }
+        return doc;
     }
 }

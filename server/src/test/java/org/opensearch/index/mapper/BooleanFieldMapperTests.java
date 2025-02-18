@@ -32,14 +32,21 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -48,6 +55,8 @@ import org.opensearch.index.mapper.ParseContext.Document;
 import java.io.IOException;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
+
+    private static final String FIELD_NAME = "field";
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -233,5 +242,76 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         );
 
         assertEquals("Can't parse boolean value [random], expected [true] or [false]", e.getMessage());
+    }
+
+    public void testPossibleToDeriveSource_WhenDocValuesAndStoredDisabled() throws IOException {
+        BooleanFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, false);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
+        FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();
+        BooleanFieldMapper mapper = getMapper(copyTo, true, true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testDerivedValueFetching_DocValues() throws IOException {
+        try (Directory directory = newDirectory()) {
+            BooleanFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), true, false);
+            String value = "";  // empty string means false under boolean field mapping
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocument(createDocument(value, true));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + false + "}", source);
+            }
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField() throws IOException {
+        try (Directory directory = newDirectory()) {
+            BooleanFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, true);
+            String value = "true";
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocument(createDocument(value, false));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + true + "}", source);
+            }
+        }
+    }
+
+    private BooleanFieldMapper getMapper(FieldMapper.CopyTo copyTo, boolean hasDocValues, boolean isStored) throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "boolean").field("store", isStored).field("doc_values", hasDocValues))
+        );
+        BooleanFieldMapper mapper = (BooleanFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+        mapper.copyTo = copyTo;
+        return mapper;
+    }
+
+    /**
+     * Helper method to create a document with both doc values and stored fields
+     */
+    private org.apache.lucene.document.Document createDocument(String value, boolean hasDocValues) {
+        char[] chars = value.toCharArray();
+        boolean val = Booleans.parseBoolean(chars, 0, chars.length, false);
+        org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
+        if (hasDocValues) {
+            doc.add(new SortedNumericDocValuesField(FIELD_NAME, val ? 1 : 0));
+        } else {
+            doc.add(new StoredField(FIELD_NAME, val ? "T" : "F"));
+        }
+        return doc;
     }
 }
