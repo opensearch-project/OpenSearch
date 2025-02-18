@@ -25,6 +25,8 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,6 +53,7 @@ import org.apache.arrow.util.Preconditions;
  * <p>
  * It changes {@link org.apache.arrow.flight.FlightServer.Builder} to allow hook to configure the NettyServerBuilder.
  */
+@SuppressWarnings("removal")
 public class OSFlightServer {
     /** The maximum size of an individual gRPC message. This effectively disables the limit. */
     static final int MAX_GRPC_MESSAGE_SIZE = Integer.MAX_VALUE;
@@ -60,13 +63,15 @@ public class OSFlightServer {
     private static final MethodHandle FLIGHT_SERVER_CTOR_MH;
 
     static {
-        try {
-            FLIGHT_SERVER_CTOR_MH = MethodHandles
+            FLIGHT_SERVER_CTOR_MH = AccessController.doPrivileged((PrivilegedAction<MethodHandle>) () -> {
+                    try {
+                return MethodHandles
                 .privateLookupIn(FlightServer.class, MethodHandles.lookup())
                 .findConstructor(FlightServer.class, MethodType.methodType(void.class, Location.class, Server.class, ExecutorService.class));
         } catch (final NoSuchMethodException | IllegalAccessException ex) {
             throw new IllegalStateException("Unable to find the FlightServer constructor to invoke", ex);
-        }
+        }}
+        );
     }
 
     /** A builder for Flight servers. */
@@ -88,7 +93,7 @@ public class OSFlightServer {
         private final List<KeyFactory<?>> interceptors;
         // Keep track of inserted interceptors
         private final Set<String> interceptorKeys;
-        
+
         Builder() {
             builderOptions = new HashMap<>();
             interceptors = new ArrayList<>();
@@ -265,7 +270,7 @@ public class OSFlightServer {
             builderOptions.put("netty.channelType", channelType);
             return this;
         }
-        
+
         public Builder workerEventLoopGroup(EventLoopGroup workerELG) {
             builderOptions.put("netty.workerEventLoopGroup", workerELG);
             return this;
@@ -275,7 +280,7 @@ public class OSFlightServer {
             builderOptions.put("netty.bossEventLoopGroup", bossELG);
             return this;
         }
-        
+
         public Builder setMaxHeaderListSize(int maxHeaderListSize) {
             this.maxHeaderListSize = maxHeaderListSize;
             return this;
@@ -466,7 +471,7 @@ public class OSFlightServer {
             return this;
         }
     }
-    
+
     public static Builder builder() {
         return new Builder();
     }
