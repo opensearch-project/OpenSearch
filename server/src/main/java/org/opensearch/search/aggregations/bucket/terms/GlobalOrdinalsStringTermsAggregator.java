@@ -101,7 +101,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     private final LongPredicate acceptedGlobalOrdinals;
     private final long valueCount;
-    private final String fieldName;
+    protected final String fieldName;
     private Weight weight;
     protected final CollectionStrategy collectionStrategy;
     private final SetOnce<SortedSetDocValues> dvs = new SetOnce<>();
@@ -230,11 +230,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
-        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
-        if (supportedStarTree != null) {
-            globalOperator = valuesSource.globalOrdinalsMapping(ctx);
-            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
-            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+        if (tryStarTreePrecompute(ctx) == true) {
             return true;
         }
         if (collectionStrategy instanceof DenseGlobalOrds
@@ -245,6 +241,17 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 globalOrds,
                 (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, ord), docCount)
             );
+        }
+        return false;
+    }
+
+    protected boolean tryStarTreePrecompute(LeafReaderContext ctx) throws IOException {
+        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            globalOperator = valuesSource.globalOrdinalsMapping(ctx);
+            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+            return true;
         }
         return false;
     }
@@ -512,7 +519,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     (ord, docCount) -> incrementBucketDocCount(mapping.applyAsLong(ord), docCount)
                 );
             }
-            return false;
+            return tryStarTreePrecompute(ctx);
         }
 
         @Override
