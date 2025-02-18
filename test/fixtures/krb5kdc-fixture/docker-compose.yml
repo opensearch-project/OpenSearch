@@ -1,4 +1,3 @@
-version: '3'
 services:
   peppa:
     hostname: kerberos.build.opensearch.org
