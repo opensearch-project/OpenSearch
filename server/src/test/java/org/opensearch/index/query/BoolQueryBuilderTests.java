@@ -42,6 +42,10 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.FilterCombinationMode;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -324,6 +328,48 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         String query = "{\"bool\" : {\"filter\" : null } }";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.filter().isEmpty());
+    }
+
+    /**
+     * Check if a filter can be applied to the BoolQuery
+     * @throws IOException
+     */
+    public void testFilter() throws IOException {
+        // Test for AND filter case
+        String query = "{\"bool\" : {\"filter\" : null } }";
+        QueryBuilder filter = QueryBuilders.matchAllQuery();
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertFalse(
+            builder.filter(filter,FilterCombinationMode.AND).filter().isEmpty()
+        );
+        assertEquals(
+            builder.filter(filter, FilterCombinationMode.AND).filter().get(0),
+            filter
+        );
+
+        // Test for null filterCombinationMode
+        builder = (BoolQueryBuilder) parseQuery(query);
+        assertFalse(
+            builder.filter(filter,null).filter().isEmpty()
+        );
+        assertEquals(
+            builder.filter(filter, null).filter().get(0),
+            filter
+        );
+
+        // Test for null case
+        builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(
+            builder.filter(null,FilterCombinationMode.AND).filter().isEmpty()
+        );
+
+        // Test for unsupported filterCombinationMode
+        builder = (BoolQueryBuilder) parseQuery(query);
+        assertThrows(
+            "Unsupported Filter Combination Mode",
+            UnsupportedOperationException.class,
+            () -> builder.filter(filter,FilterCombinationMode.OR)
+        );
     }
 
     /**

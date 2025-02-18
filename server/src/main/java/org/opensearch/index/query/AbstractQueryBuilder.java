@@ -86,6 +86,27 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         queryName = in.readOptionalString();
     }
 
+    /**
+     * Combine filter with current query builder based on filterCombinationMode
+     * @param filter filter to combine with current querybuilder
+     * @param filterCombinationMode filter combination mode, default is AND
+     * @return querybuilder with filter combined
+     */
+    public QueryBuilder filter(QueryBuilder filter, FilterCombinationMode filterCombinationMode) {
+        if (filterCombinationMode == null || FilterCombinationMode.AND.equals(filterCombinationMode)) {
+            if (filter != null) {
+                final BoolQueryBuilder modifiedQB = new BoolQueryBuilder();
+                modifiedQB.must(this);
+                modifiedQB.filter(filter);
+                return modifiedQB;
+            }
+            return this;
+        } else {
+            // Unexpected FilterCombinationMode
+            throw new UnsupportedOperationException("Unsupported Filter Combination Mode");
+        }
+    }
+
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(boost);
