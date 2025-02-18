@@ -10,7 +10,7 @@ package org.opensearch.plugin.wlm.rule;
 
 import org.apache.commons.collections4.trie.PatriciaTrie;
 import org.opensearch.plugin.wlm.rule.storage.AttributeValueStore;
-import org.opensearch.plugin.wlm.rule.storage.TrieBasedStore;
+import org.opensearch.plugin.wlm.rule.storage.DefaultAttributeValueStore;
 
 import java.util.List;
 import java.util.Map;
@@ -62,11 +62,11 @@ public class Rule {
         /**
          * Stub attribute
          */
-        STUB_ATTRIBUTE(new TrieBasedStore(new PatriciaTrie<>()));
+        STUB_ATTRIBUTE(new DefaultAttributeValueStore<String, String>(new PatriciaTrie<>()));
 
-        private final AttributeValueStore valueStore;
+        private final AttributeValueStore<String, String> valueStore;
 
-        Attribute(AttributeValueStore valueStore) {
+        Attribute(AttributeValueStore<String, String> valueStore) {
             this.valueStore = valueStore;
         }
 
@@ -74,7 +74,7 @@ public class Rule {
          * attribute value store getter
          * @return
          */
-        public AttributeValueStore getValueStore() {
+        public AttributeValueStore<String, String> getValueStore() {
             return valueStore;
         }
     }
