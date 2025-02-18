@@ -148,7 +148,7 @@ final class JvmOptionsParser {
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
-        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
+        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(config, Runtime.version());
         final List<String> finalJvmOptions = new ArrayList<>(
             systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size()
         );

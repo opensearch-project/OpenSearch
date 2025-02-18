@@ -29,6 +29,7 @@
  */
 
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import org.opensearch.gradle.precommit.TestingConventionsTasks
 
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
@@ -51,6 +52,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
 
   // reactor
   api "io.projectreactor:reactor-core:${versions.reactor}"
@@ -70,13 +72,14 @@ dependencies {
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 }
 
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
+}
+
 tasks.withType(CheckForbiddenApis).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
-}
-
-forbiddenPatterns {
-  exclude '**/*.der'
+  classpath += files(project(':libs:opensearch-ssl-config').jar.archiveFile)
 }
 
 tasks.named('forbiddenApisTest').configure {
@@ -138,7 +141,70 @@ thirdPartyAudit {
       'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
       'io.micrometer.core.instrument.search.Search',
       'reactor.blockhound.BlockHound$Builder',
-      'reactor.blockhound.integration.BlockHoundIntegration'
+      'reactor.blockhound.integration.BlockHoundIntegration',
+      'org.bouncycastle.asn1.ASN1Encodable',
+      'org.bouncycastle.asn1.ASN1InputStream',
+      'org.bouncycastle.asn1.ASN1Integer',
+      'org.bouncycastle.asn1.ASN1Object',
+      'org.bouncycastle.asn1.ASN1ObjectIdentifier',
+      'org.bouncycastle.asn1.ASN1OctetString',
+      'org.bouncycastle.asn1.ASN1Primitive',
+      'org.bouncycastle.asn1.ASN1Sequence',
+      'org.bouncycastle.asn1.ASN1String',
+      'org.bouncycastle.asn1.DERBitString',
+      'org.bouncycastle.asn1.DERNull',
+      'org.bouncycastle.asn1.bsi.BSIObjectIdentifiers',
+      'org.bouncycastle.asn1.cms.GCMParameters',
+      'org.bouncycastle.asn1.eac.EACObjectIdentifiers',
+      'org.bouncycastle.asn1.edec.EdECObjectIdentifiers',
+      'org.bouncycastle.asn1.nist.NISTObjectIdentifiers',
+      'org.bouncycastle.asn1.ocsp.OCSPResponse',
+      'org.bouncycastle.asn1.ocsp.ResponderID',
+      'org.bouncycastle.asn1.oiw.OIWObjectIdentifiers',
+      'org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers',
+      'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
+      'org.bouncycastle.asn1.pkcs.RSASSAPSSparams',
+      'org.bouncycastle.asn1.rosstandart.RosstandartObjectIdentifiers',
+      'org.bouncycastle.asn1.x500.AttributeTypeAndValue',
+      'org.bouncycastle.asn1.x500.RDN',
+      'org.bouncycastle.asn1.x500.X500Name',
+      'org.bouncycastle.asn1.x500.style.BCStyle',
+      'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
+      'org.bouncycastle.asn1.x509.Certificate',
+      'org.bouncycastle.asn1.x509.DigestInfo',
+      'org.bouncycastle.asn1.x509.Extensions',
+      'org.bouncycastle.asn1.x509.KeyPurposeId',
+      'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
+      'org.bouncycastle.asn1.x509.X509ObjectIdentifiers',
+      'org.bouncycastle.asn1.x9.ECNamedCurveTable',
+      'org.bouncycastle.asn1.x9.X9ObjectIdentifiers',
+      'org.bouncycastle.crypto.KDFCalculator',
+      'org.bouncycastle.crypto.fips.FipsDRBG',
+      'org.bouncycastle.crypto.fips.FipsDRBG$Base',
+      'org.bouncycastle.crypto.fips.FipsDRBG$Builder',
+      'org.bouncycastle.crypto.fips.FipsKDF',
+      'org.bouncycastle.crypto.fips.FipsKDF$TLSOperatorFactory',
+      'org.bouncycastle.crypto.fips.FipsKDF$TLSPRF',
+      'org.bouncycastle.crypto.fips.FipsKDF$TLSParametersBuilder',
+      'org.bouncycastle.crypto.fips.FipsKDF$TLSParametersWithPRFBuilder',
+      'org.bouncycastle.crypto.fips.FipsNonceGenerator',
+      'org.bouncycastle.crypto.fips.FipsSecureRandom',
+      'org.bouncycastle.jcajce.io.OutputStreamFactory',
+      'org.bouncycastle.jcajce.spec.DHDomainParameterSpec',
+      'org.bouncycastle.jcajce.util.JcaJceHelper',
+      'org.bouncycastle.math.ec.ECCurve',
+      'org.bouncycastle.math.ec.ECFieldElement',
+      'org.bouncycastle.math.ec.ECPoint',
+      'org.bouncycastle.util.Arrays',
+      'org.bouncycastle.util.BigIntegers',
+      'org.bouncycastle.util.IPAddress',
+      'org.bouncycastle.util.Integers',
+      'org.bouncycastle.util.Pack',
+      'org.bouncycastle.util.Shorts',
+      'org.bouncycastle.util.Strings',
+      'org.bouncycastle.util.Times',
+      'org.bouncycastle.util.encoders.Hex',
+      'org.bouncycastle.util.io.Streams'
    )
    ignoreViolations(
       'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
@@ -146,8 +212,18 @@ thirdPartyAudit {
 }
 
 tasks.withType(JavaCompile) {
+  classpath += files(project(':libs:opensearch-ssl-config').jar.archiveFile)
   // Suppressing '[options] target value 8 is obsolete and will be removed in a future release'
   configure(options) {
     options.compilerArgs << '-Xlint:-options'
+    options.compilerArgs -= '-Werror' // use of incubator modules is reported as a warning
   }
+}
+
+tasks.withType(Test).configureEach {
+  classpath += files(project(':libs:opensearch-ssl-config').jar.archiveFile)
+}
+
+tasks.named("testingConventions", TestingConventionsTasks).configure {
+  addExtraClassPath(project(":libs:opensearch-ssl-config").jar.archiveFile)
 }
