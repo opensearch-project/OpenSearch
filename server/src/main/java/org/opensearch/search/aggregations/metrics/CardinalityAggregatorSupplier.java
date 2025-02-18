@@ -49,6 +49,7 @@ public interface CardinalityAggregatorSupplier {
         String name,
         ValuesSourceConfig valuesSourceConfig,
         int precision,
+        CardinalityAggregatorFactory.ExecutionMode executionMode,
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata
