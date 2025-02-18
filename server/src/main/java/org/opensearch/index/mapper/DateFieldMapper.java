@@ -32,8 +32,15 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.document.*;
-import org.apache.lucene.index.*;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
