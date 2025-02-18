@@ -49,19 +49,6 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             .build();
     }
 
-    private int getSegmentCount(String indexName) {
-        return client().admin()
-            .indices()
-            .segments(new IndicesSegmentsRequest(indexName))
-            .actionGet()
-            .getIndices()
-            .get(indexName)
-            .getShards()
-            .get(0)
-            .getShards()[0].getSegments()
-            .size();
-    }
-
     @Override
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
@@ -82,6 +69,8 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
         final String INDEX_NAME = "test";
         final int NUM_SHARDS = 1;
         final int NUM_DOCS = 7;
+        int maxSliceCount = randomIntBetween(1, NUM_DOCS);
+
 
         registerTaskManagerListeners(SearchAction.NAME);  // coordinator task
         registerTaskManagerListeners(SearchAction.NAME + "[*]");  // shard task
@@ -90,7 +79,7 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, NUM_SHARDS)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.MAX_SLICE_COUNT, 5)
+                .put(IndexMetadata.MAX_SLICE_COUNT, maxSliceCount)
                 .build()
         );
         ensureGreen(INDEX_NAME); // Make sure all shards are allocated to catch replication tasks
@@ -114,7 +103,7 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             // https://github.com/apache/lucene/issues/12498)
             Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
             assertEquals(
-                Integer.parseInt(metadata.index(INDEX_NAME).getSettings().get(IndexMetadata.MAX_SLICE_COUNT)) + 1,
+                Integer.parseInt(metadata.index(INDEX_NAME).getSettings().get(IndexMetadata.MAX_SLICE_COUNT)),
                 threadStats.size()
             );
             // assert that all task descriptions have non-zero length
