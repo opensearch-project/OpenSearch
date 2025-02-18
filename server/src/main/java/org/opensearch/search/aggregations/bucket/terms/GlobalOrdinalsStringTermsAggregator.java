@@ -852,32 +852,68 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 } else {
                     size = (int) Math.min(maxBucketOrd(), localBucketCountThresholds.getRequiredSize());
                 }
-                PriorityQueue<TB> ordered = buildPriorityQueue(size);
-                final int finalOrdIdx = ordIdx;
-                BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
-                // for each provides the bucket ord and key value for the owning bucket
-                collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
-                    TB spare = null;
+                if ((valueCount > (size * 3L)) || isKeyOrder(order)) {
+                    PriorityQueue<TB> ordered = buildPriorityQueue(size);
+                    final int finalOrdIdx = ordIdx;
+                    BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
+                    // for each provides the bucket ord and key value for the owning bucket
+                    collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
+                        TB spare = null;
 
-                    @Override
-                    public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
-                        otherDocCount[finalOrdIdx] += docCount;
-                        if (docCount >= localBucketCountThresholds.getMinDocCount()) {
-                            if (spare == null) {
-                                spare = buildEmptyTemporaryBucket();
+                        @Override
+                        public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
+                            otherDocCount[finalOrdIdx] += docCount;
+                            if (docCount >= localBucketCountThresholds.getMinDocCount()) {
+                                if (spare == null) {
+                                    spare = buildEmptyTemporaryBucket();
+                                }
+                                updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
+                                spare = ordered.insertWithOverflow(spare);
                             }
-                            updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
-                            spare = ordered.insertWithOverflow(spare);
                         }
-                    }
-                });
+                    });
 
-                // Get the top buckets
-                // ordered contains the top buckets for the owning bucket
-                topBucketsPerOwningOrd[ordIdx] = buildBuckets(ordered.size());
-                for (int i = ordered.size() - 1; i >= 0; --i) {
-                    topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop());
-                    otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
+                    // Get the top buckets
+                    topBucketsPerOwningOrd[ordIdx] = buildBuckets(ordered.size());
+                    for (int i = ordered.size() - 1; i >= 0; --i) {
+                        topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop());
+                        otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
+                    }
+                } else {
+                    final int finalOrdIdx = ordIdx;
+                    Object[] bucketsForOrdArr = new Object[(int) valueCount];
+                    int[] tot = { 0 };
+                    BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
+                    collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
+                        TB spare = null;
+
+                        @Override
+                        public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
+                            otherDocCount[finalOrdIdx] += docCount;
+                            if (docCount >= localBucketCountThresholds.getMinDocCount()) {
+                                spare = buildEmptyTemporaryBucket();
+                                updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
+                                bucketsForOrdArr[tot[0]++] = spare;
+                            }
+                        }
+                    });
+                    if (tot[0] > size & partiallyBuiltBucketComparator != null) {
+                        // quick select topN
+                        // TODO do we need to handle case for SignificantTerm Agg separately
+                        ArrayUtil.select(
+                            bucketsForOrdArr,
+                            0,
+                            tot[0],
+                            size,
+                            ((b1, b2) -> partiallyBuiltBucketComparator.compare((InternalTerms.Bucket<?>) b1, (InternalTerms.Bucket<?>) b2))
+                        );
+                    }
+                    // Get the top buckets
+                    topBucketsPerOwningOrd[ordIdx] = buildBuckets(tot[0]);
+                    for (int i = tot[0] - 1; i >= 0; --i) {
+                        topBucketsPerOwningOrd[ordIdx][i] = convertTempBucketToRealBucket((TB) bucketsForOrdArr[i]);
+                        otherDocCount[ordIdx] -= topBucketsPerOwningOrd[ordIdx][i].getDocCount();
+                    }
                 }
             }
 
