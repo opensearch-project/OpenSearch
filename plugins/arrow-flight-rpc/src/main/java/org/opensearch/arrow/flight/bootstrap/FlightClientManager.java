@@ -53,7 +53,7 @@ import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS_SETTING;
  * client connections when nodes join or leave the cluster. </p>
  */
 public class FlightClientManager implements ClusterStateListener, AutoCloseable {
-    private static final Version MIN_SUPPORTED_VERSION = Version.fromString("2.19.0");
+    private static final Version MIN_SUPPORTED_VERSION = Version.V_3_0_0;
     private static final Logger logger = LogManager.getLogger(FlightClientManager.class);
     static final int LOCATION_TIMEOUT_MS = 1000;
     private final ExecutorService grpcExecutor;
