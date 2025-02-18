@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -570,6 +571,38 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected abstract String contentType();
+
+    /**
+     * Method used for deriving source and building it to XContentBuilder object
+     * @param builder - builder to store the derived source filed
+     * @param leafReader - leafReader to read data from
+     * @param docId - docId for which we want to derive the source
+     * @throws IOException
+     */
+    public void buildDerivedSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        if (mappedFieldType.isDerivedSourceSupported() == false) throw new UnsupportedOperationException(
+            "Derived source field is not supported for [" + name() + "] field"
+        );
+        deriveSource(builder, leafReader, docId);
+    }
+
+    /**
+     * Method to determine, if it is possible to derive source for this field using field mapping parameters
+     */
+    protected void possibleToDeriveSource() {
+        throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
+    }
+
+    /**
+     * Method used for deriving source and building it to XContentBuilder object
+     * @param builder - builder to store the derived source filed
+     * @param leafReader - leafReader to read data from
+     * @param docId - docId for which we want to derive the source
+     * @throws IOException
+     */
+    protected void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
+    }
 
     /**
      * Multi field implementation used across field mappers

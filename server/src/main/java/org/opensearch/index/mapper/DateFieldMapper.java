@@ -32,12 +32,8 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.document.LongField;
-import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PointValues;
+import org.apache.lucene.document.*;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -55,10 +51,12 @@ import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.opensearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -74,6 +72,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -226,6 +225,58 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return (DateFieldMapper) in;
     }
 
+    @Override
+    protected void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        possibleToDeriveSource();
+        boolean isStoredFieldPresent = false;
+        // 1. Lookup stored field, which will help in preserving order of values in case of multi value field
+        // 2. If field value is not found using stored field, lookup doc values
+        if (mappedFieldType.isStored()) {
+            List<Object> values = new ArrayList<>();
+            SingleFieldsVisitor singleFieldsVisitor = new SingleFieldsVisitor(mappedFieldType, values);
+            StoredFields storedFields = leafReader.storedFields();
+            storedFields.document(docId, singleFieldsVisitor);
+            if (!values.isEmpty()) {
+                if (values.size() > 1) {
+                    builder.array(name(), values.toArray());
+                } else {
+                    builder.field(name(), values.getFirst());
+                }
+                isStoredFieldPresent = true;
+            }
+        }
+        if (isStoredFieldPresent) {
+            return;
+        }
+        SortedNumericDocValues sortedNumericDocValues = leafReader.getSortedNumericDocValues(name());
+        if (sortedNumericDocValues != null && sortedNumericDocValues.advanceExact(docId)) {
+            int valueCount = sortedNumericDocValues.docValueCount();
+            if (valueCount > 0) {
+                String[] values = new String[valueCount];
+                DateFormatter dateFormatter = fieldType().dateTimeFormatter;
+                for (int i = 0; i < valueCount; i++) {
+                    values[i] = dateFormatter.formatMillis(sortedNumericDocValues.nextValue());
+                }
+                if (valueCount > 1) {
+                    builder.array(name(), values);
+                } else {
+                    builder.field(name(), values[0]);
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void possibleToDeriveSource() {
+        //
+        if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with copyTo parameter set");
+        }
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with stored and docValues disabled");
+        }
+    }
+
     /**
      * Builder for the date field mapper
      *
@@ -373,14 +424,29 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateFormatter dateTimeFormatter,
             Resolution resolution,
             String nullValue,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean derivedSourceSupported
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta, derivedSourceSupported);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
             this.nullValue = nullValue;
         }
+
+        public DateFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            Map<String, String> meta
+        ) {
+            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, false);
+        }
+
 
         public DateFieldType(String name) {
             this(name, true, false, true, getDefaultDateTimeFormatter(), Resolution.MILLISECONDS, null, Collections.emptyMap());
