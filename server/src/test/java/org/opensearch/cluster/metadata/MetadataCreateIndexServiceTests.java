@@ -2419,10 +2419,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             )
         ) {
             componentTemplate.set(ComponentTemplate.parse(contentParser));
-        }
-
-        String contextName = randomAlphaOfLength(5);
-        try {
+            String contextName = randomAlphaOfLength(5);
             request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(contextName));
             withTemporaryClusterService((clusterService, threadPool) -> {
                 MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
