@@ -51,7 +51,7 @@ public class InMemoryRuleProcessingService {
     public Optional<String> evaluateLabel(List<AttributeExtractor<String>> attributeExtractors) {
         Optional<String> result = Optional.empty();
         for (AttributeExtractor<String> attributeExtractor : attributeExtractors) {
-            AttributeValueStore valueStore = attributeExtractor.getAttribute().getValueStore();
+            AttributeValueStore<String, String> valueStore = attributeExtractor.getAttribute().getValueStore();
             for (String value : attributeExtractor.extract()) {
                 Optional<String> possibleMatch = valueStore.get(value);
 
@@ -118,7 +118,7 @@ public class InMemoryRuleProcessingService {
             assert attribute.getValueStore() != null;
 
             for (String value : attributeEntry.getValue()) {
-                attribute.getValueStore().add(value, this.rule.getLabel());
+                attribute.getValueStore().put(value, this.rule.getLabel());
             }
         }
     }
