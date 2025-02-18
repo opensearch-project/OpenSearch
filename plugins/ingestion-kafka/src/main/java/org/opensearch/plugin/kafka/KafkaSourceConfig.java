@@ -18,9 +18,11 @@ import java.util.Map;
 public class KafkaSourceConfig {
     private final String PROP_TOPIC = "topic";
     private final String PROP_BOOTSTRAP_SERVERS = "bootstrap_servers";
+    private final String PROP_AUTO_OFFSET_RESET = "auto.offset.reset";
 
     private final String topic;
     private final String bootstrapServers;
+    private final String autoOffsetResetConfig;
 
     /**
      * Constructor
@@ -29,6 +31,7 @@ public class KafkaSourceConfig {
     public KafkaSourceConfig(Map<String, Object> params) {
         this.topic = ConfigurationUtils.readStringProperty(params, PROP_TOPIC);
         this.bootstrapServers = ConfigurationUtils.readStringProperty(params, PROP_BOOTSTRAP_SERVERS);
+        this.autoOffsetResetConfig = ConfigurationUtils.readOptionalStringProperty(params, PROP_AUTO_OFFSET_RESET);
     }
 
     /**
@@ -46,5 +49,14 @@ public class KafkaSourceConfig {
      */
     public String getBootstrapServers() {
         return bootstrapServers;
+    }
+
+    /**
+     * Get the auto offset reset configuration
+     *
+     * @return the auto offset reset configuration
+     */
+    public String getAutoOffsetResetConfig() {
+        return autoOffsetResetConfig;
     }
 }

@@ -119,6 +119,7 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
                     .put("ingestion_source.pointer.init.reset.value", "1739459600000")
                     .put("ingestion_source.param.topic", "test")
                     .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                    .put("ingestion_source.param.auto.offset.reset", "latest")
                     .build(),
                 "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
             );
@@ -148,6 +149,7 @@ public class IngestFromKafkaIT extends OpenSearchIntegTestCase {
                     .put("ingestion_source.pointer.init.reset.value", "1")
                     .put("ingestion_source.param.topic", "test")
                     .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                    .put("ingestion_source.param.auto.offset.reset", "latest")
                     .build(),
                 "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
             );

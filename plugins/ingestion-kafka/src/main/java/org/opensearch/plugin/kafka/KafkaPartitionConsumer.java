@@ -9,10 +9,12 @@
 package org.opensearch.plugin.kafka;
 
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
+import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -49,6 +51,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     private long lastFetchedOffset = -1;
     final String clientId;
     final TopicPartition topicPartition;
+    final KafkaSourceConfig config;
 
     /**
      * Constructor
@@ -70,6 +73,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     protected KafkaPartitionConsumer(String clientId, KafkaSourceConfig config, int partitionId, Consumer<byte[], byte[]> consumer) {
         this.clientId = clientId;
         this.consumer = consumer;
+        this.config = config;
         String topic = config.getTopic();
         List<PartitionInfo> partitionInfos = AccessController.doPrivileged(
             (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(topic, Duration.ofMillis(timeoutMillis))
@@ -95,6 +99,9 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         Properties consumerProp = new Properties();
         consumerProp.put("bootstrap.servers", config.getBootstrapServers());
         consumerProp.put("client.id", clientId);
+        if (config.getAutoOffsetResetConfig() != null && !config.getAutoOffsetResetConfig().isEmpty()) {
+            consumerProp.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, config.getAutoOffsetResetConfig());
+        }
         // TODO: why Class org.apache.kafka.common.serialization.StringDeserializer could not be found if set the deserializer as prop?
         // consumerProp.put("key.deserializer",
         // "org.apache.kafka.common.serialization.StringDeserializer");
@@ -159,9 +166,17 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             return offsetAndTimestamp.offset();
         });
         if (offset < 0) {
-            // no message found for the timestamp, return the latest offset
-            logger.warn("No message found for timestamp {}, seeking to the latest", timestampMillisStr);
-            return latestPointer();
+            logger.warn("No message found for timestamp {}, fall back to auto.offset.reset policy", timestampMillisStr);
+            String autoOffsetResetConfig = config.getAutoOffsetResetConfig();
+            if (OffsetResetStrategy.EARLIEST.toString().equals(autoOffsetResetConfig)) {
+                logger.warn("The auto.offset.reset is set to earliest, seek to earliest pointer");
+                return earliestPointer();
+            } else if (OffsetResetStrategy.LATEST.toString().equals(autoOffsetResetConfig)) {
+                logger.warn("The auto.offset.reset is set to latest, seek to latest pointer");
+                return latestPointer();
+            } else {
+                throw new IllegalArgumentException("No message found for timestamp " + timestampMillisStr);
+            }
         }
         return new KafkaOffset(offset);
     }
