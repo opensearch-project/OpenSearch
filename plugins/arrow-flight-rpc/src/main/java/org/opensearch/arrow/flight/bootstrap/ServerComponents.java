@@ -9,9 +9,9 @@
 package org.opensearch.arrow.flight.bootstrap;
 
 import org.apache.arrow.flight.FlightProducer;
+import org.apache.arrow.flight.FlightServer;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.OSFlightServer;
-import org.apache.arrow.flight.OSFlightServerBuilder;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.AutoCloseables;
 import org.apache.logging.log4j.LogManager;
@@ -100,7 +100,7 @@ final class ServerComponents implements AutoCloseable {
     private final String[] publishHosts;
     private volatile BoundTransportAddress boundAddress;
 
-    private OSFlightServer server;
+    private FlightServer server;
     private BufferAllocator allocator;
     ClusterService clusterService;
     private NetworkService networkService;
@@ -147,17 +147,17 @@ final class ServerComponents implements AutoCloseable {
         this.flightProducer = Objects.requireNonNull(flightProducer);
     }
 
-    private OSFlightServer buildAndStartServer(Location location, FlightProducer producer) throws IOException {
-        OSFlightServer server = OSFlightServerBuilder.builder(
-            allocator,
-            location,
-            producer,
-            sslContextProvider != null ? sslContextProvider.getServerSslContext() : null,
-            ServerConfig.serverChannelType(),
-            bossEventLoopGroup,
-            workerEventLoopGroup,
-            serverExecutor
-        ).build();
+    private FlightServer buildAndStartServer(Location location, FlightProducer producer) throws IOException {
+        FlightServer server = OSFlightServer.builder()
+            .allocator(allocator)
+            .location(location)
+            .producer(producer)
+            .sslContext(sslContextProvider != null ? sslContextProvider.getServerSslContext() : null)
+            .channelType(ServerConfig.serverChannelType())
+            .bossEventLoopGroup(bossEventLoopGroup)
+            .workerEventLoopGroup(workerEventLoopGroup)
+            .executor(serverExecutor)
+            .build();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
                 server.start();

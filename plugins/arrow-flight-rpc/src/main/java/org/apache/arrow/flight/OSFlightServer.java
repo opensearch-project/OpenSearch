@@ -21,9 +21,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,9 +32,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import javax.net.ssl.SSLException;
+
 import org.apache.arrow.flight.auth.ServerAuthHandler;
 import org.apache.arrow.flight.auth.ServerAuthInterceptor;
 import org.apache.arrow.flight.auth2.Auth2Constants;
@@ -44,136 +45,32 @@ import org.apache.arrow.flight.grpc.ServerInterceptorAdapter;
 import org.apache.arrow.flight.grpc.ServerInterceptorAdapter.KeyFactory;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.Preconditions;
-import org.apache.arrow.util.VisibleForTesting;
 
 /**
  * Clone of {@link org.apache.arrow.flight.FlightServer} to support setting SslContext. It can be discarded once FlightServer.Builder supports setting SslContext directly.
  * <p>
- * It changes {@link org.apache.arrow.flight.FlightServer.Builder} to non-final for overriding purposes and adds an overridable method {@link OSFlightServer.Builder#configureBuilder(NettyServerBuilder)}
- * to allow hook to configure the NettyServerBuilder.
- * <p>
- * Note: This file needs to be cloned with version upgrade of arrow flight-core with above changes.
+ * It changes {@link org.apache.arrow.flight.FlightServer.Builder} to allow hook to configure the NettyServerBuilder.
  */
-public class OSFlightServer implements AutoCloseable {
-
-    private static final org.slf4j.Logger logger =
-        org.slf4j.LoggerFactory.getLogger(OSFlightServer.class);
-
-    private final Location location;
-    private final Server server;
-    // The executor used by the gRPC server. We don't use it here, but we do need to clean it up with
-    // the server.
-    // May be null, if a user-supplied executor was provided (as we do not want to clean that up)
-    @VisibleForTesting final ExecutorService grpcExecutor;
-
+public class OSFlightServer {
     /** The maximum size of an individual gRPC message. This effectively disables the limit. */
     static final int MAX_GRPC_MESSAGE_SIZE = Integer.MAX_VALUE;
-
     /** The default number of bytes that can be queued on an output stream before blocking. */
-    public static final int DEFAULT_BACKPRESSURE_THRESHOLD = 10 * 1024 * 1024; // 10MB
+    static final int DEFAULT_BACKPRESSURE_THRESHOLD = 10 * 1024 * 1024; // 10MB
 
-    /** Create a new instance from a gRPC server. For internal use only. */
-    private OSFlightServer(Location location, Server server, ExecutorService grpcExecutor) {
-        this.location = location;
-        this.server = server;
-        this.grpcExecutor = grpcExecutor;
-    }
+    private static final MethodHandle FLIGHT_SERVER_CTOR_MH;
 
-    /** Start the server. */
-    public OSFlightServer start() throws IOException {
-        server.start();
-        return this;
-    }
-
-    /** Get the port the server is running on (if applicable). */
-    public int getPort() {
-        return server.getPort();
-    }
-
-    /** Get the location for this server. */
-    public Location getLocation() {
-        if (location.getUri().getPort() == 0) {
-            // If the server was bound to port 0, replace the port in the location with the real port.
-            final URI uri = location.getUri();
-            try {
-                return new Location(
-                    new URI(
-                        uri.getScheme(),
-                        uri.getUserInfo(),
-                        uri.getHost(),
-                        getPort(),
-                        uri.getPath(),
-                        uri.getQuery(),
-                        uri.getFragment()));
-            } catch (URISyntaxException e) {
-                // We don't expect this to happen
-                throw new RuntimeException(e);
-            }
+    static {
+        try {
+            FLIGHT_SERVER_CTOR_MH = MethodHandles
+                .privateLookupIn(FlightServer.class, MethodHandles.lookup())
+                .findConstructor(FlightServer.class, MethodType.methodType(void.class, Location.class, Server.class, ExecutorService.class));
+        } catch (final NoSuchMethodException | IllegalAccessException ex) {
+            throw new IllegalStateException("Unable to find the FlightServer constructor to invoke", ex);
         }
-        return location;
-    }
-
-    /** Block until the server shuts down. */
-    public void awaitTermination() throws InterruptedException {
-        server.awaitTermination();
-    }
-
-    /** Request that the server shut down. */
-    public void shutdown() {
-        server.shutdown();
-        if (grpcExecutor != null) {
-            grpcExecutor.shutdown();
-        }
-    }
-
-    /**
-     * Wait for the server to shut down with a timeout.
-     *
-     * @return true if the server shut down successfully.
-     */
-    public boolean awaitTermination(final long timeout, final TimeUnit unit)
-        throws InterruptedException {
-        return server.awaitTermination(timeout, unit);
-    }
-
-    /** Shutdown the server, waits for up to 6 seconds for successful shutdown before returning. */
-    @Override
-    public void close() throws InterruptedException {
-        shutdown();
-        final boolean terminated = awaitTermination(3000, TimeUnit.MILLISECONDS);
-        if (terminated) {
-            logger.debug("Server was terminated within 3s");
-            return;
-        }
-
-        // get more aggressive in termination.
-        server.shutdownNow();
-
-        int count = 0;
-        while (!server.isTerminated() && count < 30) {
-            count++;
-            logger.debug("Waiting for termination");
-            Thread.sleep(100);
-        }
-
-        if (!server.isTerminated()) {
-            logger.warn("Couldn't shutdown server, resources likely will be leaked.");
-        }
-    }
-
-    /** Create a builder for a Flight server. */
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    /** Create a builder for a Flight server. */
-    public static Builder builder(
-        BufferAllocator allocator, Location location, FlightProducer producer) {
-        return new Builder(allocator, location, producer);
     }
 
     /** A builder for Flight servers. */
-    public static class Builder {
+    public final static class Builder {
         private BufferAllocator allocator;
         private Location location;
         private FlightProducer producer;
@@ -191,7 +88,7 @@ public class OSFlightServer implements AutoCloseable {
         private final List<KeyFactory<?>> interceptors;
         // Keep track of inserted interceptors
         private final Set<String> interceptorKeys;
-
+        
         Builder() {
             builderOptions = new HashMap<>();
             interceptors = new ArrayList<>();
@@ -207,7 +104,7 @@ public class OSFlightServer implements AutoCloseable {
 
         /** Create the server for this builder. */
         @SuppressWarnings("unchecked")
-        public OSFlightServer build() {
+        public FlightServer build() {
             // Add the auth middleware if applicable.
             if (headerAuthenticator != CallHeaderAuthenticator.NO_OP) {
                 this.middleware(
@@ -277,7 +174,7 @@ public class OSFlightServer implements AutoCloseable {
                         "Scheme is not supported: " + location.getUri().getScheme());
             }
 
-            if (certChain != null) {
+            if (certChain != null && sslContext == null) {
                 SslContextBuilder sslContextBuilder = GrpcSslContexts.forServer(certChain, key);
 
                 if (mTlsCACert != null) {
@@ -293,6 +190,8 @@ public class OSFlightServer implements AutoCloseable {
                     closeKey();
                 }
 
+                builder.sslContext(sslContext);
+            } else if (sslContext != null) {
                 builder.sslContext(sslContext);
             }
 
@@ -354,10 +253,29 @@ public class OSFlightServer implements AutoCloseable {
                 });
 
             builder.intercept(new ServerInterceptorAdapter(interceptors));
-            configureBuilder(builder);
-            return new OSFlightServer(location, builder.build(), grpcExecutor);
+
+            try {
+                return (FlightServer)FLIGHT_SERVER_CTOR_MH.invoke(location, builder.build(), grpcExecutor);
+            } catch (final Throwable ex) {
+                throw new IllegalStateException("Unable to instantiate FlightServer", ex);
+            }
         }
 
+        public Builder channelType(Class<? extends io.netty.channel.Channel> channelType) {
+            builderOptions.put("netty.channelType", channelType);
+            return this;
+        }
+        
+        public Builder workerEventLoopGroup(EventLoopGroup workerELG) {
+            builderOptions.put("netty.workerEventLoopGroup", workerELG);
+            return this;
+        }
+
+        public Builder bossEventLoopGroup(EventLoopGroup bossELG) {
+            builderOptions.put("netty.bossEventLoopGroup", bossELG);
+            return this;
+        }
+        
         public Builder setMaxHeaderListSize(int maxHeaderListSize) {
             this.maxHeaderListSize = maxHeaderListSize;
             return this;
@@ -543,10 +461,13 @@ public class OSFlightServer implements AutoCloseable {
             return this;
         }
 
-        /**
-         * Hook to allow custom configuration of the NettyServerBuilder.
-         */
-        public void configureBuilder(NettyServerBuilder builder) {
+        public Builder sslContext(SslContext sslContext) {
+            this.sslContext = sslContext;
+            return this;
         }
+    }
+    
+    public static Builder builder() {
+        return new Builder();
     }
 }
