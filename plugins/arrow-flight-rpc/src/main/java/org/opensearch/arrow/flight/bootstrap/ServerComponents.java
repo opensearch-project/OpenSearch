@@ -56,28 +56,28 @@ import static org.opensearch.transport.Transport.resolveTransportPublishPort;
 final class ServerComponents implements AutoCloseable {
 
     public static final Setting<List<String>> SETTING_FLIGHT_HOST = listSetting(
-        "flight.host",
+        "arrow.flight.host",
         emptyList(),
         Function.identity(),
         Setting.Property.NodeScope
     );
 
     public static final Setting<List<String>> SETTING_FLIGHT_BIND_HOST = listSetting(
-        "flight.bind_host",
+        "arrow.flight.bind_host",
         SETTING_FLIGHT_HOST,
         Function.identity(),
         Setting.Property.NodeScope
     );
 
     public static final Setting<List<String>> SETTING_FLIGHT_PUBLISH_HOST = listSetting(
-        "flight.publish_host",
+        "arrow.flight.publish_host",
         SETTING_FLIGHT_HOST,
         Function.identity(),
         Setting.Property.NodeScope
     );
 
     public static final Setting<Integer> SETTING_FLIGHT_PUBLISH_PORT = intSetting(
-        "flight.publish_port",
+        "arrow.flight.publish_port",
         -1,
         -1,
         Setting.Property.NodeScope

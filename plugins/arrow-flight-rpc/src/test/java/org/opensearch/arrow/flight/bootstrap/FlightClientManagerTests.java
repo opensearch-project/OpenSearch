@@ -8,7 +8,6 @@
 package org.opensearch.arrow.flight.bootstrap;
 
 import org.apache.arrow.flight.FlightClient;
-import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.Version;
@@ -106,9 +105,9 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
         assertBusy(() -> {
-            assertEquals("Flight client isn't built in time limit", 2, clientManager.getClients().size());
-            assertNotNull("local_node should exist", clientManager.getFlightClient("local_node"));
-            assertNotNull("remote_node should exist", clientManager.getFlightClient("remote_node"));
+            assertEquals("Flight client isn't built in time limit", 2, clientManager.getFlightClients().size());
+            assertNotNull("local_node should exist", clientManager.getFlightClient("local_node").get());
+            assertNotNull("remote_node should exist", clientManager.getFlightClient("remote_node").get());
         }, 2, TimeUnit.SECONDS);
     }
 
@@ -183,16 +182,8 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         validateNodes();
     }
 
-    public void testGetFlightClientLocation() {
-        for (DiscoveryNode node : state.nodes()) {
-            Location location = clientManager.getFlightClientLocation(node.getId());
-            assertNotNull("Flight client location should be returned", location);
-            assertEquals("Location host should match", node.getHostAddress(), location.getUri().getHost());
-        }
-    }
-
     public void testGetFlightClientForNonExistentNode() throws Exception {
-        assertNull(clientManager.getFlightClient("non_existent_node"));
+        assertFalse(clientManager.getFlightClient("non_existent_node").isPresent());
     }
 
     public void testClusterChangedWithNodesChanged() throws Exception {
@@ -214,7 +205,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
         for (DiscoveryNode node : newState.nodes()) {
             assertBusy(
-                () -> { assertNotNull("Flight client isn't built in time limit", clientManager.getFlightClient(node.getId())); },
+                () -> { assertTrue("Flight client isn't built in time limit", clientManager.getFlightClient(node.getId()).isPresent()); },
                 2,
                 TimeUnit.SECONDS
             );
@@ -227,7 +218,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
         // Verify original client still exists
         for (DiscoveryNode node : state.nodes()) {
-            assertNotNull(clientManager.getFlightClient(node.getId()));
+            assertNotNull(clientManager.getFlightClient(node.getId()).get());
         }
     }
 
@@ -237,7 +228,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
     public void testCloseWithActiveClients() throws Exception {
         for (DiscoveryNode node : state.nodes()) {
-            FlightClient client = clientManager.getFlightClient(node.getId());
+            FlightClient client = clientManager.getFlightClient(node.getId()).get();
             assertNotNull(client);
         }
 
@@ -266,7 +257,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(oldVersionState);
         mockFlightInfoResponse(nodes, 0);
 
-        assertNull(clientManager.getFlightClient(oldVersionNode.getId()));
+        assertFalse(clientManager.getFlightClient(oldVersionNode.getId()).isPresent());
     }
 
     public void testGetFlightClientLocationTimeout() throws Exception {
@@ -286,7 +277,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
-        assertNull(clientManager.getFlightClient(nodeId));
+        assertFalse(clientManager.getFlightClient(nodeId).isPresent());
     }
 
     public void testGetFlightClientLocationExecutionError() throws Exception {
@@ -313,7 +304,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
 
-        assertNull(clientManager.getFlightClient(nodeId));
+        assertFalse(clientManager.getFlightClient(nodeId).isPresent());
     }
 
     public void testFailedClusterUpdateButSuccessfulDirectRequest() throws Exception {
@@ -374,19 +365,15 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
         // Verify that the client can still be created successfully on direct request
         clientManager.buildClientAsync(nodeId);
-        assertBusy(
-            () -> {
-                assertNotNull("Flight client should be created successfully on direct request", clientManager.getFlightClient(nodeId));
-            },
-            2,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            assertTrue("Flight client should be created successfully on direct request", clientManager.getFlightClient(nodeId).isPresent());
+        }, 2, TimeUnit.SECONDS);
         assertFalse("first call should be invoked", firstCall.get());
     }
 
     private void validateNodes() {
         for (DiscoveryNode node : state.nodes()) {
-            FlightClient client = clientManager.getFlightClient(node.getId());
+            FlightClient client = clientManager.getFlightClient(node.getId()).get();
             assertNotNull("Flight client should be created for existing node", client);
         }
     }

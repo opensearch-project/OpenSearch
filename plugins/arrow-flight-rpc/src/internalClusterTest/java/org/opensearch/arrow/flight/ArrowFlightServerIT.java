@@ -50,7 +50,7 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
 
     public void testArrowFlightEndpoint() throws Exception {
         for (DiscoveryNode node : getClusterState().nodes()) {
-            try (FlightClient flightClient = flightClientManager.getFlightClient(node.getId())) {
+            try (FlightClient flightClient = flightClientManager.getFlightClient(node.getId()).get()) {
                 assertNotNull(flightClient);
                 flightClient.handshake(CallOptions.timeout(5000L, TimeUnit.MILLISECONDS));
             }
