@@ -294,7 +294,7 @@ public class MetadataIndexStateService {
 
                 @Override
                 public TimeValue timeout() {
-                    return request.masterNodeTimeout();
+                    return request.clusterManagerNodeTimeout();
                 }
             }
         );
@@ -568,7 +568,7 @@ public class MetadataIndexStateService {
 
                 @Override
                 public TimeValue timeout() {
-                    return request.masterNodeTimeout();
+                    return request.clusterManagerNodeTimeout();
                 }
             }
         );

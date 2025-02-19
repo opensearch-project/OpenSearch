@@ -47,7 +47,6 @@ import org.opensearch.action.pagination.IndexPaginationStrategy;
 import org.opensearch.action.pagination.PageToken;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -67,6 +66,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rest.action.list.AbstractListAction;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.time.Instant;
 import java.time.ZoneOffset;

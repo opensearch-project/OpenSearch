@@ -51,6 +51,8 @@ import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,14 +64,14 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
- * {@link org.opensearch.client.Requests#searchRequest(String...)}.
+ * {@link Requests#searchRequest(String...)}.
  * <p>
  * Note, the search {@link #source(org.opensearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
  * </p>
  *
- * @see org.opensearch.client.Requests#searchRequest(String...)
- * @see org.opensearch.client.Client#search(SearchRequest)
+ * @see Requests#searchRequest(String...)
+ * @see Client#search(SearchRequest)
  * @see SearchResponse
  *
  * @opensearch.api

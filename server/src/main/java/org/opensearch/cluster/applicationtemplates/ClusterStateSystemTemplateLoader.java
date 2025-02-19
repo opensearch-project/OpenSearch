@@ -12,8 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.opensearch.client.Client;
-import org.opensearch.client.OriginSettingClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -22,6 +20,8 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.OriginSettingClient;
 
 import java.io.IOException;
 import java.util.Objects;

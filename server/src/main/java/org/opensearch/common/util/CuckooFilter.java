@@ -31,10 +31,8 @@
 
 package org.opensearch.common.util;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
-import org.apache.lucene.util.packed.XPackedInts;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -83,7 +81,7 @@ public class CuckooFilter implements Writeable {
     private static final int MAX_EVICTIONS = 500;
     static final int EMPTY = 0;
 
-    private final XPackedInts.Mutable data;
+    private final Packed64 data;
     private final int numBuckets;
     private final int bitsPerEntry;
     private final int fingerprintMask;
@@ -110,7 +108,7 @@ public class CuckooFilter implements Writeable {
                 "Attempted to create [" + numBuckets * entriesPerBucket + "] entries which is > Integer.MAX_VALUE"
             );
         }
-        this.data = XPackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
+        this.data = new Packed64(numBuckets * entriesPerBucket, bitsPerEntry);
 
         // puts the bits at the right side of the mask, e.g. `0000000000001111` for bitsPerEntry = 4
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
@@ -135,7 +133,7 @@ public class CuckooFilter implements Writeable {
             );
         }
         // TODO this is probably super slow, but just used for testing atm
-        this.data = XPackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
+        this.data = new Packed64(numBuckets * entriesPerBucket, bitsPerEntry);
         for (int i = 0; i < other.data.size(); i++) {
             data.set(i, other.data.get(i));
         }
@@ -151,22 +149,7 @@ public class CuckooFilter implements Writeable {
 
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
 
-        data = (XPackedInts.Mutable) XPackedInts.getReader(new DataInput() {
-            @Override
-            public byte readByte() throws IOException {
-                return in.readByte();
-            }
-
-            @Override
-            public void readBytes(byte[] b, int offset, int len) throws IOException {
-                in.readBytes(b, offset, len);
-            }
-
-            @Override
-            public void skipBytes(long numBytes) throws IOException {
-                in.skip(numBytes);
-            }
-        });
+        this.data = new Packed64(in);
     }
 
     @Override
@@ -176,18 +159,7 @@ public class CuckooFilter implements Writeable {
         out.writeVInt(entriesPerBucket);
         out.writeVInt(count);
         out.writeVInt(evictedFingerprint);
-
-        data.save(new DataOutput() {
-            @Override
-            public void writeByte(byte b) throws IOException {
-                out.writeByte(b);
-            }
-
-            @Override
-            public void writeBytes(byte[] b, int offset, int length) throws IOException {
-                out.writeBytes(b, offset, length);
-            }
-        });
+        this.data.save(out);
     }
 
     /**
@@ -540,5 +512,149 @@ public class CuckooFilter implements Writeable {
             && Objects.equals(this.entriesPerBucket, that.entriesPerBucket)
             && Objects.equals(this.count, that.count)
             && Objects.equals(this.evictedFingerprint, that.evictedFingerprint);
+    }
+
+    /**
+     * A compact implementation of Lucene's Packed64 class.
+     * Previously, this code was part of `:server module under org.apache.lucene.util.packed.Packed64`.
+     * This shorter version has been added here to resolve the JPMS split package issue.
+     */
+    private static final class Packed64 {
+        private static final int BLOCK_SIZE = 64; // 32 = int, 64 = long
+        private static final int BLOCK_BITS = 6; // The #bits representing BLOCK_SIZE
+        private static final int MOD_MASK = BLOCK_SIZE - 1; // x % BLOCK_SIZE
+
+        /**
+         * Values are stores contiguously in the blocks array.
+         */
+        private final long[] blocks;
+        /**
+         * A right-aligned mask of width BitsPerValue used by {@link #get(int)}.
+         */
+        private final long maskRight;
+        /**
+         * Optimization: Saves one lookup in {@link #get(int)}.
+         */
+        private final int bpvMinusBlockSize;
+
+        private final int bitsPerValue;
+        private final int valueCount;
+
+        Packed64(int valueCount, int bitsPerValue) {
+            this.bitsPerValue = bitsPerValue;
+            this.valueCount = valueCount;
+            final int longCount = PackedInts.Format.PACKED.longCount(PackedInts.VERSION_CURRENT, valueCount, bitsPerValue);
+            this.blocks = new long[longCount];
+            maskRight = ~0L << (BLOCK_SIZE - bitsPerValue) >>> (BLOCK_SIZE - bitsPerValue);
+            bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
+        }
+
+        Packed64(StreamInput in) throws IOException {
+            this.bitsPerValue = in.readVInt();
+            this.valueCount = in.readVInt();
+            this.blocks = in.readLongArray();
+            maskRight = ~0L << (BLOCK_SIZE - bitsPerValue) >>> (BLOCK_SIZE - bitsPerValue);
+            bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
+        }
+
+        public void save(StreamOutput out) throws IOException {
+            out.writeVInt(bitsPerValue);
+            out.writeVInt(valueCount);
+            out.writeLongArray(blocks);
+        }
+
+        public int size() {
+            return valueCount;
+        }
+
+        public long get(final int index) {
+            // The abstract index in a bit stream
+            final long majorBitPos = (long) index * bitsPerValue;
+            // The index in the backing long-array
+            final int elementPos = (int) (majorBitPos >>> BLOCK_BITS);
+            // The number of value-bits in the second long
+            final long endBits = (majorBitPos & MOD_MASK) + bpvMinusBlockSize;
+
+            if (endBits <= 0) { // Single block
+                return (blocks[elementPos] >>> -endBits) & maskRight;
+            }
+            // Two blocks
+            return ((blocks[elementPos] << endBits) | (blocks[elementPos + 1] >>> (BLOCK_SIZE - endBits))) & maskRight;
+        }
+
+        public int get(int index, long[] arr, int off, int len) {
+            assert len > 0 : "len must be > 0 (got " + len + ")";
+            assert index >= 0 && index < valueCount;
+            len = Math.min(len, valueCount - index);
+            assert off + len <= arr.length;
+
+            final int originalIndex = index;
+            final PackedInts.Decoder decoder = PackedInts.getDecoder(PackedInts.Format.PACKED, PackedInts.VERSION_CURRENT, bitsPerValue);
+            // go to the next block where the value does not span across two blocks
+            final int offsetInBlocks = index % decoder.longValueCount();
+            if (offsetInBlocks != 0) {
+                for (int i = offsetInBlocks; i < decoder.longValueCount() && len > 0; ++i) {
+                    arr[off++] = get(index++);
+                    --len;
+                }
+                if (len == 0) {
+                    return index - originalIndex;
+                }
+            }
+
+            // bulk get
+            assert index % decoder.longValueCount() == 0;
+            int blockIndex = (int) (((long) index * bitsPerValue) >>> BLOCK_BITS);
+            assert (((long) index * bitsPerValue) & MOD_MASK) == 0;
+            final int iterations = len / decoder.longValueCount();
+            decoder.decode(blocks, blockIndex, arr, off, iterations);
+            final int gotValues = iterations * decoder.longValueCount();
+            index += gotValues;
+            len -= gotValues;
+            assert len >= 0;
+
+            if (index > originalIndex) {
+                // stay at the block boundary
+                return index - originalIndex;
+            } else {
+                // no progress so far => already at a block boundary but no full block to get
+                assert index == originalIndex;
+                assert len > 0 : "len must be > 0 (got " + len + ")";
+                assert index >= 0 && index < size();
+                assert off + len <= arr.length;
+
+                final int gets = Math.min(size() - index, len);
+                for (int i = index, o = off, end = index + gets; i < end; ++i, ++o) {
+                    arr[o] = get(i);
+                }
+                return gets;
+            }
+        }
+
+        public void set(final int index, final long value) {
+            // The abstract index in a contiguous bit stream
+            final long majorBitPos = (long) index * bitsPerValue;
+            // The index in the backing long-array
+            final int elementPos = (int) (majorBitPos >>> BLOCK_BITS); // / BLOCK_SIZE
+            // The number of value-bits in the second long
+            final long endBits = (majorBitPos & MOD_MASK) + bpvMinusBlockSize;
+
+            if (endBits <= 0) { // Single block
+                blocks[elementPos] = blocks[elementPos] & ~(maskRight << -endBits) | (value << -endBits);
+                return;
+            }
+            // Two blocks
+            blocks[elementPos] = blocks[elementPos] & ~(maskRight >>> endBits) | (value >>> endBits);
+            blocks[elementPos + 1] = blocks[elementPos + 1] & (~0L >>> endBits) | (value << (BLOCK_SIZE - endBits));
+        }
+
+        public long ramBytesUsed() {
+            return RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 3 * Integer.BYTES   // bpvMinusBlockSize,valueCount,bitsPerValue
+                    + Long.BYTES          // maskRight
+                    + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            ) // blocks ref
+                + RamUsageEstimator.sizeOf(blocks);
+        }
     }
 }

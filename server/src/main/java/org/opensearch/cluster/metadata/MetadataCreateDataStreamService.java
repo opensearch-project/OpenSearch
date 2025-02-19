@@ -98,7 +98,7 @@ public class MetadataCreateDataStreamService {
                 activeShardsObserver.waitForActiveShards(
                     new String[] { firstBackingIndexName },
                     ActiveShardCount.DEFAULT,
-                    request.masterNodeTimeout(),
+                    request.clusterManagerNodeTimeout(),
                     shardsAcked -> {
                         finalListener.onResponse(new AcknowledgedResponse(true));
                     },
@@ -147,7 +147,7 @@ public class MetadataCreateDataStreamService {
 
         public CreateDataStreamClusterStateUpdateRequest(String name, TimeValue masterNodeTimeout, TimeValue timeout) {
             this.name = name;
-            masterNodeTimeout(masterNodeTimeout);
+            clusterManagerNodeTimeout(masterNodeTimeout);
             ackTimeout(timeout);
         }
     }

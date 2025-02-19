@@ -38,8 +38,8 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.opensearch.lucene.util.automaton.MinimizationOperations;
 
 import java.util.ArrayList;
 import java.util.Iterator;

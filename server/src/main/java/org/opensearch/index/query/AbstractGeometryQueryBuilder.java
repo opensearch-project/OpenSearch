@@ -37,7 +37,6 @@ import org.apache.lucene.search.Query;
 import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
-import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.geo.GeoJson;
 import org.opensearch.common.geo.GeometryIO;
@@ -57,6 +56,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.Objects;

@@ -1055,9 +1055,6 @@ public class MetadataCreateIndexService {
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
         updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
-        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
-            updateSearchOnlyReplicas(request.settings(), indexSettingsBuilder);
-        }
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -1094,18 +1091,20 @@ public class MetadataCreateIndexService {
         validateRefreshIntervalSettings(request.settings(), clusterSettings);
         validateTranslogFlushIntervalSettingsForCompositeIndex(request.settings(), clusterSettings);
         validateTranslogDurabilitySettings(request.settings(), clusterSettings, settings);
+        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
+            validateSearchOnlyReplicasSettings(indexSettings);
+        }
         return indexSettings;
     }
 
-    private static void updateSearchOnlyReplicas(Settings requestSettings, Settings.Builder builder) {
-        if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(builder) && builder.get(SETTING_NUMBER_OF_SEARCH_REPLICAS) != null) {
-            if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0
-                && Boolean.parseBoolean(builder.get(SETTING_REMOTE_STORE_ENABLED)) == false) {
+    private static void validateSearchOnlyReplicasSettings(Settings indexSettings) {
+        if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(indexSettings) && indexSettings.get(SETTING_NUMBER_OF_SEARCH_REPLICAS) != null) {
+            if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(indexSettings) > 0
+                && Boolean.parseBoolean(indexSettings.get(SETTING_REMOTE_STORE_ENABLED)) == false) {
                 throw new IllegalArgumentException(
                     "To set " + SETTING_NUMBER_OF_SEARCH_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
                 );
             }
-            builder.put(SETTING_NUMBER_OF_SEARCH_REPLICAS, INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings));
         }
     }
 

@@ -33,13 +33,13 @@
 package org.opensearch.rest.action.document;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.Before;
 
 import java.util.HashMap;

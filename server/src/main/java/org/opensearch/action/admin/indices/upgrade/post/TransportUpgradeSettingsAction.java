@@ -109,7 +109,7 @@ public class TransportUpgradeSettingsAction extends TransportClusterManagerNodeA
     ) {
         UpgradeSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpgradeSettingsClusterStateUpdateRequest().ackTimeout(
             request.timeout()
-        ).versions(request.versions()).masterNodeTimeout(request.clusterManagerNodeTimeout());
+        ).versions(request.versions()).clusterManagerNodeTimeout(request.clusterManagerNodeTimeout());
 
         updateSettingsService.upgradeIndexSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override

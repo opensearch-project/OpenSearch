@@ -21,12 +21,16 @@ versions << [
   'docker': '3.3.6',
   'testcontainers': '1.19.7',
   'ducttape': '1.0.8',
+  'snappy': '1.1.10.7',
 ]
 
 dependencies {
   // kafka
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.kafka:kafka-clients:${versions.kafka}"
+
+  // dependencies of kafka-clients
+  runtimeOnly "org.xerial.snappy:snappy-java:${versions.snappy}"
 
   // test
   testImplementation "com.github.docker-java:docker-java-api:${versions.docker}"
@@ -107,6 +111,8 @@ thirdPartyAudit {
     'org.jose4j.jwt.consumer.JwtContext',
     'org.jose4j.jwx.Headers',
     'org.jose4j.keys.resolvers.VerificationKeyResolver',
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
   )
   ignoreViolations(
     'org.apache.kafka.shaded.com.google.protobuf.MessageSchema',
