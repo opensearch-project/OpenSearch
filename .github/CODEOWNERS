@@ -4,4 +4,4 @@
 #   2. Go to a file
 #   3. Use the command palette to run the CODEOWNERS: Show owners of current file command, which will display all code owners for the current file.
 
-*   @wazuh/devel-indexer
+*   @wazuh/devel-xdrsiem-indexer
