@@ -169,7 +169,7 @@ public class RemoteSegmentMetadata {
             in.readLong(),
             in.readString(),
             toStoreFileMetadata(uploadedSegmentMetadataMap),
-            version >= CURRENT_VERSION ? in.readLong() : 0
+            version >= VERSION_TWO ? in.readLong() : 0
         );
     }
 

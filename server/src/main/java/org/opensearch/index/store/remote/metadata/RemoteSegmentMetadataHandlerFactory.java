@@ -11,7 +11,7 @@ package org.opensearch.index.store.remote.metadata;
 import org.opensearch.common.io.IndexIOStreamHandler;
 import org.opensearch.common.io.IndexIOStreamHandlerFactory;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * {@link RemoteSegmentMetadataHandlerFactory} is a factory class to create {@link RemoteSegmentMetadataHandler}
@@ -20,12 +20,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * @opensearch.internal
  */
 public class RemoteSegmentMetadataHandlerFactory implements IndexIOStreamHandlerFactory<RemoteSegmentMetadata> {
-
-    private final ConcurrentHashMap<Integer, IndexIOStreamHandler<RemoteSegmentMetadata>> handlers = new ConcurrentHashMap<>();
+    private final AtomicReference<IndexIOStreamHandler<RemoteSegmentMetadata>> handlerRef = new AtomicReference<>();
 
     @Override
     public IndexIOStreamHandler<RemoteSegmentMetadata> getHandler(int version) {
-        return handlers.computeIfAbsent(version, this::createHandler);
+        IndexIOStreamHandler<RemoteSegmentMetadata> current = handlerRef.get();
+        if (current != null) {
+            return current;
+        }
+
+        IndexIOStreamHandler<RemoteSegmentMetadata> newHandler = createHandler(version);
+        handlerRef.compareAndSet(null, newHandler);
+        return handlerRef.get();
     }
 
     private IndexIOStreamHandler<RemoteSegmentMetadata> createHandler(int version) {

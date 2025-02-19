@@ -286,6 +286,65 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         assertTrue(replicationStatsSecond.maxReplicationLag > 0);
     }
 
+    public void testGetSegmentReplicationStats_WhenCheckPointReceivedOutOfOrder() {
+        ShardId shardId = new ShardId("index", "uuid", 0);
+        ReplicationCheckpoint firstReplicationCheckpoint = ReplicationCheckpoint.empty(shardId);
+
+        StoreFileMetadata storeFileMetadata1 = new StoreFileMetadata("test-1", 500, "1", Version.LATEST, new BytesRef(500));
+        StoreFileMetadata storeFileMetadata2 = new StoreFileMetadata("test-2", 500, "1", Version.LATEST, new BytesRef(500));
+        Map<String, StoreFileMetadata> stringStoreFileMetadataMapOne = new HashMap<>();
+        stringStoreFileMetadataMapOne.put("test-1", storeFileMetadata1);
+        stringStoreFileMetadataMapOne.put("test-2", storeFileMetadata2);
+        ReplicationCheckpoint secondReplicationCheckpoint = new ReplicationCheckpoint(
+            shardId,
+            2,
+            2,
+            2,
+            1000,
+            "",
+            stringStoreFileMetadataMapOne,
+            System.nanoTime() - TimeUnit.MINUTES.toNanos(1)
+        );
+
+        IndexShard replicaShard = mock(IndexShard.class);
+        when(replicaShard.shardId()).thenReturn(shardId);
+        when(replicaShard.getLatestReplicationCheckpoint()).thenReturn(firstReplicationCheckpoint)
+            .thenReturn(firstReplicationCheckpoint)
+            .thenReturn(firstReplicationCheckpoint);
+
+        SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
+        segmentReplicator.updateReplicationCheckpointStats(firstReplicationCheckpoint, replicaShard);
+
+        Map<String, StoreFileMetadata> stringStoreFileMetadataMapTwo = new HashMap<>();
+        StoreFileMetadata storeFileMetadata3 = new StoreFileMetadata("test-3", 200, "1", Version.LATEST, new BytesRef(200));
+        stringStoreFileMetadataMapTwo.put("test-1", storeFileMetadata1);
+        stringStoreFileMetadataMapTwo.put("test-2", storeFileMetadata2);
+        stringStoreFileMetadataMapTwo.put("test-3", storeFileMetadata3);
+        ReplicationCheckpoint thirdReplicationCheckpoint = new ReplicationCheckpoint(
+            shardId,
+            3,
+            3,
+            3,
+            200,
+            "",
+            stringStoreFileMetadataMapTwo,
+            System.nanoTime() - TimeUnit.MINUTES.toNanos(1)
+        );
+
+        segmentReplicator.updateReplicationCheckpointStats(thirdReplicationCheckpoint, replicaShard);
+
+        ReplicationStats replicationStatsFirst = segmentReplicator.getSegmentReplicationStats(shardId);
+        assertEquals(1200, replicationStatsFirst.totalBytesBehind);
+        assertEquals(1200, replicationStatsFirst.maxBytesBehind);
+        assertTrue(replicationStatsFirst.maxReplicationLag > 0);
+
+        segmentReplicator.updateReplicationCheckpointStats(secondReplicationCheckpoint, replicaShard);
+        ReplicationStats replicationStatsSecond = segmentReplicator.getSegmentReplicationStats(shardId);
+        assertEquals(1200, replicationStatsSecond.totalBytesBehind);
+        assertEquals(1200, replicationStatsSecond.maxBytesBehind);
+        assertTrue(replicationStatsSecond.maxReplicationLag > 0);
+    }
+
     protected void resolveCheckpointListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
         try (final CopyState copyState = new CopyState(primary)) {
             listener.onResponse(

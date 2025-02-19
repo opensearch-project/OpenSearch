@@ -51,7 +51,7 @@ public class SegmentReplicator {
     private final Map<ShardId, SegmentReplicationState> completedReplications = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<ShardId, ConcurrentNavigableMap<Long, ReplicationCheckpointStats>> replicationCheckpointStats =
         ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, ReplicationCheckpoint> latestPrimaryCheckpoint = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
     private final SetOnce<SegmentReplicationSourceFactory> sourceFactory;
 
@@ -110,6 +110,14 @@ public class SegmentReplicator {
         return target;
     }
 
+    /**
+     * Retrieves segment replication statistics for a specific shard.
+     * Its computed based on the last and first entry in the replicationCheckpointStats map.
+     * The Last entry gives the Bytes behind, and the difference in the first and last entry provides the lag.
+     *
+     * @param shardId The shardId to get statistics for
+     * @return ReplicationStats containing bytes behind and replication lag information
+     */
     public ReplicationStats getSegmentReplicationStats(final ShardId shardId) {
         final ConcurrentNavigableMap<Long, ReplicationCheckpointStats> existingCheckpointStats = replicationCheckpointStats.get(shardId);
         if (existingCheckpointStats == null || existingCheckpointStats.isEmpty()) {
@@ -127,30 +135,46 @@ public class SegmentReplicator {
         return new ReplicationStats(bytesBehind, bytesBehind, replicationLag);
     }
 
-    public void updateReplicationCheckpointStats(final ReplicationCheckpoint latestCheckPoint, final IndexShard indexShard) {
-        latestReceivedCheckpoint.put(indexShard.shardId(), latestCheckPoint);
-        ConcurrentNavigableMap<Long, ReplicationCheckpointStats> existingCheckpointStats = replicationCheckpointStats.computeIfAbsent(
-            indexShard.shardId(),
-            k -> new ConcurrentSkipListMap<>()
-        );
-
-        long segmentInfosVersion = latestCheckPoint.getSegmentInfosVersion();
-        if (!existingCheckpointStats.containsKey(segmentInfosVersion)) {
-            ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
-            if (replicationCheckpoint != null) {
-                long bytesBehind = calculateBytesBehind(latestCheckPoint, replicationCheckpoint);
-                if (bytesBehind > 0) {
-                    existingCheckpointStats.put(
-                        segmentInfosVersion,
-                        new ReplicationCheckpointStats(bytesBehind, latestCheckPoint.getCreatedTimeStamp())
-                    );
-                }
-            }
+    /**
+     * Updates the latest checkpoint of the primary for the replica shard and then
+     * calculates checkpoint statistics for the replica shard with the latest checkpoint information.
+     * This method maintains statistics about how far behind replica shards are from the primary.
+     * It calculates the bytes behind by comparing the latest-received and current checkpoint in the indexShard,
+     * and it maintains the bytes behind and timestamp for each segmentInfosVersion of latestCheckPoint.
+     * <pre>
+     * Example:
+     * {
+     *     [replica][0] : {
+     *                       7 : {bytesBehind=0, timestamp=1700220000000}
+     *                       8 : {bytesBehind=100, timestamp=1700330000000}
+     *                       9 : {bytesBehind=150, timestamp=1700440000000}
+     *                    }
+     * }
+     * </pre>
+     * @param latestReceivedCheckPoint The most recent checkpoint from the primary
+     * @param indexShard The index shard where its updated
+     */
+    synchronized public void updateReplicationCheckpointStats(
+        final ReplicationCheckpoint latestReceivedCheckPoint,
+        final IndexShard indexShard
+    ) {
+        ReplicationCheckpoint latestPrimaryCheckPoint = this.latestPrimaryCheckpoint.get(indexShard.shardId());
+        if (latestPrimaryCheckPoint == null || latestReceivedCheckPoint.isAheadOf(latestPrimaryCheckPoint)) {
+            this.latestPrimaryCheckpoint.put(indexShard.shardId(), latestReceivedCheckPoint);
         }
+        // Even if we receive any out of order checkpoint, we will still calculate the stats at that point
+        calculateReplicationCheckpointStats(latestReceivedCheckPoint, indexShard);
     }
 
-    protected void pruneCheckpointsUpToLastSync(final IndexShard indexShard) {
-        ReplicationCheckpoint latestCheckpoint = this.latestReceivedCheckpoint.get(indexShard.shardId());
+    /**
+     * Removes checkpoint statistics for all checkpoints up to and including the last successful sync
+     * and recalculates the bytes behind value for the last replicationCheckpointStats entry.
+     * This helps maintain only relevant checkpoint information and clean up old data.
+     *
+     * @param indexShard The index shard to prune checkpoints for
+     */
+    synchronized protected void pruneCheckpointsUpToLastSync(final IndexShard indexShard) {
+        ReplicationCheckpoint latestCheckpoint = this.latestPrimaryCheckpoint.get(indexShard.shardId());
         if (latestCheckpoint != null) {
             ReplicationCheckpoint indexReplicationCheckPoint = indexShard.getLatestReplicationCheckpoint();
             long segmentInfoVersion = indexReplicationCheckPoint.getSegmentInfosVersion();
@@ -164,6 +188,25 @@ public class SegmentReplicator {
                 if (lastEntry != null) {
                     lastEntry.getValue().setBytesBehind(calculateBytesBehind(latestCheckpoint, indexReplicationCheckPoint));
                 }
+            }
+        }
+    }
+
+    private void calculateReplicationCheckpointStats(final ReplicationCheckpoint latestReceivedCheckPoint, final IndexShard indexShard) {
+        ConcurrentNavigableMap<Long, ReplicationCheckpointStats> existingCheckpointStats = replicationCheckpointStats.computeIfAbsent(
+            indexShard.shardId(),
+            k -> new ConcurrentSkipListMap<>()
+        );
+
+        long segmentInfosVersion = latestReceivedCheckPoint.getSegmentInfosVersion();
+        ReplicationCheckpoint indexShardReplicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
+        if (indexShardReplicationCheckpoint != null) {
+            long bytesBehind = calculateBytesBehind(latestReceivedCheckPoint, indexShardReplicationCheckpoint);
+            if (bytesBehind > 0) {
+                existingCheckpointStats.computeIfAbsent(
+                    segmentInfosVersion,
+                    k -> new ReplicationCheckpointStats(bytesBehind, latestReceivedCheckPoint.getCreatedTimeStamp())
+                );
             }
         }
     }
@@ -313,7 +356,7 @@ public class SegmentReplicator {
     void cancel(ShardId shardId, String reason) {
         onGoingReplications.cancelForShard(shardId, reason);
         replicationCheckpointStats.remove(shardId);
-        latestReceivedCheckpoint.remove(shardId);
+        latestPrimaryCheckpoint.remove(shardId);
     }
 
     SegmentReplicationTarget get(ShardId shardId) {

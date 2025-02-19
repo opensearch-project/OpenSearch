@@ -35,6 +35,7 @@ public class VersionedCodecStreamWrapper<T> {
 
     /**
      * @param indexIOStreamHandlerFactory factory for providing handler to read/write stream from T
+     * @param minVersion earliest supported version of the stream
      * @param currentVersion latest supported version of the stream
      * @param codec: stream codec
      */
@@ -126,7 +127,6 @@ public class VersionedCodecStreamWrapper<T> {
      * @param version stream content version
      */
     private IndexIOStreamHandler<T> getHandlerForVersion(int version) {
-        // TODO factory should also take into account min and max supported versions
         return this.indexIOStreamHandlerFactory.getHandler(version);
     }
 }

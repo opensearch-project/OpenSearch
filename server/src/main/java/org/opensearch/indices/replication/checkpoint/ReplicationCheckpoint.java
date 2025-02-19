@@ -70,6 +70,25 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         long segmentInfosVersion,
         long length,
         String codec,
+        Map<String, StoreFileMetadata> metadataMap
+    ) {
+        this.shardId = shardId;
+        this.primaryTerm = primaryTerm;
+        this.segmentsGen = segmentsGen;
+        this.segmentInfosVersion = segmentInfosVersion;
+        this.length = length;
+        this.codec = codec;
+        this.metadataMap = metadataMap;
+        this.createdTimeStamp = System.nanoTime();
+    }
+
+    public ReplicationCheckpoint(
+        ShardId shardId,
+        long primaryTerm,
+        long segmentsGen,
+        long segmentInfosVersion,
+        long length,
+        String codec,
         Map<String, StoreFileMetadata> metadataMap,
         long createdTimeStamp
     ) {
