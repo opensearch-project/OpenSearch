@@ -38,7 +38,6 @@ import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -66,12 +65,7 @@ public class SslConfiguration {
     static final Map<String, String> ORDERED_PROTOCOL_ALGORITHM_MAP;
     static {
         LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
-        try {
-            SSLContext.getInstance("TLSv1.3");
-            protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
-        } catch (NoSuchAlgorithmException e) {
-            // ignore since we support JVMs (and BC JSSE in FIPS mode) that do not support TLSv1.3
-        }
+        protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
         protocolAlgorithmMap.put("TLSv1.2", "TLSv1.2");
         protocolAlgorithmMap.put("TLSv1.1", "TLSv1.1");
         protocolAlgorithmMap.put("TLSv1", "TLSv1");
