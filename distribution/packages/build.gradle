@@ -241,9 +241,9 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       filePermissions{
         unix 0660
       }
-      permissionGroup 'wazuh-indexer'
-      includeEmptyDirs true
-      createDirectoryEntry true
+      permissionGroup = 'wazuh-indexer'
+      includeEmptyDirs = true
+      createDirectoryEntry = true
       fileType CONFIG | NOREPLACE
     }
     String envFile = expansionsForDistribution(type, jdk)['path.env']
@@ -286,7 +286,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     }
 
     // ========= sysV init =========
-    configurationFile '/etc/init.d/wazuh-indexer'
+    configurationFile = '/etc/init.d/wazuh-indexer'
     into('/etc/init.d') {
       filePermissions {
         unix 0750
