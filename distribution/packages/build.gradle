@@ -112,7 +112,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       OS.current().equals(OS.WINDOWS) == false
     }
     dependsOn "process'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
-    packageName "wazuh-indexer"
+    packageName = "wazuh-indexer"
     if (type == 'deb') {
       if (architecture == 'x64') {
         arch = 'amd64'
@@ -227,9 +227,9 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         unix 0750
       }
       into('/etc')
-      permissionGroup 'wazuh-indexer'
-      includeEmptyDirs true
-      createDirectoryEntry true
+      permissionGroup = 'wazuh-indexer'
+      includeEmptyDirs = true
+      createDirectoryEntry = true
       include("wazuh-indexer") // empty dir, just to add directory entry
       include("wazuh-indexer/jvm.options.d") // empty dir, just to add directory entry
     }
