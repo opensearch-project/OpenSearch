@@ -134,9 +134,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
         private final LinkedHashSet<ShardRouting> relocatingShards;
         private final LinkedHashSet<ShardRouting> relocatingPrimaryShards;
 
-        RelocatingShardsBucket(LinkedHashSet<ShardRouting> relocatingShards, LinkedHashSet<ShardRouting> relocatingPrimaryShards) {
-            this.relocatingShards = relocatingShards;
-            this.relocatingPrimaryShards = relocatingPrimaryShards;
+        RelocatingShardsBucket() {
+            relocatingShards = new LinkedHashSet<>();
+            relocatingPrimaryShards = new LinkedHashSet<>();
         }
 
         public boolean add(ShardRouting shard) {
@@ -200,9 +200,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         final LinkedHashMap<ShardId, ShardRouting> primaryShards = new LinkedHashMap<>();
         final LinkedHashMap<ShardId, ShardRouting> replicaShards = new LinkedHashMap<>();
         this.shards = new BucketedShards(primaryShards, replicaShards);
-        final LinkedHashSet<ShardRouting> relocatingShards = new LinkedHashSet<>();
-        final LinkedHashSet<ShardRouting> relocatingPrimaryShards = new LinkedHashSet<>();
-        this.relocatingShardsBucket = new RelocatingShardsBucket(relocatingShards, relocatingPrimaryShards);
+        this.relocatingShardsBucket = new RelocatingShardsBucket();
         this.initializingShards = new LinkedHashSet<>();
         this.shardsByIndex = new LinkedHashMap<>();
 
