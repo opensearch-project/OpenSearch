@@ -45,7 +45,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.opensearch.plugin.wlm.rule.service.RulePersistenceService.RULE_INDEX;
+import static org.opensearch.plugin.wlm.rule.service.RulePersistenceService.RULES_INDEX;
 
 /**
  * Plugin class for WorkloadManagement
@@ -70,7 +70,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(new SystemIndexDescriptor(RULE_INDEX, "System index used for storing rules"));
+        return List.of(new SystemIndexDescriptor(RULES_INDEX, "System index used for storing rules"));
     }
 
     @Override
