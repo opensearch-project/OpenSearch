@@ -36,7 +36,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
 import java.lang.reflect.Method;
-import java.security.SecureRandom;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -122,22 +121,6 @@ public final class Randomness {
             }
         } else {
             return getWithoutSeed();
-        }
-    }
-
-    /**
-     * Provides a secure source of randomness.
-     * <p>
-     * This acts exactly similar to {@link #get()}, but returning a new {@link SecureRandom}.
-     */
-    public static SecureRandom createSecure() {
-        if (currentMethod != null && getRandomMethod != null) {
-            // tests, so just use a seed from the non secure random
-            byte[] seed = new byte[16];
-            get().nextBytes(seed);
-            return new SecureRandom(seed);
-        } else {
-            return new SecureRandom();
         }
     }
 

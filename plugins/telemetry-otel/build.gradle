@@ -44,13 +44,13 @@ dependencies {
 
 thirdPartyAudit {
   ignoreViolations(
-   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueConsumerIndexField',
-   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerIndexField',
-   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerLimitField',
-   'io.opentelemetry.internal.shaded.jctools.util.UnsafeAccess',
-   'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess',
-   'io.opentelemetry.exporter.internal.marshal.UnsafeAccess',
-   'io.opentelemetry.exporter.internal.marshal.UnsafeAccess$UnsafeHolder'
+    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.opentelemetry.internal.shaded.jctools.util.UnsafeAccess',
+    'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess',
+    'io.opentelemetry.exporter.internal.marshal.UnsafeAccess',
+    'io.opentelemetry.exporter.internal.marshal.UnsafeAccess$UnsafeHolder'
   )
 
   ignoreMissingClasses(
@@ -73,8 +73,6 @@ thirdPartyAudit {
     'io.grpc.stub.AbstractFutureStub',
     'io.grpc.stub.AbstractStub',
     'io.grpc.stub.ClientCalls',
-    'org.bouncycastle.jsse.BCSSLParameters',
-    'org.bouncycastle.jsse.BCSSLSocket',
     'org.conscrypt.Conscrypt',
     'org.conscrypt.Conscrypt$Version',
     'org.conscrypt.ConscryptHostnameVerifier',

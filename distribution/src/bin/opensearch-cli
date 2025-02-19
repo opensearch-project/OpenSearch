@@ -20,6 +20,12 @@ done
 # avoid stealing many CPU cycles; a user can override by setting OPENSEARCH_JAVA_OPTS
 OPENSEARCH_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${OPENSEARCH_JAVA_OPTS}"
 
+if [ "$OPENSEARCH_CRYPTO_STANDARD" = "FIPS-140-3" ]; then
+  OPENSEARCH_JAVA_OPTS="-Dorg.bouncycastle.fips.approved_only=true \
+                        -Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security \
+                        ${OPENSEARCH_JAVA_OPTS}"
+fi
+
 exec \
   "$JAVA" \
   "$XSHARE" \

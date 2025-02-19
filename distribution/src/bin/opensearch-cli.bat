@@ -16,6 +16,12 @@ rem use a small heap size for the CLI tools, and thus the serial collector to
 rem avoid stealing many CPU cycles; a user can override by setting OPENSEARCH_JAVA_OPTS
 set OPENSEARCH_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %OPENSEARCH_JAVA_OPTS%
 
+if "%OPENSEARCH_CRYPTO_STANDARD%"=="FIPS-140-3" (
+    set OPENSEARCH_JAVA_OPTS=-Dorg.bouncycastle.fips.approved_only=true ^
+                             -Djava.security.properties="%OPENSEARCH_PATH_CONF%\fips_java.security" ^
+                             %OPENSEARCH_JAVA_OPTS%
+)
+
 "%JAVA%" ^
   %OPENSEARCH_JAVA_OPTS% ^
   -Dopensearch.path.home="%OPENSEARCH_HOME%" ^
