@@ -14,7 +14,9 @@ import java.util.function.Supplier;
 
 /**
  * An interface for OpenSearch plugins to implement to provide a StreamManager.
- * Plugins can implement this interface to provide custom StreamManager implementation.
+ * Plugins can implement this interface to provide custom StreamManager implementation
+ * or get a reference to the StreamManager instance provided by OpenSearch.
+ *
  * @see StreamManager
  */
 public interface StreamManagerPlugin {
@@ -23,5 +25,13 @@ public interface StreamManagerPlugin {
      *
      * @return The StreamManager instance
      */
-    Supplier<StreamManager> getStreamManager();
+    default Supplier<StreamManager> getStreamManager() {
+        return null;
+    }
+
+    /**
+     * Called when the StreamManager is initialized.
+     * @param streamManager Supplier of the StreamManager instance
+     */
+    default void onStreamManagerInitialized(Supplier<StreamManager> streamManager) {}
 }
