@@ -250,7 +250,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
-      permissionGroup 'wazuh-indexer'
+      permissionGroup = 'wazuh-indexer'
       filePermissions {
         unix 0660
       }
@@ -330,7 +330,7 @@ ospackage {
     Reference documentation can be found at
     https://documentation.wazuh.com/current/getting-started/components/wazuh-indexer.html
   '''.stripIndent().trim()
-  url = 'https://documentation.wazuh.com/current/getting-started/components/wazuh-indexer.html'
+  url = 'https://github.com/wazuh/wazuh-indexer'
 
   // signing setup
   if (project.hasProperty('signing.password') && BuildParams.isSnapshotBuild() == false) {
@@ -400,16 +400,16 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
     obsoletes packageName, '7.0.0', Flags.LESS
 
     prefix '/usr'
-    packager = 'OpenSearch'
+    packager = 'Wazuh'
     archiveVersion = project.version.replace('-', '_')
     release = '1'
     os = 'LINUX'
-    distribution = 'OpenSearch'
-    vendor = 'OpenSearch'
+    distribution = 'Wazuh'
+    vendor = 'Wazuh'
     // TODO ospackage doesn't support icon but we used to have one
 
     // without this the rpm will have parent dirs of any files we copy in, eg /etc/wazuh-indexer
-    addParentDirs false
+    addParentDirs = false
   }
 }
 
