@@ -135,8 +135,8 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     staleFilesInTracker.add(Translog.getCommitCheckpointFileName(generation));
                 }
             }
-            fileTransferTracker.delete(staleFilesInTracker);
         }
+        fileTransferTracker.delete(staleFilesInTracker);
 
         // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
         // store.
