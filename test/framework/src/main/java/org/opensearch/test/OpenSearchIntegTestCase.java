@@ -2266,7 +2266,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         assert repoFiles.length > 0;
         Path path;
         do {
-            path = repoFiles[0].resolve(randomAlphaOfLength(10));
+            path = repoFiles[0].resolve(randomAlphaOfLength(11));
         } while (Files.exists(path));
         return path;
     }
