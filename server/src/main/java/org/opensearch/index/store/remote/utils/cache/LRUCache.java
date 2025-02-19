@@ -316,7 +316,9 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
                 String file = path.substring(path.lastIndexOf('/'));
                 allFiles += file + " [RefCount: " + entry.getValue().refCount + " , Weight: " + entry.getValue().weight + " ]\n";
             }
-            logger.trace("Cache entries : " + allFiles);
+            if (allFiles.equals("\n") == false) {
+                logger.debug("Cache entries : {}", allFiles);
+            }
         } finally {
             lock.unlock();
         }
