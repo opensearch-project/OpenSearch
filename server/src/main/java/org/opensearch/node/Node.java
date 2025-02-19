@@ -56,6 +56,7 @@ import org.opensearch.action.search.SearchTaskRequestOperationsListener;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
+import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterInfoService;
@@ -218,6 +219,7 @@ import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SecureSettingsFactory;
+import org.opensearch.plugins.StreamManagerPlugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TaskManagerClientPlugin;
 import org.opensearch.plugins.TelemetryAwarePlugin;
@@ -309,11 +311,13 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS_SETTING;
 import static org.opensearch.common.util.FeatureFlags.BACKGROUND_TASK_EXECUTION_EXPERIMENTAL;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
@@ -1386,6 +1390,33 @@ public class Node implements Closeable {
                 admissionControlService,
                 cacheService
             );
+
+            Supplier<StreamManager> streamManager = null;
+            if (FeatureFlags.isEnabled(ARROW_STREAMS_SETTING)) {
+                List<StreamManagerPlugin> streamManagerPlugins = pluginsService.filterPlugins(StreamManagerPlugin.class);
+                if (!streamManagerPlugins.isEmpty()) {
+                    for (StreamManagerPlugin smPlugin : streamManagerPlugins) {
+                        Supplier<StreamManager> baseStreamManager = smPlugin.getStreamManager();
+                        if (streamManager == null && baseStreamManager != null) {
+                            streamManager = baseStreamManager;
+                            logger.info("StreamManager initialized");
+                        } else if (streamManager != null && baseStreamManager != null) {
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "Only one StreamManagerPlugin can be installed. Found: %d",
+                                    streamManagerPlugins.size()
+                                )
+                            );
+                        }
+                    }
+                    if (streamManager != null) {
+                        for (StreamManagerPlugin plugin : streamManagerPlugins) {
+                            plugin.onStreamManagerInitialized(streamManager);
+                        }
+                    }
+                }
+            }
 
             final SearchService searchService = newSearchService(
                 clusterService,
