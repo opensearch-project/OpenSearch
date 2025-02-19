@@ -161,14 +161,14 @@ abstract class NumericNonDecimalMapper extends NumericMapper {
         Long parsedLow = rawLow == null ? defaultMinimum() : numberFieldType.numberType().parse(rawLow, true).longValue();
         Long parsedHigh = rawHigh == null ? defaultMaximum() : numberFieldType.numberType().parse(rawHigh, true).longValue();
 
-        boolean lowerTermHasDecimalPart = hasDecimalPart(rawLow);
+        boolean lowerTermHasDecimalPart = hasDecimalPart(parsedLow);
         if ((lowerTermHasDecimalPart == false && includeLow == false) || (lowerTermHasDecimalPart && signum(parsedLow) > 0)) {
             if (parsedLow.equals(defaultMaximum())) {
                 return new MatchNoneFilter();
             }
             ++parsedLow;
         }
-        boolean upperTermHasDecimalPart = hasDecimalPart(rawHigh);
+        boolean upperTermHasDecimalPart = hasDecimalPart(parsedHigh);
         if ((upperTermHasDecimalPart == false && includeHigh == false) || (upperTermHasDecimalPart && signum(parsedHigh) < 0)) {
             if (parsedHigh.equals(defaultMinimum())) {
                 return new MatchNoneFilter();
