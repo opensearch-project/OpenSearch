@@ -63,7 +63,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.opensearch.plugin.wlm.rule.service.RulePersistenceService.RULE_INDEX;
+import static org.opensearch.plugin.wlm.rule.service.RulePersistenceService.RULES_INDEX;
 
 /**
  * Plugin class for WorkloadManagement
