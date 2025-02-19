@@ -42,6 +42,6 @@ public class TransportGetRuleAction extends HandledTransportAction<GetRuleReques
 
     @Override
     protected void doExecute(Task task, GetRuleRequest request, ActionListener<GetRuleResponse> listener) {
-        rulePersistenceService.getRule(request.get_id(), request.getAttributeFilters(), listener);
+        rulePersistenceService.getRule(request.get_id(), request.getAttributeFilters(), request.getSearchAfter(), listener);
     }
 }
