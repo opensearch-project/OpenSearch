@@ -86,10 +86,10 @@ public class CompositeDirectory extends FilterDirectory {
         logger.trace("Composite Directory[{}]: listAll() called", this::toString);
         String[] localFiles = localDirectory.listAll();
         Set<String> allFiles = new HashSet<>(Arrays.asList(localFiles));
-        String[] remoteFiles = getRemoteFiles();
-        allFiles.addAll(Arrays.asList(remoteFiles));
+        // String[] remoteFiles = getRemoteFiles();
+        // allFiles.addAll(Arrays.asList(remoteFiles));
         logger.trace("Composite Directory[{}]: Local Directory files - {}", this::toString, () -> Arrays.toString(localFiles));
-        logger.trace("Composite Directory[{}]: Remote Directory files - {}", this::toString, () -> Arrays.toString(remoteFiles));
+        // logger.trace("Composite Directory[{}]: Remote Directory files - {}", this::toString, () -> Arrays.toString(remoteFiles));
         Set<String> nonBlockLuceneFiles = allFiles.stream()
             .filter(file -> !FileTypeUtils.isBlockFile(file))
             .collect(Collectors.toUnmodifiableSet());
@@ -113,8 +113,11 @@ public class CompositeDirectory extends FilterDirectory {
         if (FileTypeUtils.isTempFile(name)) {
             localDirectory.deleteFile(name);
         } else if (Arrays.asList(listAll()).contains(name) == false) {
-            throw new NoSuchFileException("File " + name + " not found in directory");
+            logger.debug("The file [{}] does not exist", name);
+            // we should not fail here as localDirectory might not contain this file.
+            // throw new NoSuchFileException("File " + name + " not found in directory");
         } else {
+            localDirectory.deleteFile(name);
             fileCache.remove(getFilePath(name));
         }
     }
