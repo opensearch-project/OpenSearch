@@ -18,6 +18,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.GetWorkloadGroupAction;
@@ -30,9 +31,13 @@ import org.opensearch.plugin.wlm.rest.RestCreateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
+import org.opensearch.plugin.wlm.rule.action.GetRuleAction;
+import org.opensearch.plugin.wlm.rule.action.TransportGetRuleAction;
+import org.opensearch.plugin.wlm.rule.rest.RestGetRuleAction;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 
@@ -40,10 +45,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.opensearch.plugin.wlm.rule.service.RulePersistenceService.RULES_INDEX;
+
 /**
  * Plugin class for WorkloadManagement
  */
-public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
+public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
 
     /**
      * Default constructor
@@ -56,8 +63,14 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
             new ActionPlugin.ActionHandler<>(CreateWorkloadGroupAction.INSTANCE, TransportCreateWorkloadGroupAction.class),
             new ActionPlugin.ActionHandler<>(GetWorkloadGroupAction.INSTANCE, TransportGetWorkloadGroupAction.class),
             new ActionPlugin.ActionHandler<>(DeleteWorkloadGroupAction.INSTANCE, TransportDeleteWorkloadGroupAction.class),
-            new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class)
+            new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class),
+            new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class)
         );
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return List.of(new SystemIndexDescriptor(RULES_INDEX, "System index used for storing rules"));
     }
 
     @Override
@@ -74,7 +87,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
             new RestCreateWorkloadGroupAction(),
             new RestGetWorkloadGroupAction(),
             new RestDeleteWorkloadGroupAction(),
-            new RestUpdateWorkloadGroupAction()
+            new RestUpdateWorkloadGroupAction(),
+            new RestGetRuleAction()
         );
     }
 
