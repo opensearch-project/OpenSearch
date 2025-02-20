@@ -135,6 +135,7 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                     assertEquals(mockKmsClientTest.proxyConfiguration.port(), 881);
                     assertEquals(mockKmsClientTest.proxyConfiguration.username(), "proxy_username_1");
                     assertEquals(mockKmsClientTest.proxyConfiguration.password(), "proxy_password_1");
+                    assertFalse(mockKmsClientTest.proxyConfiguration.preemptiveBasicAuthenticationEnabled());
                 }
                 // reload secure settings2
                 plugin.reload(settings2);
@@ -155,6 +156,7 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                     assertEquals(mockKmsClientTest.proxyConfiguration.port(), 881);
                     assertEquals(mockKmsClientTest.proxyConfiguration.username(), "proxy_username_1");
                     assertEquals(mockKmsClientTest.proxyConfiguration.password(), "proxy_password_1");
+                    assertFalse(mockKmsClientTest.proxyConfiguration.preemptiveBasicAuthenticationEnabled());
                 }
             }
             try (AmazonKmsClientReference clientReference = plugin.kmsService.client(cryptoMetadata)) {
@@ -175,6 +177,7 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                 assertEquals(mockKmsClientTest.proxyConfiguration.port(), 882);
                 assertEquals(mockKmsClientTest.proxyConfiguration.username(), "proxy_username_2");
                 assertEquals(mockKmsClientTest.proxyConfiguration.password(), "proxy_password_2");
+                assertFalse(mockKmsClientTest.proxyConfiguration.preemptiveBasicAuthenticationEnabled());
             }
         }
     }
