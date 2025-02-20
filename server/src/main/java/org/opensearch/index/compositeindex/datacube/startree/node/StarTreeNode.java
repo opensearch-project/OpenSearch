@@ -9,11 +9,10 @@
 package org.opensearch.index.compositeindex.datacube.startree.node;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 import org.opensearch.search.startree.StarTreeNodeCollector;
+import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.Iterator;
 
 /**
@@ -109,20 +108,22 @@ public interface StarTreeNode {
      * @param dimensionValue  the dimension value
      * @return the child node for the given dimension value or null if child is not present
      * @throws IOException if an I/O error occurs while retrieving the child node
+     *
+     * TODO: Remove this method - Only used in UTs for Star Tree indexing
      */
     default StarTreeNode getChildForDimensionValue(Long dimensionValue) throws IOException {
-        return getChildForDimensionValue(dimensionValue, null, DimensionDataType.LONG::compare);
+        return getChildForDimensionValue(dimensionValue, null, null);
     }
 
     /**
      * Matches the given @dimensionValue amongst the child default nodes for this node.
      * @param dimensionValue : Value to match
      * @param lastMatchedChild : If not null, binary search will use this as the start/low
-     * @param comparator : Comparator (LONG or UNSIGNED_LONG) to compare the dimension values
+     * @param dimensionFilterMapper : dimensionFilterMapper object
      * @return : Matched StarTreeNode or null if not found
      * @throws IOException : Any exception in reading the node data from index.
      */
-    StarTreeNode getChildForDimensionValue(Long dimensionValue, StarTreeNode lastMatchedChild, Comparator<Long> comparator)
+    StarTreeNode getChildForDimensionValue(Long dimensionValue, StarTreeNode lastMatchedChild, DimensionFilterMapper dimensionFilterMapper)
         throws IOException;
 
     /**
@@ -130,10 +131,11 @@ public interface StarTreeNode {
      * @param low : Starting of the range ( inclusive )
      * @param high : End of the range ( inclusive )
      * @param collector : Collector to collect the matched child StarTreeNode's
-     * @param comparator : Comparator (LONG or UNSIGNED_LONG) to compare the dimension values
+     *  @param dimensionFilterMapper : dimensionFilterMapper object
      * @throws IOException : Any exception in reading the node data from index.
      */
-    void collectChildrenInRange(long low, long high, StarTreeNodeCollector collector, Comparator<Long> comparator) throws IOException;
+    void collectChildrenInRange(long low, long high, StarTreeNodeCollector collector, DimensionFilterMapper dimensionFilterMapper)
+        throws IOException;
 
     /**
      * Returns the child star node for a node in the star-tree.
