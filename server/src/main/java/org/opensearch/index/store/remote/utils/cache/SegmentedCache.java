@@ -190,8 +190,10 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     public void logCurrentState() {
         int i = 0;
         for (RefCountedCache<K, V> cache : table) {
-            logger.trace("SegmentedCache " + i);
-            ((LRUCache<K, V>) cache).logCurrentState();
+            if (cache.size() > 0) {
+                logger.trace("SegmentedCache " + i);
+                ((LRUCache<K, V>) cache).logCurrentState();
+            }
             i++;
         }
     }
