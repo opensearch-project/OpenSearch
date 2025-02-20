@@ -42,6 +42,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
@@ -92,6 +93,9 @@ public interface NetworkPlugin {
             Function.identity(),
             Setting.Property.NodeScope
         );
+
+        // public for tests
+        public abstract BoundTransportAddress boundAddress();
     }
 
     /**
