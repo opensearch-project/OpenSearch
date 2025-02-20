@@ -12,14 +12,12 @@ import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 public class TieredSpilloverCacheBaseIT extends OpenSearchIntegTestCase {
 
     public Settings defaultSettings(String onHeapCacheSizeInBytesOrPercentage, int numberOfSegments) {
         return Settings.builder()
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .put(
                 CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME

@@ -8,8 +8,6 @@
 
 package org.opensearch.indices;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -24,7 +22,6 @@ import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -34,13 +31,10 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,16 +44,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 
 // Use a single data node to simplify logic about cache stats across different shards.
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
-public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
-    public CacheStatsAPIIndicesRequestCacheIT(Settings settings) {
-        super(settings);
-    }
-
-    @ParametersFactory
-    public static Collection<Object[]> parameters() {
-        return Arrays.<Object[]>asList(new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build() });
-    }
-
+public class CacheStatsAPIIndicesRequestCacheIT extends OpenSearchIntegTestCase {
     /**
      * Test aggregating by indices, indices+shards, shards, or no levels, and check the resulting stats
      * are as we expect.

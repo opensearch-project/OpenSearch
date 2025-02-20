@@ -233,9 +233,9 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             .setClusterSettings(clusterService.getClusterSettings())
             .setStoragePath(nodeEnvironment.nodePaths()[0].path.toString() + "/request_cache");
 
-        if (!CacheService.pluggableCachingEnabled(CacheType.INDICES_REQUEST_CACHE, settings)) {
-            // If pluggable caching is not enabled, use the max size based on the IRC setting into the config.
-            // If pluggable caching is enabled, cache implementations instead determine their own sizes based on their own implementation
+        if (!CacheService.storeNamePresent(CacheType.INDICES_REQUEST_CACHE, settings)) {
+            // If a store name is absent, use the max size based on the IRC setting into the config.
+            // If a store name is present, cache implementations instead determine their own sizes based on their own implementation
             // size settings.
             configBuilder.setMaxSizeInBytes(sizeInBytes);
         }
