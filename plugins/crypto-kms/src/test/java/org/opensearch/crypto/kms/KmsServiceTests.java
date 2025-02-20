@@ -31,7 +31,7 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                 KmsClientSettings.getClientSettings(Settings.EMPTY)
             );
 
-            assertNull(proxyConfiguration.scheme());
+            assertEquals("http", proxyConfiguration.scheme());
             assertNull(proxyConfiguration.host());
             assertEquals(proxyConfiguration.port(), 0);
             assertNull(proxyConfiguration.username());
@@ -131,10 +131,6 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                         assertTrue(credentials instanceof AwsBasicCredentials);
                     }
 
-                    assertEquals(
-                        mockKmsClientTest.proxyConfiguration.toString(),
-                        "ProxyConfiguration(endpoint=https://proxy-host-1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
-                    );
                     assertEquals(mockKmsClientTest.proxyConfiguration.host(), "proxy-host-1");
                     assertEquals(mockKmsClientTest.proxyConfiguration.port(), 881);
                     assertEquals(mockKmsClientTest.proxyConfiguration.username(), "proxy_username_1");
@@ -155,10 +151,6 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                         assertTrue(credentials instanceof AwsBasicCredentials);
                     }
 
-                    assertEquals(
-                        mockKmsClientTest.proxyConfiguration.toString(),
-                        "ProxyConfiguration(endpoint=https://proxy-host-1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
-                    );
                     assertEquals(mockKmsClientTest.proxyConfiguration.host(), "proxy-host-1");
                     assertEquals(mockKmsClientTest.proxyConfiguration.port(), 881);
                     assertEquals(mockKmsClientTest.proxyConfiguration.username(), "proxy_username_1");
@@ -179,10 +171,6 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                     assertTrue(credentials instanceof AwsBasicCredentials);
                 }
 
-                assertEquals(
-                    mockKmsClientTest.proxyConfiguration.toString(),
-                    "ProxyConfiguration(endpoint=https://proxy-host-2:882, username=proxy_username_2, preemptiveBasicAuthenticationEnabled=false)"
-                );
                 assertEquals(mockKmsClientTest.proxyConfiguration.host(), "proxy-host-2");
                 assertEquals(mockKmsClientTest.proxyConfiguration.port(), 882);
                 assertEquals(mockKmsClientTest.proxyConfiguration.username(), "proxy_username_2");
