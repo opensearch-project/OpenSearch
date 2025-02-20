@@ -1,0 +1,26 @@
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.testfixtures.TestFixturesPlugin
+
+apply plugin: 'opensearch.standalone-rest-test'
+apply plugin: 'opensearch.test.fixtures'
+
+testFixtures.useFixture()
+
+dockerCompose {
+  useComposeFiles = ['docker-compose.yml']
+}
+
+
+tasks.register("integTest", Test) {
+  outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
+  maxParallelForks = '1'
+  include '**/*IT.class'
+}
+
+tasks.named("check").configure { dependsOn "integTest" }
+
+tasks.named("integTest").configure {
+  dependsOn "composeUp"
+  finalizedBy "composeDown"
+}
