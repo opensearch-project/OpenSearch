@@ -132,8 +132,8 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             )
         ) {
             transport.start();
-            assertTrue(transport.boundAddress().boundAddresses().length > 0);
-            assertNotNull(transport.boundAddress().publishAddress().address());
+            assertTrue(transport.getBoundAddress().boundAddresses().length > 0);
+            assertNotNull(transport.getBoundAddress().publishAddress().address());
             transport.stop();
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -150,9 +150,9 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             )
         ) {
             transport.start();
-            assertTrue(transport.boundAddress().boundAddresses().length > 0);
-            assertNotNull(transport.boundAddress().publishAddress().address());
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            assertTrue(transport.getBoundAddress().boundAddresses().length > 0);
+            assertNotNull(transport.getBoundAddress().publishAddress().address());
+            final TransportAddress remoteAddress = randomFrom(transport.getBoundAddress().boundAddresses());
             try (
                 NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress)
                     .setSecureSettingsProvider(settingsProvider)
