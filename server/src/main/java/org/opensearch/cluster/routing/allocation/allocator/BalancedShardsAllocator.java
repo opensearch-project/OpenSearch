@@ -204,12 +204,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private volatile boolean preferPrimaryShardBalance;
     private volatile boolean preferPrimaryShardRebalance;
-    private volatile float preferPrimaryShardRebalanceBuffer;
-    private volatile float indexBalanceFactor;
-    private volatile float shardBalanceFactor;
-    private volatile WeightFunction weightFunction;
+    private final WeightFunction weightFunction;
     private volatile float threshold;
-    private volatile long primaryConstraintThreshold;
 
     private volatile boolean ignoreThrottleInRestore;
     private volatile TimeValue allocatorTimeout;
@@ -222,11 +218,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Inject
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
-        setShardBalanceFactor(SHARD_BALANCE_FACTOR_SETTING.get(settings));
-        setIndexBalanceFactor(INDEX_BALANCE_FACTOR_SETTING.get(settings));
-        setPreferPrimaryShardRebalanceBuffer(PRIMARY_SHARD_REBALANCE_BUFFER.get(settings));
+        this.weightFunction = new WeightFunction(
+            INDEX_BALANCE_FACTOR_SETTING.get(settings),
+            SHARD_BALANCE_FACTOR_SETTING.get(settings),
+            PRIMARY_SHARD_REBALANCE_BUFFER.get(settings),
+            PRIMARY_CONSTRAINT_THRESHOLD_SETTING.get(settings)
+        );
         setIgnoreThrottleInRestore(IGNORE_THROTTLE_FOR_REMOTE_RESTORE.get(settings));
-        updateWeightFunction();
         setThreshold(THRESHOLD_SETTING.get(settings));
         setPrimaryConstraintThresholdSetting(PRIMARY_CONSTRAINT_THRESHOLD_SETTING.get(settings));
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
@@ -236,9 +234,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE, this::setPreferPrimaryShardBalance);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVEMENT_STRATEGY_SETTING, this::setShardMovementStrategy);
-        clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, this::updateIndexBalanceFactor);
-        clusterSettings.addSettingsUpdateConsumer(SHARD_BALANCE_FACTOR_SETTING, this::updateShardBalanceFactor);
-        clusterSettings.addSettingsUpdateConsumer(PRIMARY_SHARD_REBALANCE_BUFFER, this::updatePreferPrimaryShardBalanceBuffer);
+        clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, this::setIndexBalanceFactor);
+        clusterSettings.addSettingsUpdateConsumer(SHARD_BALANCE_FACTOR_SETTING, this::setShardBalanceFactor);
+        clusterSettings.addSettingsUpdateConsumer(PRIMARY_SHARD_REBALANCE_BUFFER, this::setPreferPrimaryShardBalanceBuffer);
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_REBALANCE, this::setPreferPrimaryShardRebalance);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_CONSTRAINT_THRESHOLD_SETTING, this::setPrimaryConstraintThresholdSetting);
@@ -278,54 +276,31 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     private void setIndexBalanceFactor(float indexBalanceFactor) {
-        this.indexBalanceFactor = indexBalanceFactor;
+        this.weightFunction.setIndexBalance(indexBalanceFactor);
     }
 
     private void setShardBalanceFactor(float shardBalanceFactor) {
-        this.shardBalanceFactor = shardBalanceFactor;
+        this.weightFunction.setShardBalance(shardBalanceFactor);
     }
 
-    private void setPreferPrimaryShardRebalanceBuffer(float preferPrimaryShardRebalanceBuffer) {
-        this.preferPrimaryShardRebalanceBuffer = preferPrimaryShardRebalanceBuffer;
-    }
-
-    private void updateIndexBalanceFactor(float indexBalanceFactor) {
-        this.indexBalanceFactor = indexBalanceFactor;
-        updateWeightFunction();
-    }
-
-    private void updateShardBalanceFactor(float shardBalanceFactor) {
-        this.shardBalanceFactor = shardBalanceFactor;
-        updateWeightFunction();
-    }
-
-    private void updatePreferPrimaryShardBalanceBuffer(float preferPrimaryShardBalanceBuffer) {
-        this.preferPrimaryShardRebalanceBuffer = preferPrimaryShardBalanceBuffer;
-        updateWeightFunction();
-    }
-
-    private void updateWeightFunction() {
-        weightFunction = new WeightFunction(
-            this.indexBalanceFactor,
-            this.shardBalanceFactor,
-            this.preferPrimaryShardRebalanceBuffer,
-            this.primaryConstraintThreshold
-        );
+    void setPreferPrimaryShardBalanceBuffer(float preferPrimaryShardBalanceBuffer) {
+        this.weightFunction.setPreferPrimaryBalanceBuffer(preferPrimaryShardBalanceBuffer);
+        setPreferPrimaryShardRebalance(this.preferPrimaryShardRebalance);
     }
 
     /**
      * When primary shards balance is desired, enable primary shard balancing constraints
      * @param preferPrimaryShardBalance boolean to prefer balancing by primary shard
      */
-    private void setPreferPrimaryShardBalance(boolean preferPrimaryShardBalance) {
+    void setPreferPrimaryShardBalance(boolean preferPrimaryShardBalance) {
         this.preferPrimaryShardBalance = preferPrimaryShardBalance;
         this.weightFunction.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
         this.weightFunction.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
-        this.weightFunction.updateRebalanceConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
     }
 
-    private void setPreferPrimaryShardRebalance(boolean preferPrimaryShardRebalance) {
+    void setPreferPrimaryShardRebalance(boolean preferPrimaryShardRebalance) {
         this.preferPrimaryShardRebalance = preferPrimaryShardRebalance;
+        this.weightFunction.updateRebalanceConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardRebalance);
         this.weightFunction.updateRebalanceConstraint(CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID, preferPrimaryShardRebalance);
     }
 
@@ -334,8 +309,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     private void setPrimaryConstraintThresholdSetting(long threshold) {
-        this.primaryConstraintThreshold = threshold;
-        this.weightFunction.updatePrimaryConstraintThreshold(threshold);
+        this.weightFunction.setPrimaryConstraintThreshold(threshold);
     }
 
     private void setAllocatorTimeout(TimeValue allocatorTimeout) {
@@ -461,14 +435,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * Returns the index related weight factor.
      */
     public float getIndexBalance() {
-        return weightFunction.indexBalance;
+        return weightFunction.balanceFactor.indexBalance;
     }
 
     /**
      * Returns the shard related weight factor.
      */
     public float getShardBalance() {
-        return weightFunction.shardBalance;
+        return weightFunction.balanceFactor.shardBalance;
+    }
+
+    WeightFunction getWeightFunction() {
+        return weightFunction;
     }
 
     /**
@@ -505,35 +483,23 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * package-private for testing
      */
     static class WeightFunction {
-
-        private final float indexBalance;
-        private final float shardBalance;
-        private final float theta0;
-        private final float theta1;
-        private long primaryConstraintThreshold;
-        private AllocationConstraints constraints;
-        private RebalanceConstraints rebalanceConstraints;
+        private volatile BalanceFactor balanceFactor;
+        private volatile long primaryConstraintThreshold;
+        private final AllocationConstraints allocationConstraints;
+        private volatile RebalanceConstraints rebalanceConstraints;
 
         WeightFunction(float indexBalance, float shardBalance, float preferPrimaryBalanceBuffer, long primaryConstraintThreshold) {
-            float sum = indexBalance + shardBalance;
-            if (sum <= 0.0f) {
-                throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
-            }
-            theta0 = shardBalance / sum;
-            theta1 = indexBalance / sum;
-            this.indexBalance = indexBalance;
-            this.shardBalance = shardBalance;
+            this.balanceFactor = new BalanceFactor(indexBalance, shardBalance);
             this.primaryConstraintThreshold = primaryConstraintThreshold;
-            RebalanceParameter rebalanceParameter = new RebalanceParameter(preferPrimaryBalanceBuffer);
-            this.constraints = new AllocationConstraints();
-            this.rebalanceConstraints = new RebalanceConstraints(rebalanceParameter);
+            this.allocationConstraints = new AllocationConstraints();
+            setPreferPrimaryBalanceBuffer(preferPrimaryBalanceBuffer);
             // Enable index shard per node breach constraint
             updateAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, true);
         }
 
         public float weightWithAllocationConstraints(ShardsBalancer balancer, ModelNode node, String index) {
             float balancerWeight = weight(balancer, node, index);
-            return balancerWeight + constraints.weight(balancer, node, index, primaryConstraintThreshold);
+            return balancerWeight + allocationConstraints.weight(balancer, node, index, primaryConstraintThreshold);
         }
 
         public float weightWithRebalanceConstraints(ShardsBalancer balancer, ModelNode node, String index) {
@@ -544,19 +510,58 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         float weight(ShardsBalancer balancer, ModelNode node, String index) {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-            return theta0 * weightShard + theta1 * weightIndex;
+            return this.balanceFactor.theta0 * weightShard + this.balanceFactor.theta1 * weightIndex;
         }
 
         void updateAllocationConstraint(String constraint, boolean enable) {
-            this.constraints.updateAllocationConstraint(constraint, enable);
+            this.allocationConstraints.updateAllocationConstraint(constraint, enable);
         }
 
         void updateRebalanceConstraint(String constraint, boolean add) {
             this.rebalanceConstraints.updateRebalanceConstraint(constraint, add);
         }
 
-        void updatePrimaryConstraintThreshold(long primaryConstraintThreshold) {
+        void setPreferPrimaryBalanceBuffer(float preferPrimaryBalanceBuffer) {
+            RebalanceParameter rebalanceParameter = new RebalanceParameter(preferPrimaryBalanceBuffer);
+            this.rebalanceConstraints = new RebalanceConstraints(rebalanceParameter);
+        }
+
+        void setIndexBalance(float indexBalance) {
+            this.balanceFactor = new BalanceFactor(indexBalance, this.balanceFactor.shardBalance);
+        }
+
+        void setShardBalance(float shardBalance) {
+            this.balanceFactor = new BalanceFactor(this.balanceFactor.indexBalance, shardBalance);
+        }
+
+        void setPrimaryConstraintThreshold(long primaryConstraintThreshold) {
             this.primaryConstraintThreshold = primaryConstraintThreshold;
+        }
+
+        AllocationConstraints getAllocationConstraints() {
+            return allocationConstraints;
+        }
+
+        RebalanceConstraints getRebalanceConstraints() {
+            return rebalanceConstraints;
+        }
+
+        static class BalanceFactor {
+            final float indexBalance;
+            final float shardBalance;
+            final float theta0;
+            final float theta1;
+
+            BalanceFactor(float indexBalance, float shardBalance) {
+                float sum = indexBalance + shardBalance;
+                if (sum <= 0.0f) {
+                    throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
+                }
+                theta0 = shardBalance / sum;
+                theta1 = indexBalance / sum;
+                this.indexBalance = indexBalance;
+                this.shardBalance = shardBalance;
+            }
         }
     }
 
