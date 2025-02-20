@@ -48,6 +48,7 @@ import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -95,7 +96,7 @@ public class StoreKeyConfigTests extends OpenSearchTestCase {
         assertKeysLoaded(keyConfig, "cert1", "cert2");
     }
 
-    public void testKeyManagerFailsWithIncorrectStorePassword() throws Exception {
+    public void testKeyManagerFailsWithIncorrectJksStorePassword() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path jks = getDataPath("/certs/cert-all/certs.jks");
         final StoreKeyConfig keyConfig = new StoreKeyConfig(
@@ -109,7 +110,7 @@ public class StoreKeyConfigTests extends OpenSearchTestCase {
         assertPasswordIsIncorrect(keyConfig, jks);
     }
 
-    public void testKeyManagerFailsWithIncorrectKeyPassword() throws Exception {
+    public void testKeyManagerFailsWithIncorrectJksKeyPassword() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path jks = getDataPath("/certs/cert-all/certs.jks");
         final StoreKeyConfig keyConfig = new StoreKeyConfig(jks, JKS_PASS, "jks", JKS_PASS, KeyManagerFactory.getDefaultAlgorithm());
@@ -125,21 +126,20 @@ public class StoreKeyConfigTests extends OpenSearchTestCase {
         assertFileNotFound(keyConfig, path);
     }
 
-    public void testMissingKeyEntriesFailsWithMeaningfulMessage() throws Exception {
+    public void testMissingKeyEntriesFailsForJksWithMeaningfulMessage() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
-        final Path ks;
-        final char[] password;
-        final String type;
-        if (randomBoolean()) {
-            type = "PKCS12";
-            ks = getDataPath("/certs/ca-all/ca.p12");
-            password = P12_PASS;
-        } else {
-            type = "jks";
-            ks = getDataPath("/certs/ca-all/ca.jks");
-            password = JKS_PASS;
-        }
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(ks, password, type, password, KeyManagerFactory.getDefaultAlgorithm());
+        final Path ks = getDataPath("/certs/ca-all/ca.jks");
+        final char[] password = JKS_PASS;
+        final StoreKeyConfig keyConfig = new StoreKeyConfig(ks, password, "jks", password, KeyManagerFactory.getDefaultAlgorithm());
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
+        assertNoPrivateKeyEntries(keyConfig, ks);
+    }
+
+    public void testMissingKeyEntriesFailsForP12WithMeaningfulMessage() throws Exception {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        final Path ks = getDataPath("/certs/ca-all/ca.p12");
+        final char[] password = P12_PASS;
+        final StoreKeyConfig keyConfig = new StoreKeyConfig(ks, password, "PKCS12", password, KeyManagerFactory.getDefaultAlgorithm());
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertNoPrivateKeyEntries(keyConfig, ks);
     }
@@ -211,7 +211,10 @@ public class StoreKeyConfigTests extends OpenSearchTestCase {
             assertThat(exception.getMessage(), containsString("password"));
         } else {
             assertThat(exception.getCause(), instanceOf(IOException.class));
-            assertThat(exception.getCause().getMessage(), containsString("password"));
+            assertThat(
+                exception.getCause().getMessage(),
+                anyOf(containsString("Keystore was tampered with, or password was incorrect"), containsString("BCFKS KeyStore corrupted"))
+            );
         }
     }
 
