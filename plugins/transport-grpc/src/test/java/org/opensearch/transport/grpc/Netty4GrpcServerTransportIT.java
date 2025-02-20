@@ -12,29 +12,34 @@ import io.grpc.health.v1.HealthCheckResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.PortsRange;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORT;
 import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 
 public class Netty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
-    private final PortsRange TEST_AUX_PORTS = new PortsRange("9400-9500");
-    private final TransportAddress PLACEHOLDER_ADDR = new TransportAddress(new InetSocketAddress("127.0.0.1", 9401));
+
+    private TransportAddress randomNetty4GrpcServerTransportAddr() {
+        List<TransportAddress> addresses = new ArrayList<>();
+        for (Netty4GrpcServerTransport transport : internalCluster().getInstances(Netty4GrpcServerTransport.class)) {
+            TransportAddress tAddr = new TransportAddress(transport.boundAddress().publishAddress().address());
+            addresses.add(tAddr);
+        }
+        return randomFrom(addresses);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(AUX_TRANSPORT_TYPES_KEY, GRPC_TRANSPORT_SETTING_KEY)
-            .put(AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(GRPC_TRANSPORT_SETTING_KEY).getKey(), TEST_AUX_PORTS.getPortRangeString())
             .build();
     }
 
@@ -51,7 +56,7 @@ public class Netty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
         assertEquals(ClusterHealthStatus.GREEN, healthResponse.getStatus());
 
         // gRPC transport service health
-        try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(PLACEHOLDER_ADDR).build()) {
+        try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(randomNetty4GrpcServerTransportAddr()).build()) {
             assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
         }
     }
