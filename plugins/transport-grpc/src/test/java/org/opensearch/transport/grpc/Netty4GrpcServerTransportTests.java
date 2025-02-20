@@ -36,8 +36,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testGrpcTransportStartStop() {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService)) {
             transport.start();
-            MatcherAssert.assertThat(transport.boundAddress().boundAddresses(), not(emptyArray()));
-            assertNotNull(transport.boundAddress().publishAddress().address());
+            MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
+            assertNotNull(transport.getBoundAddress().publishAddress().address());
             transport.stop();
         }
     }
@@ -45,7 +45,7 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
     public void testGrpcTransportHealthcheck() {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService)) {
             transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            final TransportAddress remoteAddress = randomFrom(transport.getBoundAddress().boundAddresses());
             try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress).build()) {
                 assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
             }

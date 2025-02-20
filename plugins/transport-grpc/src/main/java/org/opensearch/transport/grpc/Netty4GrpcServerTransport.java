@@ -156,7 +156,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
 
     // public for tests
     @Override
-    public BoundTransportAddress boundAddress() {
+    public BoundTransportAddress getBoundAddress() {
         return this.boundAddress;
     }
 

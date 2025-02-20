@@ -95,7 +95,7 @@ public interface NetworkPlugin {
         );
 
         // public for tests
-        public abstract BoundTransportAddress boundAddress();
+        public abstract BoundTransportAddress getBoundAddress();
     }
 
     /**

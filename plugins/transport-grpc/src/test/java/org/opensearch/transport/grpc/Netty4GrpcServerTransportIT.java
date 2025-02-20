@@ -30,7 +30,7 @@ public class Netty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
     private TransportAddress randomNetty4GrpcServerTransportAddr() {
         List<TransportAddress> addresses = new ArrayList<>();
         for (Netty4GrpcServerTransport transport : internalCluster().getInstances(Netty4GrpcServerTransport.class)) {
-            TransportAddress tAddr = new TransportAddress(transport.boundAddress().publishAddress().address());
+            TransportAddress tAddr = new TransportAddress(transport.getBoundAddress().publishAddress().address());
             addresses.add(tAddr);
         }
         return randomFrom(addresses);
