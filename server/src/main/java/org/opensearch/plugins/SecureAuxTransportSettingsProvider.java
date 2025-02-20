@@ -13,6 +13,7 @@ import org.opensearch.common.settings.Settings;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
+
 import java.util.Optional;
 
 /**
@@ -32,11 +33,17 @@ public interface SecureAuxTransportSettingsProvider {
     @ExperimentalApi
     interface SecureTransportParameters {
         boolean dualModeEnabled();
+
         String sslProvider();
+
         String clientAuth();
+
         Iterable<String> protocols();
+
         Iterable<String> cipherSuites();
+
         KeyManagerFactory keyManagerFactory();
+
         TrustManagerFactory trustManagerFactory();
     }
 }
