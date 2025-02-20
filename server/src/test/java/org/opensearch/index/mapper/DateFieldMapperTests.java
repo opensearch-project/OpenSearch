@@ -368,7 +368,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "date_nanos").field("format", "strict_date_time||epoch_millis").field("copy_to", "a"))
         );
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThrows(UnsupportedOperationException.class, dateFieldMapper::possibleToDeriveSource);
+        assertThrows(UnsupportedOperationException.class, dateFieldMapper::canDeriveSource);
     }
 
     public void testPossibleToDeriveSource_WhenDocValuesAndStoreFieldDisabled() throws IOException {
@@ -376,7 +376,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "date").field("doc_values", false).field("store", false))
         );
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThrows(UnsupportedOperationException.class, dateFieldMapper::possibleToDeriveSource);
+        assertThrows(UnsupportedOperationException.class, dateFieldMapper::canDeriveSource);
     }
 
     public void testDeriveSource_WhenStoredFieldEnabled() throws IOException {

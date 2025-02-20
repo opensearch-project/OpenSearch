@@ -573,23 +573,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected abstract String contentType();
 
     /**
-     * Method used for deriving source and building it to XContentBuilder object
-     * @param builder - builder to store the derived source filed
-     * @param leafReader - leafReader to read data from
-     * @param docId - docId for which we want to derive the source
-     * @throws IOException
-     */
-    public void buildDerivedSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
-        if (mappedFieldType.isDerivedSourceSupported() == false) throw new UnsupportedOperationException(
-            "Derived source field is not supported for [" + name() + "] field"
-        );
-        deriveSource(builder, leafReader, docId);
-    }
-
-    /**
      * Method to determine, if it is possible to derive source for this field using field mapping parameters
      */
-    protected void possibleToDeriveSource() {
+    public void canDeriveSource() {
+        if (!mappedFieldType.isDerivedSourceSupported()) throw new UnsupportedOperationException(
+            "Derived source field is not supported for [" + name() + "] field"
+        );
         throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
     }
 
@@ -598,9 +587,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param builder - builder to store the derived source filed
      * @param leafReader - leafReader to read data from
      * @param docId - docId for which we want to derive the source
-     * @throws IOException
      */
-    protected void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        canDeriveSource();
         throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
     }
 
