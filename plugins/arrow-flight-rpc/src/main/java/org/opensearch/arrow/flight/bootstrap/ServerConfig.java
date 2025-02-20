@@ -12,6 +12,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 
 import java.security.AccessController;
@@ -29,7 +30,6 @@ import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.util.concurrent.DefaultThreadFactory;
 
 /**
  * Configuration class for OpenSearch Flight server settings.
@@ -172,18 +172,14 @@ public class ServerConfig {
                 ARROW_ENABLE_UNSAFE_MEMORY_ACCESS,
                 ARROW_SSL_ENABLE
             )
-        ) {
-            {
-                addAll(Netty4Configs.getSettings());
-            }
-        };
+        );
     }
 
     static EventLoopGroup createELG(String name, int eventLoopThreads) {
 
         return Epoll.isAvailable()
-            ? new EpollEventLoopGroup(eventLoopThreads, new DefaultThreadFactory(name, true))
-            : new NioEventLoopGroup(eventLoopThreads, new DefaultThreadFactory(name, true));
+            ? new EpollEventLoopGroup(eventLoopThreads, OpenSearchExecutors.daemonThreadFactory(name))
+            : new NioEventLoopGroup(eventLoopThreads, OpenSearchExecutors.daemonThreadFactory(name));
     }
 
     static Class<? extends Channel> serverChannelType() {
@@ -195,16 +191,10 @@ public class ServerConfig {
     }
 
     private static class Netty4Configs {
-        public static final Setting<Integer> NETTY_ALLOCATOR_NUM_DIRECT_ARENAS = Setting.intSetting(
-            "io.netty.allocator.numDirectArenas",
-            1, // TODO - 2 * the number of available processors; to be confirmed and set after running benchmarks
-            1,
-            Setting.Property.NodeScope
-        );
 
         @SuppressForbidden(reason = "required for netty allocator configuration")
         public static void init(Settings settings) {
-            System.setProperty("io.netty.allocator.numDirectArenas", Integer.toString(NETTY_ALLOCATOR_NUM_DIRECT_ARENAS.get(settings)));
+            checkSystemProperty("io.netty.allocator.numDirectArenas", "1");
             checkSystemProperty("io.netty.noUnsafe", "false");
             checkSystemProperty("io.netty.tryUnsafe", "true");
             checkSystemProperty("io.netty.tryReflectionSetAccessible", "true");
@@ -223,10 +213,6 @@ public class ServerConfig {
                         + "]."
                 );
             }
-        }
-
-        public static List<Setting<?>> getSettings() {
-            return List.of(NETTY_ALLOCATOR_NUM_DIRECT_ARENAS);
         }
     }
 }
