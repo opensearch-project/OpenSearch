@@ -345,6 +345,41 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         assertTrue(replicationStatsSecond.maxReplicationLag > 0);
     }
 
+    public void testUpdateReplicationCheckpointStatsIgnoresWhenOutOfOrderCheckPointReceived() {
+        ShardId shardId = new ShardId("index", "uuid", 0);
+        IndexShard replicaShard = mock(IndexShard.class);
+        when(replicaShard.shardId()).thenReturn(shardId);
+
+        SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
+        ReplicationCheckpoint replicationCheckpoint = new ReplicationCheckpoint(
+            shardId,
+            2,
+            2,
+            2,
+            1000,
+            "",
+            new HashMap<>(),
+            System.nanoTime() - TimeUnit.MINUTES.toNanos(1)
+        );
+        segmentReplicator.updateReplicationCheckpointStats(replicationCheckpoint, replicaShard);
+
+        assertEquals(replicationCheckpoint, segmentReplicator.getLatestPrimaryCheckpoint(shardId));
+
+        ReplicationCheckpoint oldReplicationCheckpoint = new ReplicationCheckpoint(
+            shardId,
+            1,
+            1,
+            1,
+            500,
+            "",
+            new HashMap<>(),
+            System.nanoTime() - TimeUnit.MINUTES.toNanos(1)
+        );
+        segmentReplicator.updateReplicationCheckpointStats(oldReplicationCheckpoint, replicaShard);
+
+        assertEquals(replicationCheckpoint, segmentReplicator.getLatestPrimaryCheckpoint(shardId));
+    }
+
     protected void resolveCheckpointListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
         try (final CopyState copyState = new CopyState(primary)) {
             listener.onResponse(
@@ -354,5 +389,4 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             throw new UncheckedIOException(e);
         }
     }
-
 }

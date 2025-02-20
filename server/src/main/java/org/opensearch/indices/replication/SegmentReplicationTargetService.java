@@ -22,7 +22,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.transport.TransportResponse;
@@ -49,7 +48,6 @@ import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -58,7 +56,8 @@ import static org.opensearch.indices.replication.SegmentReplicationSourceService
 
 /**
  * Service class that handles incoming checkpoints to initiate replication events on replicas.
- *
+ * This is used for the peer to peer replication, not for the remote replication, remote replication uses SegmentReplicator
+ * Explore this
  * @opensearch.internal
  */
 public class SegmentReplicationTargetService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
@@ -69,8 +68,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     private final RecoverySettings recoverySettings;
 
     private final SegmentReplicationSourceFactory sourceFactory;
-
-    protected final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = ConcurrentCollections.newConcurrentMap();
 
     private final IndicesService indicesService;
     private final ClusterService clusterService;
@@ -216,7 +213,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
             replicator.cancel(indexShard.shardId(), "Shard closing");
-            latestReceivedCheckpoint.remove(shardId);
         }
     }
 
@@ -241,7 +237,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             && oldRouting.primary() == false
             && newRouting.primary()) {
             replicator.cancel(indexShard.shardId(), "Shard has been promoted to primary");
-            latestReceivedCheckpoint.remove(indexShard.shardId());
         }
     }
 
@@ -294,7 +289,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             return;
         }
         updateLatestReceivedCheckpoint(receivedCheckpoint, replicaShard);
-        replicator.updateReplicationCheckpointStats(receivedCheckpoint, replicaShard);
         // Checks if replica shard is in the correct STARTED state to process checkpoints (avoids parallel replication events taking place)
         // This check ensures we do not try to process a received checkpoint while the shard is still recovering, yet we stored the latest
         // checkpoint to be replayed once the shard is Active.
@@ -469,7 +463,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
     // visible to tests
     protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
-        final ReplicationCheckpoint latestPublishedCheckpoint = latestReceivedCheckpoint.get(replicaShard.shardId());
+        final ReplicationCheckpoint latestPublishedCheckpoint = replicator.getLatestPrimaryCheckpoint(replicaShard.shardId());
         if (latestPublishedCheckpoint != null) {
             logger.trace(
                 () -> new ParameterizedMessage(
@@ -482,7 +476,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                 // if we retry ensure the shard is not in the process of being closed.
                 // it will be removed from indexService's collection before the shard is actually marked as closed.
                 if (indicesService.getShardOrNull(replicaShard.shardId()) != null) {
-                    onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
+                    onNewCheckpoint(replicator.getLatestPrimaryCheckpoint(replicaShard.shardId()), replicaShard);
                 }
             };
             // Checks if we are using same thread and forks if necessary.
@@ -498,13 +492,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
     // visible to tests
     protected void updateLatestReceivedCheckpoint(ReplicationCheckpoint receivedCheckpoint, IndexShard replicaShard) {
-        if (latestReceivedCheckpoint.get(replicaShard.shardId()) != null) {
-            if (receivedCheckpoint.isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId()))) {
-                latestReceivedCheckpoint.replace(replicaShard.shardId(), receivedCheckpoint);
-            }
-        } else {
-            latestReceivedCheckpoint.put(replicaShard.shardId(), receivedCheckpoint);
-        }
+        replicator.updateReplicationCheckpointStats(receivedCheckpoint, replicaShard);
     }
 
     /**

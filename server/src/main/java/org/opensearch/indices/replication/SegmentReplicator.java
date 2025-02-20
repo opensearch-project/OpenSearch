@@ -161,9 +161,8 @@ public class SegmentReplicator {
         ReplicationCheckpoint latestPrimaryCheckPoint = this.latestPrimaryCheckpoint.get(indexShard.shardId());
         if (latestPrimaryCheckPoint == null || latestReceivedCheckPoint.isAheadOf(latestPrimaryCheckPoint)) {
             this.latestPrimaryCheckpoint.put(indexShard.shardId(), latestReceivedCheckPoint);
+            calculateReplicationCheckpointStats(latestReceivedCheckPoint, indexShard);
         }
-        // Even if we receive any out of order checkpoint, we will still calculate the stats at that point
-        calculateReplicationCheckpointStats(latestReceivedCheckPoint, indexShard);
     }
 
     /**
@@ -361,6 +360,10 @@ public class SegmentReplicator {
 
     SegmentReplicationTarget get(ShardId shardId) {
         return onGoingReplications.getOngoingReplicationTarget(shardId);
+    }
+
+    ReplicationCheckpoint getLatestPrimaryCheckpoint(ShardId shardId) {
+        return latestPrimaryCheckpoint.get(shardId);
     }
 
     ReplicationCollection.ReplicationRef<SegmentReplicationTarget> get(long id) {
