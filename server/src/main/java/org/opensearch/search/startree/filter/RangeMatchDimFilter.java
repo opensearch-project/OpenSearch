@@ -16,7 +16,6 @@ import org.opensearch.search.startree.StarTreeNodeCollector;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.Optional;
 
 /**
@@ -38,7 +37,7 @@ public class RangeMatchDimFilter implements DimensionFilter {
 
     private boolean skipRangeCollection = false;
 
-    private Comparator<Long> comparator;
+    private DimensionFilterMapper dimensionFilterMapper;
 
     public RangeMatchDimFilter(String dimensionName, Object low, Object high, boolean includeLow, boolean includeHigh) {
         this.dimensionName = dimensionName;
@@ -51,10 +50,9 @@ public class RangeMatchDimFilter implements DimensionFilter {
     @Override
     public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
         skipRangeCollection = false;
-        DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
+        this.dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
             searchContext.mapperService().fieldType(dimensionName)
         );
-        this.comparator = dimensionFilterMapper.comparator();
 
         lowOrdinal = 0L;
         if (low != null) {
@@ -82,13 +80,14 @@ public class RangeMatchDimFilter implements DimensionFilter {
     public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
         throws IOException {
         if (parentNode != null && !skipRangeCollection) {
-            parentNode.collectChildrenInRange(lowOrdinal, highOrdinal, collector, comparator);
+            parentNode.collectChildrenInRange(lowOrdinal, highOrdinal, collector, dimensionFilterMapper);
         }
     }
 
     @Override
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
-        return comparator.compare(lowOrdinal, ordinal) <= 0 && comparator.compare(ordinal, highOrdinal) <= 0;
+        return dimensionFilterMapper.comparator().compare(lowOrdinal, ordinal) <= 0
+            && dimensionFilterMapper.comparator().compare(ordinal, highOrdinal) <= 0;
     }
 
 }
