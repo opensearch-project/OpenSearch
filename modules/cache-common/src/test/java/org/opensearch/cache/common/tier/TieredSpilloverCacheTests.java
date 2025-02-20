@@ -1727,11 +1727,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertEquals(expectedKeys, getItemsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         // We should have (numRepetitionsPerKey - 1) * (expectedKeys) hits
         assertEquals((numRepetitionsPerKey - 1) * expectedKeys, getHitsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
-        // We should have numRepetitionsPerKey misses for each rejected key, and 1 miss for each accepted key
-        assertEquals(
-            numRepetitionsPerKey * (keyValuePairs.size() - expectedKeys) + expectedKeys,
-            getMissesForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP)
-        );
+        // We should have 1 miss for each accepted key. Rejected keys should not cause misses.
+        assertEquals(expectedKeys, getMissesForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
 
         for (String key : keyValuePairs.keySet()) {
             ICacheKey<String> iCacheKey = getICacheKey(key);

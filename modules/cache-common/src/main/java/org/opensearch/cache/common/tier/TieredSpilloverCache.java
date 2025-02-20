@@ -307,18 +307,23 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 // Add the value to the onHeap cache. We are calling computeIfAbsent which does another get inside.
                 // This is needed as there can be many requests for the same key at the same time and we only want to load
                 // the value once.
-                Tuple<V, Boolean> computedValueTuple = compute(key, loader, future);
-                // Handle stats
-                if (computedValueTuple.v2()) {
-                    // The value was just computed and added to the cache by this thread, or it was rejected by the policy.
-                    // Register a miss for the heap cache, and the disk cache if present
-                    statsHolder.incrementMisses(heapDimensionValues);
-                    if (caches.get(diskCache).isEnabled()) {
-                        statsHolder.incrementMisses(diskDimensionValues);
+                Tuple<V, Tuple<Boolean, Boolean>> computedValueTuple = compute(key, loader, future);
+                boolean wasCacheMiss = computedValueTuple.v2().v1();
+                boolean wasRejectedByPolicy = computedValueTuple.v2().v2();
+                // If the value was rejected by policy, it counts as neither a hit or miss.
+                if (!wasRejectedByPolicy) {
+                    // Handle stats
+                    if (wasCacheMiss) {
+                        // The value was just computed and added to the cache by this thread.
+                        // Register a miss for the heap cache, and the disk cache if present
+                        statsHolder.incrementMisses(heapDimensionValues);
+                        if (caches.get(diskCache).isEnabled()) {
+                            statsHolder.incrementMisses(diskDimensionValues);
+                        }
+                    } else {
+                        // Another thread requesting this key already loaded the value. Register a hit for the heap cache
+                        statsHolder.incrementHits(heapDimensionValues);
                     }
-                } else {
-                    // Another thread requesting this key already loaded the value. Register a hit for the heap cache
-                    statsHolder.incrementHits(heapDimensionValues);
                 }
                 return computedValueTuple.v1();
             } else {
@@ -335,7 +340,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             return cacheValueTuple.v1();
         }
 
-        private Tuple<V, Boolean> compute(
+        private Tuple<V, Tuple<Boolean, Boolean>> compute(
             ICacheKey<K> key,
             LoadAwareCacheLoader<ICacheKey<K>, V> loader,
             CompletableFuture<Tuple<ICacheKey<K>, V>> future
@@ -343,6 +348,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             // Handler to handle results post-processing. Takes a tuple<key, value> or exception as an input and returns
             // the value. Also before returning value, puts the value in cache.
             boolean wasCacheMiss = false;
+            boolean wasRejectedByPolicy = false;
             BiFunction<Tuple<ICacheKey<K>, V>, Throwable, Void> handler = (pair, ex) -> {
                 if (pair != null) {
                     boolean didAddToCache = false;
@@ -381,14 +387,15 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     future.completeExceptionally(npe);
                     throw new ExecutionException(npe);
                 } else {
-                    wasCacheMiss = true;
                     if (evaluatePoliciesList(value, policies)) {
                         future.complete(new Tuple<>(key, value));
+                        wasCacheMiss = true;
                     } else {
                         future.complete(null); // Passing null would skip the logic to put this into onHeap cache.
                         // Signal to the caller that the key didn't enter the cache by sending a removal notification.
-                        // This case also counts as a cache miss.
+                        // This case does not count as a cache miss.
                         removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
+                        wasRejectedByPolicy = true;
                     }
                 }
             } else {
@@ -396,10 +403,10 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     Tuple<ICacheKey<K>, V> futureTuple = future.get();
                     if (futureTuple == null) {
                         // This case can happen if we earlier completed the future with null to skip putting the value into the cache.
-                        // It should behave the same as a cache miss.
-                        wasCacheMiss = true;
+                        // It does not count as a cache miss.
                         value = loader.load(key);
                         removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
+                        wasRejectedByPolicy = true;
                     } else {
                         value = futureTuple.v2();
                     }
@@ -407,7 +414,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     throw new IllegalStateException(ex);
                 }
             }
-            return new Tuple<>(value, wasCacheMiss);
+            return new Tuple<>(value, new Tuple<>(wasCacheMiss, wasRejectedByPolicy));
         }
 
         @Override
