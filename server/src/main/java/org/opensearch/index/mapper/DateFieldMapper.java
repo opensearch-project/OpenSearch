@@ -461,7 +461,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             String nullValue,
             Map<String, String> meta
         ) {
-            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, true);
+            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, false);
         }
 
 
