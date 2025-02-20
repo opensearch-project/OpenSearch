@@ -9,6 +9,7 @@
 package org.opensearch.plugin.wlm;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.support.ActionFilter;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -38,6 +39,7 @@ import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+import org.opensearch.plugin.wlm.rule.InMemoryRuleProcessingService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
@@ -75,6 +77,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     private final RulePersistenceServiceHolder rulePersistenceServiceHolder = new RulePersistenceServiceHolder();
 
+    private AutoTaggingActionFilter autoTaggingActionFilter;
     /**
      * Default constructor
      */
@@ -101,7 +104,14 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE),
             new IndexBasedRuleQueryMapper()
         );
+        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService();
+        autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
         return Collections.emptyList();
+    }
+
+    @Override
+    public List<ActionFilter> getActionFilters() {
+        return List.of(autoTaggingActionFilter);
     }
 
     @Override
