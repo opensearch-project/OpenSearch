@@ -76,6 +76,18 @@ tasks.named('test').configure {
   }
 }
 
+test {
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+}
+
+internalClusterTest {
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+}
+
 spotless {
   java {
     // Files to exclude from formatting

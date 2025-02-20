@@ -202,26 +202,31 @@ public class ServerConfig {
             Setting.Property.NodeScope
         );
 
-        public static final Setting<Boolean> NETTY_TRY_REFLECTION_SET_ACCESSIBLE = Setting.boolSetting(
-            "io.netty.tryReflectionSetAccessible",
-            true,
-            Setting.Property.NodeScope
-        );
-
-        public static final Setting<Boolean> NETTY_NO_UNSAFE = Setting.boolSetting("io.netty.noUnsafe", false, Setting.Property.NodeScope);
-
-        public static final Setting<Boolean> NETTY_TRY_UNSAFE = Setting.boolSetting("io.netty.tryUnsafe", true, Setting.Property.NodeScope);
-
         @SuppressForbidden(reason = "required for netty allocator configuration")
         public static void init(Settings settings) {
             System.setProperty("io.netty.allocator.numDirectArenas", Integer.toString(NETTY_ALLOCATOR_NUM_DIRECT_ARENAS.get(settings)));
-            System.setProperty("io.netty.noUnsafe", Boolean.toString(NETTY_NO_UNSAFE.get(settings)));
-            System.setProperty("io.netty.tryUnsafe", Boolean.toString(NETTY_TRY_UNSAFE.get(settings)));
-            System.setProperty("io.netty.tryReflectionSetAccessible", Boolean.toString(NETTY_TRY_REFLECTION_SET_ACCESSIBLE.get(settings)));
+            checkSystemProperty("io.netty.noUnsafe", "false");
+            checkSystemProperty("io.netty.tryUnsafe", "true");
+            checkSystemProperty("io.netty.tryReflectionSetAccessible", "true");
+        }
+
+        private static void checkSystemProperty(String propertyName, String expectedValue) {
+            String actualValue = System.getProperty(propertyName);
+            if (!expectedValue.equals(actualValue)) {
+                throw new IllegalStateException(
+                    "Required system property ["
+                        + propertyName
+                        + "] is incorrect; expected: ["
+                        + expectedValue
+                        + "] actual: ["
+                        + actualValue
+                        + "]."
+                );
+            }
         }
 
         public static List<Setting<?>> getSettings() {
-            return Arrays.asList(NETTY_TRY_REFLECTION_SET_ACCESSIBLE, NETTY_ALLOCATOR_NUM_DIRECT_ARENAS, NETTY_NO_UNSAFE, NETTY_TRY_UNSAFE);
+            return List.of(NETTY_ALLOCATOR_NUM_DIRECT_ARENAS);
         }
     }
 }
