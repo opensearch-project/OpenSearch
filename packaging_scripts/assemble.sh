@@ -222,9 +222,9 @@ function install_plugins() {
     echo "Install plugins"
     maven_repo_local="$HOME/maven"
     for plugin in "${plugins[@]}"; do
-        plugin_from_maven="org.opensearch.plugin:${plugin}:${VERSION}.0"
+        plugin_from_maven="org.opensearch.plugin:${plugin}:${UPSTREAM_VERSION}.0"
         mvn -Dmaven.repo.local="${maven_repo_local}" org.apache.maven.plugins:maven-dependency-plugin:2.1:get -DrepoUrl=https://repo1.maven.org/maven2 -Dartifact="${plugin_from_maven}:zip"
-        OPENSEARCH_PATH_CONF=$PATH_CONF "${PATH_BIN}/opensearch-plugin" install --batch --verbose "file:${maven_repo_local}/org/opensearch/plugin/${plugin}/${VERSION}.0/${plugin}-${VERSION}.0.zip"
+        OPENSEARCH_PATH_CONF=$PATH_CONF "${PATH_BIN}/opensearch-plugin" install --batch --verbose "file:${maven_repo_local}/org/opensearch/plugin/${plugin}/${UPSTREAM_VERSION}.0/${plugin}-${UPSTREAM_VERSION}.0.zip"
     done
 }
 
@@ -251,19 +251,16 @@ function assemble_tar() {
     tar -zvxf "${ARTIFACT_BUILD_NAME}"
     cd "$(ls -d wazuh-indexer-*/)"
 
-    local version
-    version=$(cat VERSION)
-
     # Install plugins
     install_plugins
     fix_log_rotation ${PATH_CONF}
     # Swap configuration files
     add_configuration_files
     remove_unneeded_files
-    add_wazuh_tools "${version}"
+    add_wazuh_tools "${PRODUCT_VERSION}"
 
     # Pack
-    archive_name="wazuh-indexer-${version}"
+    archive_name="wazuh-indexer-${PRODUCT_VERSION}"
     cd ..
     tar -cvf "${archive_name}-${SUFFIX}.${EXT}" "${archive_name}"
     cd ../../..
@@ -278,21 +275,31 @@ function assemble_tar() {
 function assemble_rpm() {
     # Copy spec
     cp "distribution/packages/src/rpm/wazuh-indexer.rpm.spec" "${TMP_DIR}"
+    
     # Copy performance analyzer service file
     enable_performance_analyzer
+    
+    # Get the commit hash
+    local hash=$(git rev-parse --short HEAD)
+    
+    # Store the top level dir path
+    local repo_dir="$(pwd)"
 
     cd "${TMP_DIR}"
     local src_path="./usr/share/wazuh-indexer"
     PATH_CONF="./etc/wazuh-indexer"
     PATH_BIN="${src_path}/bin"
     PATH_PLUGINS="${src_path}/plugins"
+   
 
     # Extract min-package. Creates usr/, etc/ and var/ in the current directory
     echo "Extract ${ARTIFACT_BUILD_NAME} archive"
     rpm2cpio "${ARTIFACT_BUILD_NAME}" | cpio -imdv
+    
+    # Add the commit hash to the VERSION.json file and
+    # add it to the package
+    jq --arg hash "${hash}" '. + {"commit": $hash}' "${repo_dir}"/VERSION.json > ./usr/share/wazuh-indexer/VERSION.json
 
-    local version
-    version=$(cat ./usr/share/wazuh-indexer/VERSION)
 
     # Install plugins
     install_plugins
@@ -301,7 +308,7 @@ function assemble_rpm() {
     # Swap configuration files
     add_configuration_files
     remove_unneeded_files
-    add_wazuh_tools "${version}"
+    add_wazuh_tools "${PRODUCT_VERSION}"
 
     # Generate final package
     local topdir
@@ -309,14 +316,14 @@ function assemble_rpm() {
     topdir=$(pwd)
     rpmbuild --bb \
         --define "_topdir ${topdir}" \
-        --define "_version ${version}" \
+        --define "_version ${PRODUCT_VERSION}" \
         --define "_architecture ${SUFFIX}" \
         --define "_release ${REVISION}" \
         ${spec_file}
 
     # Move to the root folder, copy the package and clean.
     cd ../../..
-    package_name="wazuh-indexer-${version}-${REVISION}.${SUFFIX}.${EXT}"
+    package_name="wazuh-indexer-${PRODUCT_VERSION}-${REVISION}.${SUFFIX}.${EXT}"
     cp "${TMP_DIR}/RPMS/${SUFFIX}/${package_name}" "${OUTPUT}/dist/$ARTIFACT_PACKAGE_NAME"
 
     clean
@@ -333,6 +340,12 @@ function assemble_deb() {
     chmod a+x "${TMP_DIR}/debmake_install.sh"
     # Copy performance analyzer service file
     enable_performance_analyzer
+    
+    # Get the commit hash
+    local hash=$(git rev-parse --short HEAD)
+    
+    # Store the top level dir path
+    local repo_dir="$(pwd)"
 
     cd "${TMP_DIR}"
     local src_path="./usr/share/wazuh-indexer"
@@ -344,9 +357,10 @@ function assemble_deb() {
     echo "Extract ${ARTIFACT_BUILD_NAME} archive"
     ar xf "${ARTIFACT_BUILD_NAME}" data.tar.gz
     tar zvxf data.tar.gz
-
-    local version
-    version=$(cat ./usr/share/wazuh-indexer/VERSION)
+    
+    # Add the commit hash to the VERSION.json file and
+    # add it to the package
+    jq --arg hash "${hash}" '. + {"commit": $hash}' "${repo_dir}"/VERSION.json > ./usr/share/wazuh-indexer/VERSION.json
 
     # Install plugins
     install_plugins
@@ -355,7 +369,7 @@ function assemble_deb() {
     # Swap configuration files
     add_configuration_files
     remove_unneeded_files
-    add_wazuh_tools "${version}"
+    add_wazuh_tools "${PRODUCT_VERSION}"
 
     # Configure debmake to only generate binaries
     echo 'DEBUILD_DPKG_BUILDPACKAGE_OPTS="-us -uc -ui -b"' >~/.devscripts
@@ -370,11 +384,11 @@ function assemble_deb() {
         --package wazuh-indexer \
         --native \
         --revision "${REVISION}" \
-        --upstreamversion "${version}-${REVISION}"
+        --upstreamversion "${PRODUCT_VERSION}-${REVISION}"
 
     # Move to the root folder, copy the package and clean.
     cd ../../..
-    package_name="wazuh-indexer_${version}-${REVISION}_${SUFFIX}.${EXT}"
+    package_name="wazuh-indexer_${PRODUCT_VERSION}-${REVISION}_${SUFFIX}.${EXT}"
     # debmake creates the package one level above
     cp "${TMP_DIR}/../${package_name}" "${OUTPUT}/dist/$ARTIFACT_PACKAGE_NAME"
 
@@ -389,7 +403,9 @@ function main() {
 
     echo "Assembling wazuh-indexer for $PLATFORM-$DISTRIBUTION-$ARCHITECTURE"
 
-    VERSION=$(bash packaging_scripts/upstream_version.sh)
+
+    UPSTREAM_VERSION=$(bash packaging_scripts/upstream_version.sh)
+    PRODUCT_VERSION=$(bash packaging_scripts/product_version.sh)
     ARTIFACT_BUILD_NAME=$(ls "${OUTPUT}/dist/" | grep "wazuh-indexer-min.*$SUFFIX.*\.$EXT")
     ARTIFACT_PACKAGE_NAME=${ARTIFACT_BUILD_NAME/-min/}
 

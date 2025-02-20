@@ -9,6 +9,7 @@ FROM eclipse-temurin:23-jdk-alpine
 RUN apk add git && \
   apk add curl && \
   apk add bash && \
+  apk add jq && \
   addgroup -g 1000 wazuh-indexer && \
   adduser -u 1000 -G wazuh-indexer -D -h /home/wazuh-indexer wazuh-indexer && \
   chmod 0775 /home/wazuh-indexer && \

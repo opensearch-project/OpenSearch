@@ -21,7 +21,7 @@ function usage() {
     echo -e "-p PLATFORM\t[Optional] Platform, default is 'uname -s'."
     echo -e "-a ARCHITECTURE\t[Optional] Build architecture, default is 'uname -m'."
     echo -e "-d DISTRIBUTION\t[Optional] Distribution, default is 'tar'."
-    echo -e "-b BRANCH\t[Optional] Branch from wazuh/wazuh to download the index template from, default is '<VERSION'"
+    echo -e "-b BRANCH\t[Optional] Branch from wazuh/wazuh to download the index template from, default is $(bash packaging_scripts/product_version.sh)"
     echo -e "-n NAME\t[optional] Package name, default is set automatically."
     echo -e "-o OUTPUT\t[Optional] Output path, default is 'artifacts'."
     echo -e "-h help"
@@ -79,7 +79,7 @@ function parse_args() {
     [ -z "$PLATFORM" ] && PLATFORM=$(uname -s | awk '{print tolower($0)}')
     [ -z "$ARCHITECTURE" ] && ARCHITECTURE=$(uname -m)
     [ -z "$DISTRIBUTION" ] && DISTRIBUTION="tar"
-    [ -z "$BRANCH" ] && BRANCH=$(<VERSION)
+    [ -z "$BRANCH" ] && BRANCH="$(bash packaging_scripts/product_version.sh)"
 
     case $PLATFORM-$DISTRIBUTION-$ARCHITECTURE in
     linux-tar-x64 | darwin-tar-x64)

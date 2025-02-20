@@ -19,10 +19,7 @@ services:
       context: ./../..
       dockerfile: ${REPO_PATH}/docker/ci/images/Dockerfile
     volumes:
-      - ${REPO_PATH}/packaging_scripts:/home/wazuh-indexer/packaging_scripts
-      - ${REPO_PATH}/artifacts:/home/wazuh-indexer/artifacts
-      - ${REPO_PATH}/distribution/packages/src:/home/wazuh-indexer/distribution/packages/src
-      - ${REPO_PATH}/buildSrc:/home/wazuh-indexer/buildSrc
+      - ${REPO_PATH}:/home/wazuh-indexer
     entrypoint: ["tail", "-f", "/dev/null"]
     user: "1000:1000"
     working_dir: /home/wazuh-indexer

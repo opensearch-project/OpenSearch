@@ -38,7 +38,7 @@ act -j build -W .github/workflows/build.yml --artifact-server-path ./artifacts
 Using the [Docker environment](../docker):
 
 ```console
-docker exec -it wi-build_$(<VERSION) bash packaging_scripts/build.sh -a {x64|arm64} -d {rpm|deb|tar}
+docker exec -it wi-build_$(jq -r .version<VERSION.json) bash packaging_scripts/build.sh -a {x64|arm64} -d {rpm|deb|tar}
 ```
 
 The generated package is sent to the `wazuh-indexer/artifacts` folder.
@@ -146,7 +146,7 @@ Pre-requisites:
 - Using the [Docker environment](../docker):
 
 ```console
-docker exec -it wi-assemble_$(<VERSION) bash packaging_scripts/assemble.sh -a x64 -d deb
+docker exec -it wi-assemble_$(jq -r .version<VERSION.json) bash packaging_scripts/assemble.sh -a x64 -d deb
 ```
 
 ### RPM
@@ -216,7 +216,7 @@ Pre-requisites:
 - Using the [Docker environment](../docker):
 
 ```console
-docker exec -it wi-assemble_$(<VERSION) bash packaging_scripts/assemble.sh -a x64 -d rpm
+docker exec -it wi-assemble_$(jq -r .version<VERSION.json) bash packaging_scripts/assemble.sh -a x64 -d rpm
 ```
 
 ## Bash scripts reference
