@@ -38,6 +38,9 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -55,10 +58,12 @@ import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.opensearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -74,6 +79,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -227,6 +233,68 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Considerations:
+     *     1. When building source using doc_values, for multi-value field, it will result values in sorted order
+     *     2. If "null_value" is defined in field mapping and doc contains "null" field value then derived source will
+     *        contain "null_value" as field value instead of null and if "null_value" is not defined in mapping then
+     *        field will not be present in derived source
+     * <p>
+     * Date format:
+     *     1. If "print_format" specified in field mapping, then derived source will have date in this format
+     *     2. If multiple date formats are specified in field mapping and "print_format" is not specified then
+     *        derived source will contain date in first date format from "||" separated list of format defined in
+     *        "format"
+     */
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        super.deriveSource(builder, leafReader, docId);
+        if (mappedFieldType.hasDocValues()) {
+            SortedNumericDocValues sortedNumericDocValues = leafReader.getSortedNumericDocValues(name());
+            if (sortedNumericDocValues != null && sortedNumericDocValues.advanceExact(docId)) {
+                int valueCount = sortedNumericDocValues.docValueCount();
+                if (valueCount > 0) {
+                    String[] values = new String[valueCount];
+                    DateFormatter dateFormatter = fieldType().dateTimeFormatter;
+                    for (int i = 0; i < valueCount; i++) {
+                        values[i] = dateFormatter.formatMillis(sortedNumericDocValues.nextValue());
+                    }
+                    if (valueCount > 1) {
+                        builder.array(name(), values);
+                    } else {
+                        builder.field(name(), values[0]);
+                    }
+                }
+            }
+        } else if (mappedFieldType.isStored()) {
+            List<Object> values = new ArrayList<>();
+            SingleFieldsVisitor singleFieldsVisitor = new SingleFieldsVisitor(mappedFieldType, values);
+            StoredFields storedFields = leafReader.storedFields();
+            storedFields.document(docId, singleFieldsVisitor);
+            if (!values.isEmpty()) {
+                if (values.size() > 1) {
+                    builder.array(name(), values.toArray());
+                } else {
+                    builder.field(name(), values.getFirst());
+                }
+            }
+        }
+    }
+
+    @Override
+    public void canDeriveSource() {
+        super.canDeriveSource();
+        if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with copy_to parameter set");
+        }
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with stored and docValues disabled");
+        }
+    }
+
+    /**
      * Builder for the date field mapper
      *
      * @opensearch.internal
@@ -373,14 +441,29 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateFormatter dateTimeFormatter,
             Resolution resolution,
             String nullValue,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean derivedSourceSupported
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta, derivedSourceSupported);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
             this.nullValue = nullValue;
         }
+
+        public DateFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            Map<String, String> meta
+        ) {
+            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, false);
+        }
+
 
         public DateFieldType(String name) {
             this(name, true, false, true, getDefaultDateTimeFormatter(), Resolution.MILLISECONDS, null, Collections.emptyMap());

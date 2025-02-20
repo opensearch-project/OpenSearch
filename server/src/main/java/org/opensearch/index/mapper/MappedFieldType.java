@@ -92,6 +92,26 @@ public abstract class MappedFieldType {
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
+    private boolean derivedSourceSupported;
+
+    public MappedFieldType(
+        String name,
+        boolean isIndexed,
+        boolean isStored,
+        boolean hasDocValues,
+        TextSearchInfo textSearchInfo,
+        Map<String, String> meta,
+        boolean derivedSourceSupported
+    ) {
+        setBoost(1.0f);
+        this.name = Objects.requireNonNull(name);
+        this.isIndexed = isIndexed;
+        this.isStored = isStored;
+        this.docValues = hasDocValues;
+        this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
+        this.meta = meta;
+        this.derivedSourceSupported = derivedSourceSupported;
+    }
 
     public MappedFieldType(
         String name,
@@ -101,13 +121,7 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        setBoost(1.0f);
-        this.name = Objects.requireNonNull(name);
-        this.isIndexed = isIndexed;
-        this.isStored = isStored;
-        this.docValues = hasDocValues;
-        this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
-        this.meta = meta;
+        this(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta, false);
     }
 
     /**
@@ -183,6 +197,13 @@ public abstract class MappedFieldType {
      */
     public boolean isStored() {
         return isStored;
+    }
+
+    /**
+     * Returns true, if derive source feature is enabled for this field
+     */
+    public boolean isDerivedSourceSupported() {
+        return derivedSourceSupported;
     }
 
     /**
