@@ -250,6 +250,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        super.deriveSource(builder, leafReader, docId);
         if (mappedFieldType.hasDocValues()) {
             SortedNumericDocValues sortedNumericDocValues = leafReader.getSortedNumericDocValues(name());
             if (sortedNumericDocValues != null && sortedNumericDocValues.advanceExact(docId)) {
@@ -460,7 +461,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             String nullValue,
             Map<String, String> meta
         ) {
-            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, false);
+            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, true);
         }
 
 

@@ -579,7 +579,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         if (!mappedFieldType.isDerivedSourceSupported()) throw new UnsupportedOperationException(
             "Derived source field is not supported for [" + name() + "] field"
         );
-        throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
     }
 
     /**
@@ -590,7 +589,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
         canDeriveSource();
-        throw new UnsupportedOperationException("Derived source field is not supported for [" + name() + "] field");
     }
 
     /**
