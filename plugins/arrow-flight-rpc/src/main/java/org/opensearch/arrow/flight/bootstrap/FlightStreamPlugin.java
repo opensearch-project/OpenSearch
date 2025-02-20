@@ -22,6 +22,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -59,13 +60,15 @@ import java.util.function.Supplier;
 public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, NetworkPlugin, ActionPlugin, ClusterPlugin {
 
     private final FlightService flightService;
+    private final boolean isArrowStreamsEnabled;
 
     /**
      * Constructor for FlightStreamPluginImpl.
      * @param settings The settings for the FlightStreamPlugin.
      */
     public FlightStreamPlugin(Settings settings) {
-        this.flightService = new FlightService(settings);
+        this.isArrowStreamsEnabled = FeatureFlags.isEnabled(FeatureFlags.ARROW_STREAMS);
+        this.flightService = isArrowStreamsEnabled ? new FlightService(settings) : null;
     }
 
     /**
@@ -97,6 +100,9 @@ public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, N
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        if (!isArrowStreamsEnabled) {
+            return Collections.emptyList();
+        }
         flightService.setClusterService(clusterService);
         flightService.setThreadPool(threadPool);
         flightService.setClient(client);
@@ -126,6 +132,9 @@ public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, N
         SecureTransportSettingsProvider secureTransportSettingsProvider,
         Tracer tracer
     ) {
+        if (!isArrowStreamsEnabled) {
+            return Collections.emptyMap();
+        }
         flightService.setSecureTransportSettingsProvider(secureTransportSettingsProvider);
         return Collections.emptyMap();
     }
@@ -149,6 +158,9 @@ public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, N
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
+        if (!isArrowStreamsEnabled) {
+            return Collections.emptyMap();
+        }
         flightService.setNetworkService(networkService);
         return Collections.singletonMap(FlightService.AUX_TRANSPORT_TYPES_KEY, () -> flightService);
     }
@@ -174,6 +186,9 @@ public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, N
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
+        if (!isArrowStreamsEnabled) {
+            return Collections.emptyList();
+        }
         return List.of(new FlightServerInfoAction());
     }
 
@@ -183,6 +198,9 @@ public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, N
      */
     @Override
     public List<ActionHandler<?, ?>> getActions() {
+        if (!isArrowStreamsEnabled) {
+            return Collections.emptyList();
+        }
         return List.of(new ActionHandler<>(NodesFlightInfoAction.INSTANCE, TransportNodesFlightInfoAction.class));
     }
 
@@ -193,6 +211,9 @@ public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, N
      */
     @Override
     public void onNodeStarted(DiscoveryNode localNode) {
+        if (!isArrowStreamsEnabled) {
+            return;
+        }
         flightService.getFlightClientManager().buildClientAsync(localNode.getId());
     }
 
@@ -201,6 +222,9 @@ public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, N
      */
     @Override
     public Supplier<StreamManager> getStreamManager() {
+        if (!isArrowStreamsEnabled) {
+            return null;
+        }
         return flightService::getStreamManager;
     }
 
@@ -210,6 +234,9 @@ public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, N
      */
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        if (!isArrowStreamsEnabled) {
+            return Collections.emptyList();
+        }
         return List.of(ServerConfig.getServerExecutorBuilder(), ServerConfig.getClientExecutorBuilder());
     }
 
@@ -218,6 +245,9 @@ public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, N
      */
     @Override
     public List<Setting<?>> getSettings() {
+        if (!isArrowStreamsEnabled) {
+            return Collections.emptyList();
+        }
         return new ArrayList<>(
             Arrays.asList(
                 ServerComponents.SETTING_FLIGHT_PORTS,
