@@ -18,6 +18,7 @@ import java.util.Map;
 public class KafkaSourceConfig {
     private final String PROP_TOPIC = "topic";
     private final String PROP_BOOTSTRAP_SERVERS = "bootstrap_servers";
+    // TODO: support pass any generic kafka configs
     private final String PROP_AUTO_OFFSET_RESET = "auto.offset.reset";
 
     private final String topic;

@@ -20,8 +20,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -34,7 +37,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     private MessageProcessorRunnable.MessageProcessor processor;
     private List<byte[]> messages;
     private Set<IngestionShardPointer> persistedPointers;
-    private final int sleepTime = 300;
+    private final int awaitTime = 300;
 
     @Before
     public void setUp() throws Exception {
@@ -66,16 +69,32 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     }
 
     public void testPauseAndResume() throws InterruptedException {
+        // We'll use a latch that counts the number of messages processed.
+        CountDownLatch pauseLatch = new CountDownLatch(2);
+        doAnswer(invocation -> {
+            pauseLatch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
+
         poller.pause();
         poller.start();
-        Thread.sleep(sleepTime); // Allow some time for the poller to run
+
+        // Wait briefly to ensure that no processing occurs.
+        boolean processedWhilePaused = pauseLatch.await(awaitTime, TimeUnit.MILLISECONDS);
+        // Expecting the latch NOT to reach zero because we are paused.
+        assertFalse("Messages should not be processed while paused", processedWhilePaused);
         assertEquals(DefaultStreamPoller.State.PAUSED, poller.getState());
         assertTrue(poller.isPaused());
-        // no messages are processed
         verify(processor, never()).process(any(), any());
 
+        CountDownLatch resumeLatch = new CountDownLatch(2);
+        doAnswer(invocation -> {
+            resumeLatch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
+
         poller.resume();
-        Thread.sleep(sleepTime); // Allow some time for the poller to run
+        resumeLatch.await();
         assertFalse(poller.isPaused());
         // 2 messages are processed
         verify(processor, times(2)).process(any(), any());
@@ -94,8 +113,15 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.ResetState.NONE,
             ""
         );
+
+        CountDownLatch latch = new CountDownLatch(2);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
+
         poller.start();
-        Thread.sleep(sleepTime); // Allow some time for the poller to run
+        latch.await();
         // 2 messages are processed, 2 messages are skipped
         verify(processor, times(2)).process(any(), any());
         assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(2), poller.getMaxPersistedPointer());
@@ -108,7 +134,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
     public void testClose() throws InterruptedException {
         poller.start();
-        Thread.sleep(sleepTime); // Allow some time for the poller to run
+        waitUntil(() -> poller.getState() == DefaultStreamPoller.State.POLLING, awaitTime, TimeUnit.MILLISECONDS);
         poller.close();
         assertTrue(poller.isClosed());
         assertEquals(DefaultStreamPoller.State.CLOSED, poller.getState());
@@ -123,9 +149,14 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.ResetState.EARLIEST,
             ""
         );
+        CountDownLatch latch = new CountDownLatch(2);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
 
         poller.start();
-        Thread.sleep(sleepTime); // Allow some time for the poller to run
+        latch.await();
 
         // 2 messages are processed
         verify(processor, times(2)).process(any(), any());
@@ -142,7 +173,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         );
 
         poller.start();
-        Thread.sleep(sleepTime); // Allow some time for the poller to run
+        waitUntil(() -> poller.getState() == DefaultStreamPoller.State.POLLING, awaitTime, TimeUnit.MILLISECONDS);
         // no messages processed
         verify(processor, never()).process(any(), any());
         // reset to the latest
@@ -158,9 +189,14 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             StreamPoller.ResetState.REWIND_BY_OFFSET,
             "1"
         );
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(processor).process(any(), any());
 
         poller.start();
-        Thread.sleep(sleepTime); // Allow some time for the poller to run
+        latch.await();
         // 1 message is processed
         verify(processor, times(1)).process(any(), any());
     }
@@ -176,7 +212,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
     public void testStartClosedPoller() throws InterruptedException {
         poller.start();
-        Thread.sleep(sleepTime);
+        waitUntil(() -> poller.getState() == DefaultStreamPoller.State.POLLING, awaitTime, TimeUnit.MILLISECONDS);
         poller.close();
         try {
             poller.startPoll();
