@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.health.v1.HealthCheckResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
@@ -20,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import io.grpc.health.v1.HealthCheckResponse;
 
 import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
@@ -37,10 +38,7 @@ public class Netty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(AUX_TRANSPORT_TYPES_KEY, GRPC_TRANSPORT_SETTING_KEY)
-            .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(AUX_TRANSPORT_TYPES_KEY, GRPC_TRANSPORT_SETTING_KEY).build();
     }
 
     @Override
@@ -50,9 +48,7 @@ public class Netty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
 
     public void testStartGrpcTransportClusterHealth() throws Exception {
         // REST api cluster health
-        ClusterHealthResponse healthResponse = client().admin().cluster()
-            .prepareHealth()
-            .get();
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().get();
         assertEquals(ClusterHealthStatus.GREEN, healthResponse.getStatus());
 
         // gRPC transport service health
