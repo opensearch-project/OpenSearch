@@ -112,6 +112,7 @@ import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalNoOpTranslogManager;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.LocalTranslog;
 import org.opensearch.index.translog.Translog;
@@ -1607,6 +1608,14 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             : "only InternalEngines or NRTReplicationEngines have translogs, got: " + engine.getClass();
         engine.ensureOpen();
         TranslogManager translogManager = engine.translogManager();
+
+        // InternalNoOpTranslogManager does not use a real translog and hence not required to close.
+        // The only place this method is called in ingestion tests is to validate translog is closed, hence throw
+        // AlreadyClosedException
+        if (translogManager instanceof InternalNoOpTranslogManager) {
+            throw new AlreadyClosedException("InternalNoOpTranslogManager uses no-op translog");
+        }
+
         assert translogManager instanceof InternalTranslogManager : "only InternalTranslogManager have translogs, got: "
             + engine.getClass();
         InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
