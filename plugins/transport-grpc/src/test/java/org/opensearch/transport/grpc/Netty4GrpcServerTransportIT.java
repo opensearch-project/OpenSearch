@@ -25,7 +25,7 @@ import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PO
 import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 
-public class GrpcTransportIT extends OpenSearchIntegTestCase {
+public class Netty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
     private final PortsRange TEST_AUX_PORTS = new PortsRange("9400-9500");
     private final TransportAddress PLACEHOLDER_ADDR = new TransportAddress(new InetSocketAddress("127.0.0.1", 9401));
 
