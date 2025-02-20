@@ -181,7 +181,7 @@ public class SystemdIT {
     }
 
     @Test
-    public void testProcessExit() throws IOException, InterruptedException {
+    public void testOpensearchProcessCannotExit() throws IOException, InterruptedException {
 
         String scriptContent = "#!/bin/sh\n" +
                             "if [ $# -ne 1 ]; then\n" +
