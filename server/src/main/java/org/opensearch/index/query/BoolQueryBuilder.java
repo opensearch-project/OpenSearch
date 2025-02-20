@@ -153,6 +153,24 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
+     * Add query filter to filterClauses.
+     * @param filter the query filter
+     * @param filterCombinationMode the filter combination mode
+     * @return BoolQueryBuilder
+     */
+    public BoolQueryBuilder filter(QueryBuilder filter, FilterCombinationMode filterCombinationMode) {
+        if (filterCombinationMode == null || FilterCombinationMode.AND.equals(filterCombinationMode)) {
+            if (filter != null) {
+                filter(filter);
+            }
+            return this;
+        } else {
+            // Unexpected FilterCombinationMode
+            throw new UnsupportedOperationException("Unsupported Filter Combination Mode");
+        }
+    }
+
+    /**
      * Adds a query that <b>must not</b> appear in the matching documents.
      * No {@code null} value allowed.
      */

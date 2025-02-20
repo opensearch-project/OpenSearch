@@ -36,6 +36,10 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.FilterCombinationMode;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -142,5 +146,40 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         queryBuilder.visit(createTestVisitor(visitorQueries));
 
         assertEquals(2, visitorQueries.size());
+    }
+
+    public void testFilter() {
+        // Test for Null Filter Combination Mode
+        BoolQueryBuilder filterBuilder = new BoolQueryBuilder();
+        ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(filterBuilder);
+        QueryBuilder filter = QueryBuilders.matchAllQuery();
+        constantScoreQueryBuilder.filter(filter, null);
+        assertEquals(1, filterBuilder.filter().size());
+        assertEquals(filter, filterBuilder.filter().get(0));
+
+        // Test for AND Filter Combination Mode
+        filterBuilder = new BoolQueryBuilder();
+        constantScoreQueryBuilder = new ConstantScoreQueryBuilder(filterBuilder);
+        filter = QueryBuilders.matchAllQuery();
+        constantScoreQueryBuilder.filter(filter, FilterCombinationMode.AND);
+        assertEquals(1, filterBuilder.filter().size());
+        assertEquals(filter, filterBuilder.filter().get(0));
+
+        // Test for Null Filter
+        filterBuilder = new BoolQueryBuilder();
+        constantScoreQueryBuilder = new ConstantScoreQueryBuilder(filterBuilder);
+        filter = QueryBuilders.matchAllQuery();
+        constantScoreQueryBuilder.filter(null, FilterCombinationMode.AND);
+        assertEquals(0, filterBuilder.filter().size());
+
+        // Test for unspported Filter Combination Mode
+        filterBuilder = new BoolQueryBuilder();
+        constantScoreQueryBuilder = new ConstantScoreQueryBuilder(filterBuilder);
+        filter = QueryBuilders.matchAllQuery();
+        assertThrows(
+            "Unsupported Filter Combination Mode",
+            UnsupportedOperationException.class,
+            () -> constantScoreQueryBuilder.filter(filter, FilterCombinationMode.OR)
+        );
     }
 }

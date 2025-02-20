@@ -101,6 +101,23 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         builder.endObject();
     }
 
+    /**
+     * Adds a filter to the current ConstantScoreQuery.
+     * @param filter the filter to add to the current ConstantScoreQuery
+     * @param filterCombinationMode the combination mode for the filter. Currently support {@link FilterCombinationMode#AND}
+     */
+    public ConstantScoreQueryBuilder filter(QueryBuilder filter, FilterCombinationMode filterCombinationMode){
+        if (filterCombinationMode == null || FilterCombinationMode.AND.equals(filterCombinationMode)) {
+            if (filter != null) {
+                filterBuilder.filter(filter, filterCombinationMode);
+            }
+            return this;
+        } else {
+            // Unexpected FilterCombinationMode
+            throw new UnsupportedOperationException("Unsupported Filter Combination Mode");
+        }
+    }
+
     public static ConstantScoreQueryBuilder fromXContent(XContentParser parser) throws IOException {
         QueryBuilder query = null;
         boolean queryFound = false;

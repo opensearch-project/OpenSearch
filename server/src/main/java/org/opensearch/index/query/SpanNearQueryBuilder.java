@@ -421,6 +421,27 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             return builder;
         }
 
+        /**
+         * Combine filter with current query builder based on filterCombinationMode
+         * @param filter filter to combine with current querybuilder
+         * @param filterCombinationMode filter combination mode, default is AND
+         * @return querybuilder with filter combined
+         */
+        public QueryBuilder filter(QueryBuilder filter, FilterCombinationMode filterCombinationMode) {
+            if (filterCombinationMode == null || FilterCombinationMode.AND.equals(filterCombinationMode)) {
+                if (filter != null) {
+                    final BoolQueryBuilder modifiedQB = new BoolQueryBuilder();
+                    modifiedQB.must(this);
+                    modifiedQB.filter(filter);
+                    return modifiedQB;
+                }
+                return this;
+            } else {
+                // Unexpected FilterCombinationMode
+                throw new UnsupportedOperationException("Unsupported Filter Combination Mode");
+            }
+        }
+
         public static SpanGapQueryBuilder fromXContent(XContentParser parser) throws IOException {
             String fieldName = null;
             int width = 0;

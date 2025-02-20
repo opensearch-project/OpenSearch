@@ -37,6 +37,8 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.test.AbstractQueryTestCase;
+import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -131,5 +133,30 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
         assertEquals(json, 3, parsed.clauses().size());
         assertEquals(json, 12, parsed.slop());
         assertEquals(json, false, parsed.inOrder());
+    }
+
+    /**
+     * Check if a filter can be applied to the abstract query builder.
+     * @throws IOException
+     */
+    public void testFilter() throws IOException {
+        QueryBuilder queryBuilder = new SpanGapQueryBuilder("field", 1);
+        QueryBuilder filter = QueryBuilders.matchAllQuery();
+        // Test for Null Filter case
+        QueryBuilder returnedQuerybuilder = queryBuilder.filter(null, null);
+        assertEquals(queryBuilder, returnedQuerybuilder);
+
+        // Test for unspported Filter Combination Mode
+        assertThrows(
+            "Unsupported Filter Combination Mode",
+            UnsupportedOperationException.class,
+            () -> queryBuilder.filter(filter, FilterCombinationMode.OR)
+        );
+
+        // Test for AND case
+        returnedQuerybuilder = queryBuilder.filter(filter, FilterCombinationMode.AND);
+        assertTrue(returnedQuerybuilder instanceof BoolQueryBuilder);
+        assertTrue(((BoolQueryBuilder) returnedQuerybuilder).filter().size() == 1);
+        assertEquals(filter, ((BoolQueryBuilder) returnedQuerybuilder).filter().get(0));
     }
 }
