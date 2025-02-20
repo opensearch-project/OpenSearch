@@ -313,7 +313,7 @@ public class LeaderChecker {
                             logger.debug(new ParameterizedMessage("leader [{}] health check failed", leader), exp);
                             leaderFailed(new NodeHealthCheckFailureException("node [" + leader + "] failed health checks", exp));
                             return;
-                        } else if(exp.getCause() instanceof CoordinationStateRejectedException) {
+                        } else if (exp.getCause() instanceof CoordinationStateRejectedException) {
                             logger.debug(new ParameterizedMessage("leader [{}] rejected coordination state", leader), exp);
                             leaderFailed(new CoordinationStateRejectedException("node [" + leader + "] rejected coordination state", exp));
                             return;
