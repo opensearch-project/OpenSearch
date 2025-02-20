@@ -18,7 +18,6 @@ import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.TreeSet;
@@ -36,7 +35,7 @@ public class ExactMatchDimFilter implements DimensionFilter {
     // Order is essential for successive binary search
     private TreeSet<Long> convertedOrdinals;
 
-    Comparator<Long> comparator;
+    private DimensionFilterMapper dimensionFilterMapper;
 
     public ExactMatchDimFilter(String dimensionName, List<Object> valuesToMatch) {
         this.dimensionName = dimensionName;
@@ -50,10 +49,10 @@ public class ExactMatchDimFilter implements DimensionFilter {
             dimensionName,
             starTreeValues.getStarTreeField().getDimensionsOrder()
         );
-        DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
+        this.dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
             searchContext.mapperService().fieldType(dimensionName)
         );
-        this.comparator = dimensionFilterMapper.comparator();
+
         for (Object rawValue : rawValues) {
             Optional<Long> ordinal = dimensionFilterMapper.getMatchingOrdinal(
                 matchedDim.getField(),
@@ -73,7 +72,7 @@ public class ExactMatchDimFilter implements DimensionFilter {
         if (parentNode != null) {
             StarTreeNode lastMatchedNode = null;
             for (long ordinal : convertedOrdinals) {
-                lastMatchedNode = parentNode.getChildForDimensionValue(ordinal, lastMatchedNode, comparator);
+                lastMatchedNode = parentNode.getChildForDimensionValue(ordinal, lastMatchedNode, dimensionFilterMapper);
                 if (lastMatchedNode != null) {
                     collector.collectStarTreeNode(lastMatchedNode);
                 }

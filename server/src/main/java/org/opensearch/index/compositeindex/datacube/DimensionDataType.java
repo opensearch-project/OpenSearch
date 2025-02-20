@@ -12,6 +12,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * Represents the data type of the dimension value.
+ * TODO: This needs to be eventually merged with DimensionFilterMapper and all indexing related code
+ *  which use this should instead use the mapper
  *
  * @opensearch.experimental
  */

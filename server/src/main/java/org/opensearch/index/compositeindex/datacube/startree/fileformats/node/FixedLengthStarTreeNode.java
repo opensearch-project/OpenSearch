@@ -8,9 +8,11 @@
 package org.opensearch.index.compositeindex.datacube.startree.fileformats.node;
 
 import org.apache.lucene.store.RandomAccessInput;
+import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.search.startree.StarTreeNodeCollector;
+import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -194,8 +196,11 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
     }
 
     @Override
-    public StarTreeNode getChildForDimensionValue(Long dimensionValue, StarTreeNode lastMatchedChild, Comparator<Long> comparator)
-        throws IOException {
+    public StarTreeNode getChildForDimensionValue(
+        Long dimensionValue,
+        StarTreeNode lastMatchedChild,
+        DimensionFilterMapper dimensionFilterMapper
+    ) throws IOException {
         // there will be no children for leaf nodes
         if (isLeaf()) {
             return null;
@@ -203,7 +208,11 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
 
         StarTreeNode resultStarTreeNode = null;
         if (null != dimensionValue) {
-            resultStarTreeNode = binarySearchChild(dimensionValue, lastMatchedChild, comparator);
+            resultStarTreeNode = binarySearchChild(
+                dimensionValue,
+                lastMatchedChild,
+                dimensionFilterMapper == null ? DimensionDataType.LONG::compare : dimensionFilterMapper.comparator()
+            );
         }
         return resultStarTreeNode;
     }
@@ -285,8 +294,9 @@ public class FixedLengthStarTreeNode implements StarTreeNode {
     }
 
     @Override
-    public void collectChildrenInRange(long low, long high, StarTreeNodeCollector collector, Comparator<Long> comparator)
+    public void collectChildrenInRange(long low, long high, StarTreeNodeCollector collector, DimensionFilterMapper dimensionFilterMapper)
         throws IOException {
+        Comparator<Long> comparator = dimensionFilterMapper.comparator();
         if (comparator.compare(low, high) <= 0) {
             FixedLengthStarTreeNode lowStarTreeNode = binarySearchChild(low, true, null, comparator);
             if (lowStarTreeNode != null) {
