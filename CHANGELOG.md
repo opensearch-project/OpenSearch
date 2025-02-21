@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Removed
 
 ### Fixed
+- Fix HTTP API calls that hang with 'Accept-Encoding: zstd' ([#17408](https://github.com/opensearch-project/OpenSearch/pull/17408))
 
 ### Security
 
