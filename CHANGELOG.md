@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
-- Add execution_hint to cardinality aggregator request - backport to 2.19 (#[TBD](TBD))
+- Add execution_hint to cardinality aggregator request - backport to 2.19 (#[17420](https://github.com/opensearch-project/OpenSearch/pull/17420))
 
 ### Dependencies
 - Bump netty from 4.1.117.Final to 4.1.118.Final ([#17320](https://github.com/opensearch-project/OpenSearch/pull/17320))
