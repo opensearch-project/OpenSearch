@@ -94,7 +94,7 @@ public class FakeIngestionSource {
         }
 
         @Override
-        public IngestionShardPointer pointerFromTimestampMillis(String timestampMillis) {
+        public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
             throw new UnsupportedOperationException("Not implemented yet.");
         }
 

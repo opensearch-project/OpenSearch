@@ -150,9 +150,8 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
-    public IngestionShardPointer pointerFromTimestampMillis(String timestampMillisStr) {
+    public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
         long offset = AccessController.doPrivileged((PrivilegedAction<Long>) () -> {
-            long timestampMillis = Long.parseLong(timestampMillisStr);
             Map<TopicPartition, OffsetAndTimestamp> position = consumer.offsetsForTimes(
                 Collections.singletonMap(topicPartition, timestampMillis)
             );
@@ -166,7 +165,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             return offsetAndTimestamp.offset();
         });
         if (offset < 0) {
-            logger.warn("No message found for timestamp {}, fall back to auto.offset.reset policy", timestampMillisStr);
+            logger.warn("No message found for timestamp {}, fall back to auto.offset.reset policy", timestampMillis);
             String autoOffsetResetConfig = config.getAutoOffsetResetConfig();
             if (OffsetResetStrategy.EARLIEST.toString().equals(autoOffsetResetConfig)) {
                 logger.warn("The auto.offset.reset is set to earliest, seek to earliest pointer");
@@ -175,7 +174,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
                 logger.warn("The auto.offset.reset is set to latest, seek to latest pointer");
                 return latestPointer();
             } else {
-                throw new IllegalArgumentException("No message found for timestamp " + timestampMillisStr);
+                throw new IllegalArgumentException("No message found for timestamp " + timestampMillis);
             }
         }
         return new KafkaOffset(offset);

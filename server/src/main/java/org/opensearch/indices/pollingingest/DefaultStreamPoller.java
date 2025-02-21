@@ -161,7 +161,7 @@ public class DefaultStreamPoller implements StreamPoller {
                             logger.info("Resetting offset by seeking to offset {}", batchStartPointer.asString());
                             break;
                         case REWIND_BY_TIMESTAMP:
-                            batchStartPointer = consumer.pointerFromTimestampMillis(resetValue);
+                            batchStartPointer = consumer.pointerFromTimestampMillis(Long.parseLong(resetValue));
                             logger.info(
                                 "Resetting offset by seeking to timestamp {}, corresponding offset {}",
                                 resetValue,
