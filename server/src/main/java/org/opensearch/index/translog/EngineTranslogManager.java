@@ -12,11 +12,11 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * A {@link TranslogManager} interface for interacting with the {@link org.opensearch.index.engine.InternalEngine}
+ * A {@link TranslogManager} interface for interacting with the {@link org.opensearch.index.engine.Engine}
  *
  * @opensearch.internal
  */
-public interface InternalEngineTranslogManager extends TranslogManager, Closeable {
+public interface EngineTranslogManager extends TranslogManager, Closeable {
 
     long getLastSyncedGlobalCheckpoint();
 

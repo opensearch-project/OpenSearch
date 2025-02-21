@@ -22,8 +22,8 @@ import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.translog.InternalEngineTranslogManager;
-import org.opensearch.index.translog.InternalNoOpTranslogManager;
+import org.opensearch.index.translog.EngineTranslogManager;
+import org.opensearch.index.translog.NoOpInternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
@@ -268,12 +268,12 @@ public class IngestionEngine extends InternalEngine {
     }
 
     @Override
-    protected InternalEngineTranslogManager createTranslogManager(
+    protected EngineTranslogManager createTranslogManager(
         String translogUUID,
         TranslogDeletionPolicy translogDeletionPolicy,
         CompositeTranslogEventListener translogEventListener
-    ) throws IOException {
-        return new InternalNoOpTranslogManager(engineConfig, shardId, readLock, translogUUID);
+    ) {
+        return new NoOpInternalTranslogManager(engineConfig, translogUUID);
     }
 
     protected Map<String, String> commitDataAsMap() {

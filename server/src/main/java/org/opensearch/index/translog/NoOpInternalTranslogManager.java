@@ -9,8 +9,6 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.seqno.SequenceNumbers;
 
@@ -18,33 +16,22 @@ import java.io.IOException;
 import java.util.stream.Stream;
 
 import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_LOCATION;
-import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
 
 /**
- * A no-op {@link TranslogManager} implementation capable of interfacing with the {@link org.opensearch.index.engine.InternalEngine}
+ * A no-op {@link TranslogManager} implementation capable of interfacing with the {@link org.opensearch.index.engine.Engine}
  *
  * @opensearch.internal
  */
-public class InternalNoOpTranslogManager implements InternalEngineTranslogManager {
+public class NoOpInternalTranslogManager implements EngineTranslogManager {
     private final TranslogDeletionPolicy translogDeletionPolicy;
-    private final TranslogManager noOpTranslogManager;
     private final String translogUUID;
 
-    public InternalNoOpTranslogManager(EngineConfig engineConfig, ShardId shardId, ReleasableLock readLock, String translogUUID)
-        throws IOException {
+    public NoOpInternalTranslogManager(EngineConfig engineConfig, String translogUUID) {
         this.translogUUID = translogUUID;
         this.translogDeletionPolicy = new DefaultTranslogDeletionPolicy(
             engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
             engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
             engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
-        );
-
-        this.noOpTranslogManager = new NoOpTranslogManager(
-            shardId,
-            readLock,
-            () -> {},
-            new TranslogStats(0, 0, 0, 0, 0),
-            EMPTY_TRANSLOG_SNAPSHOT
         );
     }
 
@@ -167,7 +154,5 @@ public class InternalNoOpTranslogManager implements InternalEngineTranslogManage
     }
 
     @Override
-    public void close() throws IOException {
-
-    }
+    public void close() throws IOException {}
 }

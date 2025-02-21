@@ -35,7 +35,7 @@ import java.util.stream.Stream;
  *
  * @opensearch.internal
  */
-public class InternalTranslogManager implements InternalEngineTranslogManager {
+public class InternalTranslogManager implements EngineTranslogManager {
 
     private final ReleasableLock readLock;
     private final LifecycleAware engineLifeCycleAware;
