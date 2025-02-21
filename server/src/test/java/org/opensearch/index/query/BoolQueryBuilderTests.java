@@ -178,7 +178,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         BoolQueryBuilder booleanQuery = new BoolQueryBuilder();
         expectThrows(IllegalArgumentException.class, () -> booleanQuery.must(null));
         expectThrows(IllegalArgumentException.class, () -> booleanQuery.mustNot(null));
-        expectThrows(IllegalArgumentException.class, () -> booleanQuery.filter(null));
         expectThrows(IllegalArgumentException.class, () -> booleanQuery.should(null));
     }
 
@@ -324,6 +323,23 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         String query = "{\"bool\" : {\"filter\" : null } }";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.filter().isEmpty());
+    }
+
+    /**
+     * Check if a filter can be applied to the BoolQuery
+     * @throws IOException
+     */
+    public void testFilter() throws IOException {
+        // Test for non null filter
+        String query = "{\"bool\" : {\"filter\" : null } }";
+        QueryBuilder filter = QueryBuilders.matchAllQuery();
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertFalse(builder.filter(filter).filter().isEmpty());
+        assertEquals(builder.filter(filter).filter().get(0), filter);
+
+        // Test for null filter case
+        builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(builder.filter(null).filter().isEmpty());
     }
 
     /**
