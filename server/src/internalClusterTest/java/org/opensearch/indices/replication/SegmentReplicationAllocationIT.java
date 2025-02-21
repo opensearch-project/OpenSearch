@@ -364,17 +364,12 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
                 totalPrimaryShards += index.primaryShardsActive();
             }
             final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
-            logger.info("--> totalPrimaryShards = {}", totalPrimaryShards);
-            logger.info("--> totalNodes = {}", currentState.getRoutingNodes().size());
-            logger.info("--> avgPrimaryShardsPerNode = {}", avgPrimaryShardsPerNode);
-            logger.info("--> UL = {}", avgPrimaryShardsPerNode * (1 + buffer));
             for (RoutingNode node : nodes) {
                 final int primaryCount = node.shardsWithState(STARTED)
                     .stream()
                     .filter(ShardRouting::primary)
                     .collect(Collectors.toList())
                     .size();
-                logger.info("--> {}: primaryCount = {}", node.nodeId(), primaryCount);
                 assertTrue(primaryCount <= (avgPrimaryShardsPerNode * (1 + buffer)));
             }
         }, 60, TimeUnit.SECONDS);
