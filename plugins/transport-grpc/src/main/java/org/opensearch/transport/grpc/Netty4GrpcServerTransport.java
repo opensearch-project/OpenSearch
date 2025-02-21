@@ -115,7 +115,14 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Port range on which servers bind.
+     */
     protected PortsRange port;
+
+    /**
+     * Settings.
+     */
     protected final Settings settings;
 
     private final NetworkService networkService;
@@ -160,6 +167,10 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         return this.boundAddress;
     }
 
+    /**
+     * Inject a NettyServerBuilder configuration to be applied at server bind and start.
+     * @param configModifier builder configuration to set.
+     */
     protected void addServerConfig(UnaryOperator<NettyServerBuilder> configModifier) {
         serverBuilderConfigs.add(configModifier);
     }
