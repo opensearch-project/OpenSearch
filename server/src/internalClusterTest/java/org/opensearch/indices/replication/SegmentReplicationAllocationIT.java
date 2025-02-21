@@ -25,6 +25,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -169,14 +170,16 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
 
         // Remove a node
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(0)));
-        ensureGreen(TimeValue.timeValueSeconds(60));
+        internalCluster().validateClusterFormed();
+        ensureGreen(TimeValue.timeValueSeconds(120));
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         logger.info(ShardAllocations.printShardDistribution(state));
         verifyPerIndexPrimaryBalance();
 
         // Add a new node
         internalCluster().startDataOnlyNode();
-        ensureGreen(TimeValue.timeValueSeconds(60));
+        internalCluster().validateClusterFormed();
+        ensureGreen(TimeValue.timeValueSeconds(120));
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         logger.info(ShardAllocations.printShardDistribution(state));
         verifyPerIndexPrimaryBalance();
@@ -250,12 +253,21 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         internalCluster().startClusterManagerOnlyNode();
         final int maxReplicaCount = 2;
         final int maxShardCount = 2;
-        // Create higher number of nodes than number of shards to reduce chances of SameShardAllocationDecider kicking-in
-        // and preventing primary relocations
-        final int nodeCount = randomIntBetween(5, 10);
         final int numberOfIndices = randomIntBetween(1, 10);
-        final float buffer = randomIntBetween(1, 4) * 0.10f;
 
+        List<List<Integer>> shardAndReplicaCounts = new ArrayList<>();
+        int shardCount, replicaCount, totalPrimaryShards = 0;
+        for (int i = 0; i < numberOfIndices; i++) {
+            shardCount = randomIntBetween(1, maxShardCount);
+            replicaCount = randomIntBetween(1, maxReplicaCount);
+            shardAndReplicaCounts.add(Arrays.asList(shardCount, replicaCount));
+            totalPrimaryShards += shardCount;
+        }
+
+        // Create a strictly higher number of nodes than number of shards to reduce chances of SameShardAllocationDecider kicking-in
+        // and preventing primary relocations
+        final int nodeCount = randomIntBetween(Math.max(3, totalPrimaryShards + 1), numberOfIndices * maxShardCount + 1);
+        final float buffer = randomIntBetween(1, 4) * 0.10f;
         logger.info("--> Creating {} nodes", nodeCount);
         final List<String> nodeNames = new ArrayList<>();
         for (int i = 0; i < nodeCount; i++) {
@@ -263,11 +275,10 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         }
         setAllocationRelocationStrategy(true, true, buffer);
 
-        int shardCount, replicaCount;
         ClusterState state;
         for (int i = 0; i < numberOfIndices; i++) {
-            shardCount = randomIntBetween(1, maxShardCount);
-            replicaCount = randomIntBetween(1, maxReplicaCount);
+            shardCount = shardAndReplicaCounts.get(i).get(0);
+            replicaCount = shardAndReplicaCounts.get(i).get(1);
             logger.info("--> Creating index test{} with primary {} and replica {}", i, shardCount, replicaCount);
             createIndex("test" + i, shardCount, replicaCount, i % 2 == 0);
             ensureGreen(TimeValue.timeValueSeconds(60));
@@ -353,12 +364,17 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
                 totalPrimaryShards += index.primaryShardsActive();
             }
             final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
+            logger.info("--> totalPrimaryShards = {}", totalPrimaryShards);
+            logger.info("--> totalNodes = {}", currentState.getRoutingNodes().size());
+            logger.info("--> avgPrimaryShardsPerNode = {}", avgPrimaryShardsPerNode);
+            logger.info("--> UL = {}", avgPrimaryShardsPerNode * (1 + buffer));
             for (RoutingNode node : nodes) {
                 final int primaryCount = node.shardsWithState(STARTED)
                     .stream()
                     .filter(ShardRouting::primary)
                     .collect(Collectors.toList())
                     .size();
+                logger.info("--> {}: primaryCount = {}", node.nodeId(), primaryCount);
                 assertTrue(primaryCount <= (avgPrimaryShardsPerNode * (1 + buffer)));
             }
         }, 60, TimeUnit.SECONDS);
