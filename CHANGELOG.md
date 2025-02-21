@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - Fix case insensitive and escaped query on wildcard ([#16827](https://github.com/opensearch-project/OpenSearch/pull/16827))
 - Fix illegal argument exception when creating a PIT ([#16781](https://github.com/opensearch-project/OpenSearch/pull/16781))
+- Fix HTTP API calls that hang with 'Accept-Encoding: zstd' ([#17408](https://github.com/opensearch-project/OpenSearch/pull/17408))
 
 ### Security
 
