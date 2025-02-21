@@ -11,6 +11,7 @@ package org.opensearch.indices.replication;
 import org.apache.lucene.store.FilterDirectory;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
@@ -152,8 +153,13 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         assertTrue(response.getCheckpoint().equals(checkpoint));
         assertTrue(response.getMetadataMap().isEmpty());
 
-        // For a STARTED shard, the new behavior returns an empty metadata map with the shard's latest replication checkpoint.
+        // For a STARTED shard, the new behavior needs mock routing entry
         when(mockShard.state()).thenReturn(IndexShardState.STARTED);
+        // Mock a routing entry for the search-only condition
+        ShardRouting mockRouting = mock(ShardRouting.class);
+        when(mockRouting.isSearchOnly()).thenReturn(true); // Make it a search-only replica
+        when(mockShard.routingEntry()).thenReturn(mockRouting);
+
         // Ensure the mock returns the expected checkpoint when getLatestReplicationCheckpoint is called.
         when(mockShard.getLatestReplicationCheckpoint()).thenReturn(replicaShard.getLatestReplicationCheckpoint());
         final PlainActionFuture<CheckpointInfoResponse> res2 = PlainActionFuture.newFuture();
@@ -161,6 +167,14 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         CheckpointInfoResponse response2 = res2.get();
         assertTrue(response2.getCheckpoint().equals(replicaShard.getLatestReplicationCheckpoint()));
         assertTrue(response2.getMetadataMap().isEmpty());
+
+        // Additional test for non-search-only replica (should fail with exception)
+        when(mockRouting.isSearchOnly()).thenReturn(false);
+        final PlainActionFuture<CheckpointInfoResponse> res3 = PlainActionFuture.newFuture();
+        replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res3);
+        ExecutionException exception = assertThrows(ExecutionException.class, () -> res3.get());
+        assertTrue(exception.getCause() instanceof IllegalStateException);
+        assertTrue(exception.getCause().getMessage().contains("Remote metadata file can't be null for active regular replica"));
     }
 
     private void buildIndexShardBehavior(IndexShard mockShard, IndexShard indexShard) {

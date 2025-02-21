@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -96,7 +94,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
     private final Map<Integer, IndexShardRoutingTable> shards;
 
     private final List<ShardRouting> allActiveShards;
-    protected final Logger logger = LogManager.getLogger(this.getClass());
 
     IndexRoutingTable(Index index, final Map<Integer, IndexShardRoutingTable> shards) {
         this.index = index;
@@ -164,14 +161,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                         + "], got ["
                         + routingNumberOfReplicas
                         + "]"
-                );
-            } else if (routingNumberOfReplicas != expectedReplicas) {
-                // Just log if there's a mismatch but the index is search-only.
-                logger.debug(
-                    "Ignoring mismatch in number of replicas for shard [{}] (expected {}, got {}) because searchonly is enabled",
-                    indexShardRoutingTable.shardId().id(),
-                    expectedReplicas,
-                    routingNumberOfReplicas
                 );
             }
 
@@ -444,31 +433,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
          */
 
         public Builder initializeAsRecovery(IndexMetadata indexMetadata) {
-            boolean isSearchOnly = indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
-            if (isSearchOnly) {
-                // For scaled down indices, only initialize search replicas
-                for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
-                    ShardId sId = new ShardId(indexMetadata.getIndex(), shardId);
-                    IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(sId);
-
-                    // Add only search replicas
-                    for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
-                        indexShardRoutingBuilder.addShard(
-                            ShardRouting.newUnassigned(
-                                sId,
-                                false,
-                                true,
-                                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                                new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)
-                            )
-                        );
-                    }
-                    shards.put(shardId, indexShardRoutingBuilder.build());
-                }
-            } else {
-                return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
-            }
-            return this;
+            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
         }
 
         /**
@@ -647,11 +612,42 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
         /**
          * Initializes a new empty index, with an option to control if its from an API or not.
          */
+        /**
+         * Initializes a new empty index, with an option to control if its from an API or not.
+         */
         private Builder initializeEmpty(IndexMetadata indexMetadata, UnassignedInfo unassignedInfo) {
             assert indexMetadata.getIndex().equals(index);
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
+
+            // Check if search-only mode is enabled
+            boolean isSearchOnly = indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+
+            // For search-only mode, only initialize search replicas
+            if (isSearchOnly) {
+                for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
+                    ShardId shardId = new ShardId(index, shardNumber);
+                    IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+
+                    // Add only search replicas
+                    for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
+                        indexShardRoutingBuilder.addShard(
+                            ShardRouting.newUnassigned(
+                                shardId,
+                                false,
+                                true,
+                                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                                unassignedInfo
+                            )
+                        );
+                    }
+                    shards.put(shardNumber, indexShardRoutingBuilder.build());
+                }
+                return this;
+            }
+
+            // Standard initialization for non-search-only mode
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
                 final RecoverySource primaryRecoverySource;

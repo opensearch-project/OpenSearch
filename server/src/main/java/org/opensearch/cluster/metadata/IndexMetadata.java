@@ -94,7 +94,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 
-import static org.opensearch.action.admin.indices.scale.searchonly.TransportSearchOnlyAction.INDEX_SEARCHONLY_BLOCK;
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
@@ -164,6 +163,24 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         true,
         RestStatus.FORBIDDEN,
         EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
+    );
+
+    // Block ID and block for scale operations (IDs 20-29 reserved for scaling)
+    public static final int INDEX_SEARCHONLY_BLOCK_ID = 20;
+
+    /**
+     * Permanent cluster block applied to indices in search-only mode.
+     * <p>
+     * This block prevents write operations to the index while allowing read operations.
+     */
+    public static final ClusterBlock INDEX_SEARCHONLY_BLOCK = new ClusterBlock(
+        INDEX_SEARCHONLY_BLOCK_ID,
+        "index scaled down",
+        false,
+        false,
+        false,
+        RestStatus.FORBIDDEN,
+        EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
     /**

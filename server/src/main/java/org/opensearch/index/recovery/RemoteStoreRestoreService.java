@@ -167,20 +167,20 @@ public class RemoteStoreRestoreService {
                 IndicesOptions.fromOptions(true, true, true, true)
             );
 
-            boolean allSearchOnly = true;
             for (String indexName : filteredIndices) {
                 IndexMetadata indexMetadata = currentState.metadata().index(indexName);
                 if (indexMetadata == null) {
-                    logger.warn("Skipping restore: index [{}] does not exist.", indexName);
+                    logger.warn("Index restore is not supported for non-existent index. Skipping: {}", indexName);
                     continue;
                 }
-
                 boolean isSearchOnly = indexMetadata.getSettings()
                     .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
-
                 if (isSearchOnly) {
-                    logger.warn("Skipping _remotestore/_restore for index [{}] as search-only mode is enabled.", indexName);
-                } else if (restoreAllShards && IndexMetadata.State.CLOSE.equals(indexMetadata.getState()) == false) {
+                    throw new IllegalArgumentException(
+                        String.format(Locale.ROOT, "Cannot use _remotestore/_restore on search_only mode enabled index [%s].", indexName)
+                    );
+                }
+                if (restoreAllShards && IndexMetadata.State.CLOSE.equals(indexMetadata.getState()) == false) {
                     throw new IllegalStateException(
                         String.format(
                             Locale.ROOT,
@@ -188,19 +188,10 @@ public class RemoteStoreRestoreService {
                             indexName
                         ) + " Close the existing index."
                     );
-                } else {
-                    allSearchOnly = false;
-                    indexMetadataMap.put(indexName, new Tuple<>(false, indexMetadata));
                 }
-            }
-
-            if (allSearchOnly) {
-                throw new IllegalArgumentException(
-                    "Skipping _remotestore/_restore for all selected indices as search-only mode is enabled."
-                );
+                indexMetadataMap.put(indexName, new Tuple<>(false, indexMetadata));
             }
         }
-
         return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteState);
     }
 

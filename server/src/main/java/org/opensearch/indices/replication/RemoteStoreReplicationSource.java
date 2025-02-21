@@ -67,36 +67,48 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = indexShard.getSegmentInfosSnapshot()) {
             final Version version = segmentInfosSnapshot.get().getCommitLuceneVersion();
             final RemoteSegmentMetadata mdFile = getRemoteSegmentMetadata();
-            // During initial recovery flow, the remote store might not
-            // have metadata as primary hasn't uploaded anything yet.
-            if (mdFile == null && indexShard.state().equals(IndexShardState.STARTED) == false) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, Collections.emptyMap(), null));
-                return;
+
+            // Handle null metadata file case
+            if (mdFile == null) {
+                // During initial recovery flow, the remote store might not
+                // have metadata as primary hasn't uploaded anything yet.
+                if (indexShard.state().equals(IndexShardState.STARTED) == false) {
+                    // Non-started shard during recovery
+                    listener.onResponse(new CheckpointInfoResponse(checkpoint, Collections.emptyMap(), null));
+                    return;
+                } else if (indexShard.routingEntry().isSearchOnly()) {
+                    // Allow search-only replicas to become active without metadata
+                    logger.debug("Search-only replica proceeding without remote metadata: {}", indexShard.shardId());
+                    listener.onResponse(
+                        new CheckpointInfoResponse(indexShard.getLatestReplicationCheckpoint(), Collections.emptyMap(), null)
+                    );
+                    return;
+                } else {
+                    // Regular replicas should not be active without metadata
+                    listener.onFailure(
+                        new IllegalStateException("Remote metadata file can't be null for active regular replica: " + indexShard.shardId())
+                    );
+                    return;
+                }
             }
 
-            if (mdFile == null) {
-                listener.onResponse(new CheckpointInfoResponse(indexShard.getLatestReplicationCheckpoint(), Collections.emptyMap(), null));
-            } else {
-                assert mdFile != null : "Remote metadata file can't be null if shard is active " + indexShard.state();
-                metadataMap = mdFile.getMetadata()
-                    .entrySet()
-                    .stream()
-                    .collect(
-                        Collectors.toMap(
-                            e -> e.getKey(),
-                            e -> new StoreFileMetadata(
-                                e.getValue().getOriginalFilename(),
-                                e.getValue().getLength(),
-                                Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
-                                version,
-                                null
-                            )
+            // Process metadata when it exists
+            metadataMap = mdFile.getMetadata()
+                .entrySet()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        e -> e.getKey(),
+                        e -> new StoreFileMetadata(
+                            e.getValue().getOriginalFilename(),
+                            e.getValue().getLength(),
+                            Store.digestToString(Long.valueOf(e.getValue().getChecksum())),
+                            version,
+                            null
                         )
-                    );
-                listener.onResponse(
-                    new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes())
+                    )
                 );
-            }
+            listener.onResponse(new CheckpointInfoResponse(mdFile.getReplicationCheckpoint(), metadataMap, mdFile.getSegmentInfosBytes()));
         } catch (Exception e) {
             listener.onFailure(e);
         }

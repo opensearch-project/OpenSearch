@@ -30,9 +30,9 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.opensearch.action.admin.indices.scale.searchonly.TransportSearchOnlyAction.INDEX_SEARCHONLY_BLOCK;
-import static org.opensearch.action.admin.indices.scale.searchonly.TransportSearchOnlyAction.INDEX_SEARCHONLY_BLOCK_ID;
 import static org.opensearch.cluster.block.ClusterBlockLevel.WRITE;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLOCK;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLOCK_ID;
 
 /**
  * Utility class responsible for constructing new cluster states during scale operations.

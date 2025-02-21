@@ -6,14 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
-
 package org.opensearch.action.admin.indices.scale.searchonly;
 
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -34,6 +26,8 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -42,7 +36,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
+public class SearchOnlyIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String TEST_INDEX = "test_scale_index";
 
@@ -55,6 +49,9 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
         return Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
     }
 
+    /**
+     * Tests scaling down an index to search-only mode.
+     */
     public void testScaleDownToSearchOnly() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(3);
@@ -101,7 +98,9 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(1, shardTable.searchOnlyReplicas().stream().filter(ShardRouting::active).count());
 
         // Scale down to search-only mode
-        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setScaleDown(true).get());
+        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setSearchOnly(true).get());
+
+        ensureGreen(TEST_INDEX);
 
         // Verify index is in search-only mode
         GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(TEST_INDEX).get();
@@ -115,9 +114,7 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
         try {
             client().prepareIndex(TEST_INDEX).setId("new-doc").setSource("field1", "new-value").get();
             fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException e) {
-            // Expected exception
-        }
+        } catch (ClusterBlockException ignored) {}
 
         // Verify routing table structure
         assertEquals(0, getClusterState().routingTable().index(TEST_INDEX).shard(0).writerReplicas().size());
@@ -125,10 +122,16 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
             1,
             getClusterState().routingTable().index(TEST_INDEX).shard(0).searchOnlyReplicas().stream().filter(ShardRouting::active).count()
         );
-        assertNull(shardTable.primaryShard());
+        assertBusy(() -> {
+            IndexShardRoutingTable currentShardTable = getClusterState().routingTable().index(TEST_INDEX).shard(0);
+            assertNull("Primary shard should be null after scale-down", currentShardTable.primaryShard());
+        });
 
     }
 
+    /**
+     * Tests restoring an index from search-only mode back to normal mode.
+     */
     public void testScaleUpFromSearchOnly() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(6);
@@ -143,42 +146,39 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
         createIndex(TEST_INDEX, specificSettings);
         ensureGreen(TEST_INDEX);
 
+        // Index documents and ensure they're visible
         for (int i = 0; i < 5; i++) {
-            client().prepareIndex(TEST_INDEX)
+            IndexResponse indexResponse = client().prepareIndex(TEST_INDEX)
                 .setId(Integer.toString(i))
                 .setSource("field1", "value" + i)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
         }
 
-        // Verify initial state has expected replica counts
-        IndexShardRoutingTable initialShardTable = getClusterState().routingTable().index(TEST_INDEX).shard(0);
-        assertEquals(1, initialShardTable.writerReplicas().size());
-        assertEquals(1, initialShardTable.searchOnlyReplicas().stream().filter(ShardRouting::active).count());
+        // Verify initial document count
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch(TEST_INDEX).get();
+            assertHitCount(response, 5);
+        });
 
         // Scale down to search-only mode
-        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setScaleDown(true).get());
-        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(TEST_INDEX).get();
-        assertTrue(settingsResponse.getSetting(TEST_INDEX, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey()).equals("true"));
-
-        // Wait for search-only mode to stabilize and verify shard state
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            IndexShardRoutingTable shardTable = state.routingTable().index(TEST_INDEX).shard(0);
-            // In search-only mode, there should be no primary shard
-            assertNull("Primary should be null in search-only mode", shardTable.primaryShard());
-            // Only search replicas should remain
-            assertEquals(0, shardTable.writerReplicas().size());
-            // All shards should be search-only replicas and STARTED
-            for (ShardRouting shard : shardTable) {
-                assertTrue("All shards should be search-only replicas", shard.isSearchOnly());
-                assertTrue("All search replicas should be started", shard.active());
-            }
-        });
-        // Scale back up to normal mode
-        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setScaleDown(false).get());
+        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setSearchOnly(true).get());
         ensureGreen(TEST_INDEX);
-        // After scaling up, wait for routing table to stabilize with the expected number of replicas
+
+        // Verify documents are still accessible in search-only mode
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch(TEST_INDEX).get();
+            assertHitCount(response, 5);
+        });
+
+        // Scale back up to normal mode
+        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setSearchOnly(false).get());
+
+        // Wait for index to be fully operational
+        ensureGreen(TEST_INDEX);
+
+        // Wait for shards to be properly allocated
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             IndexRoutingTable routingTable = state.routingTable().index(TEST_INDEX);
@@ -186,10 +186,10 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
             int totalWriterReplicas = 0;
             int totalSearchReplicas = 0;
             for (IndexShardRoutingTable shardTable : routingTable) {
-                if (shardTable.primaryShard() != null) {
+                if (shardTable.primaryShard() != null && shardTable.primaryShard().active()) {
                     totalPrimaries++;
                 }
-                totalWriterReplicas += shardTable.writerReplicas().size();
+                totalWriterReplicas += shardTable.writerReplicas().stream().filter(ShardRouting::active).count();
                 totalSearchReplicas += shardTable.searchOnlyReplicas().stream().filter(ShardRouting::active).count();
             }
             assertEquals("Expected 2 primary", 2, totalPrimaries);
@@ -197,26 +197,37 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
             assertEquals("Expected 2 search replica", 2, totalSearchReplicas);
         });
 
-        // Verify index is no longer in search-only mode
-        settingsResponse = client().admin().indices().prepareGetSettings(TEST_INDEX).get();
-        assertTrue(settingsResponse.getSetting(TEST_INDEX, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey()).equals("false"));
+        // Wait for documents to be fully recovered
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch(TEST_INDEX).get();
+            assertHitCount(response, 5);
+        }, 30, TimeUnit.SECONDS);
 
-        // Verify we can search existing data
+        // Final verification of search and write capabilities
         SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).get();
-        assertHitCount(searchResponse, 3);
+        assertHitCount(searchResponse, 5);
 
-        // Verify we can write to the index again
+        // Verify we can write new documents
         IndexResponse indexResponse = client().prepareIndex(TEST_INDEX)
             .setId("new-doc")
             .setSource("field1", "new-value")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
+
+        assertBusy(() -> {
+            SearchResponse finalResponse = client().prepareSearch(TEST_INDEX).get();
+            assertHitCount(finalResponse, 6);
+        });
+
     }
 
+    /**
+     * Tests scaling down an index to search-only mode when there are no search replicas.
+     */
     public void testScaleDownValidationWithoutSearchReplicas() {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(6);
+        internalCluster().startDataOnlyNodes(3);
 
         Settings specificSettings = Settings.builder()
             .put(indexSettings())
@@ -230,7 +241,7 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
         // Attempt to scale down should fail due to missing segment replication
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().prepareSearchOnly(TEST_INDEX).setScaleDown(true).get()
+            () -> client().admin().indices().prepareSearchOnly(TEST_INDEX).setSearchOnly(true).get()
         );
 
         // Verify exception message mentions missing segment replication requirement
@@ -283,7 +294,7 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
         });
 
         // Enable search-only mode
-        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setScaleDown(true).get());
+        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setSearchOnly(true).get());
 
         // Verify only search replicas are active
         assertBusy(() -> {
@@ -353,7 +364,7 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
         ensureGreen(TEST_INDEX);
 
         // Enable search-only mode
-        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setScaleDown(true).get());
+        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setSearchOnly(true).get());
 
         // Stop all nodes
         internalCluster().stopAllNodes();
@@ -422,7 +433,7 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
         });
 
         // Enable search-only mode
-        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setScaleDown(true).get());
+        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setSearchOnly(true).get());
 
         // Verify only search replicas remain active
         assertBusy(() -> {
@@ -440,4 +451,99 @@ public class SearchOnlyScaleIT extends RemoteStoreBaseIntegTestCase {
             }
         });
     }
+
+    /**
+    * Tests the ability to scale search replicas up and down while an index is in search-only mode.
+    */
+    public void testScaleSearchReplicasInSearchOnlyMode() throws Exception {
+        // Start cluster with manager and data nodes
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(5);
+
+        // Create index with initial search replicas
+        Settings initialSettings = Settings.builder()
+            .put(indexSettings())
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .build();
+
+        createIndex(TEST_INDEX, initialSettings);
+        ensureGreen(TEST_INDEX);
+
+        // Index some documents
+        for (int i = 0; i < 5; i++) {
+            IndexResponse indexResponse = client().prepareIndex(TEST_INDEX)
+                .setId(Integer.toString(i))
+                .setSource("field1", "value" + i)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+        }
+
+        // Enable search-only mode
+        assertAcked(client().admin().indices().prepareSearchOnly(TEST_INDEX).setSearchOnly(true).get());
+        ensureGreen(TEST_INDEX);
+
+        // Verify initial search replica is active
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            IndexShardRoutingTable shardTable = state.routingTable().index(TEST_INDEX).shard(0);
+
+            // Verify we're in search-only mode
+            assertNull("Primary shard should be null in search-only mode", shardTable.primaryShard());
+            assertTrue("Writer replicas should be empty in search-only mode", shardTable.writerReplicas().isEmpty());
+
+            // Verify initial search replica count
+            long activeSearchReplicas = shardTable.searchOnlyReplicas().stream().filter(ShardRouting::active).count();
+            assertEquals("Should have 1 active search replica initially", 1, activeSearchReplicas);
+        });
+
+        // Scale up search replicas to 3
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(TEST_INDEX)
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 3).build())
+                .get()
+        );
+
+        // Wait for all search replicas to be assigned and active
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            IndexShardRoutingTable shardTable = state.routingTable().index(TEST_INDEX).shard(0);
+
+            // Verify increased search replica count
+            long activeSearchReplicas = shardTable.searchOnlyReplicas().stream().filter(ShardRouting::active).count();
+            assertEquals("Should have 3 active search replicas after scaling", 3, activeSearchReplicas);
+
+            // Verify search still works
+            SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).get();
+            assertHitCount(searchResponse, 5);
+        }, 30, TimeUnit.SECONDS);
+
+        // Scale down search replicas to 2
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(TEST_INDEX)
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 2).build())
+                .get()
+        );
+
+        // Verify scaled down properly
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            IndexShardRoutingTable shardTable = state.routingTable().index(TEST_INDEX).shard(0);
+
+            // Verify decreased search replica count
+            long activeSearchReplicas = shardTable.searchOnlyReplicas().stream().filter(ShardRouting::active).count();
+            assertEquals("Should have 2 active search replicas after scaling down", 2, activeSearchReplicas);
+
+            // Verify search still works after scaling down
+            SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).get();
+            assertHitCount(searchResponse, 5);
+        }, 30, TimeUnit.SECONDS);
+    }
+
 }

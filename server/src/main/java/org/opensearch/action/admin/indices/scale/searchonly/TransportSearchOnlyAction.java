@@ -33,7 +33,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
@@ -44,17 +43,18 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLOCK_ID;
+
 /**
  * Transport action implementation for search-only scale operations.
  * <p>
  * This class coordinates the entire process of scaling indices up or down between normal
- * and search-only modes. It manages the multi-step process including:
+ * and search-only modes. It manages the multistep process including:
  * <ul>
  *   <li>Validating prerequisites for scale operations</li>
  *   <li>Adding temporary write blocks during scale-down preparation</li>
@@ -76,27 +76,9 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
     private final IndicesService indicesService;
     private final TransportService transportService;
 
-    private final ScaleOperationValidator validator;
+    private final SearchOnlyOperationValidator validator;
     private final SearchOnlyClusterStateBuilder searchOnlyClusterStateBuilder;
     private final SearchOnlyShardSyncManager searchOnlyShardSyncManager;
-
-    // Block ID and block for scale operations (IDs 20-29 reserved for scaling)
-    public static final int INDEX_SEARCHONLY_BLOCK_ID = 20;
-
-    /**
-     * Permanent cluster block applied to indices in search-only mode.
-     * <p>
-     * This block prevents write operations to the index while allowing read operations.
-     */
-    public static final ClusterBlock INDEX_SEARCHONLY_BLOCK = new ClusterBlock(
-        INDEX_SEARCHONLY_BLOCK_ID,
-        "index scaled down",
-        false,
-        false,
-        false,
-        RestStatus.FORBIDDEN,
-        EnumSet.of(ClusterBlockLevel.WRITE)
-    );
 
     /**
      * Constructs a new TransportSearchOnlyAction.
@@ -131,7 +113,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         this.allocationService = allocationService;
         this.indicesService = indicesService;
         this.transportService = transportService;
-        this.validator = new ScaleOperationValidator();
+        this.validator = new SearchOnlyOperationValidator();
         this.searchOnlyClusterStateBuilder = new SearchOnlyClusterStateBuilder();
         this.searchOnlyShardSyncManager = new SearchOnlyShardSyncManager(clusterService, transportService, NAME);
 
@@ -239,7 +221,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
     /**
      * Handles an incoming shard sync request from another node.
      */
-    private void handleShardSyncRequest(NodeSearchOnlyRequest request, TransportChannel channel) throws Exception {
+    void handleShardSyncRequest(NodeSearchOnlyRequest request, TransportChannel channel) throws Exception {
         logger.info("Handling shard sync request for index [{}]", request.getIndex());
         ClusterState state = clusterService.state();
 
@@ -277,7 +259,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         return shardResponses;
     }
 
-    private ShardSearchOnlyResponse syncSingleShard(IndexShard shard) throws Exception {
+    ShardSearchOnlyResponse syncSingleShard(IndexShard shard) throws Exception {
         logger.info("Performing final sync and flush for shard {}", shard.shardId());
         shard.sync();
         shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
@@ -331,7 +313,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
      *   <li>Initiates shard synchronization after the block is applied</li>
      * </ul>
      */
-    private class AddBlockClusterStateUpdateTask extends ClusterStateUpdateTask {
+    class AddBlockClusterStateUpdateTask extends ClusterStateUpdateTask {
         private final String index;
         private final Map<Index, ClusterBlock> blockedIndices;
         private final ActionListener<AcknowledgedResponse> listener;
@@ -390,7 +372,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
      *   <li>Updates the routing table to remove non-search-only shards</li>
      * </ul>
      */
-    private class FinalizeScaleDownTask extends ClusterStateUpdateTask {
+    class FinalizeScaleDownTask extends ClusterStateUpdateTask {
         private final String index;
         private final ActionListener<AcknowledgedResponse> listener;
 
