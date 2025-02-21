@@ -254,19 +254,19 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         final int maxReplicaCount = 2;
         final int maxShardCount = 2;
         final int numberOfIndices = randomIntBetween(1, 10);
+        final int maxPossibleShards = numberOfIndices * maxShardCount * (1 + maxReplicaCount);
 
         List<List<Integer>> shardAndReplicaCounts = new ArrayList<>();
-        int shardCount, replicaCount, totalPrimaryShards = 0;
+        int shardCount, replicaCount, totalShards = 0;
         for (int i = 0; i < numberOfIndices; i++) {
             shardCount = randomIntBetween(1, maxShardCount);
             replicaCount = randomIntBetween(1, maxReplicaCount);
             shardAndReplicaCounts.add(Arrays.asList(shardCount, replicaCount));
-            totalPrimaryShards += shardCount;
+            totalShards += shardCount * (1 + replicaCount);
         }
-
-        // Create a strictly higher number of nodes than number of shards to reduce chances of SameShardAllocationDecider kicking-in
+        // Create a strictly higher number of nodes than the number of shards to reduce chances of SameShardAllocationDecider kicking-in
         // and preventing primary relocations
-        final int nodeCount = randomIntBetween(Math.max(3, totalPrimaryShards + 1), numberOfIndices * maxShardCount + 1);
+        final int nodeCount = randomIntBetween(totalShards, maxPossibleShards) + 1;
         final float buffer = randomIntBetween(1, 4) * 0.10f;
         logger.info("--> Creating {} nodes", nodeCount);
         final List<String> nodeNames = new ArrayList<>();
