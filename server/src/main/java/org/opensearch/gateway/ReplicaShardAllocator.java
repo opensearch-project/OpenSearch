@@ -260,8 +260,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
             // Only proceed if both the shard is marked search-only and the index setting is enabled.
             if (unassignedShard.isSearchOnly() && isIndexSearchOnly) {
-                logger.info("getAllocationDecision: entering search-only branch for {}", unassignedShard);
-
                 // Obtain the collection of data nodes once.
                 Collection<DiscoveryNode> dataNodes = allocation.nodes().getDataNodes().values();
 
@@ -271,7 +269,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     .filter(candidate -> {
                         RoutingNode node = allocation.routingNodes().node(candidate.getId());
                         Decision decision = allocation.deciders().canAllocate(unassignedShard, node, allocation);
-                        logger.info("Allocating decision for candidate {} is {}", candidate, decision.getDecisions());
                         return decision.type() == Decision.Type.YES;
                     })
                     .findFirst()
@@ -279,7 +276,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
                 // If a candidate was found, return a YES allocation decision.
                 if (selectedCandidate != null) {
-                    logger.info("Allocating search-only replica {} to node {}", unassignedShard, selectedCandidate);
                     return AllocateUnassignedDecision.yes(selectedCandidate, null, new ArrayList<>(), false);
                 }
 

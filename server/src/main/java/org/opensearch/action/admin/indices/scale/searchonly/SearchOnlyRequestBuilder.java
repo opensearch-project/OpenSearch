@@ -57,11 +57,11 @@ public class SearchOnlyRequestBuilder extends ActionRequestBuilder<SearchOnlyReq
      *   <li>Scale up an index from search-only mode back to full read-write operation</li>
      * </ul>
      *
-     * @param scaleDown true if scaling down to search-only mode, false if scaling up to normal operation
+     * @param searchOnly true if scaling down to search-only mode, false if scaling up to normal operation
      * @return this builder (for method chaining)
      */
-    public SearchOnlyRequestBuilder setScaleDown(boolean scaleDown) {
-        request.scaleDown(scaleDown);
+    public SearchOnlyRequestBuilder setSearchOnly(boolean searchOnly) {
+        request.scaleDown(searchOnly);
         return this;
     }
 }

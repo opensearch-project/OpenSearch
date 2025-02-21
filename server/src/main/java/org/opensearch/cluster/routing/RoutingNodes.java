@@ -127,8 +127,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // also fill replicaSet information
         for (final IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
-                // TO DO
-                // assert indexShard.primary != null;
                 IndexMetadata idxMetadata = metadata.index(indexShard.shardId().getIndex());
                 boolean isSearchOnly = false;
                 if (idxMetadata != null) {

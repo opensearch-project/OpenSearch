@@ -76,7 +76,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
     private final IndicesService indicesService;
     private final TransportService transportService;
 
-    private final ScaleOperationValidator validator;
+    private final SearchOnlyOperationValidator validator;
     private final SearchOnlyClusterStateBuilder searchOnlyClusterStateBuilder;
     private final SearchOnlyShardSyncManager searchOnlyShardSyncManager;
 
@@ -131,7 +131,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         this.allocationService = allocationService;
         this.indicesService = indicesService;
         this.transportService = transportService;
-        this.validator = new ScaleOperationValidator();
+        this.validator = new SearchOnlyOperationValidator();
         this.searchOnlyClusterStateBuilder = new SearchOnlyClusterStateBuilder();
         this.searchOnlyShardSyncManager = new SearchOnlyShardSyncManager(clusterService, transportService, NAME);
 
@@ -239,7 +239,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
     /**
      * Handles an incoming shard sync request from another node.
      */
-    private void handleShardSyncRequest(NodeSearchOnlyRequest request, TransportChannel channel) throws Exception {
+    void handleShardSyncRequest(NodeSearchOnlyRequest request, TransportChannel channel) throws Exception {
         logger.info("Handling shard sync request for index [{}]", request.getIndex());
         ClusterState state = clusterService.state();
 
@@ -277,7 +277,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         return shardResponses;
     }
 
-    private ShardSearchOnlyResponse syncSingleShard(IndexShard shard) throws Exception {
+    ShardSearchOnlyResponse syncSingleShard(IndexShard shard) throws Exception {
         logger.info("Performing final sync and flush for shard {}", shard.shardId());
         shard.sync();
         shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
@@ -331,7 +331,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
      *   <li>Initiates shard synchronization after the block is applied</li>
      * </ul>
      */
-    private class AddBlockClusterStateUpdateTask extends ClusterStateUpdateTask {
+    class AddBlockClusterStateUpdateTask extends ClusterStateUpdateTask {
         private final String index;
         private final Map<Index, ClusterBlock> blockedIndices;
         private final ActionListener<AcknowledgedResponse> listener;
@@ -390,7 +390,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
      *   <li>Updates the routing table to remove non-search-only shards</li>
      * </ul>
      */
-    private class FinalizeScaleDownTask extends ClusterStateUpdateTask {
+    class FinalizeScaleDownTask extends ClusterStateUpdateTask {
         private final String index;
         private final ActionListener<AcknowledgedResponse> listener;
 

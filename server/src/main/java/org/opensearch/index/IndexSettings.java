@@ -782,17 +782,6 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    /**
-     * Setting to indicate if an index is in search-only mode.
-     * This setting can only be modified through the _searchonly API.
-     */
-    public static final Setting<Boolean> INDEX_SEARCH_ONLY_SETTING = Setting.boolSetting(
-        "index.search_only",
-        false,
-        Property.IndexScope,
-        Property.InternalIndex
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;

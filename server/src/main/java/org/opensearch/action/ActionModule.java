@@ -421,7 +421,7 @@ import org.opensearch.rest.action.admin.indices.RestRefreshAction;
 import org.opensearch.rest.action.admin.indices.RestResizeHandler;
 import org.opensearch.rest.action.admin.indices.RestResolveIndexAction;
 import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
-import org.opensearch.rest.action.admin.indices.RestSearchOnlyAction;
+import org.opensearch.rest.action.admin.indices.RestScaleSearchOnlyAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSyncedFlushAction;
@@ -910,7 +910,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestUpgradeAction());
         registerHandler.accept(new RestUpgradeStatusAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
-        registerHandler.accept(new RestSearchOnlyAction());
+        registerHandler.accept(new RestScaleSearchOnlyAction());
         registerHandler.accept(new RestIndexAction());
         registerHandler.accept(new CreateHandler());
         registerHandler.accept(new AutoIdHandler(nodesInCluster));
