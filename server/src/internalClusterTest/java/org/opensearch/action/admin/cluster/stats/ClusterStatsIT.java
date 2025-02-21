@@ -46,6 +46,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.gateway.GatewayService;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -383,7 +384,9 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testClusterStatusWhenStateNotRecovered() throws Exception {
-        internalCluster().startClusterManagerOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build()
+        );
         ClusterStatsResponse response = client().admin()
             .cluster()
             .prepareClusterStats()
@@ -391,11 +394,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
-        if (randomBoolean()) {
-            internalCluster().startClusterManagerOnlyNode();
-        } else {
-            internalCluster().startDataOnlyNode();
-        }
+        internalCluster().startDataOnlyNodes(2);
+
         // wait for the cluster status to settle
         ensureGreen();
         response = client().admin().cluster().prepareClusterStats().useAggregatedNodeLevelResponses(randomBoolean()).get();

@@ -411,7 +411,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 Term term = new Term(name(), bytesRef);
                 Query query = AutomatonQueries.createAutomatonQuery(
                     term,
-                    AutomatonQueries.toCaseInsensitiveString(bytesRef.utf8ToString(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                    AutomatonQueries.toCaseInsensitiveString(bytesRef.utf8ToString()),
                     MultiTermQuery.DOC_VALUES_REWRITE
                 );
                 if (boost() != 1f) {
