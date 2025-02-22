@@ -71,6 +71,7 @@ import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -770,6 +771,30 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Final
     );
 
+    public static final String SETTING_INGESTION_SOURCE_ERROR_STRATEGY = "index.ingestion_source.error.strategy";
+    public static final Setting<String> INGESTION_SOURCE_ERROR_STRATEGY_SETTING = Setting.simpleString(
+        SETTING_INGESTION_SOURCE_ERROR_STRATEGY,
+        IngestionErrorStrategy.ErrorStrategy.DROP.name(),
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {
+                try {
+                    IngestionErrorStrategy.ErrorStrategy.valueOf(value.toUpperCase(Locale.ROOT));
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("Invalid value for " + SETTING_INGESTION_SOURCE_ERROR_STRATEGY + " [" + value + "]");
+                }
+            }
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                validate(value);
+            }
+        },
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
         "index.ingestion_source.param.",
         key -> new Setting<>(key, "", (value) -> {
@@ -1004,8 +1029,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 pointerInitResetType,
                 pointerInitResetValue
             );
+
+            final String errorStrategyString = INGESTION_SOURCE_ERROR_STRATEGY_SETTING.get(settings);
+            IngestionErrorStrategy.ErrorStrategy errorStrategy = IngestionErrorStrategy.ErrorStrategy.valueOf(
+                errorStrategyString.toUpperCase(Locale.ROOT)
+            );
             final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
-            return new IngestionSource(ingestionSourceType, pointerInitReset, ingestionSourceParams);
+            return new IngestionSource(ingestionSourceType, pointerInitReset, errorStrategy, ingestionSourceParams);
         }
         return null;
     }
