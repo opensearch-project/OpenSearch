@@ -29,6 +29,7 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.indices.pollingingest.DefaultStreamPoller;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
 
 import java.io.IOException;
@@ -287,5 +288,10 @@ public class IngestionEngine extends InternalEngine {
 
     protected Map<String, String> commitDataAsMap() {
         return commitDataAsMap(indexWriter);
+    }
+
+    @Override
+    public PollingIngestStats pollingIngestStats() {
+        return streamPoller.getStats();
     }
 }
