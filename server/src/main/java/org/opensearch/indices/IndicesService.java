@@ -148,6 +148,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.pollingingest.IngestionEngineFactory;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -753,15 +754,18 @@ public class IndicesService extends AbstractLifecycleComponent
         CommitStats commitStats;
         SeqNoStats seqNoStats;
         RetentionLeaseStats retentionLeaseStats;
+        PollingIngestStats pollingIngestStats;
         try {
             commitStats = indexShard.commitStats();
             seqNoStats = indexShard.seqNoStats();
             retentionLeaseStats = indexShard.getRetentionLeaseStats();
+            pollingIngestStats = indexShard.pollingIngestStats();
         } catch (AlreadyClosedException e) {
             // shard is closed - no stats is fine
             commitStats = null;
             seqNoStats = null;
             retentionLeaseStats = null;
+            pollingIngestStats = null;
         }
 
         return new IndexShardStats(
@@ -773,7 +777,8 @@ public class IndicesService extends AbstractLifecycleComponent
                     new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
                     commitStats,
                     seqNoStats,
-                    retentionLeaseStats
+                    retentionLeaseStats,
+                    pollingIngestStats
                 ) }
         );
     }
