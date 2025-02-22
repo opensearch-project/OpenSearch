@@ -18,19 +18,20 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Stats for pull-based ingestion
+ */
 @ExperimentalApi
 public class PollingIngestStats implements Writeable, ToXContentFragment {
     private final MessageProcessorStats messageProcessorStats;
     private final ConsumerStats consumerStats;
+    // TODO: add error stats from error handling sink
 
     public PollingIngestStats(MessageProcessorStats messageProcessorStats, ConsumerStats consumerStats) {
         this.messageProcessorStats = messageProcessorStats;
         this.consumerStats = consumerStats;
     }
 
-    /**
-     * Read from a stream.
-     */
     public PollingIngestStats(StreamInput in) throws IOException {
         long totalProcessedCount = in.readLong();
         this.messageProcessorStats = new MessageProcessorStats(totalProcessedCount);
@@ -70,8 +71,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (!(o instanceof PollingIngestStats)) return false;
         PollingIngestStats that = (PollingIngestStats) o;
-        return Objects.equals(messageProcessorStats, that.messageProcessorStats) &&
-                Objects.equals(consumerStats, that.consumerStats);
+        return Objects.equals(messageProcessorStats, that.messageProcessorStats) && Objects.equals(consumerStats, that.consumerStats);
     }
 
     @Override
@@ -136,8 +136,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         private long totalProcessedCount;
         private long totalPolledCount;
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder setTotalProcessedCount(long totalProcessedCount) {
             this.totalProcessedCount = totalProcessedCount;
