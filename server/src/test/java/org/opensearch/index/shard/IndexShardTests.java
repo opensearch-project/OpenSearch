@@ -1696,7 +1696,8 @@ public class IndexShardTests extends IndexShardTestCase {
             new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
             shard.commitStats(),
             shard.seqNoStats(),
-            shard.getRetentionLeaseStats()
+            shard.getRetentionLeaseStats(),
+            shard.pollingIngestStats()
         );
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
@@ -1838,7 +1839,8 @@ public class IndexShardTests extends IndexShardTestCase {
             new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
             shard.commitStats(),
             shard.seqNoStats(),
-            shard.getRetentionLeaseStats()
+            shard.getRetentionLeaseStats(),
+            shard.pollingIngestStats()
         );
         RemoteSegmentStats remoteSegmentStats = shardStats.getStats().getSegments().getRemoteSegmentStats();
         assertRemoteSegmentStats(remoteSegmentTransferTracker, remoteSegmentStats);
