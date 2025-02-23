@@ -1,6 +1,16 @@
+# Copyright OpenSearch Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The OpenSearch Contributors require contributions made to
+# this file be licensed under the Apache-2.0 license or a
+# compatible open source license.
+
+# Description:
+# Default opensearch.service file
+
 [Unit]
 Description=OpenSearch
-Documentation=https://www.elastic.co
+Documentation=https://opensearch.org/
 Wants=network-online.target
 After=network-online.target
 
@@ -8,11 +18,8 @@ After=network-online.target
 Type=notify
 RuntimeDirectory=opensearch
 PrivateTmp=true
-Environment=OPENSEARCH_HOME=/usr/share/opensearch
-Environment=OPENSEARCH_PATH_CONF=${path.conf}
-Environment=PID_DIR=/var/run/opensearch
-Environment=OPENSEARCH_SD_NOTIFY=true
-EnvironmentFile=-${path.env}
+EnvironmentFile=-/etc/default/opensearch
+EnvironmentFile=-/etc/sysconfig/opensearch
 
 WorkingDirectory=/usr/share/opensearch
 
@@ -29,6 +36,7 @@ ExecStart=/usr/share/opensearch/bin/systemd-entrypoint -p ${PID_DIR}/opensearch.
 # logging, you can simply remove the "quiet" option from ExecStart.
 StandardOutput=journal
 StandardError=inherit
+SyslogIdentifier=opensearch
 
 # Specifies the maximum file descriptor number that can be opened by this process
 LimitNOFILE=65535
@@ -59,6 +67,97 @@ SuccessExitStatus=143
 
 # Allow a slow startup before the systemd notifier module kicks in to extend the timeout
 TimeoutStartSec=75
+
+# Prevent modifications to the control group filesystem
+ProtectControlGroups=true
+
+# Prevent loading or reading kernel modules
+ProtectKernelModules=true
+
+# Prevent altering kernel tunables (sysctl parameters)
+ProtectKernelTunables=true
+
+# Set device access policy to 'closed', allowing access only to specific devices
+DevicePolicy=closed
+
+# Make /proc invisible to the service, enhancing isolation
+ProtectProc=invisible
+
+# Make /usr, /boot, and /etc read-only (less restrictive than 'strict')
+ProtectSystem=full
+
+# Prevent changes to control groups (redundant with earlier setting, can be removed)
+ProtectControlGroups=yes
+
+# Prevent changing the execution domain
+LockPersonality=yes
+
+
+# System call filtering
+# System call filterings which restricts which system calls a process can make
+# @ means allowed
+# ~ means not allowed
+SystemCallFilter=@system-service
+SystemCallFilter=~@reboot
+SystemCallFilter=~@swap
+
+SystemCallErrorNumber=EPERM
+
+# Capability restrictions
+# Remove the ability to block system suspends
+CapabilityBoundingSet=~CAP_BLOCK_SUSPEND
+
+# Remove the ability to establish leases on files
+CapabilityBoundingSet=~CAP_LEASE
+
+# Remove the ability to use system resource accounting
+CapabilityBoundingSet=~CAP_SYS_PACCT
+
+# Remove the ability to configure TTY devices
+CapabilityBoundingSet=~CAP_SYS_TTY_CONFIG
+
+# Remov below capabilities:
+# - CAP_SYS_ADMIN: Various system administration operations
+# - CAP_SYS_PTRACE: Ability to trace processes
+# - CAP_NET_ADMIN: Various network-related operations
+CapabilityBoundingSet=~CAP_SYS_ADMIN ~CAP_SYS_PTRACE ~CAP_NET_ADMIN
+
+
+# Address family restrictions
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Filesystem Access
+
+ReadWritePaths=/var/log/opensearch
+ReadWritePaths=/var/lib/opensearch
+ReadWritePaths=-/etc/opensearch
+ReadWritePaths=-/mnt/snapshots
+
+## Allow read access to system files
+ReadOnlyPaths=/etc/os-release /usr/lib/os-release /etc/system-release
+
+## Allow read access to Linux IO stats
+ReadOnlyPaths=/proc/self/mountinfo /proc/diskstats
+
+## Allow read access to control group stats
+ReadOnlyPaths=/proc/self/cgroup /sys/fs/cgroup/cpu /sys/fs/cgroup/cpu/-
+ReadOnlyPaths=/sys/fs/cgroup/cpuacct /sys/fs/cgroup/cpuacct/- /sys/fs/cgroup/memory /sys/fs/cgroup/memory/-
+
+
+RestrictNamespaces=true
+
+NoNewPrivileges=true
+
+# Memory and execution protection
+MemoryDenyWriteExecute=true           # Prevent creating writable executable memory mappings
+SystemCallArchitectures=native        # Allow only native system calls
+KeyringMode=private                   # Service does not share key material with other services
+LockPersonality=true                  # Prevent changing ABI personality
+RestrictSUIDSGID=true                 # Prevent creating SUID/SGID files
+RestrictRealtime=true                 # Prevent acquiring realtime scheduling
+ProtectHostname=true                  # Prevent changes to system hostname
+ProtectKernelLogs=true                # Prevent reading/writing kernel logs
+ProtectClock=true                     # Prevent tampering with the system clock
 
 [Install]
 WantedBy=multi-user.target
