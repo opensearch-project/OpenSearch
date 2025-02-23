@@ -170,16 +170,14 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
 
         // Remove a node
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(0)));
-        internalCluster().validateClusterFormed();
-        ensureGreen(TimeValue.timeValueSeconds(120));
+        ensureGreen(TimeValue.timeValueSeconds(60));
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         logger.info(ShardAllocations.printShardDistribution(state));
         verifyPerIndexPrimaryBalance();
 
         // Add a new node
         internalCluster().startDataOnlyNode();
-        internalCluster().validateClusterFormed();
-        ensureGreen(TimeValue.timeValueSeconds(120));
+        ensureGreen(TimeValue.timeValueSeconds(60));
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         logger.info(ShardAllocations.printShardDistribution(state));
         verifyPerIndexPrimaryBalance();
