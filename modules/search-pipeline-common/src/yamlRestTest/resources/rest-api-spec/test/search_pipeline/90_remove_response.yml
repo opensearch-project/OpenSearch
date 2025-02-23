@@ -1,0 +1,114 @@
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test
+        ignore: 404
+
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline"
+        ignore: 404
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline_2"
+        ignore: 404
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline_3"
+        ignore: 404
+---
+"Test remove processor":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "remove fields",
+            "response_processors": [
+              {
+                "remove": {
+                  "fields": ["field_to_remove"],
+                  "ignore_missing": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "field_to_keep": "value", "field_to_remove": "to be removed" }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        index: test
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.field_to_keep: "value" }
+  - match: { hits.hits.0._source.field_to_remove: "to be removed" }
+
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.field_to_keep: "value" }
+  - is_false: hits.hits.0._source.field_to_remove
+
+
+  # Test with ignore_missing: false
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline_2"
+        body: >
+          {
+            "description": "remove fields",
+            "response_processors": [
+              {
+                "remove": {
+                  "fields": ["field_to_remove1"],
+                  "ignore_missing": false
+                }
+              }
+            ]
+          }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        search_pipeline: "my_pipeline_2"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [field_to_remove1] doesn't exist in document" }
+
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline_3"
+        body: >
+          {
+            "description": "test pipeline to remove all fields",
+            "response_processors": [
+              {
+                "remove":
+                  {
+                    "remove_all_hits": true
+                  }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline_3"
+
+  - match: { hits.total.value: 0 }
