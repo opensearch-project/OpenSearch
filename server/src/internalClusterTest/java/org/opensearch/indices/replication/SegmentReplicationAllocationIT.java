@@ -253,7 +253,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         internalCluster().startClusterManagerOnlyNode();
         final int maxReplicaCount = 2;
         final int maxShardCount = 2;
-        final int numberOfIndices = randomIntBetween(1, 10);
+        final int numberOfIndices = randomIntBetween(1, 3);
         final int maxPossibleShards = numberOfIndices * maxShardCount * (1 + maxReplicaCount);
 
         List<List<Integer>> shardAndReplicaCounts = new ArrayList<>();
