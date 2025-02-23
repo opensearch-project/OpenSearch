@@ -73,6 +73,7 @@ import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.transport.client.Requests.createIndexRequest;
 import static org.opensearch.transport.client.Requests.searchRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -179,12 +180,12 @@ public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSe
                 SearchHit hit = hits[i];
                 assertThat(hit.getExplanation(), notNullValue());
                 assertThat(hit.getExplanation().getDetails().length, equalTo(1));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(3));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails().length, equalTo(2));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getDescription(), startsWith("n,"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getValue(), equalTo(100L));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getDescription(), startsWith("N,"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getValue(), equalTo(100L));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDescription(), startsWith("idf"));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(), equalTo(100L));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(), equalTo(100L));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDescription(), containsString("freq"));
                 assertThat(
                     "id[" + hit.getId() + "] -> " + hit.getExplanation().toString(),
                     hit.getId(),
@@ -221,12 +222,12 @@ public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSe
                 SearchHit hit = hits[i];
                 assertThat(hit.getExplanation(), notNullValue());
                 assertThat(hit.getExplanation().getDetails().length, equalTo(1));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(3));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails().length, equalTo(2));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getDescription(), startsWith("n,"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[0].getValue(), equalTo(100L));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getDescription(), startsWith("N,"));
-                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDetails()[1].getValue(), equalTo(100L));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDescription(), startsWith("idf"));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails().length, equalTo(2));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[0].getValue(), equalTo(100L));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[0].getDetails()[1].getValue(), equalTo(100L));
+                assertThat(hit.getExplanation().getDetails()[0].getDetails()[1].getDescription(), containsString("freq"));
                 assertThat("id[" + hit.getId() + "]", hit.getId(), equalTo(Integer.toString(total + i)));
             }
             total += hits.length;
