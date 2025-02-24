@@ -107,7 +107,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private boolean starTreeDateRoundingRequired = true;
 
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
-    public final String STARTREE_TIMESTAMP_FIELD = "@timestamp";
+    public final String fieldName;
 
     DateHistogramAggregator(
         String name,
@@ -172,6 +172,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             }
         };
         filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
+        this.fieldName = (valuesSource instanceof ValuesSource.Numeric.FieldData)
+            ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
+            : null;
         this.starTreeDateDimension = (context.getQueryShardContext().getStarTreeQueryContext() != null)
             ? fetchStarTreeCalendarUnit()
             : null;
@@ -244,13 +247,13 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             .next();
         DateDimension starTreeDateDimension = (DateDimension) compositeMappedFieldType.getDimensions()
             .stream()
-            .filter(dim -> dim.getField().equals(STARTREE_TIMESTAMP_FIELD))
+            .filter(dim -> dim.getField().equals(fieldName))
             .findFirst() // Get the first matching time dimension
-            .orElseThrow(() -> new AssertionError(String.format(Locale.ROOT, "Date dimension '%s' not found", STARTREE_TIMESTAMP_FIELD)));
+            .orElseThrow(() -> new AssertionError(String.format(Locale.ROOT, "Date dimension '%s' not found", fieldName)));
 
         DateTimeUnitAdapter dateTimeUnitRounding = new DateTimeUnitAdapter(this.rounding.unit());
         DateTimeUnitRounding rounding = starTreeDateDimension.findClosestValidInterval(dateTimeUnitRounding);
-        String dimensionName = STARTREE_TIMESTAMP_FIELD + "_" + rounding.shortName();
+        String dimensionName = fieldName + "_" + rounding.shortName();
         if (rounding.shortName().equals(this.rounding.unit().shortName())) {
             this.starTreeDateRoundingRequired = false;
         }

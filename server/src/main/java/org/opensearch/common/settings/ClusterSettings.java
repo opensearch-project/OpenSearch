@@ -42,7 +42,6 @@ import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.bootstrap.BootstrapSettings;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.InternalClusterInfoService;
@@ -178,6 +177,7 @@ import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteConnectionStrategy;
 import org.opensearch.transport.SniffConnectionStrategy;
 import org.opensearch.transport.TransportSettings;
+import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.WorkloadManagementSettings;
 
@@ -346,11 +346,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NoClusterManagerBlockService.NO_MASTER_BLOCK_SETTING,  // deprecated
                 NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING,
                 GatewayService.EXPECTED_DATA_NODES_SETTING,
-                GatewayService.EXPECTED_MASTER_NODES_SETTING,
-                GatewayService.EXPECTED_NODES_SETTING,
                 GatewayService.RECOVER_AFTER_DATA_NODES_SETTING,
-                GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
-                GatewayService.RECOVER_AFTER_NODES_SETTING,
                 GatewayService.RECOVER_AFTER_TIME_SETTING,
                 ShardsBatchGatewayAllocator.GATEWAY_ALLOCATOR_BATCH_SIZE,
                 ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING,

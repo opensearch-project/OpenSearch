@@ -8,7 +8,6 @@ package org.opensearch.lucene.util;
  * compatible open source license.
  */
 
-
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.Numbers;
 
@@ -48,10 +47,7 @@ public class TestDocValuesUnsignedLongHashSet extends LuceneTestCase {
         LuceneTestCase.assertNotEquals(set1, set2);
 
         UnsignedLongHashSet set3 = new UnsignedLongHashSet(
-            set1.stream()
-                .sorted(Long::compareUnsigned)
-                .mapToLong(Long::longValue)
-                .toArray()
+            set1.stream().sorted(Long::compareUnsigned).mapToLong(Long::longValue).toArray()
         );
 
         LuceneTestCase.assertNotEquals(set2, set3.stream().boxed().collect(Collectors.toSet()));

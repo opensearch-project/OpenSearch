@@ -779,7 +779,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             throw new RuntimeException(e);
         }
 
-        assertTrue(ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster());
+        assertTrue(ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedClusterManager());
         for (DiscoveryNode successfulNode : successfulNodes) {
             assertTrue(successfulNode + " joined cluster", clusterStateHasNode(successfulNode));
             assertFalse(successfulNode + " voted for cluster-manager", coordinator.missingJoinVoteFrom(successfulNode));
@@ -863,7 +863,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
     }
 
     private boolean isLocalNodeElectedMaster() {
-        return ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster();
+        return ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedClusterManager();
     }
 
     private boolean clusterStateHasNode(DiscoveryNode node) {

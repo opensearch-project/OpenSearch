@@ -118,9 +118,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
@@ -162,14 +160,7 @@ public class RestoreService implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
 
     private static final Set<String> USER_UNMODIFIABLE_SETTINGS = unmodifiableSet(
-        newHashSet(
-            SETTING_INDEX_UUID,
-            SETTING_CREATION_DATE,
-            SETTING_HISTORY_UUID,
-            SETTING_REMOTE_STORE_ENABLED,
-            SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-            SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
-        )
+        newHashSet(SETTING_REMOTE_STORE_ENABLED, SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY)
     );
 
     // It's OK to change some settings, but we shouldn't allow simply removing them

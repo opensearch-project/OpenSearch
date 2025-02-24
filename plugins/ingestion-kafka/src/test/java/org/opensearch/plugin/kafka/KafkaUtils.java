@@ -24,8 +24,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import org.testcontainers.shaded.com.google.common.collect.ImmutableMap;
-
 import static org.awaitility.Awaitility.await;
 
 public class KafkaUtils {
@@ -76,7 +74,7 @@ public class KafkaUtils {
 
     private static <Rep> Rep getAdminClient(String bootstrapServer, Function<AdminClient, Rep> function) {
         AdminClient adminClient = KafkaAdminClient.create(
-            ImmutableMap.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer, AdminClientConfig.CLIENT_ID_CONFIG, "test")
+            Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer, AdminClientConfig.CLIENT_ID_CONFIG, "test")
         );
         try {
             return function.apply(adminClient);

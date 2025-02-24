@@ -443,12 +443,6 @@ public class ClusterStateChanges {
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #joinNodesAndBecomeClusterManager(ClusterState, List)} */
-    @Deprecated
-    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        return joinNodesAndBecomeClusterManager(clusterState, nodes);
-    }
-
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
             nodeRemovalExecutor,
