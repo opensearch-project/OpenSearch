@@ -150,10 +150,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
     @Override
     protected void doStop() {
         try {
-            AutoCloseables.close(serverComponents);
-            AutoCloseables.close(streamManager);
-            AutoCloseables.close(clientManager);
-            AutoCloseables.close(allocator);
+            AutoCloseables.close(serverComponents, streamManager, clientManager, allocator);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
