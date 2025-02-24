@@ -42,7 +42,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -244,12 +243,4 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
             return closeable.get();
         }
     }
-
-    protected boolean warmIndexSegmentReplicationEnabled() {
-        return Objects.equals(
-            IndexModule.INDEX_STORE_LOCALITY_SETTING.get(indexSettings()).toString(),
-            IndexModule.DataLocalityType.PARTIAL.name()
-        );
-    }
-
 }
