@@ -72,12 +72,12 @@ public class SystemdIT {
     }
 
     private boolean checkPathReadable(String path) throws IOException, InterruptedException {
-        String command = String.format("su opensearch -s /bin/sh -c 'test -r %s && echo true || echo false'", path);
+        String command = String.format("sudo su opensearch -s /bin/sh -c 'test -r %s && echo true || echo false'", path);
         return Boolean.parseBoolean(executeCommand(command, "Failed to check read permission"));
     }
 
     private boolean checkPathWritable(String path) throws IOException, InterruptedException {
-        String command = String.format("su opensearch -s /bin/sh -c 'test -w %s && echo true || echo false'", path);
+        String command = String.format("sudo su opensearch -s /bin/sh -c 'test -w %s && echo true || echo false'", path);
         return Boolean.parseBoolean(executeCommand(command, "Failed to check write permission"));
     }
 
