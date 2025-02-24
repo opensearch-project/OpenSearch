@@ -79,6 +79,9 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         return Objects.hash(messageProcessorStats, consumerStats);
     }
 
+    /**
+     * Stats for message processor
+     */
     @ExperimentalApi
     public static class MessageProcessorStats {
         private final long totalProcessedCount;
@@ -105,6 +108,9 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Stats for consumer (poller)
+     */
     @ExperimentalApi
     public static class ConsumerStats {
         private final long totalPolledCount;
@@ -131,6 +137,9 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Builder for {@link PollingIngestStats}
+     */
     @ExperimentalApi
     public static class Builder {
         private long totalProcessedCount;
@@ -155,6 +164,11 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Returns a new builder for creating a {@link PollingIngestStats} instance.
+     *
+     * @return a new {@code Builder} instance
+     */
     public static Builder builder() {
         return new Builder();
     }
