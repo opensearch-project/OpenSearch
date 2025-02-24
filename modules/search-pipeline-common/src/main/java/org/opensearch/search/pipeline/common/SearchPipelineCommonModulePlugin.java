@@ -100,7 +100,10 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
                 SplitResponseProcessor.TYPE,
                 new SplitResponseProcessor.Factory(),
                 SortResponseProcessor.TYPE,
-                new SortResponseProcessor.Factory()
+                new SortResponseProcessor.Factory(),
+                RemoveResponseProcessor.TYPE,
+                new RemoveResponseProcessor.Factory()
+
             )
         );
     }
