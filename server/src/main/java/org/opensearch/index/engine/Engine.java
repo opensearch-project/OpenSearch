@@ -947,6 +947,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return stats;
     }
 
+    /**
+     * @return Stats for pull-based ingestion.
+     */
     public PollingIngestStats pollingIngestStats() {
         return null;
     }
