@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.pollingingest;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IngestionShardPointer;
 
 import java.io.Closeable;
@@ -63,9 +64,12 @@ public interface StreamPoller extends Closeable {
     /**
      *  a reset state to indicate how to reset the pointer
      */
+    @ExperimentalApi
     enum ResetState {
         EARLIEST,
         LATEST,
+        REWIND_BY_OFFSET,
+        REWIND_BY_TIMESTAMP,
         NONE,
     }
 }
