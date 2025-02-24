@@ -34,11 +34,15 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.StoredFieldsWriter;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.IOContext;
 import org.opensearch.Version;
 
 import java.io.IOException;
@@ -71,9 +75,12 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
 
     private static final int MAX_CONCURRENT_UPGRADE_MERGES = 5;
 
+    private final Codec actualCodec;
+
     /** @param delegate the merge policy to wrap */
-    public OpenSearchMergePolicy(MergePolicy delegate) {
+    public OpenSearchMergePolicy(MergePolicy delegate, Codec codec) {
         super(delegate);
+        this.actualCodec = codec;
     }
 
     /** return the wrapped merge policy */
@@ -92,11 +99,34 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
             // Always upgrade segment if Lucene's major version is too old
             return true;
         }
+
         if (upgradeOnlyAncientSegments == false && cur.minor > old.minor) {
             // If it's only a minor version difference, and we are not upgrading only ancient segments,
             // also upgrade:
             return true;
         }
+
+        if (!info.info.getCodec().getName().equals(actualCodec.getName())) {
+            // If difference in Codec we should upgrade segment
+            return true;
+        }
+
+        if (info.info.getAttributes() != null) {
+            // Only way to compare Codec.mode(BEST_SPEED or BEST_COMPRESSION) is try to create fields writer
+            // and catch an IllegalStateException if they are different, and ignore others exceptions
+            try {
+                StoredFieldsWriter writer = actualCodec.storedFieldsFormat().fieldsWriter(new ByteBuffersDirectory(), info.info, IOContext.DEFAULT);
+                writer.close();
+            } catch (IllegalStateException e) {
+                // fieldsWriter throw an exception if previous mode not equal to current
+                logger.debug("Received expected IllegalStateException", e);
+                return true;
+            } catch (Exception e) {
+                // Most of the time it will be java.nio.file.FileAlreadyExistsException, which means codec mode same as should be,
+                // otherwise it is something wrong and will be processed somewhere else
+            }
+        }
+
         // Version matches, or segment is not ancient and we are only upgrading ancient segments:
         return false;
     }
@@ -115,8 +145,7 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
 
                 if (shouldUpgrade(info)) {
 
-                    // TODO: Use IndexUpgradeMergePolicy instead. We should be comparing codecs,
-                    // for now we just assume every minor upgrade has a new format.
+                    // TODO: Use IndexUpgradeMergePolicy instead
                     logger.debug("Adding segment {} to be upgraded", info.info.name);
                     spec.add(new OneMerge(Collections.singletonList(info)));
                 }
