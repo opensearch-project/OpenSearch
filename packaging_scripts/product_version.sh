@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 ## Check that jq is installed
 if [ ! -e '/usr/bin/jq' ]
 then
