@@ -131,9 +131,9 @@ public class NettyGrpcClient implements AutoCloseable {
             } else {
                 SecureAuxTransportSettingsProvider.SecureTransportParameters params = settingsProvider.parameters(createSettings()).get();
                 SslContext ctxt = SslContextBuilder.forClient()
-                    .trustManager(params.trustManagerFactory())
-                    .sslProvider(SslProvider.valueOf(params.sslProvider().toUpperCase(Locale.ROOT)))
-                    .clientAuth(ClientAuth.valueOf(params.clientAuth().toUpperCase(Locale.ROOT)))
+                    .trustManager(params.trustManagerFactory().get())
+                    .sslProvider(SslProvider.valueOf(params.sslProvider().get().toUpperCase(Locale.ROOT)))
+                    .clientAuth(ClientAuth.valueOf(params.clientAuth().get().toUpperCase(Locale.ROOT)))
                     .protocols(params.protocols())
                     .ciphers(params.cipherSuites())
                     .applicationProtocolConfig(

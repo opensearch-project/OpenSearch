@@ -30,6 +30,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -51,22 +52,22 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             }
 
             @Override
-            public String sslProvider() {
-                return "JDK";
+            public Optional<String> sslProvider() {
+                return Optional.of("JDK");
             }
 
             @Override
-            public String clientAuth() {
-                return "NONE";
+            public Optional<String> clientAuth() {
+                return Optional.of("NONE");
             }
 
             @Override
-            public Iterable<String> protocols() {
+            public Collection<String> protocols() {
                 return List.of("TLSv1.3", "TLSv1.2");
             }
 
             @Override
-            public Iterable<String> cipherSuites() {
+            public Collection<String> cipherSuites() {
                 /**
                  * Attempt to fetch supported ciphers from default provider.
                  * Else fall back to common defaults.
@@ -85,7 +86,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             }
 
             @Override
-            public KeyManagerFactory keyManagerFactory() {
+            public Optional<KeyManagerFactory> keyManagerFactory() {
                 try {
                     final KeyStore keyStore = KeyStore.getInstance("PKCS12");
                     keyStore.load(
@@ -94,15 +95,15 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                     );
                     final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
                     keyManagerFactory.init(keyStore, "password".toCharArray());
-                    return keyManagerFactory;
+                    return Optional.of(keyManagerFactory);
                 } catch (UnrecoverableKeyException | CertificateException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
                     throw new RuntimeException(e);
                 }
             }
 
             @Override
-            public TrustManagerFactory trustManagerFactory() {
-                return InsecureTrustManagerFactory.INSTANCE;
+            public Optional<TrustManagerFactory> trustManagerFactory() {
+                return Optional.of(InsecureTrustManagerFactory.INSTANCE);
             }
         });
     }

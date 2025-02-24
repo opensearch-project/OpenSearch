@@ -69,10 +69,20 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
             throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: provider empty");
         }
         SecureAuxTransportSettingsProvider.SecureTransportParameters params = secureAuxTransportSettingsProvider.parameters(settings).get();
-        return SslContextBuilder.forServer(params.keyManagerFactory())
-            .trustManager(params.trustManagerFactory())
-            .sslProvider(SslProvider.valueOf(params.sslProvider().toUpperCase(Locale.ROOT)))
-            .clientAuth(ClientAuth.valueOf(params.clientAuth().toUpperCase(Locale.ROOT)))
+        if (params.keyManagerFactory().isEmpty()) {
+            throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: keyManagerFactory empty");
+        } else if (params.trustManagerFactory().isEmpty()) {
+            throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: trustManagerFactory empty");
+        } else if (params.sslProvider().isEmpty()) {
+            throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: no SSL provider configured");
+        } else if (params.clientAuth().isEmpty()) {
+            throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: no client auth configured");
+        }
+
+        return SslContextBuilder.forServer(params.keyManagerFactory().get())
+            .trustManager(params.trustManagerFactory().get())
+            .sslProvider(SslProvider.valueOf(params.sslProvider().get().toUpperCase(Locale.ROOT)))
+            .clientAuth(ClientAuth.valueOf(params.clientAuth().get().toUpperCase(Locale.ROOT)))
             .protocols(params.protocols())
             .ciphers(params.cipherSuites())
             .applicationProtocolConfig(
