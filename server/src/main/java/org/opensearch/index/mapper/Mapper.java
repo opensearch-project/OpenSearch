@@ -47,6 +47,7 @@ import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.script.ScriptService;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -304,10 +305,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     protected static String getDerivedSourceUnsupportedMessage(String typeName, String fieldName, Map<String, Object> params) {
         if (params == null || params.isEmpty()) {
-            return String.format("The [%s] type field [%s] doesn't support derived source", typeName, fieldName);
+            return String.format(Locale.ROOT, "The [%s] type field [%s] doesn't support derived source", typeName, fieldName);
         }
         final String paramStr = params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(", "));
-        return String.format("The [%s] type field [%s](%s) doesn't support derived source", typeName, fieldName, paramStr);
+        return String.format(Locale.ROOT, "The [%s] type field [%s](%s) doesn't support derived source", typeName, fieldName, paramStr);
     }
 
     /**
