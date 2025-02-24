@@ -61,6 +61,9 @@ public class IngestionSource {
         return "IngestionSource{" + "type='" + type + '\'' + ",pointer_init_reset='" + pointerInitReset + '\'' + ", params=" + params + '}';
     }
 
+    /**
+     * Class encapsulating the configuration of a pointer initialization.
+     */
     @ExperimentalApi
     public static class PointerInitReset {
         private final StreamPoller.ResetState type;
