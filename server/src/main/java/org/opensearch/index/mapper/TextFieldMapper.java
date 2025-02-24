@@ -45,6 +45,7 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -279,6 +280,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Version indexCreatedVersion;
+        private final KeywordFieldMapper subFieldForDerivedSource;
 
         protected final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).mappedFieldType.isSearchable(), true);
         protected final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
@@ -341,9 +343,19 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+            this(name, indexCreatedVersion, indexAnalyzers, null);
+        }
+
+        public Builder(
+            String name,
+            Version indexCreatedVersion,
+            IndexAnalyzers indexAnalyzers,
+            KeywordFieldMapper subFieldForDerivedSource
+        ) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(indexAnalyzers);
+            this.subFieldForDerivedSource = subFieldForDerivedSource;
         }
 
         public Builder index(boolean index) {
@@ -479,7 +491,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 buildPhraseMapper(fieldType, tft),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
-                this
+                this,
+                subFieldForDerivedSource
             );
         }
     }
@@ -990,6 +1003,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     protected final Version indexCreatedVersion;
     protected final IndexAnalyzers indexAnalyzers;
     private final FielddataFrequencyFilter freqFilter;
+    private KeywordFieldMapper subFieldForDerivedSource;
 
     protected TextFieldMapper(
         String simpleName,
@@ -1000,6 +1014,20 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
+    ) {
+        this(simpleName, fieldType, mappedFieldType, prefixFieldMapper, phraseFieldMapper, multiFields, copyTo, builder, null);
+    }
+
+    protected TextFieldMapper(
+        String simpleName,
+        FieldType fieldType,
+        TextFieldType mappedFieldType,
+        PrefixFieldMapper prefixFieldMapper,
+        PhraseFieldMapper phraseFieldMapper,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder,
+        KeywordFieldMapper subFieldForDerivedSource
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
@@ -1017,6 +1045,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.freqFilter = builder.freqFilter.getValue();
+        this.subFieldForDerivedSource = subFieldForDerivedSource;
     }
 
     @Override
@@ -1026,7 +1055,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), this.indexCreatedVersion, this.indexAnalyzers).init(this);
+        return new Builder(simpleName(), this.indexCreatedVersion, this.indexAnalyzers, subFieldForDerivedSource).init(this);
     }
 
     @Override
@@ -1225,5 +1254,34 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         mapperBuilder.freqFilter.toXContent(builder, includeDefaults);
         mapperBuilder.indexPrefixes.toXContent(builder, includeDefaults);
         mapperBuilder.indexPhrases.toXContent(builder, includeDefaults);
+    }
+
+    @Override
+    protected void doValidateDerivedSource() {
+        if (fieldType().isStored()) {
+            return;
+        }
+        for (Mapper sub : multiFields) {
+            if (sub instanceof KeywordFieldMapper) {
+                var subType = ((KeywordFieldMapper) sub).fieldType();
+                if (subType.isStored() || subType.hasDocValues()) {
+                    if (subFieldForDerivedSource == null) {
+                        subFieldForDerivedSource = (KeywordFieldMapper) sub;
+                    }
+                    return;
+                }
+            }
+        }
+        checkStoredForDerivedSource();
+    }
+
+    @Override
+    public void fillSource(LeafReader reader, int docID, XContentBuilder builder) throws IOException {
+        assert fieldType().isStored() || subFieldForDerivedSource != null;
+        if (fieldType().isStored()) {
+            fillSourceFromStoredField(reader, docID, fieldType(), simpleName(), builder);
+        } else {
+            KeywordFieldMapper.doFillSource(reader, docID, subFieldForDerivedSource.fieldType(), simpleName(), builder);
+        }
     }
 }

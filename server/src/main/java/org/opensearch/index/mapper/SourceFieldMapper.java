@@ -36,8 +36,10 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
@@ -278,6 +280,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
+        if (context.indexSettings().isDerivedSourceEnabled()) {
+            return;
+        }
         BytesReference originalSource = context.sourceToParse().source();
         MediaType contentType = context.sourceToParse().getMediaType();
         final BytesReference adaptedSource = applyFilters(originalSource, contentType);
@@ -342,5 +347,18 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
+    }
+
+    IndexableField parseSourceField(SourceToParse sourceToParse) {
+        try {
+            final BytesReference adaptedSource = applyFilters(sourceToParse.source(), sourceToParse.getMediaType());
+            if (adaptedSource != null) {
+                final BytesRef ref = adaptedSource.toBytesRef();
+                return new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length);
+            }
+            return null;
+        } catch (IOException e) {
+            throw new OpenSearchException("failed to parse source", e);
+        }
     }
 }

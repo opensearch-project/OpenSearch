@@ -35,8 +35,10 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Explicit;
@@ -44,6 +46,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Point;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -353,5 +356,21 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             }
             return fields;
         }
+    }
+
+    @Override
+    protected void doValidateDerivedSource() {
+        checkDocValuesForDerivedSource();
+    }
+
+    @Override
+    public void fillSource(LeafReader reader, int docID, XContentBuilder builder) throws IOException {
+        fillSourceFromSortedNumericDV(reader, docID, GeoPointFieldMapper::decodePoint, builder);
+    }
+
+    private static GeoPoint decodePoint(long encoded) {
+        GeoPoint point = new GeoPoint();
+        point.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
+        return point;
     }
 }

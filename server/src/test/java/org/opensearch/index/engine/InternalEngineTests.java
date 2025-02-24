@@ -7138,7 +7138,7 @@ public class InternalEngineTests extends EngineTestCase {
                     protected void doRun() throws Exception {
                         latch.await();
                         if (randomBoolean()) {
-                            Translog.Snapshot changes = engine.newChangesSnapshot("test", min, max, true, randomBoolean());
+                            Translog.Snapshot changes = engine.newChangesSnapshot("test", null, min, max, true, randomBoolean());
                             changes.close();
                         } else {
                             engine.countNumberOfHistoryOperations("test", min, max);

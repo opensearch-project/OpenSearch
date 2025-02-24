@@ -44,6 +44,7 @@ import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.OnGoingMerge;
@@ -472,6 +473,7 @@ public class IngestionEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(
         String source,
+        MapperService mapperService,
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange,

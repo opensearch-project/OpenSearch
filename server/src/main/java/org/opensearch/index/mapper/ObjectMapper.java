@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -911,4 +912,24 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     }
 
+    @Override
+    public void validateDerivedSource() {
+        if (nested.nested || enabled.value() == false) {
+            throw new IllegalArgumentException(
+                getDerivedSourceUnsupportedMessage(typeName(), name(), Map.of("nested", nested.nested, "enabled", enabled.value()))
+            );
+        }
+        for (Mapper subMapper : mappers.values()) {
+            subMapper.validateDerivedSource();
+        }
+    }
+
+    @Override
+    public void fillSource(LeafReader reader, int docID, XContentBuilder builder) throws IOException {
+        builder.startObject(simpleName());
+        for (Mapper subMapper : mappers.values()) {
+            subMapper.fillSource(reader, docID, builder);
+        }
+        builder.endObject();
+    }
 }
