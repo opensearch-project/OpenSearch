@@ -37,6 +37,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
@@ -52,7 +53,6 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.lucene.similarity.LegacyBM25Similarity;
 import org.opensearch.script.ScriptService;
 
 import java.util.Collections;
@@ -84,7 +84,7 @@ public final class SimilarityService extends AbstractIndexComponent {
             };
         });
         defaults.put("BM25", version -> {
-            final LegacyBM25Similarity similarity = SimilarityProviders.createBM25Similarity(Settings.EMPTY, version);
+            final Similarity similarity = new BM25Similarity();
             return () -> similarity;
         });
         defaults.put("boolean", version -> {
@@ -100,6 +100,7 @@ public final class SimilarityService extends AbstractIndexComponent {
             );
         });
         builtIn.put("BM25", (settings, version, scriptService) -> SimilarityProviders.createBM25Similarity(settings, version));
+        builtIn.put("LegacyBM25", (settings, version, scriptService) -> SimilarityProviders.createLegacyBM25Similarity(settings, version));
         builtIn.put("boolean", (settings, version, scriptService) -> SimilarityProviders.createBooleanSimilarity(settings, version));
         builtIn.put("DFR", (settings, version, scriptService) -> SimilarityProviders.createDfrSimilarity(settings, version));
         builtIn.put("IB", (settings, version, scriptService) -> SimilarityProviders.createIBSimilarity(settings, version));
