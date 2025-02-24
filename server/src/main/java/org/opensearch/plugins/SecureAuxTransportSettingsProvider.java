@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
+import java.util.Collection;
 import java.util.Optional;
 
 /**
@@ -47,37 +48,37 @@ public interface SecureAuxTransportSettingsProvider {
          * Get the SSL provider implementation to use (e.g., "JDK", "OPENSSL").
          * @return the name of the SSL provider
          */
-        String sslProvider();
+        Optional<String> sslProvider();
 
         /**
          * Get the client authentication mode (e.g., "NONE", "OPTIONAL", "REQUIRE").
          * Determines whether client certificates are requested/required during handshake.
          * @return the client authentication setting
          */
-        String clientAuth();
+        Optional<String> clientAuth();
 
         /**
          * Get enabled TLS protocols (e.g., "TLSv1.2", "TLSv1.3").
          * @return the enabled protocols
          */
-        Iterable<String> protocols();
+        Collection<String> protocols();
 
         /**
          * Get enabled cipher suites for TLS connections.
          * @return the enabled cipher suites
          */
-        Iterable<String> cipherSuites();
+        Collection<String> cipherSuites();
 
         /**
          * KeyManagerFactory which manages the server's identity credentials.
          * @return the key manager factory
          */
-        KeyManagerFactory keyManagerFactory();
+        Optional<KeyManagerFactory> keyManagerFactory();
 
         /**
          * TrustManagerFactory which determines trusted client certificates.
          * @return the trust manager factory
          */
-        TrustManagerFactory trustManagerFactory();
+        Optional<TrustManagerFactory> trustManagerFactory();
     }
 }
