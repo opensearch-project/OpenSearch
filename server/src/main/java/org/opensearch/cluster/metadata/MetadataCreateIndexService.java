@@ -1849,6 +1849,7 @@ public class MetadataCreateIndexService {
     /**
      * Validates {@code index.routing.allocation.total_primary_shards_per_node} is only set for remote store enabled cluster
      */
+    // TODO : Update this check for SegRep to DocRep migration on need basis
     public static void validateIndexTotalPrimaryShardsPerNodeSetting(Settings indexSettings) {
         // Get the setting value
         int indexPrimaryShardsPerNode = INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings);

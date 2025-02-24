@@ -167,9 +167,11 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "total shard limits are disabled: [index: %d, cluster: %d] <= 0",
+                "total shard limits are disabled: [index: %d, index primary: %d, cluster: %d, cluster primary: %d] <= 0",
                 indexShardLimit,
-                clusterShardLimit
+                indexPrimaryShardLimit,
+                clusterShardLimit,
+                clusterPrimaryShardLimit
             );
         }
 
@@ -229,10 +231,12 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         return allocation.decision(
             Decision.YES,
             NAME,
-            "the shard count [%d] for this node is under the index limit [%d] and cluster level node limit [%d]",
+            "the shard count [%d] for this node is under the index limit [%d], index primary limit [%d], cluster level node limit [%d] and cluster level primary node limit [%d]",
             nodeShardCount,
             indexShardLimit,
-            clusterShardLimit
+            indexPrimaryShardLimit,
+            clusterShardLimit,
+            clusterPrimaryShardLimit
         );
     }
 
