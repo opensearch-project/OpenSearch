@@ -269,7 +269,7 @@ final class ServerComponents implements AutoCloseable {
             return true;
         } catch (Exception e) {
             String errorMsg = "Failed to start Arrow Flight server at " + serverLocation;
-            logger.error(errorMsg, e);
+            logger.debug(errorMsg, e);
             return false;
         }
     }
