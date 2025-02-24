@@ -27,7 +27,9 @@ import java.util.Set;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 3)
@@ -223,6 +225,78 @@ public class ShardsLimitAllocationDeciderIT extends OpenSearchIntegTestCase {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Integration test to verify the behavior of INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING
+     * in a non-remote store environment.
+     *
+     * Scenario:
+     * An end-user attempts to create an index with INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING
+     * on a cluster where remote store is not enabled.
+     *
+     * Expected Outcome:
+     * The system should reject the index creation request and throw an appropriate exception,
+     * indicating that this setting is only applicable for remote store enabled clusters.
+     */
+    public void testIndexTotalPrimaryShardsPerNodeSettingWithoutRemoteStore() {
+        // Attempt to create an index with INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 3)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 1)
+            .build();
+
+        // Assert that creating the index throws an exception
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> { createIndex("test_index", indexSettings); }
+        );
+
+        // Verify the exception message
+        assertTrue(
+            "Exception should mention that the setting requires remote store",
+            exception.getMessage()
+                .contains(
+                    "Setting [index.routing.allocation.total_primary_shards_per_node] can only be used with remote store enabled clusters"
+                )
+        );
+    }
+
+    /**
+     * Integration test to verify the behavior of CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING
+     * in a non-remote store environment.
+     *
+     * Scenario:
+     * An end-user attempts to create an index with CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING
+     * on a cluster where remote store is not enabled.
+     *
+     * Expected Outcome:
+     * The system should reject the index creation request and throw an appropriate exception,
+     * indicating that this setting is only applicable for remote store enabled clusters.
+     */
+    public void testClusterTotalPrimaryShardsPerNodeSettingWithoutRemoteStore() {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            updateClusterSetting(CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 1);
+        });
+
+        // Verify the exception message
+        assertTrue(
+            "Exception should mention that the setting requires remote store",
+            exception.getMessage()
+                .contains(
+                    "Setting [cluster.routing.allocation.total_primary_shards_per_node] can only be used with remote store enabled clusters"
+                )
+        );
+
+        // Attempt to create an index with INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 3)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+            .build();
+
+        createIndex("test_index", indexSettings);
     }
 
     private void updateClusterSetting(String setting, int value) {
