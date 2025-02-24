@@ -322,7 +322,7 @@ public class DerivedSourceTests extends DerivedSourceTestCase {
     // tests for ip field
     public void testIpFieldWithSingleValue() throws IOException {
         final InetAddress inetAddress = randomIp(randomBoolean());
-        final String ipValue = inetAddress.getHostAddress();
+        final String ipValue = NetworkAddress.format(inetAddress);
         final Object fieldValue = randomBoolean() ? ipValue : new String[] { ipValue };
         testOneField(
             b -> b.field("type", "ip"),
