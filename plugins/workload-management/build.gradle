@@ -19,4 +19,9 @@ opensearchplugin {
 }
 
 dependencies {
+  api 'org.apache.commons:commons-collections4:4.4'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /commons-collections.*/, to: 'commons-collections'
 }
