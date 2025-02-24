@@ -47,7 +47,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.Future;
 
-import static org.opensearch.common.util.concurrent.OpenSearchExecutors.privilegedDaemonThreadFactory;
+import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 
 /**
  * Creates and returns {@link io.netty.channel.EventLoopGroup} instances. It will return a shared group for
@@ -91,7 +91,7 @@ public final class SharedGroupFactory {
             if (dedicatedHttpGroup == null) {
                 NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(
                     httpWorkerCount,
-                    privilegedDaemonThreadFactory(settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)
+                    daemonThreadFactory(settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)
                 );
                 dedicatedHttpGroup = new SharedGroup(new RefCountedGroup(eventLoopGroup));
             }
@@ -103,7 +103,7 @@ public final class SharedGroupFactory {
         if (genericGroup == null) {
             EventLoopGroup eventLoopGroup = new NioEventLoopGroup(
                 workerCount,
-                privilegedDaemonThreadFactory(settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX)
+                daemonThreadFactory(settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX)
             );
             this.genericGroup = new RefCountedGroup(eventLoopGroup);
         } else {

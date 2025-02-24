@@ -16,11 +16,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Views, simplify data access and manipulation by providing a virtual layer over one or more indices ([#11957](https://github.com/opensearch-project/OpenSearch/pull/11957))
 - Added pull-based Ingestion (APIs, for ingestion source, a Kafka plugin, and IngestionEngine that pulls data from the ingestion source) ([#16958](https://github.com/opensearch-project/OpenSearch/pull/16958))
 - Added ConfigurationUtils to core for the ease of configuration parsing [#17223](https://github.com/opensearch-project/OpenSearch/pull/17223)
-- Added index level setting to limit the total primary shards per node per index [#17295](https://github.com/opensearch-project/OpenSearch/pull/17295)
+- Add cluster and index level settings to limit the total primary shards per node and per index [#17295](https://github.com/opensearch-project/OpenSearch/pull/17295)
+- Add execution_hint to cardinality aggregator request (#[17312](https://github.com/opensearch-project/OpenSearch/pull/17312))
+- Arrow Flight RPC plugin with Flight server bootstrap logic and client for internode communication ([#16962](https://github.com/opensearch-project/OpenSearch/pull/16962))
 
 ### Dependencies
 - Update Apache Lucene to 10.1.0 ([#16366](https://github.com/opensearch-project/OpenSearch/pull/16366))
 - Bump Apache HttpCore5/HttpClient5 dependencies from 5.2.5/5.3.1 to 5.3.1/5.4.1 to support ExtendedSocketOption in HttpAsyncClient ([#16757](https://github.com/opensearch-project/OpenSearch/pull/16757))
+- Bumps `jetty` version from 9.4.55.v20240627 to 9.4.57.v20241219
 
 ### Changed
 - Changed locale provider from COMPAT to CLDR  ([#14345](https://github.com/opensearch-project/OpenSearch/pull/14345))
@@ -35,7 +38,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactor `:libs` module `bootstrap` package to eliminate top level split packages for JPMS support ([#17117](https://github.com/opensearch-project/OpenSearch/pull/17117))
 - Refactor the codebase to eliminate top level split packages for JPMS support ([#17153](https://github.com/opensearch-project/OpenSearch/pull/17153)
 - Refactor `:server` module `org.apacge.lucene` package to eliminate top level split packages for JPMS support ([#17241](https://github.com/opensearch-project/OpenSearch/pull/17241))
+- Stop minimizing automata used for case-insensitive matches ([#17268](https://github.com/opensearch-project/OpenSearch/pull/17268))
 - Refactor the `:server` module `org.opensearch.client` to `org.opensearch.transport.client` to eliminate top level split packages for JPMS support ([#17272](https://github.com/opensearch-project/OpenSearch/pull/17272))
+- Use Lucene `BM25Similarity` as default since the `LegacyBM25Similarity` is marked as deprecated ([#17306](https://github.com/opensearch-project/OpenSearch/pull/17306))
+- Wildcard field index only 3gram of the input data [#17349](https://github.com/opensearch-project/OpenSearch/pull/17349)
 
 ### Deprecated
 
@@ -57,6 +63,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove `index.store.hybrid.mmap.extensions` setting in favor of `index.store.hybrid.nio.extensions` setting ([#9392](https://github.com/opensearch-project/OpenSearch/pull/9392))
 - Remove package org.opensearch.action.support.master ([#4856](https://github.com/opensearch-project/OpenSearch/issues/4856))
 - Remove transport-nio plugin ([#16887](https://github.com/opensearch-project/OpenSearch/issues/16887))
+- Remove deprecated 'gateway' settings used to defer cluster recovery ([#3117](https://github.com/opensearch-project/OpenSearch/issues/3117))
 
 ### Fixed
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
