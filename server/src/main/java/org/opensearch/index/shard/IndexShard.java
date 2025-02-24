@@ -5111,8 +5111,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, final Runnable onFileSync) throws IOException {
         boolean syncSegmentSuccess = false;
-        // For warm indices, it doesn't make sense to check for local existence of files.
-        overrideLocal = overrideLocal && indexSettings.isStoreLocalityPartial() == false;
         long startTimeMs = System.currentTimeMillis();
         assert indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded();
         logger.trace("Downloading segments from remote segment store");
@@ -5162,7 +5160,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
                 assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    : "There should not be any segments file in the dir";
+                    || indexSettings.isStoreLocalityPartial() : "There should not be any segments file in the dir";
                 store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             }
             syncSegmentSuccess = true;

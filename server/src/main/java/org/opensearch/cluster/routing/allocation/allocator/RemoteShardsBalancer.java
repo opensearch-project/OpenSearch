@@ -348,7 +348,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                 // to re-fetch any shard blocks from the repository.
                 if (shard.primary()) {
                     if (RecoverySource.Type.SNAPSHOT.equals(shard.recoverySource().getType()) == false
-                        && !isPartialIndex(allocation.metadata().getIndexSafe(shard.index()))) {
+                        && isPartialIndex(allocation.metadata().getIndexSafe(shard.index())) == false) {
                         unassignedShard = shard.updateUnassigned(shard.unassignedInfo(), RecoverySource.EmptyStoreRecoverySource.INSTANCE);
                     }
                 }

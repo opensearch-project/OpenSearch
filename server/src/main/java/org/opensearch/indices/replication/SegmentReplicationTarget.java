@@ -205,8 +205,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
 
         // Return an empty list for warm indices, In this case, replica shards don't require downloading files from remote storage
-        // as they can will sync all files from remote in case failure.
-        if (indexShard.indexSettings().isStoreLocalityPartial() == true) {
+        // as replicas will sync all files from remote in case of failure.
+        if (indexShard.indexSettings().isStoreLocalityPartial()) {
             return Collections.emptyList();
         }
         final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
