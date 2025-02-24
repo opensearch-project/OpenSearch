@@ -122,7 +122,9 @@ public class SegmentReplicator {
      */
     public ReplicationStats getSegmentReplicationStats(final ShardId shardId) {
         synchronized (getLockForShard(shardId)) {
-            final ConcurrentNavigableMap<Long, ReplicationCheckpointStats> existingCheckpointStats = replicationCheckpointStats.get(shardId);
+            final ConcurrentNavigableMap<Long, ReplicationCheckpointStats> existingCheckpointStats = replicationCheckpointStats.get(
+                shardId
+            );
             if (existingCheckpointStats == null || existingCheckpointStats.isEmpty()) {
                 return ReplicationStats.empty();
             }
