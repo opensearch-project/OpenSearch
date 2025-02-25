@@ -101,6 +101,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateIndexTotalPrimaryShardsPerNodeSetting;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
 import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
@@ -1642,6 +1643,9 @@ public class MetadataIndexTemplateService {
             validateRefreshIntervalSettings(settings, clusterService.getClusterSettings());
             validateTranslogFlushIntervalSettingsForCompositeIndex(settings, clusterService.getClusterSettings());
             validateTranslogDurabilitySettingsInTemplate(settings, clusterService.getClusterSettings());
+
+            // validate index total primary shards per node setting
+            validateIndexTotalPrimaryShardsPerNodeSetting(settings);
         }
 
         if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
