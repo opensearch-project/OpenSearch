@@ -15,7 +15,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.aggregations.BucketCollector;
@@ -23,7 +22,6 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -74,7 +72,6 @@ public final class FilterRewriteOptimizationContext {
     private boolean canOptimize(final Object parent, final int subAggLength, SearchContext context) throws IOException {
         if (context.maxAggRewriteFilters() == 0) return false;
 
-        // if (parent != null || subAggLength != 0) return false;
         if (parent != null) return false;
         this.subAggLength = subAggLength;
 
@@ -139,7 +136,6 @@ public final class FilterRewriteOptimizationContext {
         Ranges ranges = getRanges(leafCtx, segmentMatchAll);
         if (ranges == null) return false;
 
-        // pass in the information of whether subagg exists
         Supplier<DocIdSetBuilder> disBuilderSupplier = null;
         if (subAggLength != 0) {
             disBuilderSupplier = () -> {
@@ -150,7 +146,6 @@ public final class FilterRewriteOptimizationContext {
                 }
             };
         }
-
         OptimizeResult optimizeResult = aggregatorBridge.tryOptimize(values, incrementDocCount, ranges, disBuilderSupplier);
         consumeDebugInfo(optimizeResult);
 
@@ -181,12 +176,6 @@ public final class FilterRewriteOptimizationContext {
         return true;
     }
 
-    List<Weight> weights;
-
-    public List<Weight> getWeights() {
-        return weights;
-    }
-
     Ranges getRanges(LeafReaderContext leafCtx, boolean segmentMatchAll) {
         if (!preparedAtShardLevel) {
             try {
@@ -196,7 +185,6 @@ public final class FilterRewriteOptimizationContext {
                 return null;
             }
         }
-        logger.debug("number of ranges: {}", ranges.lowers.length);
         return ranges;
     }
 
