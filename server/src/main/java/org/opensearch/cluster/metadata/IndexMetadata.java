@@ -856,6 +856,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isRemoteSnapshot;
 
     private final int indexTotalShardsPerNodeLimit;
+    private final int indexTotalPrimaryShardsPerNodeLimit;
     private final boolean isAppendOnlyIndex;
 
     private final Context context;
@@ -888,6 +889,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final Map<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
         final int indexTotalShardsPerNodeLimit,
+        final int indexTotalPrimaryShardsPerNodeLimit,
         boolean isAppendOnlyIndex,
         final Context context
     ) {
@@ -926,6 +928,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSystem = isSystem;
         this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
         this.indexTotalShardsPerNodeLimit = indexTotalShardsPerNodeLimit;
+        this.indexTotalPrimaryShardsPerNodeLimit = indexTotalPrimaryShardsPerNodeLimit;
         this.isAppendOnlyIndex = isAppendOnlyIndex;
         this.context = context;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
@@ -1113,6 +1116,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public int getIndexTotalShardsPerNodeLimit() {
         return this.indexTotalShardsPerNodeLimit;
+    }
+
+    public int getIndexTotalPrimaryShardsPerNodeLimit() {
+        return this.indexTotalPrimaryShardsPerNodeLimit;
     }
 
     public boolean isAppendOnlyIndex() {
@@ -1913,6 +1920,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final int indexTotalShardsPerNodeLimit = ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
+            final int indexTotalPrimaryShardsPerNodeLimit = ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(
+                settings
+            );
             final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings);
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
@@ -1945,6 +1955,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 rolloverInfos,
                 isSystem,
                 indexTotalShardsPerNodeLimit,
+                indexTotalPrimaryShardsPerNodeLimit,
                 isAppendOnlyIndex,
                 context
             );
