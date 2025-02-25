@@ -10,12 +10,10 @@ package org.opensearch.transport.grpc;
 
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
-
-import javax.net.ssl.SSLException;
+import org.opensearch.transport.grpc.ssl.ReloadableSecureAuxTransportSslContext;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -25,18 +23,11 @@ import io.grpc.health.v1.HealthCheckRequest;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.health.v1.HealthGrpc;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 import io.grpc.reflection.v1alpha.ServerReflectionGrpc;
 import io.grpc.reflection.v1alpha.ServerReflectionRequest;
 import io.grpc.reflection.v1alpha.ServerReflectionResponse;
 import io.grpc.reflection.v1alpha.ServiceResponse;
 import io.grpc.stub.StreamObserver;
-import org.opensearch.transport.grpc.ssl.ReloadableSecureAuxTransportSslContext;
 
 import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
 

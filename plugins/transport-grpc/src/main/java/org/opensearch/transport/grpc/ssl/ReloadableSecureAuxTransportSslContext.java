@@ -8,9 +8,6 @@
 
 package org.opensearch.transport.grpc.ssl;
 
-import io.grpc.netty.shaded.io.netty.buffer.ByteBufAllocator;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNegotiator;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 
@@ -19,9 +16,14 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSessionContext;
+
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.List;
+
+import io.grpc.netty.shaded.io.netty.buffer.ByteBufAllocator;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNegotiator;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 
 /**
  * A reloadable implementation of io.grpc.SslContext.
@@ -71,8 +73,7 @@ public class ReloadableSecureAuxTransportSslContext extends SslContext {
     public SSLEngine newEngine(ByteBufAllocator byteBufAllocator) {
         SSLEngine sslEngine;
         try {
-            sslEngine = provider.buildSecureAuxServerEngine()
-                .orElseGet(this::getDefaultServerSSLEngine);
+            sslEngine = provider.buildSecureAuxServerEngine().orElseGet(this::getDefaultServerSSLEngine);
             SSLParameters params = sslEngine.getSSLParameters();
             params.setApplicationProtocols(HTTP2_ALPN); // io.grpc.SslContext -> gRPC -> HTTP2
             sslEngine.setSSLParameters(params);
