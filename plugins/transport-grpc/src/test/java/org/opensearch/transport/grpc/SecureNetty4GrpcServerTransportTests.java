@@ -8,10 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -36,6 +32,10 @@ import java.util.Optional;
 
 import io.grpc.BindableService;
 import io.grpc.health.v1.HealthCheckResponse;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
@@ -58,11 +58,14 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             }
 
             SslContext ctxt = SslContextBuilder.forServer(keyManagerFactory)
-                .applicationProtocolConfig(new ApplicationProtocolConfig(
-                    ApplicationProtocolConfig.Protocol.ALPN,
-                    ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                    ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-                    ApplicationProtocolNames.HTTP_2))
+                .applicationProtocolConfig(
+                    new ApplicationProtocolConfig(
+                        ApplicationProtocolConfig.Protocol.ALPN,
+                        ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                        ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                        ApplicationProtocolNames.HTTP_2
+                    )
+                )
                 .build();
             return Optional.of(ctxt.newEngine(null));
         };
@@ -72,11 +75,14 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
         return () -> {
             SslContext ctxt = SslContextBuilder.forClient()
                 .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                .applicationProtocolConfig(new ApplicationProtocolConfig(
-                    ApplicationProtocolConfig.Protocol.ALPN,
-                    ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                    ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-                    ApplicationProtocolNames.HTTP_2))
+                .applicationProtocolConfig(
+                    new ApplicationProtocolConfig(
+                        ApplicationProtocolConfig.Protocol.ALPN,
+                        ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                        ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                        ApplicationProtocolNames.HTTP_2
+                    )
+                )
                 .build();
             return Optional.of(ctxt.newEngine(null));
         };
