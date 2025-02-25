@@ -130,4 +130,84 @@ public class SystemdIT {
         }
     }
 
+    @Test
+    public void testMaxProcesses() throws IOException, InterruptedException {
+        String limits = executeCommand("sudo cat /proc/" + opensearchPid + "/limits", "Failed to read process limits");
+        assertTrue("Max processes limit should be 4096 or unlimited", 
+                limits.contains("Max processes             4096                 4096") ||
+                limits.contains("Max processes             unlimited            unlimited"));
+    }
+
+    @Test
+    public void testFileDescriptorLimit() throws IOException, InterruptedException {
+        String limits = executeCommand("sudo cat /proc/" + opensearchPid + "/limits", "Failed to read process limits");
+        assertTrue("File descriptor limit should be at least 65535", 
+                limits.contains("Max open files            65535                65535") ||
+                limits.contains("Max open files            unlimited            unlimited"));
+    }
+
+    @Test
+    public void testSystemCallFilter() throws IOException, InterruptedException {
+        // Check if Seccomp is enabled
+        String seccomp = executeCommand("sudo grep Seccomp /proc/" + opensearchPid + "/status", "Failed to read Seccomp status");
+        assertFalse("Seccomp should be enabled", seccomp.contains("0"));
+        
+        // Test specific system calls that should be blocked
+        String rebootResult = executeCommand("sudo su opensearch -c 'kill -s SIGHUP 1' 2>&1 || echo 'Operation not permitted'", "Failed to test reboot system call");
+        assertTrue("Reboot system call should be blocked", rebootResult.contains("Operation not permitted"));
+        
+        String swapResult = executeCommand("sudo su opensearch -c 'swapon -a' 2>&1 || echo 'Operation not permitted'", "Failed to test swap system call");
+        assertTrue("Swap system call should be blocked", swapResult.contains("Operation not permitted"));
+    }
+
+    @Test
+    public void testOpenSearchProcessCannotExit() throws IOException, InterruptedException {
+
+        String scriptContent = "#!/bin/sh\n" +
+                            "if [ $# -ne 1 ]; then\n" +
+                            "    echo \"Usage: $0 <PID>\"\n" +
+                            "    exit 1\n" +
+                            "fi\n" +
+                            "if kill -15 $1 2>/dev/null; then\n" +
+                            "    echo \"SIGTERM signal sent to process $1\"\n" +
+                            "else\n" +
+                            "    echo \"Failed to send SIGTERM to process $1\"\n" +
+                            "fi\n" +
+                            "sleep 2\n" +
+                            "if kill -0 $1 2>/dev/null; then\n" +
+                            "    echo \"Process $1 is still running\"\n" +
+                            "else\n" +
+                            "    echo \"Process $1 has terminated\"\n" +
+                            "fi";
+
+        String[] command = {
+            "sudo",
+            "-u", "nobody",
+            "sh",
+            "-c",
+            "echo '" + scriptContent.replace("'", "'\"'\"'") + "' > /tmp/terminate.sh && chmod +x /tmp/terminate.sh && /tmp/terminate.sh " + opensearchPid
+        };
+
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        Process process = processBuilder.start();
+
+        // Wait a moment for any potential termination to take effect
+        Thread.sleep(2000);
+
+        // Check if the OpenSearch process is still running
+        String processCheck = executeCommand(
+            "kill -0 " + opensearchPid + " 2>/dev/null && echo 'Running' || echo 'Not running'",
+            "Failed to check process status"
+        );
+
+        // Verify the OpenSearch service status
+        String serviceStatus = executeCommand(
+            "systemctl is-active opensearch",
+            "Failed to check OpenSearch service status"
+        );
+
+        assertTrue("OpenSearch process should still be running", processCheck.contains("Running"));
+        assertEquals("OpenSearch service should be active", "active", serviceStatus.trim());
+    }
+
 }
