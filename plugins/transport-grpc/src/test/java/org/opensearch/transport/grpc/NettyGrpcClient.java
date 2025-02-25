@@ -36,6 +36,7 @@ import io.grpc.reflection.v1alpha.ServerReflectionRequest;
 import io.grpc.reflection.v1alpha.ServerReflectionResponse;
 import io.grpc.reflection.v1alpha.ServiceResponse;
 import io.grpc.stub.StreamObserver;
+import org.opensearch.transport.grpc.ssl.ReloadableSecureAuxTransportSslContext;
 
 import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
 
@@ -121,29 +122,14 @@ public class NettyGrpcClient implements AutoCloseable {
 
         Builder() {}
 
-        public NettyGrpcClient build() throws SSLException {
+        public NettyGrpcClient build() {
             NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(addr.getAddress(), addr.getPort())
                 .proxyDetector(proxyDetector);
 
             if (settingsProvider == null) {
                 channelBuilder.usePlaintext();
             } else {
-                SecureAuxTransportSettingsProvider.SSLContextBuilder builder = settingsProvider.getSSLContextBuilder().get();
-                SslContext ctxt = SslContextBuilder.forClient()
-                    .trustManager(builder.getTrustManagerFactory().get())
-                    .sslProvider(SslProvider.valueOf(builder.getSslProvider().get().toUpperCase(Locale.ROOT)))
-                    .clientAuth(ClientAuth.valueOf(builder.getClientAuth().get().toUpperCase(Locale.ROOT)))
-                    .protocols(builder.getProtocols())
-                    .ciphers(builder.getCipherSuites())
-                    .applicationProtocolConfig(
-                        new ApplicationProtocolConfig(
-                            ApplicationProtocolConfig.Protocol.ALPN,
-                            ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                            ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-                            ApplicationProtocolNames.HTTP_2
-                        )
-                    )
-                    .build();
+                ReloadableSecureAuxTransportSslContext ctxt = new ReloadableSecureAuxTransportSslContext(settingsProvider, true);
                 channelBuilder.sslContext(ctxt);
             }
 
