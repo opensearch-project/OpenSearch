@@ -17,7 +17,9 @@ import java.util.Collection;
 import java.util.Optional;
 
 /**
- * A provider for security related settings for gRPC transports.
+ * A security setting provider for auxiliary transports.
+ * As auxiliary transports are pluggable, SSLContextBuilder is provided as a generic way for transports
+ * to construct a ssl context for their particular transport implementation.
  *
  * @opensearch.experimental
  */
