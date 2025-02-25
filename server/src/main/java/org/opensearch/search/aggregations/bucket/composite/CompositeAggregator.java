@@ -94,6 +94,7 @@ import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
+import static org.opensearch.search.aggregations.bucket.filterrewrite.AggregatorBridge.segmentMatchAll;
 
 /**
  * Main aggregator that aggregates docs from multiple aggregations
@@ -564,18 +565,18 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     // @Override
     // protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-    //     finishLeaf(); // May need to wrap up previous leaf if it could not be precomputed
-    //     return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
+    // finishLeaf(); // May need to wrap up previous leaf if it could not be precomputed
+    // return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
     // }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         boolean optimized = filterRewriteOptimizationContext.tryOptimize(
-        ctx,
-        this::incrementBucketDocCount,
-        segmentMatchAll(context, ctx),
-        collectableSubAggregators,
-        sub
+            ctx,
+            this::incrementBucketDocCount,
+            segmentMatchAll(context, ctx),
+            collectableSubAggregators,
+            sub
         );
         if (optimized) throw new CollectionTerminatedException();
 
