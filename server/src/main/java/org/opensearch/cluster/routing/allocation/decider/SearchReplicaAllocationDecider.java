@@ -17,7 +17,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.util.Map;
 
@@ -27,9 +26,9 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 /**
  * This allocation decider is similar to FilterAllocationDecider but provides
  * the option to filter specifically for search replicas.
- * The filter behaves similar to an include for any defined node attribute.
+ * The filter behaves similar to an including for any defined node attribute.
  * A search replica can be allocated to only nodes with one of the specified attributes while
- * other shard types will be rejected from nodes with any othe attributes.
+ * other shard types will be rejected from nodes with any other attributes.
  * @opensearch.internal
  */
 public class SearchReplicaAllocationDecider extends AllocationDecider {
@@ -42,9 +41,6 @@ public class SearchReplicaAllocationDecider extends AllocationDecider {
     );
 
     private volatile DiscoveryNodeFilters searchReplicaIncludeFilters;
-
-    private volatile RemoteStoreNodeService.Direction migrationDirection;
-    private volatile RemoteStoreNodeService.CompatibilityMode compatibilityMode;
 
     public SearchReplicaAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         setSearchReplicaIncludeFilters(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));
@@ -66,28 +62,44 @@ public class SearchReplicaAllocationDecider extends AllocationDecider {
     }
 
     private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
-        if (searchReplicaIncludeFilters != null) {
-            final boolean match = searchReplicaIncludeFilters.match(node);
-            if (match == false && shardRouting.isSearchOnly()) {
+        boolean isSearchReplica = shardRouting.isSearchOnly();
+
+        // If no filters are defined, reject the allocation for search replicas
+        if (searchReplicaIncludeFilters == null) {
+            if (isSearchReplica) {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
-                    "node does not match shard setting [%s] filters [%s]",
-                    SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_PREFIX,
-                    searchReplicaIncludeFilters
+                    "There are no nodes designated with node attribute [%s] for search replicas",
+                    SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_PREFIX
                 );
-            }
-            // filter will only apply to search replicas
-            if (shardRouting.isSearchOnly() == false && match) {
-                return allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "only search replicas can be allocated to node with setting [%s] filters [%s]",
-                    SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_PREFIX,
-                    searchReplicaIncludeFilters
-                );
+            } else {
+                return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
             }
         }
+
+        boolean nodeMatchesFilters = searchReplicaIncludeFilters.match(node);
+
+        if (isSearchReplica && !nodeMatchesFilters) {
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "node does not match shard setting [%s] filters [%s]",
+                SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_PREFIX,
+                searchReplicaIncludeFilters
+            );
+        }
+
+        if (!isSearchReplica && nodeMatchesFilters) {
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "only search replicas can be allocated to node with setting [%s] filters [%s]",
+                SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_PREFIX,
+                searchReplicaIncludeFilters
+            );
+        }
+
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
     }
 
