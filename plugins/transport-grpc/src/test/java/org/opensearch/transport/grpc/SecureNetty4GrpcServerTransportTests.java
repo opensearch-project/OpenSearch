@@ -20,6 +20,7 @@ import org.junit.Before;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 
 import java.io.IOException;
 import java.security.KeyManagementException;
@@ -45,16 +46,15 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private static SecureAuxTransportSettingsProvider getSecureSettingsProvider() {
         return () -> {
             /**
-             * Attempt to fetch supported ciphers from default provider.
-             * Else fall back to common defaults.
+             * Attempt to fetch some supported cipher suite from default provider.
+             * Else fall back to some common hard coded defaults.
              */
             List<String> cipherSuites;
             try {
-                SSLContext context = SSLContext.getInstance("TLS");
-                context.init(null, null, null);
-                SSLEngine engine = context.createSSLEngine();
-                cipherSuites = List.of(engine.getSupportedCipherSuites());
-            } catch (NoSuchAlgorithmException | KeyManagementException e) {
+                SSLContext defaultContext = SSLContext.getDefault();
+                SSLEngine tempEngine = defaultContext.createSSLEngine();
+                cipherSuites = List.of(tempEngine.getSupportedCipherSuites());
+            } catch (NoSuchAlgorithmException e) {
                 cipherSuites = List.of(
                     "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",  // TLSv1.2
                     "TLS_AES_128_GCM_SHA256"                  // TLSv1.3
@@ -74,15 +74,26 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 throw new RuntimeException(e);
             }
 
-            SecureAuxTransportSettingsProvider.SSLContextBuilder builder = new SecureAuxTransportSettingsProvider.SSLContextBuilder()
-                .setDualModeEnabled(false)
-                .setSslProvider("JDK")
-                .setClientAuth("NONE")
-                .setProtocols(List.of("TLSv1.3", "TLSv1.2"))
-                .setCipherSuites(cipherSuites)
-                .setKeyManagerFactory(keyManagerFactory)
-                .setTrustManagerFactory(InsecureTrustManagerFactory.INSTANCE);
-            return Optional.of(builder);
+            SSLContext sslContext;
+            try {
+                sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(keyManagerFactory.getKeyManagers(), InsecureTrustManagerFactory.INSTANCE.getTrustManagers(), null); // no random for tests
+            } catch (NoSuchAlgorithmException | KeyManagementException e) {
+                throw new RuntimeException("Failed to initialize SSL context", e);
+            }
+
+            SSLEngine engine = sslContext.createSSLEngine();
+            engine.setEnabledProtocols(new String[]{"TLSv1.3", "TLSv1.2"});
+            engine.setEnabledCipherSuites(cipherSuites.toArray(new String[0]));
+            engine.setNeedClientAuth(false);
+            engine.setWantClientAuth(false);
+
+            // Set ALPN (for HTTP/2 support)
+            SSLParameters params = engine.getSSLParameters();
+            params.setApplicationProtocols(new String[]{"h2"});
+            engine.setSSLParameters(params);
+
+            return Optional.of(engine);
         };
     }
 
