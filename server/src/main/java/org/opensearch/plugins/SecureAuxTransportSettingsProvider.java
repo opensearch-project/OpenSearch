@@ -27,7 +27,7 @@ public interface SecureAuxTransportSettingsProvider {
      * Parameters needed for constructing a generic ssl context implementation.
      */
     @ExperimentalApi
-    public class SSLContextBuilder {
+    class SSLContextBuilder {
         protected boolean dualModeEnabled = false;
         protected String sslProvider;
         protected String clientAuth;
