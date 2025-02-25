@@ -8,6 +8,10 @@
 
 package org.opensearch.transport.grpc;
 
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -18,12 +22,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLParameters;
 
 import java.io.IOException;
-import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -41,26 +41,9 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactor
 public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private NetworkService networkService;
     private final List<BindableService> services = new ArrayList<>();
-    private SecureAuxTransportSettingsProvider settingsProvider;
 
-    private static SecureAuxTransportSettingsProvider getSecureSettingsProvider() {
+    private static SecureAuxTransportSettingsProvider getSecureSettingsProviderServer() {
         return () -> {
-            /**
-             * Attempt to fetch some supported cipher suite from default provider.
-             * Else fall back to some common hard coded defaults.
-             */
-            List<String> cipherSuites;
-            try {
-                SSLContext defaultContext = SSLContext.getDefault();
-                SSLEngine tempEngine = defaultContext.createSSLEngine();
-                cipherSuites = List.of(tempEngine.getSupportedCipherSuites());
-            } catch (NoSuchAlgorithmException e) {
-                cipherSuites = List.of(
-                    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",  // TLSv1.2
-                    "TLS_AES_128_GCM_SHA256"                  // TLSv1.3
-                );
-            }
-
             /**
              * Init keystore from test resources.
              */
@@ -74,26 +57,28 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 throw new RuntimeException(e);
             }
 
-            SSLContext sslContext;
-            try {
-                sslContext = SSLContext.getInstance("TLS");
-                sslContext.init(keyManagerFactory.getKeyManagers(), InsecureTrustManagerFactory.INSTANCE.getTrustManagers(), null); // no random for tests
-            } catch (NoSuchAlgorithmException | KeyManagementException e) {
-                throw new RuntimeException("Failed to initialize SSL context", e);
-            }
+            SslContext ctxt = SslContextBuilder.forServer(keyManagerFactory)
+                .applicationProtocolConfig(new ApplicationProtocolConfig(
+                    ApplicationProtocolConfig.Protocol.ALPN,
+                    ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                    ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                    ApplicationProtocolNames.HTTP_2))
+                .build();
+            return Optional.of(ctxt.newEngine(null));
+        };
+    }
 
-            SSLEngine engine = sslContext.createSSLEngine();
-            engine.setEnabledProtocols(new String[]{"TLSv1.3", "TLSv1.2"});
-            engine.setEnabledCipherSuites(cipherSuites.toArray(new String[0]));
-            engine.setNeedClientAuth(false);
-            engine.setWantClientAuth(false);
-
-            // Set ALPN (for HTTP/2 support)
-            SSLParameters params = engine.getSSLParameters();
-            params.setApplicationProtocols(new String[]{"h2"});
-            engine.setSSLParameters(params);
-
-            return Optional.of(engine);
+    private static SecureAuxTransportSettingsProvider getSecureSettingsProviderClient() {
+        return () -> {
+            SslContext ctxt = SslContextBuilder.forClient()
+                .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                .applicationProtocolConfig(new ApplicationProtocolConfig(
+                    ApplicationProtocolConfig.Protocol.ALPN,
+                    ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                    ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                    ApplicationProtocolNames.HTTP_2))
+                .build();
+            return Optional.of(ctxt.newEngine(null));
         };
     }
 
@@ -104,7 +89,6 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     @Before
     public void setup() {
         networkService = new NetworkService(Collections.emptyList());
-        settingsProvider = getSecureSettingsProvider();
     }
 
     @After
@@ -118,7 +102,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                settingsProvider
+                getSecureSettingsProviderServer()
             )
         ) {
             transport.start();
@@ -136,7 +120,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                settingsProvider
+                getSecureSettingsProviderServer()
             )
         ) {
             transport.start();
@@ -145,7 +129,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             final TransportAddress remoteAddress = randomFrom(transport.getBoundAddress().boundAddresses());
             try (
                 NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress)
-                    .setSecureSettingsProvider(settingsProvider)
+                    .setSecureSettingsProvider(getSecureSettingsProviderClient())
                     .build()
             ) {
                 assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
