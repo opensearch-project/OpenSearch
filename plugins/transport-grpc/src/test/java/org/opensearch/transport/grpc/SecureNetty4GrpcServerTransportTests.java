@@ -20,7 +20,6 @@ import org.junit.Before;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
 import java.security.KeyManagementException;
@@ -30,7 +29,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -45,67 +43,47 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private SecureAuxTransportSettingsProvider settingsProvider;
 
     private static SecureAuxTransportSettingsProvider getSecureSettingsProvider() {
-        return settings -> Optional.of(new SecureAuxTransportSettingsProvider.SecureTransportParameters() {
-            @Override
-            public boolean dualModeEnabled() {
-                return false;
+        return () -> {
+            /**
+             * Attempt to fetch supported ciphers from default provider.
+             * Else fall back to common defaults.
+             */
+            List<String> cipherSuites;
+            try {
+                SSLContext context = SSLContext.getInstance("TLS");
+                context.init(null, null, null);
+                SSLEngine engine = context.createSSLEngine();
+                cipherSuites = List.of(engine.getSupportedCipherSuites());
+            } catch (NoSuchAlgorithmException | KeyManagementException e) {
+                cipherSuites = List.of(
+                    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",  // TLSv1.2
+                    "TLS_AES_128_GCM_SHA256"                  // TLSv1.3
+                );
             }
 
-            @Override
-            public Optional<String> sslProvider() {
-                return Optional.of("JDK");
+            /**
+             * Init keystore from test resources.
+             */
+            KeyManagerFactory keyManagerFactory;
+            try {
+                final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+                keyStore.load(SecureNetty4GrpcServerTransport.class.getResourceAsStream("/netty4-secure.jks"), "password".toCharArray());
+                keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+                keyManagerFactory.init(keyStore, "password".toCharArray());
+            } catch (UnrecoverableKeyException | CertificateException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
             }
 
-            @Override
-            public Optional<String> clientAuth() {
-                return Optional.of("NONE");
-            }
-
-            @Override
-            public Collection<String> protocols() {
-                return List.of("TLSv1.3", "TLSv1.2");
-            }
-
-            @Override
-            public Collection<String> cipherSuites() {
-                /**
-                 * Attempt to fetch supported ciphers from default provider.
-                 * Else fall back to common defaults.
-                 */
-                try {
-                    SSLContext context = SSLContext.getInstance("TLS");
-                    context.init(null, null, null);
-                    SSLEngine engine = context.createSSLEngine();
-                    return List.of(engine.getSupportedCipherSuites());
-                } catch (NoSuchAlgorithmException | KeyManagementException e) {
-                    return List.of(
-                        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",  // TLSv1.2
-                        "TLS_AES_128_GCM_SHA256"                  // TLSv1.3
-                    );
-                }
-            }
-
-            @Override
-            public Optional<KeyManagerFactory> keyManagerFactory() {
-                try {
-                    final KeyStore keyStore = KeyStore.getInstance("PKCS12");
-                    keyStore.load(
-                        SecureNetty4GrpcServerTransport.class.getResourceAsStream("/netty4-secure.jks"),
-                        "password".toCharArray()
-                    );
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
-                    keyManagerFactory.init(keyStore, "password".toCharArray());
-                    return Optional.of(keyManagerFactory);
-                } catch (UnrecoverableKeyException | CertificateException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            public Optional<TrustManagerFactory> trustManagerFactory() {
-                return Optional.of(InsecureTrustManagerFactory.INSTANCE);
-            }
-        });
+            SecureAuxTransportSettingsProvider.SSLContextBuilder builder = new SecureAuxTransportSettingsProvider.SSLContextBuilder()
+                .setDualModeEnabled(false)
+                .setSslProvider("JDK")
+                .setClientAuth("NONE")
+                .setProtocols(List.of("TLSv1.3", "TLSv1.2"))
+                .setCipherSuites(cipherSuites)
+                .setKeyManagerFactory(keyManagerFactory)
+                .setTrustManagerFactory(InsecureTrustManagerFactory.INSTANCE);
+            return Optional.of(builder);
+        };
     }
 
     static Settings createSettings() {
