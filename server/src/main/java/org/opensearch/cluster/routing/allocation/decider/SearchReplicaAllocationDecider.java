@@ -26,9 +26,8 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 /**
  * This allocation decider is similar to FilterAllocationDecider but provides
  * the option to filter specifically for search replicas.
- * The filter behaves similar to an including for any defined node attribute.
- * A search replica can be allocated to only nodes with one of the specified attributes while
- * other shard types will be rejected from nodes with any other attributes.
+ * A search replica can be allocated to only nodes with one of the specified attributes,
+ * other shard types will not be allocated to these nodes.
  * @opensearch.internal
  */
 public class SearchReplicaAllocationDecider extends AllocationDecider {
