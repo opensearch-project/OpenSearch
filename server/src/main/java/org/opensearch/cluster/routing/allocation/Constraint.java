@@ -24,8 +24,8 @@ import static org.opensearch.cluster.routing.allocation.ConstraintTypes.predicat
  */
 public class Constraint implements Predicate<Constraint.ConstraintParams> {
 
-    private boolean enable;
-    private Predicate<ConstraintParams> predicate;
+    private volatile boolean enable;
+    private final Predicate<ConstraintParams> predicate;
 
     public Constraint(Predicate<ConstraintParams> constraintPredicate) {
         this.predicate = constraintPredicate;
@@ -38,6 +38,10 @@ public class Constraint implements Predicate<Constraint.ConstraintParams> {
 
     public void setEnable(boolean enable) {
         this.enable = enable;
+    }
+
+    public boolean isEnable() {
+        return this.enable;
     }
 
     static class ConstraintParams {
