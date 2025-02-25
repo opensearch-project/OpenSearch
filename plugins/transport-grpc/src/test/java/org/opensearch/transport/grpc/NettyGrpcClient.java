@@ -37,7 +37,6 @@ import io.grpc.reflection.v1alpha.ServerReflectionResponse;
 import io.grpc.reflection.v1alpha.ServiceResponse;
 import io.grpc.stub.StreamObserver;
 
-import static org.opensearch.transport.grpc.SecureNetty4GrpcServerTransportTests.createSettings;
 import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
 
 public class NettyGrpcClient implements AutoCloseable {
@@ -129,13 +128,13 @@ public class NettyGrpcClient implements AutoCloseable {
             if (settingsProvider == null) {
                 channelBuilder.usePlaintext();
             } else {
-                SecureAuxTransportSettingsProvider.SecureTransportParameters params = settingsProvider.parameters(createSettings()).get();
+                SecureAuxTransportSettingsProvider.SSLContextBuilder builder = settingsProvider.getSSLContextBuilder().get();
                 SslContext ctxt = SslContextBuilder.forClient()
-                    .trustManager(params.trustManagerFactory().get())
-                    .sslProvider(SslProvider.valueOf(params.sslProvider().get().toUpperCase(Locale.ROOT)))
-                    .clientAuth(ClientAuth.valueOf(params.clientAuth().get().toUpperCase(Locale.ROOT)))
-                    .protocols(params.protocols())
-                    .ciphers(params.cipherSuites())
+                    .trustManager(builder.getTrustManagerFactory().get())
+                    .sslProvider(SslProvider.valueOf(builder.getSslProvider().get().toUpperCase(Locale.ROOT)))
+                    .clientAuth(ClientAuth.valueOf(builder.getClientAuth().get().toUpperCase(Locale.ROOT)))
+                    .protocols(builder.getProtocols())
+                    .ciphers(builder.getCipherSuites())
                     .applicationProtocolConfig(
                         new ApplicationProtocolConfig(
                             ApplicationProtocolConfig.Protocol.ALPN,

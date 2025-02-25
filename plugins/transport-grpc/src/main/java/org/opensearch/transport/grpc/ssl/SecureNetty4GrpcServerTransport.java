@@ -17,6 +17,7 @@ import javax.net.ssl.SSLException;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import io.grpc.BindableService;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
@@ -65,26 +66,26 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
      * @return io.grpc SslContext from SecureAuxTransportSettingsProvider.
      */
     private SslContext buildSslContext() throws SSLException {
-        if (secureAuxTransportSettingsProvider.parameters(settings).isEmpty()) {
+        Optional<SecureAuxTransportSettingsProvider.SSLContextBuilder> optBuilder = secureAuxTransportSettingsProvider
+            .getSSLContextBuilder();
+        if (optBuilder.isEmpty()) {
             throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: provider empty");
         }
-        SecureAuxTransportSettingsProvider.SecureTransportParameters params = secureAuxTransportSettingsProvider.parameters(settings).get();
-        if (params.keyManagerFactory().isEmpty()) {
-            throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: keyManagerFactory empty");
-        } else if (params.trustManagerFactory().isEmpty()) {
-            throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: trustManagerFactory empty");
-        } else if (params.sslProvider().isEmpty()) {
-            throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: no SSL provider configured");
-        } else if (params.clientAuth().isEmpty()) {
-            throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: no client auth configured");
+
+        SecureAuxTransportSettingsProvider.SSLContextBuilder ctxtBuilder = optBuilder.get();
+        if (ctxtBuilder.getKeyManagerFactory().isEmpty()
+            || ctxtBuilder.getTrustManagerFactory().isEmpty()
+            || ctxtBuilder.getSslProvider().isEmpty()
+            || ctxtBuilder.getClientAuth().isEmpty()) {
+            throw new SSLException("SSLContext could not be built from SecureAuxTransportSettingsProvider: missing parameters");
         }
 
-        return SslContextBuilder.forServer(params.keyManagerFactory().get())
-            .trustManager(params.trustManagerFactory().get())
-            .sslProvider(SslProvider.valueOf(params.sslProvider().get().toUpperCase(Locale.ROOT)))
-            .clientAuth(ClientAuth.valueOf(params.clientAuth().get().toUpperCase(Locale.ROOT)))
-            .protocols(params.protocols())
-            .ciphers(params.cipherSuites())
+        return SslContextBuilder.forServer(ctxtBuilder.getKeyManagerFactory().get())
+            .trustManager(ctxtBuilder.getTrustManagerFactory().get())
+            .sslProvider(SslProvider.valueOf(ctxtBuilder.getSslProvider().get().toUpperCase(Locale.ROOT)))
+            .clientAuth(ClientAuth.valueOf(ctxtBuilder.getClientAuth().get().toUpperCase(Locale.ROOT)))
+            .protocols(ctxtBuilder.getProtocols())
+            .ciphers(ctxtBuilder.getCipherSuites())
             .applicationProtocolConfig(
                 new ApplicationProtocolConfig(
                     ApplicationProtocolConfig.Protocol.ALPN,
