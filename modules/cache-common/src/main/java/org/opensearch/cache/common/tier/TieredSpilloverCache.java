@@ -162,7 +162,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
          * This map is used to handle concurrent requests for same key in computeIfAbsent() to ensure we load the value
          * only once.
          */
-        Map<ICacheKey<K>, CompletableFuture<Tuple<ICacheKey<K>, V>>> completableFutureMap = new ConcurrentHashMap<>();
+        Map<ICacheKey<K>, CompletableFuture<Tuple<Tuple<ICacheKey<K>, V>, Boolean>>> completableFutureMap = new ConcurrentHashMap<>();
 
         TieredSpilloverCacheSegment(
             Builder<K, V> builder,
@@ -291,7 +291,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             // getValueFromTieredCache(),
             // we will see all misses. Instead, handle stats in computeIfAbsent().
             Tuple<V, String> cacheValueTuple;
-            CompletableFuture<Tuple<ICacheKey<K>, V>> future = null;
+            CompletableFuture<Tuple<Tuple<ICacheKey<K>, V>, Boolean>> future = null;
             try (ReleasableLock ignore = readLock.acquire()) {
                 cacheValueTuple = getValueFromTieredCache(false).apply(key);
                 if (cacheValueTuple == null) {
@@ -343,14 +343,17 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         private Tuple<V, Tuple<Boolean, Boolean>> compute(
             ICacheKey<K> key,
             LoadAwareCacheLoader<ICacheKey<K>, V> loader,
-            CompletableFuture<Tuple<ICacheKey<K>, V>> future
+            CompletableFuture<Tuple<Tuple<ICacheKey<K>, V>, Boolean>> future
         ) throws Exception {
-            // Handler to handle results post-processing. Takes a tuple<key, value> or exception as an input and returns
-            // the value. Also before returning value, puts the value in cache.
+            // Handler to handle results post-processing. Takes a Tuple<Tuple<key, value>, boolean>, where the boolean represents whether
+            // this key/value pair was rejected by the policies,
+            // or exception as an input and returns the value. Also before returning value, puts the value in cache if accepted by policies.
             boolean wasCacheMiss = false;
             boolean wasRejectedByPolicy = false;
-            BiFunction<Tuple<ICacheKey<K>, V>, Throwable, Void> handler = (pair, ex) -> {
-                if (pair != null) {
+            BiFunction<Tuple<Tuple<ICacheKey<K>, V>, Boolean>, Throwable, Void> handler = (pairInfo, ex) -> {
+                Tuple<ICacheKey<K>, V> pair = pairInfo.v1();
+                boolean rejectedByPolicy = pairInfo.v2();
+                if (pair != null && !rejectedByPolicy) {
                     boolean didAddToCache = false;
                     try (ReleasableLock ignore = writeLock.acquire()) {
                         onHeapCache.put(pair.v1(), pair.v2());
@@ -387,32 +390,23 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     future.completeExceptionally(npe);
                     throw new ExecutionException(npe);
                 } else {
-                    if (evaluatePoliciesList(value, policies)) {
-                        future.complete(new Tuple<>(key, value));
-                        wasCacheMiss = true;
-                    } else {
-                        future.complete(null); // Passing null would skip the logic to put this into onHeap cache.
-                        // Signal to the caller that the key didn't enter the cache by sending a removal notification.
-                        // This case does not count as a cache miss.
-                        removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
-                        wasRejectedByPolicy = true;
-                    }
+                    wasRejectedByPolicy = !evaluatePoliciesList(value, policies);
+                    future.complete(new Tuple<>(new Tuple<>(key, value), wasRejectedByPolicy));
+                    wasCacheMiss = !wasRejectedByPolicy;
                 }
             } else {
                 try {
-                    Tuple<ICacheKey<K>, V> futureTuple = future.get();
-                    if (futureTuple == null) {
-                        // This case can happen if we earlier completed the future with null to skip putting the value into the cache.
-                        // It does not count as a cache miss.
-                        value = loader.load(key);
-                        removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
-                        wasRejectedByPolicy = true;
-                    } else {
-                        value = futureTuple.v2();
-                    }
+                    Tuple<Tuple<ICacheKey<K>, V>, Boolean> futureTuple = future.get();
+                    wasRejectedByPolicy = futureTuple.v2();
+                    value = futureTuple.v1().v2();
                 } catch (InterruptedException ex) {
                     throw new IllegalStateException(ex);
                 }
+            }
+            if (wasRejectedByPolicy) {
+                // Signal to the caller that the key didn't enter the cache by sending a removal notification.
+                // This case does not count as a cache miss.
+                removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
             }
             return new Tuple<>(value, new Tuple<>(wasCacheMiss, wasRejectedByPolicy));
         }
