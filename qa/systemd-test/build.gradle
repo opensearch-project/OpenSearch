@@ -1,7 +1,6 @@
 apply plugin: 'opensearch.standalone-rest-test'
 
 tasks.register("integTest", Test) {
-  maxParallelForks = '1'
   include '**/*IT.class'
 }
 
