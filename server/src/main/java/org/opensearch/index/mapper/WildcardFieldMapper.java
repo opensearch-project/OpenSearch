@@ -315,7 +315,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         }
 
         public WildcardFieldType(String name, NamedAnalyzer normalizer, Builder builder) {
-            super(name, true, true, builder.hasDocValues.getValue(), TextSearchInfo.SIMPLE_MATCH_ONLY, builder.meta.getValue());
+            super(name, true, false, builder.hasDocValues.getValue(), TextSearchInfo.SIMPLE_MATCH_ONLY, builder.meta.getValue());
             setIndexAnalyzer(normalizer);
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
