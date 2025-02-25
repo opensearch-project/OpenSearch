@@ -223,6 +223,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
         if (indexShard.indexSettings().isSegRepEnabledOrRemoteNode() && indexShard.routingEntry().primary() == false) {
+            replicator.initializeStats(indexShard.shardId());
             processLatestReceivedCheckpoint(indexShard, Thread.currentThread());
         }
     }

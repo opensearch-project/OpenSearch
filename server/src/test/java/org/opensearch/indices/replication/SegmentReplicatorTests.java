@@ -11,6 +11,7 @@ package org.opensearch.indices.replication;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.mockito.Mockito;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -46,8 +47,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-
-import org.mockito.Mockito;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -252,6 +251,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             .thenReturn(secondReplicationCheckpoint);
 
         SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
+        segmentReplicator.initializeStats(shardId);
         segmentReplicator.updateReplicationCheckpointStats(firstReplicationCheckpoint, replicaShard);
         segmentReplicator.updateReplicationCheckpointStats(secondReplicationCheckpoint, replicaShard);
 
@@ -313,6 +313,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             .thenReturn(firstReplicationCheckpoint);
 
         SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
+        segmentReplicator.initializeStats(shardId);
         segmentReplicator.updateReplicationCheckpointStats(firstReplicationCheckpoint, replicaShard);
 
         Map<String, StoreFileMetadata> stringStoreFileMetadataMapTwo = new HashMap<>();
