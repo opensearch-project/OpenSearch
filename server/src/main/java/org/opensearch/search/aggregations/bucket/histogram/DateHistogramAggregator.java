@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Nullable;
@@ -192,7 +193,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
             return true;
         }
-        return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
+        return false;
     }
 
     @Override
