@@ -132,7 +132,7 @@ public class SystemdIT {
 
     @Test
     public void testMaxProcesses() throws IOException, InterruptedException {
-        String limits = executeCommand("sudo cat /proc/" + opensearchPid + "/limits", "Failed to read process limits");
+        String limits = executeCommand("sudo su -c 'cat /proc/" + opensearchPid + "/limits'", "Failed to read process limits");
         assertTrue("Max processes limit should be 4096 or unlimited", 
                 limits.contains("Max processes             4096                 4096") ||
                 limits.contains("Max processes             unlimited            unlimited"));
@@ -140,7 +140,7 @@ public class SystemdIT {
 
     @Test
     public void testFileDescriptorLimit() throws IOException, InterruptedException {
-        String limits = executeCommand("sudo cat /proc/" + opensearchPid + "/limits", "Failed to read process limits");
+        String limits = executeCommand("sudo su -c 'cat /proc/" + opensearchPid + "/limits'", "Failed to read process limits");
         assertTrue("File descriptor limit should be at least 65535", 
                 limits.contains("Max open files            65535                65535") ||
                 limits.contains("Max open files            unlimited            unlimited"));
@@ -149,7 +149,7 @@ public class SystemdIT {
     @Test
     public void testSystemCallFilter() throws IOException, InterruptedException {
         // Check if Seccomp is enabled
-        String seccomp = executeCommand("sudo grep Seccomp /proc/" + opensearchPid + "/status", "Failed to read Seccomp status");
+        String seccomp = executeCommand("sudo su -c 'grep Seccomp /proc/" + opensearchPid + "/status'", "Failed to read Seccomp status");
         assertFalse("Seccomp should be enabled", seccomp.contains("0"));
         
         // Test specific system calls that should be blocked
@@ -181,9 +181,8 @@ public class SystemdIT {
                             "fi";
 
         String[] command = {
-            "sudo",
-            "-u", "nobody",
-            "sh",
+            "su",
+            "nobody",
             "-c",
             "echo '" + scriptContent.replace("'", "'\"'\"'") + "' > /tmp/terminate.sh && chmod +x /tmp/terminate.sh && /tmp/terminate.sh " + opensearchPid
         };
