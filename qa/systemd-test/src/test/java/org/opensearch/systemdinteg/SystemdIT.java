@@ -181,6 +181,7 @@ public class SystemdIT {
                             "fi";
 
         String[] command = {
+            "sudo",
             "su",
             "nobody",
             "-c",
