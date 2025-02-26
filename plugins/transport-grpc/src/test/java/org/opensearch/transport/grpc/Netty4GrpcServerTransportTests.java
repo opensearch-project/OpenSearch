@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.reflection.v1alpha.ServiceResponse;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
