@@ -32,12 +32,12 @@ import java.util.Optional;
 
 import io.grpc.BindableService;
 import io.grpc.health.v1.HealthCheckResponse;
+import io.grpc.netty.shaded.io.netty.buffer.PooledByteBufAllocator;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.grpc.netty.shaded.io.netty.buffer.PooledByteBufAllocator;
 
 public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private NetworkService networkService;
