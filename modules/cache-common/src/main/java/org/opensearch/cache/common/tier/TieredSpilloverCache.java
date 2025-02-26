@@ -278,9 +278,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     }
                     updateStatsOnPut(cacheValueTuple.v2(), key, value);
                 }
-            } else {
-                // Signal to the caller that the key didn't enter the cache by sending a removal notification.
-                removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
             }
         }
 
@@ -402,11 +399,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 } catch (InterruptedException ex) {
                     throw new IllegalStateException(ex);
                 }
-            }
-            if (wasRejectedByPolicy) {
-                // Signal to the caller that the key didn't enter the cache by sending a removal notification.
-                // This case does not count as a cache miss.
-                removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EXPLICIT));
             }
             return new Tuple<>(value, new Tuple<>(wasCacheMiss, wasRejectedByPolicy));
         }

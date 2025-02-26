@@ -254,8 +254,6 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
             assertSearchResponse(resp);
         }
         RequestCacheStats requestCacheStats = getRequestCacheStats(client, "index");
-        // Check the old stats API has properly subtracted off the byte size for key, without incrementing evictions.
-        assertEquals(0, requestCacheStats.getMemorySizeInBytes());
         assertEquals(0, requestCacheStats.getEvictions());
     }
 

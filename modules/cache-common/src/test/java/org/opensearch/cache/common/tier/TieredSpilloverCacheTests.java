@@ -1567,7 +1567,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 expectedKeys++;
             }
         }
-        assertEquals(keyValueMap.size() - expectedKeys, removalListener.evictionsMetric.count());
+        assertEquals(0, removalListener.evictionsMetric.count());
         assertEquals(0, getHitsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         assertEquals(expectedKeys, tieredSpilloverCache.count());
 
@@ -1657,8 +1657,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         assertEquals(0, getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         assertEquals(expectedKeys, getTotalStatsSnapshot(tieredSpilloverCache).getItems());
-        assertEquals(keyValuePairs.size() - expectedKeys, removalListener.evictionsMetric.count()); // Policy rejects should send a removal
-                                                                                                    // notification
+        assertEquals(0, removalListener.evictionsMetric.count());
     }
 
     public void testEntryPoliciesConcurrentlyWithComputeIfAbsent() throws Exception {
@@ -1745,8 +1744,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         assertEquals(0, getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         assertEquals(expectedKeys, getTotalStatsSnapshot(tieredSpilloverCache).getItems());
-        // Policy rejects should send a removal notification every time the caller attempts to put them in
-        assertEquals((keyValuePairs.size() - expectedKeys) * numRepetitionsPerKey, removalListener.evictionsMetric.count());
+        assertEquals(0, removalListener.evictionsMetric.count());
     }
 
     public void testPutWithDiskCacheDisabledSetting() throws Exception {
