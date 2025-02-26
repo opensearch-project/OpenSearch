@@ -1,0 +1,178 @@
+---
+"Derived source for text fields":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.derived_source.enabled: true
+          mappings:
+            properties:
+              field1:
+                type: text
+                fields:
+                  sub_field:
+                    type: keyword
+              field2:
+                type: text
+                store: true
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "field3": "foo" }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "field1": "foo", "field2": "bar", "field3": "baz", "field4": "qux"}
+
+  - do:
+      get_source:
+        index: test
+        id: 1
+
+  - match: { '':  { field3: foo } }
+
+  - do:
+      get_source:
+        index: test
+        id: 2
+
+  - match: { '':  { field1: foo, field2: bar, field3: baz, field4: qux } }
+
+---
+"Derived source for date fields":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.derived_source.enabled: true
+          mappings:
+            properties:
+              field1:
+                type: date
+                format: yyyy-MM-dd HH:mm:ss||strict_date_optional_time||epoch_millis
+              field2:
+                type: date
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "field1": ["2024-01-02 12:30:00", "1704110400000"], "field3": "2024-01-03T12:00:00Z"  }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "field2": 1704067200000, "field4": ["2025-01-01T01:01:01Z", "2025-01-01T01:01:01Z"] }
+
+  - do:
+      get_source:
+        index: test
+        id: 1
+
+  - match: { '': { field1: [2024-01-01 12:00:00, 2024-01-02 12:30:00], field3: 2024-01-03T12:00:00.000Z } }
+
+  - do:
+      get_source:
+        index: test
+        id: 2
+
+  - match: { '': { field2: 2024-01-01T00:00:00.000Z, field4: [2025-01-01T01:01:01.000Z, 2025-01-01T01:01:01.000Z] } }
+
+---
+"Derived source for IP fields":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.derived_source.enabled: true
+          mappings:
+            properties:
+              field1:
+                type: ip
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "field1": "192.168.0.1"  }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "field1": ["::2d34:5305:703a:7ca7", "::2d34:5305:703a:7ca7", "192.168.0.1", "9dc6:4ca1:f032:7300:8875:6a56:cbe:99a2"] }
+
+  - do:
+      get_source:
+        index: test
+        id: 1
+
+  - match: { '': { field1: 192.168.0.1 } }
+
+  - do:
+      get_source:
+        index: test
+        id: 2
+
+  - match: { '': { "field1": ["192.168.0.1", "::2d34:5305:703a:7ca7", "9dc6:4ca1:f032:7300:8875:6a56:cbe:99a2"] } }
+
+---
+"Derived source for Number fields":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.derived_source.enabled: true
+          mappings:
+            properties:
+              field1:
+                type: byte
+              field2:
+                type: short
+              field3:
+                type: integer
+              field4:
+                type: long
+              field5:
+                type: unsigned_long
+              field6:
+                type: half_float
+              field7:
+                type: float
+              field8:
+                type: double
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "field1": 100, "field2": 327, "field3": 214748, "field4": 4294967296, "field5": 9223372036854775809, "field6": 3.25, "field7": 4.2, "field8": 5.3  }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "field1": [101, 100], "field2": [327, 328], "field3": [214748, 214747, 214746], "field4": [4294967296, 4294967297], "field5": [9223372036854775810, 9223372036854775809], "field6": [3.25, 3.5], "field7": [4.1, 4.2], "field8": [5.3, 5.2, 5.1] }
+
+  - do:
+      get_source:
+        index: test
+        id: 1
+
+  - match: { '': { "field1": 100, "field2": 327, "field3": 214748, "field4": 4294967296, "field5": 9223372036854775809, "field6": 3.25, "field7": 4.2, "field8": 5.3  } }
+
+  - do:
+      get_source:
+        index: test
+        id: 2
+
+  - match: { '': { "field1": [100, 101], "field2": [327, 328], "field3": [214746, 214747, 214748], "field4": [4294967296, 4294967297], "field5": [9223372036854775809, 9223372036854775810], "field6": [3.25, 3.5], "field7": [4.1, 4.2], "field8": [5.1, 5.2, 5.3] } }

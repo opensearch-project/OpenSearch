@@ -75,6 +75,18 @@ final class DocumentParser {
         this.docMapper = docMapper;
     }
 
+    ParsedDocument parseDocumentRequiredSourceField(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers)
+        throws MapperParsingException {
+        final ParsedDocument parsedDocument = parseDocument(source, metadataFieldsMappers);
+        if (indexSettings.isDerivedSourceEnabled()) {
+            IndexableField sourceField = docMapper.sourceMapper().parseSourceField(source);
+            if (sourceField != null) {
+                parsedDocument.rootDoc().add(sourceField);
+            }
+        }
+        return parsedDocument;
+    }
+
     ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
