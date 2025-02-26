@@ -172,7 +172,7 @@ public class SystemdIT {
                             "    echo \"SIGTERM signal sent to process $1\"\n" +
                             "else\n" +
                             "    echo \"Failed to send SIGTERM to process $1\"\n" +
-                            "fi\n"
+                            "fi\n";
 
         String[] command = {
             "echo '" + scriptContent.replace("'", "'\"'\"'") + "' > /tmp/terminate.sh && chmod +x /tmp/terminate.sh && /tmp/terminate.sh " + opensearchPid
