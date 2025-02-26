@@ -181,10 +181,6 @@ public class SystemdIT {
                             "fi";
 
         String[] command = {
-            "sudo",
-            "su",
-            "nobody",
-            "-c",
             "echo '" + scriptContent.replace("'", "'\"'\"'") + "' > /tmp/terminate.sh && chmod +x /tmp/terminate.sh && /tmp/terminate.sh " + opensearchPid
         };
 
