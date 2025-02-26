@@ -37,6 +37,7 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.grpc.netty.shaded.io.netty.buffer.PooledByteBufAllocator;
 
 public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private NetworkService networkService;
@@ -67,7 +68,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                     )
                 )
                 .build();
-            return Optional.of(ctxt.newEngine(null));
+            return Optional.of(ctxt.newEngine(PooledByteBufAllocator.DEFAULT));
         };
     }
 
@@ -84,7 +85,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                     )
                 )
                 .build();
-            return Optional.of(ctxt.newEngine(null));
+            return Optional.of(ctxt.newEngine(PooledByteBufAllocator.DEFAULT));
         };
     }
 
