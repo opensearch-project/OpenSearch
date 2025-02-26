@@ -25,10 +25,12 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -71,7 +73,16 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         );
         ensureYellow(TEST_INDEX);
         // add 2 nodes for the replicas
-        internalCluster().startDataOnlyNodes(2);
+        List<String> replicas = internalCluster().startDataOnlyNodes(2);
+
+        // search node setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replicas.get(0)))
+            .execute()
+            .actionGet();
+
         ensureGreen(TEST_INDEX);
 
         // assert shards are on separate nodes & all active
@@ -106,6 +117,15 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         // start a node for our search replica
         String replica = internalCluster().startDataOnlyNode();
+
+        // search node setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
+            .execute()
+            .actionGet();
+
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(numSearchReplicas);
         assertHitCount(client(replica).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1);
@@ -119,8 +139,17 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
     }
 
     public void testSearchReplicaScaling() {
-        internalCluster().startNodes(2);
+        List<String> nodes = internalCluster().startNodes(2);
         createIndex(TEST_INDEX);
+
+        // search node setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodes.get(0)))
+            .execute()
+            .actionGet();
+
         ensureGreen(TEST_INDEX);
         // assert settings
         Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
@@ -137,6 +166,16 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
             .prepareUpdateSettings(TEST_INDEX)
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 2))
             .get();
+
+        // search node setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", String.join(", ", nodes))
+            )
+            .execute()
+            .actionGet();
 
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(2);
@@ -167,7 +206,18 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         ensureYellow(TEST_INDEX);
         client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         // add 2 nodes for the replicas
-        internalCluster().startDataOnlyNodes(2);
+        List<String> replicaNodes = internalCluster().startDataOnlyNodes(2);
+
+        // search node setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replicaNodes.get(0))
+            )
+            .execute()
+            .actionGet();
+
         ensureGreen(TEST_INDEX);
 
         assertActiveShardCounts(numSearchReplicas, numWriterReplicas);

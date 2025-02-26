@@ -85,6 +85,15 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         final String replica = internalCluster().startDataOnlyNode();
+
+        // set search only role on node
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
+            .execute()
+            .actionGet();
+
         ensureGreen(INDEX_NAME);
 
         final int docCount = 10;
@@ -107,6 +116,15 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );
+
+        // set search only role on node
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodes.get(0)))
+            .execute()
+            .actionGet();
+
         ensureGreen(INDEX_NAME);
 
         final int docCount = 5;
@@ -191,6 +209,15 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         refresh(INDEX_NAME);
 
         final String replica = internalCluster().startDataOnlyNode();
+
+        // search node setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
+            .execute()
+            .actionGet();
+
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, replica);
 
@@ -258,6 +285,15 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         assertDocCounts(docCount, primary);
 
         final String replica = internalCluster().startDataOnlyNode();
+
+        // search node setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
+            .execute()
+            .actionGet();
+
         ensureGreen(INDEX_NAME);
         assertDocCounts(docCount, replica);
         // stop the primary
@@ -294,6 +330,15 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         refresh(INDEX_NAME);
 
         final String replica = internalCluster().startDataOnlyNode();
+
+        // search node setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
+            .execute()
+            .actionGet();
+
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, replica);
 
