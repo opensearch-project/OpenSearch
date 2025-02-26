@@ -1,5 +1,3 @@
-import org.gradle.api.attributes.java.TargetJvmEnvironment
-
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
