@@ -42,6 +42,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -163,22 +168,12 @@ public class SystemdIT {
     @Test
     public void testOpenSearchProcessCannotExit() throws IOException, InterruptedException {
 
-        String scriptContent = "#!/bin/sh\n" +
-                            "if [ $# -ne 1 ]; then\n" +
-                            "    echo \"Usage: $0 <PID>\"\n" +
-                            "    exit 1\n" +
-                            "fi\n" +
-                            "if kill -15 $1 2>/dev/null; then\n" +
-                            "    echo \"SIGTERM signal sent to process $1\"\n" +
-                            "else\n" +
-                            "    echo \"Failed to send SIGTERM to process $1\"\n" +
-                            "fi\n";
+        String scriptPath = getClass().getResource("/scripts/terminate.sh").getPath();
 
-        String[] command = {
-            "echo '" + scriptContent.replace("'", "'\"'\"'") + "' > /tmp/terminate.sh && chmod +x /tmp/terminate.sh && /tmp/terminate.sh " + opensearchPid
-        };
-
-        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        if (scriptPath == null) {
+            throw new IllegalStateException("Could not find terminate.sh script in resources");
+        }
+        ProcessBuilder processBuilder = new ProcessBuilder(scriptPath, opensearchPid);
         Process process = processBuilder.start();
 
         // Wait a moment for any potential termination to take effect
