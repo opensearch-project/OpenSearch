@@ -56,8 +56,6 @@ import static org.opensearch.indices.replication.SegmentReplicationSourceService
 
 /**
  * Service class that handles incoming checkpoints to initiate replication events on replicas.
- * This is used for the peer to peer replication, not for the remote replication, remote replication uses SegmentReplicator
- * Explore this
  * @opensearch.internal
  */
 public class SegmentReplicationTargetService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
@@ -464,7 +462,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
     // visible to tests
     protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
-        final ReplicationCheckpoint latestPublishedCheckpoint = replicator.getLatestPrimaryCheckpoint(replicaShard.shardId());
+        final ReplicationCheckpoint latestPublishedCheckpoint = replicator.getPrimaryCheckpoint(replicaShard.shardId());
         if (latestPublishedCheckpoint != null) {
             logger.trace(
                 () -> new ParameterizedMessage(
@@ -477,7 +475,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                 // if we retry ensure the shard is not in the process of being closed.
                 // it will be removed from indexService's collection before the shard is actually marked as closed.
                 if (indicesService.getShardOrNull(replicaShard.shardId()) != null) {
-                    onNewCheckpoint(replicator.getLatestPrimaryCheckpoint(replicaShard.shardId()), replicaShard);
+                    onNewCheckpoint(replicator.getPrimaryCheckpoint(replicaShard.shardId()), replicaShard);
                 }
             };
             // Checks if we are using same thread and forks if necessary.

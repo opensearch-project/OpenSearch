@@ -11,6 +11,7 @@ package org.opensearch.indices.replication;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.mockito.Mockito;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -46,8 +47,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-
-import org.mockito.Mockito;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -215,15 +214,6 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         assertEquals(0, replicationStats.maxBytesBehind);
     }
 
-    public void testGetSegmentReplicationStats_When() {
-        ShardId shardId = new ShardId("index", "uuid", 0);
-        SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
-        ReplicationStats replicationStats = segmentReplicator.getSegmentReplicationStats(shardId);
-        assertEquals(0, replicationStats.maxReplicationLag);
-        assertEquals(0, replicationStats.maxBytesBehind);
-        assertEquals(0, replicationStats.totalBytesBehind);
-    }
-
     public void testGetSegmentReplicationStats_WhileOnGoingReplicationAndPrimaryRefreshedToNewCheckPoint() {
         ShardId shardId = new ShardId("index", "uuid", 0);
         ReplicationCheckpoint firstReplicationCheckpoint = ReplicationCheckpoint.empty(shardId);
@@ -365,7 +355,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         );
         segmentReplicator.updateReplicationCheckpointStats(replicationCheckpoint, replicaShard);
 
-        assertEquals(replicationCheckpoint, segmentReplicator.getLatestPrimaryCheckpoint(shardId));
+        assertEquals(replicationCheckpoint, segmentReplicator.getPrimaryCheckpoint(shardId));
 
         ReplicationCheckpoint oldReplicationCheckpoint = new ReplicationCheckpoint(
             shardId,
@@ -379,7 +369,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         );
         segmentReplicator.updateReplicationCheckpointStats(oldReplicationCheckpoint, replicaShard);
 
-        assertEquals(replicationCheckpoint, segmentReplicator.getLatestPrimaryCheckpoint(shardId));
+        assertEquals(replicationCheckpoint, segmentReplicator.getPrimaryCheckpoint(shardId));
     }
 
     protected void resolveCheckpointListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {

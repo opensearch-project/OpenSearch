@@ -51,7 +51,7 @@ public class SegmentReplicator {
     private final Map<ShardId, SegmentReplicationState> completedReplications = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<ShardId, ConcurrentNavigableMap<Long, ReplicationCheckpointStats>> replicationCheckpointStats =
         ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<ShardId, ReplicationCheckpoint> latestPrimaryCheckpoint = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, ReplicationCheckpoint> primaryCheckpoint = ConcurrentCollections.newConcurrentMap();
 
     private final ThreadPool threadPool;
     private final SetOnce<SegmentReplicationSourceFactory> sourceFactory;
@@ -156,9 +156,9 @@ public class SegmentReplicator {
      * @param indexShard The index shard where its updated
      */
     public void updateReplicationCheckpointStats(final ReplicationCheckpoint latestReceivedCheckPoint, final IndexShard indexShard) {
-        ReplicationCheckpoint latestPrimaryCheckPoint = this.latestPrimaryCheckpoint.get(indexShard.shardId());
-        if (latestPrimaryCheckPoint == null || latestReceivedCheckPoint.isAheadOf(latestPrimaryCheckPoint)) {
-            this.latestPrimaryCheckpoint.put(indexShard.shardId(), latestReceivedCheckPoint);
+        ReplicationCheckpoint primaryCheckPoint = this.primaryCheckpoint.get(indexShard.shardId());
+        if (primaryCheckPoint == null || latestReceivedCheckPoint.isAheadOf(primaryCheckPoint)) {
+            this.primaryCheckpoint.put(indexShard.shardId(), latestReceivedCheckPoint);
             calculateReplicationCheckpointStats(latestReceivedCheckPoint, indexShard);
         }
     }
@@ -171,7 +171,7 @@ public class SegmentReplicator {
      * @param indexShard The index shard to prune checkpoints for
      */
     protected void pruneCheckpointsUpToLastSync(final IndexShard indexShard) {
-        ReplicationCheckpoint latestCheckpoint = this.latestPrimaryCheckpoint.get(indexShard.shardId());
+        ReplicationCheckpoint latestCheckpoint = this.primaryCheckpoint.get(indexShard.shardId());
         if (latestCheckpoint != null) {
             ReplicationCheckpoint indexReplicationCheckPoint = indexShard.getLatestReplicationCheckpoint();
             long segmentInfoVersion = indexReplicationCheckPoint.getSegmentInfosVersion();
@@ -302,31 +302,11 @@ public class SegmentReplicator {
             replicationId = onGoingReplications.startSafe(target, timeout);
         } catch (ReplicationFailedException e) {
             // replication already running for shard.
-            fetchPrimaryLastRefreshedCheckpoint(target);
             target.fail(e, false);
             return;
         }
         logger.trace(() -> new ParameterizedMessage("Added new replication to collection {}", target.description()));
         threadPool.generic().execute(new ReplicationRunner(replicationId));
-    }
-
-    private void fetchPrimaryLastRefreshedCheckpoint(SegmentReplicationTarget target) {
-        // Only process search-only shards
-        if (!target.indexShard().routingEntry().isSearchOnly()) {
-            return;
-        }
-
-        sourceFactory.get().get(target.indexShard()).getCheckpointMetadata(target.getId(), target.getCheckpoint(), new ActionListener<>() {
-            @Override
-            public void onResponse(CheckpointInfoResponse checkpointInfoResponse) {
-                updateReplicationCheckpointStats(checkpointInfoResponse.getCheckpoint(), target.indexShard());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Failed to fetch primary last refreshed checkpoint", e);
-            }
-        });
     }
 
     private boolean isStoreCorrupt(SegmentReplicationTarget target) {
@@ -357,15 +337,15 @@ public class SegmentReplicator {
     void cancel(ShardId shardId, String reason) {
         onGoingReplications.cancelForShard(shardId, reason);
         replicationCheckpointStats.remove(shardId);
-        latestPrimaryCheckpoint.remove(shardId);
+        primaryCheckpoint.remove(shardId);
     }
 
     SegmentReplicationTarget get(ShardId shardId) {
         return onGoingReplications.getOngoingReplicationTarget(shardId);
     }
 
-    ReplicationCheckpoint getLatestPrimaryCheckpoint(ShardId shardId) {
-        return latestPrimaryCheckpoint.get(shardId);
+    ReplicationCheckpoint getPrimaryCheckpoint(ShardId shardId) {
+        return primaryCheckpoint.getOrDefault(shardId, ReplicationCheckpoint.empty(shardId));
     }
 
     ReplicationCollection.ReplicationRef<SegmentReplicationTarget> get(long id) {
