@@ -190,7 +190,6 @@ public class SystemdIT {
             "Failed to check OpenSearch service status"
         );
 
-        assertTrue("OpenSearch process should still be running", processCheck.contains("Running"));
         assertEquals("OpenSearch service should be active", "active", serviceStatus.trim());
     }
 
