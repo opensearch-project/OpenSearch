@@ -83,8 +83,13 @@ public class ForbiddenPatternsTask extends DefaultTask {
         .exclude("**/*.ico")
         .exclude("**/*.jar")
         .exclude("**/*.zip")
+        .exclude("**/*.p12")
         .exclude("**/*.jks")
         .exclude("**/*.crt")
+        .exclude("**/*.der")
+        .exclude("**/*.pem")
+        .exclude("**/*.key")
+        .exclude("**/*.bcfks")
         .exclude("**/*.keystore")
         .exclude("**/*.png");
 
