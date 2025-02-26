@@ -18,7 +18,6 @@ import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -47,10 +46,9 @@ public class CacheService {
 
     public <K, V> ICache<K, V> createCache(CacheConfig<K, V> config, CacheType cacheType) {
         String storeName = getStoreNameFromSetting(cacheType, settings);
-        if (!pluggableCachingEnabled(cacheType, settings)) {
-            // Condition 1: In case feature flag is off, we default to onHeap.
-            // Condition 2: In case storeName is not explicitly mentioned, we assume user is looking to use older
-            // settings, so we again fallback to onHeap to maintain backward compatibility.
+        if (!storeNamePresent(cacheType, settings)) {
+            // In case storeName is not explicitly mentioned, we assume user is looking to use older
+            // settings, so we fallback to onHeap to maintain backward compatibility.
             // It is guaranteed that we will have this store name registered, so
             // should be safe.
             storeName = OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME;
@@ -73,11 +71,11 @@ public class CacheService {
     }
 
     /**
-     * Check if pluggable caching is on, and if a store type is present for this cache type.
+     * Check if a store type is present for this cache type.
      */
-    public static boolean pluggableCachingEnabled(CacheType cacheType, Settings settings) {
+    public static boolean storeNamePresent(CacheType cacheType, Settings settings) {
         String storeName = getStoreNameFromSetting(cacheType, settings);
-        return FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) && storeName != null && !storeName.isBlank();
+        return storeName != null && !storeName.isBlank();
     }
 
     private static String getStoreNameFromSetting(CacheType cacheType, Settings settings) {
