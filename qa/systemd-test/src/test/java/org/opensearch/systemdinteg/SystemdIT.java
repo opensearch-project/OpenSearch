@@ -172,13 +172,7 @@ public class SystemdIT {
                             "    echo \"SIGTERM signal sent to process $1\"\n" +
                             "else\n" +
                             "    echo \"Failed to send SIGTERM to process $1\"\n" +
-                            "fi\n" +
-                            "sleep 2\n" +
-                            "if kill -0 $1 2>/dev/null; then\n" +
-                            "    echo \"Process $1 is still running\"\n" +
-                            "else\n" +
-                            "    echo \"Process $1 has terminated\"\n" +
-                            "fi";
+                            "fi\n"
 
         String[] command = {
             "echo '" + scriptContent.replace("'", "'\"'\"'") + "' > /tmp/terminate.sh && chmod +x /tmp/terminate.sh && /tmp/terminate.sh " + opensearchPid
@@ -189,12 +183,6 @@ public class SystemdIT {
 
         // Wait a moment for any potential termination to take effect
         Thread.sleep(2000);
-
-        // Check if the OpenSearch process is still running
-        String processCheck = executeCommand(
-            "kill -0 " + opensearchPid + " 2>/dev/null && echo 'Running' || echo 'Not running'",
-            "Failed to check process status"
-        );
 
         // Verify the OpenSearch service status
         String serviceStatus = executeCommand(
