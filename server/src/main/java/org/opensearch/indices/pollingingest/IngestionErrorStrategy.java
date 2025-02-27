@@ -10,6 +10,8 @@ package org.opensearch.indices.pollingingest;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.util.Locale;
+
 /**
  * Defines the error handling strategy when an error is encountered either during polling records from ingestion source
  * or during processing the polled records.
@@ -43,7 +45,15 @@ public interface IngestionErrorStrategy {
     @ExperimentalApi
     enum ErrorStrategy {
         DROP,
-        BLOCK
+        BLOCK;
+
+        public static ErrorStrategy parseFromString(String errorStrategy) {
+            try {
+                return ErrorStrategy.valueOf(errorStrategy.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid ingestion errorStrategy: " + errorStrategy, e);
+            }
+        }
     }
 
     /**

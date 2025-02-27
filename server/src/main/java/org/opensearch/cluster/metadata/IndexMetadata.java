@@ -771,28 +771,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Final
     );
 
-    public static final String SETTING_INGESTION_SOURCE_ERROR_STRATEGY = "index.ingestion_source.error.strategy";
-    public static final Setting<String> INGESTION_SOURCE_ERROR_STRATEGY_SETTING = Setting.simpleString(
+    public static final String SETTING_INGESTION_SOURCE_ERROR_STRATEGY = "index.ingestion_source.error_strategy";
+    public static final Setting<IngestionErrorStrategy.ErrorStrategy> INGESTION_SOURCE_ERROR_STRATEGY_SETTING = new Setting<>(
         SETTING_INGESTION_SOURCE_ERROR_STRATEGY,
         IngestionErrorStrategy.ErrorStrategy.DROP.name(),
-        new Setting.Validator<>() {
-
-            @Override
-            public void validate(final String value) {
-                try {
-                    IngestionErrorStrategy.ErrorStrategy.valueOf(value.toUpperCase(Locale.ROOT));
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Invalid value for " + SETTING_INGESTION_SOURCE_ERROR_STRATEGY + " [" + value + "]");
-                }
-            }
-
-            @Override
-            public void validate(final String value, final Map<Setting<?>, Object> settings) {
-                validate(value);
-            }
-        },
-        Property.IndexScope,
-        Property.Dynamic
+        IngestionErrorStrategy.ErrorStrategy::parseFromString,
+        (errorStrategy) -> {},
+        Property.IndexScope
     );
 
     public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
@@ -1030,10 +1015,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 pointerInitResetValue
             );
 
-            final String errorStrategyString = INGESTION_SOURCE_ERROR_STRATEGY_SETTING.get(settings);
-            IngestionErrorStrategy.ErrorStrategy errorStrategy = IngestionErrorStrategy.ErrorStrategy.valueOf(
-                errorStrategyString.toUpperCase(Locale.ROOT)
-            );
+            final IngestionErrorStrategy.ErrorStrategy errorStrategy = INGESTION_SOURCE_ERROR_STRATEGY_SETTING.get(settings);
             final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
             return new IngestionSource(ingestionSourceType, pointerInitReset, errorStrategy, ingestionSourceParams);
         }
