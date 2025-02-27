@@ -265,7 +265,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
             DefaultRecoverySettings.INSTANCE,
             DefaultRemoteStoreSettings.INSTANCE,
-            s -> {}
+            s -> {},
+            null
         );
     }
 
