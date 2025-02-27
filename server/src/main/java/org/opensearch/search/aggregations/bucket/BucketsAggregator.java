@@ -136,6 +136,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     public final void collectStarTreeBucket(StarTreeBucketCollector collector, long docCount, long bucketOrd, int entryBit)
         throws IOException {
+        if (bucketOrd < 0) {
+            bucketOrd = -1 - bucketOrd;
+        } else {
+            grow(bucketOrd + 1);
+        }
+
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
             multiBucketConsumer.accept(0);
         }
