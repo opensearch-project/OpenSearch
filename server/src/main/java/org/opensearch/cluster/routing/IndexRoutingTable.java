@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -94,6 +96,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
     private final Map<Integer, IndexShardRoutingTable> shards;
 
     private final List<ShardRouting> allActiveShards;
+    protected final Logger logger = LogManager.getLogger(this.getClass());
 
     IndexRoutingTable(Index index, final Map<Integer, IndexShardRoutingTable> shards) {
         this.index = index;
@@ -122,11 +125,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
     boolean validate(Metadata metadata) {
         // check index exists
         if (!metadata.hasIndex(index.getName())) {
-            throw new IllegalStateException(index + " exists in routing does not exists in metadata");
+            throw new IllegalStateException(index + " exists in routing but does not exist in metadata");
         }
         IndexMetadata indexMetadata = metadata.index(index.getName());
         if (indexMetadata.getIndexUUID().equals(index.getUUID()) == false) {
-            throw new IllegalStateException(index.getName() + " exists in routing does not exists in metadata with the same uuid");
+            throw new IllegalStateException(index.getName() + " exists in routing but does not exist in metadata with the same uuid");
         }
 
         // check the number of shards
@@ -141,27 +144,41 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
             throw new IllegalStateException("Wrong number of shards in routing table, missing: " + expected);
         }
 
-        // check the replicas
+        boolean isSearchOnlyEnabled = indexMetadata.getSettings()
+            .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
-            if (routingNumberOfReplicas != indexMetadata.getNumberOfReplicas() + indexMetadata.getNumberOfSearchOnlyReplicas()) {
+            int expectedReplicas = indexMetadata.getNumberOfReplicas() + indexMetadata.getNumberOfSearchOnlyReplicas();
+
+            // Only throw if we are NOT in search-only mode. Otherwise, we ignore or log the mismatch.
+            if (routingNumberOfReplicas != expectedReplicas && isSearchOnlyEnabled == false) {
                 throw new IllegalStateException(
                     "Shard ["
                         + indexShardRoutingTable.shardId().id()
                         + "] routing table has wrong number of replicas, expected ["
-                        + "Replicas:  "
+                        + "Replicas: "
                         + indexMetadata.getNumberOfReplicas()
-                        + "Search Replicas: "
+                        + ", Search Replicas: "
                         + indexMetadata.getNumberOfSearchOnlyReplicas()
                         + "], got ["
                         + routingNumberOfReplicas
                         + "]"
                 );
+            } else if (routingNumberOfReplicas != expectedReplicas) {
+                // Just log if there's a mismatch but the index is search-only.
+                logger.debug(
+                    "Ignoring mismatch in number of replicas for shard [{}] (expected {}, got {}) because searchonly is enabled",
+                    indexShardRoutingTable.shardId().id(),
+                    expectedReplicas,
+                    routingNumberOfReplicas
+                );
             }
+
             for (ShardRouting shardRouting : indexShardRoutingTable) {
                 if (!shardRouting.index().equals(index)) {
                     throw new IllegalStateException(
-                        "shard routing has an index [" + shardRouting.index() + "] that is different " + "from the routing table"
+                        "shard routing has an index [" + shardRouting.index() + "] that is different from the routing table"
                     );
                 }
                 final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(shardRouting.id());
@@ -185,8 +202,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                             throw new IllegalStateException(
                                 "a primary shard routing "
                                     + shardRouting
-                                    + " is a primary that is recovering from a stale primary has unexpected allocation ids in in-sync "
-                                    + "allocation set "
+                                    + " is a primary that is recovering "
+                                    + "from a stale primary but has unexpected allocation ids in the in-sync set "
                                     + inSyncAllocationIds
                             );
                         }
@@ -194,8 +211,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                         throw new IllegalStateException(
                             "a primary shard routing "
                                 + shardRouting
-                                + " is a primary that is recovering from a known allocation id but has no corresponding entry in the in-sync "
-                                + "allocation set "
+                                + " is a primary that is recovering "
+                                + "from a known allocation id but has no corresponding entry in the in-sync set "
                                 + inSyncAllocationIds
                         );
                     }
@@ -425,8 +442,33 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
         /**
          * Initializes an existing index.
          */
+
         public Builder initializeAsRecovery(IndexMetadata indexMetadata) {
-            return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
+            boolean isSearchOnly = indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+            if (isSearchOnly) {
+                // For scaled down indices, only initialize search replicas
+                for (int shardId = 0; shardId < indexMetadata.getNumberOfShards(); shardId++) {
+                    ShardId sId = new ShardId(indexMetadata.getIndex(), shardId);
+                    IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(sId);
+
+                    // Add only search replicas
+                    for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
+                        indexShardRoutingBuilder.addShard(
+                            ShardRouting.newUnassigned(
+                                sId,
+                                false,
+                                true,
+                                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                                new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)
+                            )
+                        );
+                    }
+                    shards.put(shardId, indexShardRoutingBuilder.build());
+                }
+            } else {
+                return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
+            }
+            return this;
         }
 
         /**

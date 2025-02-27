@@ -127,7 +127,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // also fill replicaSet information
         for (final IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
-                assert indexShard.primary != null;
+                IndexMetadata idxMetadata = metadata.index(indexShard.shardId().getIndex());
+                boolean isSearchOnly = false;
+                if (idxMetadata != null) {
+                    isSearchOnly = idxMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+                }
+                if (!isSearchOnly) {
+                    assert indexShard.primary != null : "Primary shard routing can't be null for non-search-only indices";
+                }
                 for (ShardRouting shard : indexShard) {
                     // to get all the shards belonging to an index, including the replicas,
                     // we define a replica set and keep track of it. A replica set is identified
@@ -183,8 +190,17 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         final int howMany = increment ? 1 : -1;
         assert routing.initializing() : "routing must be initializing: " + routing;
+
+        IndexMetadata idxMetadata = metadata.index(routing.index());
+        boolean isSearchOnly = false;
+        if (idxMetadata != null) {
+            isSearchOnly = idxMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+        }
+
         // TODO: check primary == null || primary.active() after all tests properly add ReplicaAfterPrimaryActiveAllocationDecider
-        assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
+        if (!isSearchOnly) {
+            assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
+        }
 
         // Primary shard routing, excluding the relocating primaries.
         if (routing.primary() && (primary == null || primary == routing)) {
