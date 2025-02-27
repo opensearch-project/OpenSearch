@@ -514,10 +514,19 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // we do make sure to clean it on a successful response from a shard
         setPhaseResourceUsages();
         onShardFailure(shardIndex, shard, e);
-        SearchShardTarget nextShard = FailAwareWeightedRouting.getInstance()
-            .findNext(shardIt, clusterState, e, () -> totalOps.incrementAndGet());
 
-        final boolean lastShard = nextShard == null;
+        final SearchShardTarget nextShard;
+        final boolean lastShard;
+        final int advanceShardCount;
+        if (TransportActions.isRetryableSearchException(e)) {
+            nextShard = FailAwareWeightedRouting.getInstance().findNext(shardIt, clusterState, e, () -> totalOps.incrementAndGet());
+            lastShard = nextShard == null;
+            advanceShardCount = 1;
+        } else {
+            nextShard = null;
+            lastShard = true;
+            advanceShardCount = remainingOpsCount(shardIt);
+        }
         if (logger.isTraceEnabled()) {
             logger.trace(
                 () -> new ParameterizedMessage(
@@ -542,7 +551,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (lastShard) {
             onShardGroupFailure(shardIndex, shard, e);
         }
-        final int totalOps = this.totalOps.incrementAndGet();
+        final int totalOps = this.totalOps.addAndGet(advanceShardCount);
         if (totalOps == expectedTotalOps) {
             try {
                 onPhaseDone();
@@ -558,6 +567,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (lastShard == false) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
             }
+        }
+    }
+
+    private int remainingOpsCount(SearchShardIterator shardsIt) {
+        if (shardsIt.skip()) {
+            return shardsIt.remaining();
+        } else {
+            return shardsIt.remaining() + 1;
         }
     }
 
@@ -651,12 +668,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void successfulShardExecution(SearchShardIterator shardsIt) {
-        final int remainingOpsOnIterator;
-        if (shardsIt.skip()) {
-            remainingOpsOnIterator = shardsIt.remaining();
-        } else {
-            remainingOpsOnIterator = shardsIt.remaining() + 1;
-        }
+        final int remainingOpsOnIterator = remainingOpsCount(shardsIt);
         final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
         if (xTotalOps == expectedTotalOps) {
             try {
