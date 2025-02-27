@@ -37,9 +37,9 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 
 import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.xcontent.json.JsonXContentParser;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -415,7 +415,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         if (Files.exists(actions)) {
             try {
-                requestedActions = PluginSecurity.parseRequestedActions(actions);
+                requestedActions = parseRequestedActions(actions);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -573,6 +573,14 @@ public class PluginInfo implements Writeable, ToXContentObject {
             }
         }
         return indexActions;
+    }
+
+    /**
+     * Parses plugin-permissions.yml file.
+     */
+    @SuppressWarnings("removal")
+    public static Settings parseRequestedActions(Path file) throws IOException {
+        return Settings.builder().loadFromPath(file).build();
     }
 
     @Override

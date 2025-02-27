@@ -96,6 +96,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -110,6 +111,7 @@ import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
 import static org.opensearch.plugins.PluginInfo.CLUSTER_ACTIONS_SETTING;
 import static org.opensearch.plugins.PluginInfo.DESCRIPTION_SETTING;
 import static org.opensearch.plugins.PluginInfo.INDEX_ACTIONS_SETTING;
+import static org.opensearch.plugins.PluginInfo.parseRequestedActions;
 
 /**
  * A command for the plugin cli to install a plugin into opensearch.
@@ -859,7 +861,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         Settings requestedActions = Settings.EMPTY;
 
         if (Files.exists(actions)) {
-            requestedActions = PluginSecurity.parseRequestedActions(actions);
+            requestedActions = parseRequestedActions(actions);
         }
 
         final Map<String, List<String>> requestedIndexActions = new HashMap<>();

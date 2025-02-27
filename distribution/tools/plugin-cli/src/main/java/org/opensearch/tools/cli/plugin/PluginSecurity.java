@@ -36,7 +36,6 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.Terminal.Verbosity;
 import org.opensearch.cli.UserException;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
@@ -223,13 +222,5 @@ class PluginSecurity {
             }
         }
         return Collections.list(actualPermissions.elements()).stream().map(PluginSecurity::formatPermission).collect(Collectors.toSet());
-    }
-
-    /**
-     * Parses plugin-permissions.yml file.
-     */
-    @SuppressWarnings("removal")
-    public static Settings parseRequestedActions(Path file) throws IOException {
-        return Settings.builder().loadFromPath(file).build();
     }
 }
