@@ -62,16 +62,7 @@ public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
      * Test aggregating by indices
      */
     public void testIndicesLevelAggregation() throws Exception {
-        internalCluster().startNodes(
-            1,
-            Settings.builder()
-                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
-                .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
-                    new TimeValue(0, TimeUnit.SECONDS)
-                )
-                .build()
-        );
+        startNodesDefaultSettings();
         Client client = client();
         Map<String, Integer> values = setupCacheForAggregationTests(client);
 
@@ -115,16 +106,7 @@ public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
      * Test aggregating by indices and tier
      */
     public void testIndicesAndTierLevelAggregation() throws Exception {
-        internalCluster().startNodes(
-            1,
-            Settings.builder()
-                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
-                .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
-                    new TimeValue(0, TimeUnit.SECONDS)
-                )
-                .build()
-        );
+        startNodesDefaultSettings();
         Client client = client();
         Map<String, Integer> values = setupCacheForAggregationTests(client);
 
@@ -195,16 +177,7 @@ public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
      * Test aggregating by tier only
      */
     public void testTierLevelAggregation() throws Exception {
-        internalCluster().startNodes(
-            1,
-            Settings.builder()
-                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
-                .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
-                    new TimeValue(0, TimeUnit.SECONDS)
-                )
-                .build()
-        );
+        startNodesDefaultSettings();
         Client client = client();
         Map<String, Integer> values = setupCacheForAggregationTests(client);
         // Get values for tiers alone and check they add correctly across indices
@@ -236,16 +209,7 @@ public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
     }
 
     public void testInvalidLevelsAreIgnored() throws Exception {
-        internalCluster().startNodes(
-            1,
-            Settings.builder()
-                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, getNumberOfSegments()))
-                .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
-                    new TimeValue(0, TimeUnit.SECONDS)
-                )
-                .build()
-        );
+        startNodesDefaultSettings();
         Client client = client();
         Map<String, Integer> values = setupCacheForAggregationTests(client);
 
@@ -287,16 +251,7 @@ public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
      * Check the new stats API returns the same values as the old stats API.
      */
     public void testStatsMatchOldApi() throws Exception {
-        internalCluster().startNodes(
-            1,
-            Settings.builder()
-                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, getNumberOfSegments()))
-                .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
-                    new TimeValue(0, TimeUnit.SECONDS)
-                )
-                .build()
-        );
+        startNodesDefaultSettings();
         String index = "index";
         Client client = client();
         startIndex(client, index);
@@ -354,7 +309,12 @@ public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
                 .put(defaultSettings(heap_cache_size_per_segment * numberOfSegments + "B", numberOfSegments))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
-                    new TimeValue(0, TimeUnit.SECONDS)
+                    TimeValue.ZERO
+                )
+                .put(
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
+                    TimeValue.ZERO
                 )
                 .build()
         );
@@ -427,6 +387,11 @@ public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
                 .put(defaultSettings(HEAP_CACHE_SIZE_STRING, getNumberOfSegments()))
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    new TimeValue(0, TimeUnit.SECONDS)
+                )
+                .put(
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
                     new TimeValue(0, TimeUnit.SECONDS)
                 )
                 .put(INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), new TimeValue(1))
@@ -630,5 +595,23 @@ public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
         assertEquals(1, nodeStatsResponse.getNodes().size());
         NodeCacheStats ncs = nodeStatsResponse.getNodes().get(0).getNodeCacheStats();
         return ncs.getStatsByCache(CacheType.INDICES_REQUEST_CACHE);
+    }
+
+    private void startNodesDefaultSettings() {
+        internalCluster().startNodes(
+            1,
+            Settings.builder()
+                .put(defaultSettings(HEAP_CACHE_SIZE_STRING, 1))
+                .put(
+                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    TimeValue.ZERO
+                )
+                .put(
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
+                    TimeValue.ZERO
+                )
+                .build()
+        );
     }
 }
