@@ -88,7 +88,7 @@ public class IndicesStatsResponseTests extends OpenSearchTestCase {
                 Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(shardId));
                 ShardPath shardPath = new ShardPath(false, path, path, shId);
                 ShardRouting routing = createShardRouting(index, shId, (shardId == 0));
-                shards.add(new ShardStats(routing, shardPath, null, null, null, null));
+                shards.add(new ShardStats(routing, shardPath, null, null, null, null, null));
                 AtomicLong primaryShardsCounter = expectedIndexToPrimaryShardsCount.computeIfAbsent(
                     index.getName(),
                     k -> new AtomicLong(0L)

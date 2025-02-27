@@ -55,6 +55,7 @@ import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.pollingingest.DefaultStreamPoller;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
@@ -506,6 +507,11 @@ public class IngestionEngine extends Engine {
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return null;
+    }
+
+    @Override
+    public PollingIngestStats pollingIngestStats() {
+        return streamPoller.getStats();
     }
 
     @Override
