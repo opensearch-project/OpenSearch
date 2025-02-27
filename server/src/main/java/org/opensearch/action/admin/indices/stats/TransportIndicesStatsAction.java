@@ -148,7 +148,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             seqNoStats = indexShard.seqNoStats();
             retentionLeaseStats = indexShard.getRetentionLeaseStats();
             pollingIngestStats = indexShard.pollingIngestStats();
-
         } catch (final AlreadyClosedException e) {
             // shard is closed - no stats is fine
             commitStats = null;
