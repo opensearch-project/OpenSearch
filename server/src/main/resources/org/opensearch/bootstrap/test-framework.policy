@@ -111,16 +111,19 @@ grant codeBase "${codebase.opensearch-rest-client}" {
   permission java.net.SocketPermission "*", "connect";
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
+  permission java.net.NetPermission "accessUnixDomainSocket";
 };
 
 grant codeBase "${codebase.httpcore5}" {
   // httpcore makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
+  permission java.net.NetPermission "accessUnixDomainSocket";
 };
 
 grant codeBase "${codebase.httpclient5}" {
   // httpclient5 makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
 };
 
 grant codeBase "${codebase.httpcore-nio}" {
