@@ -147,7 +147,7 @@ jobs:
           distribution: 'temurin'
       - name: Build and Assemble OpenSearch from PR
         run: |
-          ./gradlew :distribution:archives:linux-tar:assemble -Dbuild.snapshot=false
+          ./gradlew :distribution:archives:linux-tar:assemble -Dbuild.snapshot=false -Dbuild.version_qualifier=alpha1
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
