@@ -206,7 +206,8 @@ public class TranslogTransferManager {
         } catch (Exception ex) {
             logger.error(() -> new ParameterizedMessage("Transfer failed for snapshot {}", transferSnapshot), ex);
             captureStatsOnUploadFailure();
-            translogTransferListener.onUploadFailed(transferSnapshot, ex);
+            Exception exWithoutSuppressed = new TranslogUploadFailedException(ex.getMessage());
+            translogTransferListener.onUploadFailed(transferSnapshot, exWithoutSuppressed);
             return false;
         }
     }

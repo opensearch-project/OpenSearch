@@ -5,7 +5,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 ## Current Maintainers
 
 | Maintainer               | GitHub ID                                               | Affiliation |
-|--------------------------|---------------------------------------------------------|-------------|
+| ------------------------ | ------------------------------------------------------- | ----------- |
 | Anas Alkouz              | [anasalkouz](https://github.com/anasalkouz)             | Amazon      |
 | Andrew Ross              | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko             | [reta](https://github.com/reta)                         | Independent |
@@ -15,7 +15,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Charlotte Henkle         | [CEHENKLE](https://github.com/CEHENKLE)                 | Amazon      |
 | Craig Perkins            | [cwperks](https://github.com/cwperks)                   | Amazon      |
 | Dan Widdis               | [dbwiddis](https://github.com/dbwiddis)                 | Amazon      |
-| Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)                     | Amazon      |
+| Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)                     | Independent |
 | Binlong Gao              | [gaobinlong](https://github.com/gaobinlong)             | Amazon      |
 | Gaurav Bafna             | [gbbafna](https://github.com/gbbafna)                   | Amazon      |
 | Jay Deng                 | [jed326](https://github.com/jed326)                     | Amazon      |
@@ -35,14 +35,14 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 
 ## Emeritus
 
-| Maintainer             | GitHub ID                                   | Affiliation |
-| ---------------------- |-------------------------------------------- | ----------- |
-| Megha Sai Kavikondala  | [meghasaik](https://github.com/meghasaik)   | Amazon      |
-| Xue Zhou               | [xuezhou25](https://github.com/xuezhou25)   | Amazon      |
-| Kartik Ganesh          | [kartg](https://github.com/kartg)           | Amazon      |
-| Abbas Hussain          | [abbashus](https://github.com/abbashus)     | Meta        |
-| Himanshu Setia         | [setiah](https://github.com/setiah)         | Amazon      |
-| Ryan Bogan             | [ryanbogan](https://github.com/ryanbogan)   | Amazon      |
-| Rabi Panda             | [adnapibar](https://github.com/adnapibar)   | Independent |
-| Tianli Feng            | [tlfeng](https://github.com/tlfeng)         | Amazon      |
-| Suraj Singh            | [dreamer-89](https://github.com/dreamer-89) | Amazon      |
+| Maintainer            | GitHub ID                                   | Affiliation |
+| --------------------- | ------------------------------------------- | ----------- |
+| Megha Sai Kavikondala | [meghasaik](https://github.com/meghasaik)   | Amazon      |
+| Xue Zhou              | [xuezhou25](https://github.com/xuezhou25)   | Amazon      |
+| Kartik Ganesh         | [kartg](https://github.com/kartg)           | Amazon      |
+| Abbas Hussain         | [abbashus](https://github.com/abbashus)     | Meta        |
+| Himanshu Setia        | [setiah](https://github.com/setiah)         | Amazon      |
+| Ryan Bogan            | [ryanbogan](https://github.com/ryanbogan)   | Amazon      |
+| Rabi Panda            | [adnapibar](https://github.com/adnapibar)   | Independent |
+| Tianli Feng           | [tlfeng](https://github.com/tlfeng)         | Amazon      |
+| Suraj Singh           | [dreamer-89](https://github.com/dreamer-89) | Amazon      |
