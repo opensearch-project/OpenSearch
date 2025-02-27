@@ -28,6 +28,9 @@ public class NoOpTranslogManager implements TranslogManager {
     private final Runnable ensureOpen;
     private final ShardId shardId;
     private final TranslogStats translogStats;
+    private final TranslogDeletionPolicy translogDeletionPolicy;
+    private final String translogUUID;
+    private final boolean skipRecoveryStep;
 
     public NoOpTranslogManager(
         ShardId shardId,
@@ -36,11 +39,26 @@ public class NoOpTranslogManager implements TranslogManager {
         TranslogStats translogStats,
         Translog.Snapshot emptyTranslogSnapshot
     ) throws IOException {
+        this(shardId, readLock, ensureOpen, translogStats, emptyTranslogSnapshot, "", false);
+    }
+
+    public NoOpTranslogManager(
+        ShardId shardId,
+        ReleasableLock readLock,
+        Runnable ensureOpen,
+        TranslogStats translogStats,
+        Translog.Snapshot emptyTranslogSnapshot,
+        String translogUUID,
+        boolean skipRecoveryStep
+    ) throws IOException {
         this.emptyTranslogSnapshot = emptyTranslogSnapshot;
         this.readLock = readLock;
         this.shardId = shardId;
         this.ensureOpen = ensureOpen;
         this.translogStats = translogStats;
+        this.translogDeletionPolicy = new DefaultTranslogDeletionPolicy(0, 0, 0);
+        this.translogUUID = translogUUID;
+        this.skipRecoveryStep = skipRecoveryStep;
     }
 
     @Override
@@ -49,6 +67,11 @@ public class NoOpTranslogManager implements TranslogManager {
     @Override
     public int recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
         throws IOException {
+        // skip translog recovery attempt when skipRecoveryStep is true
+        if (skipRecoveryStep) {
+            return 0;
+        }
+
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen.run();
             try (Translog.Snapshot snapshot = emptyTranslogSnapshot) {
@@ -133,7 +156,7 @@ public class NoOpTranslogManager implements TranslogManager {
 
     @Override
     public Translog.TranslogGeneration getTranslogGeneration() {
-        return null;
+        return new Translog.TranslogGeneration(translogUUID, 0);
     }
 
     @Override
@@ -161,12 +184,12 @@ public class NoOpTranslogManager implements TranslogManager {
 
     @Override
     public TranslogDeletionPolicy getDeletionPolicy() {
-        return null;
+        return translogDeletionPolicy;
     }
 
     @Override
     public String getTranslogUUID() {
-        return "";
+        return translogUUID;
     }
 
     @Override
