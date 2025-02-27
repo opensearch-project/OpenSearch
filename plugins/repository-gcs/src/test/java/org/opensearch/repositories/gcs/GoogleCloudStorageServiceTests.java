@@ -188,7 +188,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
 
     private byte[] serviceAccountFileContent(String projectId) throws Exception {
         final KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(1024);
+        keyPairGenerator.initialize(2048);
         final KeyPair keyPair = keyPairGenerator.generateKeyPair();
         final String encodedKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
         final XContentBuilder serviceAccountBuilder = jsonBuilder().startObject()
@@ -242,7 +242,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         Exception exception = assertThrows(IOException.class, GoogleCredentials::getApplicationDefault);
         assertNotNull(storageOptions);
         assertNull(storageOptions.getCredentials());
-        MatcherAssert.assertThat(exception.getMessage(), containsString("The Application Default Credentials are not available"));
+        MatcherAssert.assertThat(exception.getMessage(), containsString("Your default credentials were not found"));
     }
 
     /**
@@ -254,7 +254,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         GoogleCredentials credentials = googleApplicationDefaultCredentials.get();
         assertNull(credentials);
         Exception exception = assertThrows(IOException.class, GoogleCredentials::getApplicationDefault);
-        MatcherAssert.assertThat(exception.getMessage(), containsString("The Application Default Credentials are not available"));
+        MatcherAssert.assertThat(exception.getMessage(), containsString("Your default credentials were not found"));
     }
 
     /**

@@ -94,7 +94,6 @@ import org.opensearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.action.update.UpdateAction;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -114,6 +113,7 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.transport.client.Requests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -606,7 +606,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_THEN_FETCH);
         SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(searchRequest, SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
@@ -631,7 +631,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_THEN_FETCH);
         SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
 
         clearInterceptedActions();
         assertSameIndices(

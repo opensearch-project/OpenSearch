@@ -40,6 +40,7 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
@@ -73,6 +74,35 @@ public class BulkPrimaryExecutionContextTests extends OpenSearchTestCase {
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
             context.markOperationAsExecuted(new Engine.IndexResult(new OpenSearchException("bla"), 1));
+            context.markAsCompleted(context.getExecutionResult());
+        }
+
+        assertThat(visitedRequests, equalTo(nonAbortedRequests));
+    }
+
+    public void testAppendOnlyIndexOperationRetryException() {
+        BulkShardRequest shardRequest = generateRandomRequest();
+
+        final IndexShard primary = mock(IndexShard.class);
+        when(primary.shardId()).thenReturn(shardRequest.shardId());
+        ArrayList<DocWriteRequest<?>> nonAbortedRequests = new ArrayList<>();
+        for (BulkItemRequest request : shardRequest.items()) {
+            if (randomBoolean()) {
+                request.abort("index", new AppendOnlyIndexOperationRetryException("Indexing operation retried for append only indices"));
+            } else {
+                nonAbortedRequests.add(request.request());
+            }
+        }
+
+        ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
+        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary); context
+            .hasMoreOperationsToExecute();) {
+            visitedRequests.add(context.getCurrent());
+            context.setRequestToExecute(context.getCurrent());
+            // using failures prevents caring about types
+            context.markOperationAsExecuted(
+                new Engine.IndexResult(new AppendOnlyIndexOperationRetryException("Indexing operation retried for append only indices"), 1)
+            );
             context.markAsCompleted(context.getExecutionResult());
         }
 

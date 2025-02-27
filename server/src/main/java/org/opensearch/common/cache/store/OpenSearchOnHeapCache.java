@@ -17,6 +17,7 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.CacheStatsHolder;
 import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
@@ -80,7 +81,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         this.weigher = builder.getWeigher();
     }
 
-    // package private for testing
+    // pkg-private for testing
     long getMaximumWeight() {
         return this.maximumWeight;
     }
@@ -192,8 +193,12 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             );
             long maxSizeInBytes = ((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes();
 
-            if (config.getMaxSizeInBytes() > 0) { // If this is passed from upstream(like tieredCache), then use this
-                // instead.
+            if (config.getMaxSizeInBytes() > 0) {
+                /*
+                Use the cache config value if present.
+                This can be passed down from the TieredSpilloverCache when creating individual segments,
+                but is not passed in from the IRC if pluggable caching is on.
+                 */
                 builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
             } else {
                 builder.setMaximumWeightInBytes(maxSizeInBytes);
@@ -204,8 +209,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
                 builder.setNumberOfSegments(-1); // By default it will use 256 segments.
             }
 
-            String storeName = cacheSettingForCacheType.get(settings);
-            if (!FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) || (storeName == null || storeName.isBlank())) {
+            if (!CacheService.pluggableCachingEnabled(cacheType, settings)) {
                 // For backward compatibility as the user intent is to use older settings.
                 builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
                 builder.setExpireAfterAccess(config.getExpireAfterAccess());

@@ -41,7 +41,7 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.cluster.metadata.Context;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
@@ -60,6 +60,8 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.transport.client.IndicesAdminClient;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -74,12 +76,12 @@ import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 
 /**
- * A request to create an index. Best created with {@link org.opensearch.client.Requests#createIndexRequest(String)}.
+ * A request to create an index. Best created with {@link Requests#createIndexRequest(String)}.
  * <p>
  * The index created can optionally be created with {@link #settings(org.opensearch.common.settings.Settings)}.
  *
- * @see org.opensearch.client.IndicesAdminClient#create(CreateIndexRequest)
- * @see org.opensearch.client.Requests#createIndexRequest(String)
+ * @see IndicesAdminClient#create(CreateIndexRequest)
+ * @see Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  *
  * @opensearch.api

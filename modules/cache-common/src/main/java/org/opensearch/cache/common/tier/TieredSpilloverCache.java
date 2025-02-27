@@ -150,6 +150,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
         private final TieredSpilloverCacheStatsHolder statsHolder;
 
+        private final long onHeapCacheMaxWeight;
+        private final long diskCacheMaxWeight;
+
         /**
          * This map is used to handle concurrent requests for same key in computeIfAbsent() to ensure we load the value
          * only once.
@@ -218,6 +221,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             cacheListMap.put(diskCache, new TierInfo(isDiskCacheEnabled, TIER_DIMENSION_VALUE_DISK));
             this.caches = Collections.synchronizedMap(cacheListMap);
             this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
+            this.onHeapCacheMaxWeight = onHeapCacheSizeInBytes;
+            this.diskCacheMaxWeight = diskCacheSizeInBytes;
         }
 
         // Package private for testing
@@ -373,12 +378,10 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
         @Override
         public void invalidate(ICacheKey<K> key) {
-            for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
-                if (key.getDropStatsForDimensions()) {
-                    List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, cacheEntry.getValue().tierName);
-                    statsHolder.removeDimensions(dimensionValues);
-                }
-                if (key.key != null) {
+            if (key.getDropStatsForDimensions()) {
+                statsHolder.removeDimensions(key.dimensions);
+            } else if (key.key != null) {
+                for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
                     try (ReleasableLock ignore = writeLock.acquire()) {
                         cacheEntry.getKey().invalidate(key);
                     }
@@ -526,6 +529,16 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, destinationTierValue);
             statsHolder.incrementItems(dimensionValues);
             statsHolder.incrementSizeInBytes(dimensionValues, weigher.applyAsLong(key, value));
+        }
+
+        // pkg-private for testing
+        long getOnHeapCacheMaxWeight() {
+            return onHeapCacheMaxWeight;
+        }
+
+        // pkg-private for testing
+        long getDiskCacheMaxWeight() {
+            return diskCacheMaxWeight;
         }
 
         /**

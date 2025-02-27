@@ -66,6 +66,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
+
 /**
  * A basic read-only engine that allows switching a shard to be true read-only temporarily or permanently.
  * Note: this engine can be opened side-by-side with a read-write engine but will not reflect any changes made to the read-write
@@ -150,20 +152,7 @@ public class ReadOnlyEngine extends Engine {
 
                 completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
 
-                translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, new Translog.Snapshot() {
-                    @Override
-                    public void close() {}
-
-                    @Override
-                    public int totalOperations() {
-                        return 0;
-                    }
-
-                    @Override
-                    public Translog.Operation next() {
-                        return null;
-                    }
-                });
+                translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, EMPTY_TRANSLOG_SNAPSHOT);
 
                 success = true;
             } finally {

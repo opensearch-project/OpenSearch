@@ -22,9 +22,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.LongHashSet;
+import org.opensearch.lucene.util.LongHashSet;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -93,7 +94,7 @@ public abstract class SortedUnsignedLongDocValuesSetQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 SortedNumericDocValues values = getValues(context.reader(), field);
                 if (values == null) {
                     return null;
@@ -139,7 +140,8 @@ public abstract class SortedUnsignedLongDocValuesSetQuery extends Query {
                         }
                     };
                 }
-                return new ConstantScoreScorer(this, score(), scoreMode, iterator);
+                final Scorer scorer = new ConstantScoreScorer(score(), scoreMode, iterator);
+                return new DefaultScorerSupplier(scorer);
             }
         };
     }

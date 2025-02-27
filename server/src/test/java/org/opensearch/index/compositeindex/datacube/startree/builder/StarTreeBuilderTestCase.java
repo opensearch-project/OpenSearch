@@ -12,10 +12,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
@@ -24,6 +26,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
@@ -31,12 +34,16 @@ import org.opensearch.index.compositeindex.CompositeIndexConstants;
 import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.IpDimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
+import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
+import org.opensearch.index.compositeindex.datacube.UnsignedLongDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionConfig;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
@@ -60,6 +67,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,6 +95,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
     protected String dataFileName;
     protected String metaFileName;
     protected List<Dimension> dimensionsOrder;
+    protected MergeState mergeState;
 
     public StarTreeBuilderTestCase(StarTreeFieldConfiguration.StarTreeBuildMode buildMode) {
         this.buildMode = buildMode;
@@ -140,6 +149,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
                 true,
                 IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
                 DocValuesType.SORTED_NUMERIC,
+                DocValuesSkipIndexType.RANGE,
                 -1,
                 Collections.emptyMap(),
                 0,
@@ -154,6 +164,8 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
             fieldProducerMap.put(fields.get(i), docValuesProducer);
         }
         writeState = getWriteState(5, UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8));
+
+        mergeState = new MergeState(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false);
 
         dataFileName = IndexFileNames.segmentFileName(
             writeState.segmentInfo.name,
@@ -240,7 +252,7 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         return BuilderTestsUtils.getWriteState(numDocs, id, fieldsInfo, directory);
     }
 
-    SegmentReadState getReadState(int numDocs, List<String> dimensionFields, List<Metric> metrics) {
+    SegmentReadState getReadState(int numDocs, Map<String, DimensionConfig> dimensionFields, List<Metric> metrics) {
         return BuilderTestsUtils.getReadState(numDocs, dimensionFields, metrics, compositeField, writeState, directory);
     }
 
@@ -248,10 +260,12 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         return Map.of(CompositeIndexConstants.SEGMENT_DOCS_COUNT, String.valueOf(numSegmentDocs));
     }
 
-    protected List<String> getStarTreeDimensionNames(List<Dimension> dimensionsOrder) {
-        List<String> dimensionNames = new ArrayList<>();
+    protected LinkedHashMap<String, DimensionConfig> getStarTreeDimensionNames(List<Dimension> dimensionsOrder) {
+        LinkedHashMap<String, DimensionConfig> dimensionNames = new LinkedHashMap<>();
         for (Dimension dimension : dimensionsOrder) {
-            dimensionNames.addAll(dimension.getSubDimensionNames());
+            for (String dimensionName : dimension.getSubDimensionNames()) {
+                dimensionNames.put(dimensionName, new DimensionConfig(dimension.getDocValuesType(), dimension.getDimensionDataType()));
+            }
         }
         return dimensionNames;
     }
@@ -259,6 +273,16 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
     protected StarTreeField getStarTreeField(MetricStat count) {
         Dimension d1 = new NumericDimension("field1");
         Dimension d2 = new NumericDimension("field3");
+        Metric m1 = new Metric("field2", List.of(count));
+        List<Dimension> dims = List.of(d1, d2);
+        List<Metric> metrics = List.of(m1);
+        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(1000, new HashSet<>(), getBuildMode());
+        return new StarTreeField("sf", dims, metrics, c);
+    }
+
+    protected StarTreeField getStarTreeFieldForUnsignedLong(MetricStat count) {
+        Dimension d1 = new UnsignedLongDimension("field1");
+        Dimension d2 = new UnsignedLongDimension("field3");
         Metric m1 = new Metric("field2", List.of(count));
         List<Dimension> dims = List.of(d1, d2);
         List<Metric> metrics = List.of(m1);
@@ -316,11 +340,70 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
         );
     }
 
+    protected static List<StarTreeDocument> getExpectedStarTreeDocumentIteratorForUnsignedLong() {
+        return List.of(
+            new StarTreeDocument(new Long[] { 2L, 4L, 3L, 4L }, new Object[] { 21.0, 14.0, 2L, 8.0, Numbers.unsignedLongToDouble(-1), 2L }),
+            new StarTreeDocument(
+                new Long[] { 3L, 4L, 2L, 1L },
+                new Object[] {
+                    20.0 + Numbers.unsignedLongToDouble(-2L),
+                    28.0 + Numbers.unsignedLongToDouble(-9223372036854775808L),
+                    3L,
+                    6.0,
+                    24.0,
+                    3L }
+            ),
+            new StarTreeDocument(
+                new Long[] { null, 4L, 2L, 1L },
+                new Object[] {
+                    20.0 + Numbers.unsignedLongToDouble(-2L),
+                    28.0 + Numbers.unsignedLongToDouble(-9223372036854775808L),
+                    3L,
+                    6.0,
+                    24.0,
+                    3L }
+            ),
+            new StarTreeDocument(
+                new Long[] { null, 4L, 3L, 4L },
+                new Object[] { 21.0, 14.0, 2L, 8.0, Numbers.unsignedLongToDouble(-1), 2L }
+            ),
+            new StarTreeDocument(
+                new Long[] { null, 4L, null, 1L },
+                new Object[] {
+                    20.0 + Numbers.unsignedLongToDouble(-2L),
+                    28.0 + Numbers.unsignedLongToDouble(-9223372036854775808L),
+                    3L,
+                    6.0,
+                    24.0,
+                    3L }
+            ),
+            new StarTreeDocument(
+                new Long[] { null, 4L, null, 4L },
+                new Object[] { 21.0, 14.0, 2L, 8.0, Numbers.unsignedLongToDouble(-1), 2L }
+            ),
+            new StarTreeDocument(
+                new Long[] { null, 4L, null, null },
+                new Object[] {
+                    46.0 + Numbers.unsignedLongToDouble(-2L),
+                    42.0 + Numbers.unsignedLongToDouble(-9223372036854775808L),
+                    5L,
+                    6.0,
+                    Numbers.unsignedLongToDouble(-1),
+                    5L }
+            )
+        );
+    }
+
     protected long getLongFromDouble(double value) {
         return NumericUtils.doubleToSortableLong(value);
     }
 
-    protected StarTreeMetadata getStarTreeMetadata(List<String> fields, int segmentAggregatedDocCount, int maxLeafDocs, int dataLength) {
+    protected StarTreeMetadata getStarTreeMetadata(
+        LinkedHashMap<String, DimensionConfig> fields,
+        int segmentAggregatedDocCount,
+        int maxLeafDocs,
+        int dataLength
+    ) {
         return new StarTreeMetadata(
             "sf",
             STAR_TREE,
@@ -337,6 +420,17 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
             0,
             dataLength
         );
+    }
+
+    protected StarTreeField getStarTreeFieldWithKeywords(boolean ip) {
+        Dimension d1 = ip ? new IpDimension("field1") : new OrdinalDimension("field1");
+        Dimension d2 = ip ? new IpDimension("field3") : new OrdinalDimension("field3");
+        Metric m1 = new Metric("field2", List.of(MetricStat.VALUE_COUNT, MetricStat.SUM));
+        List<Dimension> dims = List.of(d1, d2);
+        List<Metric> metrics = List.of(m1);
+        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(10, new HashSet<>(), getBuildMode());
+        StarTreeField sf = new StarTreeField("sf", dims, metrics, c);
+        return sf;
     }
 
     protected StarTreeField getStarTreeFieldWithDateDimension() {

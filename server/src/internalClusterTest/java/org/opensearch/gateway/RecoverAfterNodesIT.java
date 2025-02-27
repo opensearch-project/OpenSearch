@@ -32,7 +32,6 @@
 
 package org.opensearch.gateway;
 
-import org.opensearch.client.Client;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.common.settings.Settings;
@@ -40,6 +39,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.transport.client.Client;
 
 import java.util.Set;
 
@@ -77,7 +77,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
     public void testRecoverAfterNodes() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         logger.info("--> start node (1)");
-        Client clientNode1 = startNode(Settings.builder().put("gateway.recover_after_nodes", 3));
+        Client clientNode1 = startNode(Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 3));
         assertThat(
             clientNode1.admin()
                 .cluster()
@@ -92,7 +92,7 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> start node (2)");
-        Client clientNode2 = startNode(Settings.builder().put("gateway.recover_after_nodes", 3));
+        Client clientNode2 = startNode(Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 3));
         Thread.sleep(BLOCK_WAIT_TIMEOUT.millis());
         assertThat(
             clientNode1.admin()
@@ -120,102 +120,11 @@ public class RecoverAfterNodesIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> start node (3)");
-        Client clientNode3 = startNode(Settings.builder().put("gateway.recover_after_nodes", 3));
+        Client clientNode3 = startNode(Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 3));
 
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, clientNode1).isEmpty(), equalTo(true));
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, clientNode2).isEmpty(), equalTo(true));
         assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, clientNode3).isEmpty(), equalTo(true));
-    }
-
-    public void testRecoverAfterClusterManagerNodes() throws Exception {
-        internalCluster().setBootstrapClusterManagerNodeIndex(0);
-        logger.info("--> start cluster_manager_node (1)");
-        Client clusterManager1 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(clusterManagerOnlyNode()));
-        assertThat(
-            clusterManager1.admin()
-                .cluster()
-                .prepareState()
-                .setLocal(true)
-                .execute()
-                .actionGet()
-                .getState()
-                .blocks()
-                .global(ClusterBlockLevel.METADATA_WRITE),
-            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
-        );
-
-        logger.info("--> start data_node (1)");
-        Client data1 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(dataOnlyNode()));
-        assertThat(
-            clusterManager1.admin()
-                .cluster()
-                .prepareState()
-                .setLocal(true)
-                .execute()
-                .actionGet()
-                .getState()
-                .blocks()
-                .global(ClusterBlockLevel.METADATA_WRITE),
-            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
-        );
-        assertThat(
-            data1.admin()
-                .cluster()
-                .prepareState()
-                .setLocal(true)
-                .execute()
-                .actionGet()
-                .getState()
-                .blocks()
-                .global(ClusterBlockLevel.METADATA_WRITE),
-            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
-        );
-
-        logger.info("--> start data_node (2)");
-        Client data2 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(dataOnlyNode()));
-        assertThat(
-            clusterManager1.admin()
-                .cluster()
-                .prepareState()
-                .setLocal(true)
-                .execute()
-                .actionGet()
-                .getState()
-                .blocks()
-                .global(ClusterBlockLevel.METADATA_WRITE),
-            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
-        );
-        assertThat(
-            data1.admin()
-                .cluster()
-                .prepareState()
-                .setLocal(true)
-                .execute()
-                .actionGet()
-                .getState()
-                .blocks()
-                .global(ClusterBlockLevel.METADATA_WRITE),
-            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
-        );
-        assertThat(
-            data2.admin()
-                .cluster()
-                .prepareState()
-                .setLocal(true)
-                .execute()
-                .actionGet()
-                .getState()
-                .blocks()
-                .global(ClusterBlockLevel.METADATA_WRITE),
-            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
-        );
-
-        logger.info("--> start cluster_manager_node (2)");
-        Client clusterManager2 = startNode(Settings.builder().put("gateway.recover_after_master_nodes", 2).put(clusterManagerOnlyNode()));
-        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, clusterManager1).isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, clusterManager2).isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, data1).isEmpty(), equalTo(true));
-        assertThat(waitForNoBlocksOnNode(BLOCK_WAIT_TIMEOUT, data2).isEmpty(), equalTo(true));
     }
 
     public void testRecoverAfterDataNodes() throws Exception {

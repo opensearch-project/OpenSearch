@@ -136,6 +136,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField SEARCH_PIPELINE = new ParseField("search_pipeline");
+    public static final ParseField VERBOSE_SEARCH_PIPELINE = new ParseField("verbose_pipeline");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -226,6 +227,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private String searchPipeline;
 
+    private boolean verbosePipeline = false;
+
     /**
      * Constructs a new search source builder.
      */
@@ -301,6 +304,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (in.getVersion().onOrAfter(Version.V_2_18_0)) {
             searchPipeline = in.readOptionalString();
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_19_0)) {
+            verbosePipeline = in.readBoolean();
         }
     }
 
@@ -384,6 +390,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalString(searchPipeline);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_19_0)) {
+            out.writeBoolean(verbosePipeline);
         }
     }
 
@@ -1143,6 +1152,26 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Enables or disables verbose mode for the search pipeline.
+     *
+     * When verbose mode is enabled, detailed information about each processor
+     * in the search pipeline is included in the search response. This includes
+     * the processor name, execution status, input, output, and time taken for processing.
+     *
+     * This parameter is primarily intended for debugging purposes, allowing users
+     * to track how data flows and transforms through the search pipeline.
+     *
+     */
+    public SearchSourceBuilder verbosePipeline(Boolean verbosePipeline) {
+        this.verbosePipeline = verbosePipeline;
+        return this;
+    }
+
+    public Boolean verbosePipeline() {
+        return verbosePipeline;
+    }
+
+    /**
      * Rewrites this search source builder into its primitive form. e.g. by
      * rewriting the QueryBuilder. If the builder did not change the identity
      * reference must be returned otherwise the builder will be rewritten
@@ -1240,6 +1269,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.derivedFieldsObject = derivedFieldsObject;
         rewrittenBuilder.derivedFields = derivedFields;
         rewrittenBuilder.searchPipeline = searchPipeline;
+        rewrittenBuilder.verbosePipeline = verbosePipeline;
         return rewrittenBuilder;
     }
 
@@ -1309,6 +1339,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     profile = parser.booleanValue();
                 } else if (SEARCH_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
                     searchPipeline = parser.text();
+                } else if (VERBOSE_SEARCH_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    verbosePipeline = parser.booleanValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -1642,6 +1674,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(SEARCH_PIPELINE.getPreferredName(), searchPipeline);
         }
 
+        if (verbosePipeline) {
+            builder.field(VERBOSE_SEARCH_PIPELINE.getPreferredName(), verbosePipeline);
+        }
+
         return builder;
     }
 
@@ -1920,7 +1956,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             pointInTimeBuilder,
             derivedFieldsObject,
             derivedFields,
-            searchPipeline
+            searchPipeline,
+            verbosePipeline
         );
     }
 
@@ -1966,7 +2003,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
             && Objects.equals(derivedFieldsObject, other.derivedFieldsObject)
             && Objects.equals(derivedFields, other.derivedFields)
-            && Objects.equals(searchPipeline, other.searchPipeline);
+            && Objects.equals(searchPipeline, other.searchPipeline)
+            && Objects.equals(verbosePipeline, other.verbosePipeline);
     }
 
     @Override

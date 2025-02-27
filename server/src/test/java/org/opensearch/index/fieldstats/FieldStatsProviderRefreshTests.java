@@ -82,7 +82,7 @@ public class FieldStatsProviderRefreshTests extends OpenSearchSingleNodeTestCase
             .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
             .get();
         assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(r1.getHits().getTotalHits().value(), equalTo(3L));
         assertRequestCacheStats(0, 1);
 
         // Search again and check it hits the cache
@@ -92,7 +92,7 @@ public class FieldStatsProviderRefreshTests extends OpenSearchSingleNodeTestCase
             .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
             .get();
         assertSearchResponse(r2);
-        assertThat(r2.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(r2.getHits().getTotalHits().value(), equalTo(3L));
         assertRequestCacheStats(1, 1);
 
         // Index some more documents in the query range and refresh
@@ -107,7 +107,7 @@ public class FieldStatsProviderRefreshTests extends OpenSearchSingleNodeTestCase
             .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
             .get();
         assertSearchResponse(r3);
-        assertThat(r3.getHits().getTotalHits().value, equalTo(5L));
+        assertThat(r3.getHits().getTotalHits().value(), equalTo(5L));
         assertRequestCacheStats(1, 2);
     }
 

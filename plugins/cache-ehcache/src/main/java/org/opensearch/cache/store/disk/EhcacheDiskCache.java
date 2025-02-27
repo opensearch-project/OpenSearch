@@ -194,7 +194,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         return this.cacheManager;
     }
 
-    @SuppressWarnings({ "rawtypes" })
+    @SuppressWarnings({ "rawtypes", "removal" })
     private Cache<ICacheKey, ByteArrayWrapper> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
         // Creating the cache requires permissions specified in plugin-security.policy
         return AccessController.doPrivileged((PrivilegedAction<Cache<ICacheKey, ByteArrayWrapper>>) () -> {
@@ -279,6 +279,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         return completableFutureMap;
     }
 
+    @SuppressWarnings("removal")
     @SuppressForbidden(reason = "Ehcache uses File.io")
     PersistentCacheManager buildCacheManager() {
         // In case we use multiple ehCaches, we can define this cache manager at a global level.
@@ -678,6 +679,11 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             return null;
         }
         return valueSerializer.deserialize(binary.value);
+    }
+
+    // Pkg-private for testing.
+    long getMaximumWeight() {
+        return maxWeightInBytes;
     }
 
     /**

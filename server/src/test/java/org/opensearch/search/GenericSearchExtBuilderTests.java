@@ -40,6 +40,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -162,8 +163,8 @@ public class GenericSearchExtBuilderTests extends OpenSearchTestCase {
         if (searchResponse.getHits().getTotalHits() == null) {
             assertNull(deserialized.getHits().getTotalHits());
         } else {
-            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
-            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+            assertEquals(searchResponse.getHits().getTotalHits().value(), deserialized.getHits().getTotalHits().value());
+            assertEquals(searchResponse.getHits().getTotalHits().relation(), deserialized.getHits().getTotalHits().relation());
         }
         assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
         assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
@@ -186,8 +187,8 @@ public class GenericSearchExtBuilderTests extends OpenSearchTestCase {
         if (searchResponse.getHits().getTotalHits() == null) {
             assertNull(deserialized.getHits().getTotalHits());
         } else {
-            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
-            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+            assertEquals(searchResponse.getHits().getTotalHits().value(), deserialized.getHits().getTotalHits().value());
+            assertEquals(searchResponse.getHits().getTotalHits().relation(), deserialized.getHits().getTotalHits().relation());
         }
         assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
         assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
@@ -210,8 +211,8 @@ public class GenericSearchExtBuilderTests extends OpenSearchTestCase {
         if (searchResponse.getHits().getTotalHits() == null) {
             assertNull(deserialized.getHits().getTotalHits());
         } else {
-            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
-            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+            assertEquals(searchResponse.getHits().getTotalHits().value(), deserialized.getHits().getTotalHits().value());
+            assertEquals(searchResponse.getHits().getTotalHits().relation(), deserialized.getHits().getTotalHits().relation());
         }
         assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
         assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
@@ -251,7 +252,8 @@ public class GenericSearchExtBuilderTests extends OpenSearchTestCase {
                 timedOut,
                 terminatedEarly,
                 numReducePhases,
-                searchExtBuilders
+                searchExtBuilders,
+                Collections.emptyList()
             );
         } else {
             internalSearchResponse = InternalSearchResponse.empty();

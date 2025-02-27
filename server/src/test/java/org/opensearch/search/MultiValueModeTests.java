@@ -41,6 +41,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.fielddata.AbstractBinaryDocValues;
@@ -52,9 +53,13 @@ import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.fielddata.SortedNumericUnsignedLongValues;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -743,7 +748,7 @@ public class MultiValueModeTests extends OpenSearchTestCase {
                 if (i < array[doc].length) {
                     return array[doc][i++];
                 } else {
-                    return NO_MORE_ORDS;
+                    return NO_MORE_DOCS;
                 }
             }
 
@@ -776,6 +781,96 @@ public class MultiValueModeTests extends OpenSearchTestCase {
         verifySortedSet(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
+    public void testSingleValuedUnsignedLongs() throws Exception {
+        final int numDocs = scaledRandomIntBetween(1, 100);
+        final long[] array = new long[numDocs];
+        final FixedBitSet docsWithValue = randomBoolean() ? null : new FixedBitSet(numDocs);
+        for (int i = 0; i < array.length; ++i) {
+            if (randomBoolean()) {
+                array[i] = randomUnsignedLong().longValue();
+                if (docsWithValue != null) {
+                    docsWithValue.set(i);
+                }
+            } else if (docsWithValue != null && randomBoolean()) {
+                docsWithValue.set(i);
+            }
+        }
+
+        final Supplier<SortedNumericUnsignedLongValues> multiValues = () -> new SortedNumericUnsignedLongValues() {
+            int docId = -1;
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                this.docId = target;
+                return docsWithValue == null || docsWithValue.get(docId);
+            }
+
+            @Override
+            public int docID() {
+                return docId;
+            }
+
+            @Override
+            public long nextValue() {
+                return array[docId];
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+        };
+        verifySortedUnsignedLong(multiValues, numDocs);
+        final FixedBitSet rootDocs = randomRootDocs(numDocs);
+        final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
+        verifySortedUnsignedLong(multiValues, numDocs, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedUnsignedLong(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
+    }
+
+    public void testMultiValuedUnsignedLongs() throws Exception {
+        final int numDocs = scaledRandomIntBetween(1, 100);
+        final long[][] array = new long[numDocs][];
+        for (int i = 0; i < numDocs; ++i) {
+            final long[] values = new long[randomInt(4)];
+            for (int j = 0; j < values.length; ++j) {
+                values[j] = randomUnsignedLong().longValue();
+            }
+            Arrays.sort(values);
+            array[i] = values;
+        }
+        final Supplier<SortedNumericUnsignedLongValues> multiValues = () -> new SortedNumericUnsignedLongValues() {
+            int doc;
+            int i;
+
+            @Override
+            public long nextValue() {
+                return array[doc][i++];
+            }
+
+            @Override
+            public boolean advanceExact(int doc) {
+                this.doc = doc;
+                i = 0;
+                return array[doc].length > 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return array[doc].length;
+            }
+
+            @Override
+            public int docID() {
+                return doc;
+            }
+        };
+        verifySortedUnsignedLong(multiValues, numDocs);
+        final FixedBitSet rootDocs = randomRootDocs(numDocs);
+        final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
+        verifySortedUnsignedLong(multiValues, numDocs, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedUnsignedLong(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
+    }
+
     private void verifySortedSet(Supplier<SortedSetDocValues> supplier, int maxDoc) throws IOException {
         for (MultiValueMode mode : new MultiValueMode[] { MultiValueMode.MIN, MultiValueMode.MAX }) {
             SortedSetDocValues values = supplier.get();
@@ -788,7 +883,9 @@ public class MultiValueModeTests extends OpenSearchTestCase {
                 }
                 int expected = -1;
                 if (values.advanceExact(i)) {
-                    for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                    int docValueCount = 0;
+                    for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS
+                        && docValueCount < values.docValueCount(); ord = values.nextOrd(), ++docValueCount) {
                         if (expected == -1) {
                             expected = (int) ord;
                         } else {
@@ -836,7 +933,10 @@ public class MultiValueModeTests extends OpenSearchTestCase {
                         if (++count > maxChildren) {
                             break;
                         }
-                        for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+
+                        int docValueCount = 0;
+                        for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS
+                            && docValueCount < values.docValueCount(); ord = values.nextOrd(), ++docValueCount) {
                             if (expected == -1) {
                                 expected = (int) ord;
                             } else {
@@ -853,6 +953,141 @@ public class MultiValueModeTests extends OpenSearchTestCase {
                 assertEquals(mode.toString() + " docId=" + root, expected, actual);
 
                 prevRoot = root;
+            }
+        }
+    }
+
+    private void verifySortedUnsignedLong(Supplier<SortedNumericUnsignedLongValues> supplier, int maxDoc) throws IOException {
+        for (MultiValueMode mode : MultiValueMode.values()) {
+            SortedNumericUnsignedLongValues values = supplier.get();
+            final NumericDocValues selected = mode.select(values);
+            for (int i = 0; i < maxDoc; ++i) {
+                Long actual = null;
+                if (selected.advanceExact(i)) {
+                    actual = selected.longValue();
+                    verifyLongValueCanCalledMoreThanOnce(selected, actual);
+                }
+
+                BigInteger expected = null;
+                if (values.advanceExact(i)) {
+                    int numValues = values.docValueCount();
+                    if (mode == MultiValueMode.MAX) {
+                        expected = Numbers.MIN_UNSIGNED_LONG_VALUE;
+                    } else if (mode == MultiValueMode.MIN) {
+                        expected = Numbers.MAX_UNSIGNED_LONG_VALUE;
+                    } else {
+                        expected = BigInteger.ZERO;
+                    }
+                    for (int j = 0; j < numValues; ++j) {
+                        if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
+                            expected = expected.add(Numbers.toUnsignedBigInteger(values.nextValue()));
+                        } else if (mode == MultiValueMode.MIN) {
+                            expected = expected.min(Numbers.toUnsignedBigInteger(values.nextValue()));
+                        } else if (mode == MultiValueMode.MAX) {
+                            expected = expected.max(Numbers.toUnsignedBigInteger(values.nextValue()));
+                        }
+                    }
+                    if (mode == MultiValueMode.AVG) {
+                        expected = Numbers.toUnsignedBigInteger(expected.longValue());
+                        expected = numValues > 1
+                            ? new BigDecimal(expected).divide(new BigDecimal(numValues), RoundingMode.HALF_UP).toBigInteger()
+                            : expected;
+                    } else if (mode == MultiValueMode.MEDIAN) {
+                        final Long[] docValues = new Long[numValues];
+                        for (int j = 0; j < numValues; ++j) {
+                            docValues[j] = values.nextValue();
+                        }
+                        Arrays.sort(docValues, Long::compareUnsigned);
+                        int value = numValues / 2;
+                        if (numValues % 2 == 0) {
+                            expected = Numbers.toUnsignedBigInteger(docValues[value - 1])
+                                .add(Numbers.toUnsignedBigInteger(docValues[value]));
+                            expected = Numbers.toUnsignedBigInteger(expected.longValue());
+                            expected = new BigDecimal(expected).divide(new BigDecimal(2), RoundingMode.HALF_UP).toBigInteger();
+                        } else {
+                            expected = Numbers.toUnsignedBigInteger(docValues[value]);
+                        }
+                    }
+                }
+
+                final Long expectedLong = expected == null ? null : expected.longValue();
+                assertEquals(mode.toString() + " docId=" + i, expectedLong, actual);
+            }
+        }
+    }
+
+    private void verifySortedUnsignedLong(
+        Supplier<SortedNumericUnsignedLongValues> supplier,
+        int maxDoc,
+        FixedBitSet rootDocs,
+        FixedBitSet innerDocs,
+        int maxChildren
+    ) throws IOException {
+        for (long missingValue : new long[] { 0, randomUnsignedLong().longValue() }) {
+            for (MultiValueMode mode : new MultiValueMode[] {
+                MultiValueMode.MIN,
+                MultiValueMode.MAX,
+                MultiValueMode.SUM,
+                MultiValueMode.AVG }) {
+                SortedNumericUnsignedLongValues values = supplier.get();
+                final NumericDocValues selected = mode.select(
+                    values,
+                    missingValue,
+                    rootDocs,
+                    new BitSetIterator(innerDocs, 0L),
+                    maxDoc,
+                    maxChildren
+                );
+                int prevRoot = -1;
+                for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
+                    assertTrue(selected.advanceExact(root));
+                    final long actual = selected.longValue();
+                    verifyLongValueCanCalledMoreThanOnce(selected, actual);
+
+                    BigInteger expected = BigInteger.ZERO;
+                    if (mode == MultiValueMode.MAX) {
+                        expected = Numbers.MIN_UNSIGNED_LONG_VALUE;
+                    } else if (mode == MultiValueMode.MIN) {
+                        expected = Numbers.MAX_UNSIGNED_LONG_VALUE;
+                    }
+                    int numValues = 0;
+                    int count = 0;
+                    for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(
+                        child + 1
+                    )) {
+                        if (values.advanceExact(child)) {
+                            if (++count > maxChildren) {
+                                break;
+                            }
+                            for (int j = 0; j < values.docValueCount(); ++j) {
+                                if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
+                                    expected = expected.add(Numbers.toUnsignedBigInteger(values.nextValue()));
+                                } else if (mode == MultiValueMode.MIN) {
+                                    expected = expected.min(Numbers.toUnsignedBigInteger(values.nextValue()));
+                                } else if (mode == MultiValueMode.MAX) {
+                                    expected = expected.max(Numbers.toUnsignedBigInteger(values.nextValue()));
+                                }
+                                ++numValues;
+                            }
+                        }
+                    }
+                    final long expectedLong;
+                    if (numValues == 0) {
+                        expectedLong = missingValue;
+                    } else if (mode == MultiValueMode.AVG) {
+                        expected = Numbers.toUnsignedBigInteger(expected.longValue());
+                        expected = numValues > 1
+                            ? new BigDecimal(expected).divide(new BigDecimal(numValues), RoundingMode.HALF_UP).toBigInteger()
+                            : expected;
+                        expectedLong = expected.longValue();
+                    } else {
+                        expectedLong = expected.longValue();
+                    }
+
+                    assertEquals(mode.toString() + " docId=" + root, expectedLong, actual);
+
+                    prevRoot = root;
+                }
             }
         }
     }

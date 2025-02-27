@@ -39,21 +39,23 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * A field data based aggregator that counts the number of values a specific field has within the aggregation context.
@@ -63,7 +65,7 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
  *
  * @opensearch.internal
  */
-public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
+public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
 
     final ValuesSource valuesSource;
 
@@ -86,6 +88,23 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
+            if (supportedStarTree != null) {
+                if (parent != null && subAggregators.length == 0) {
+                    // If this a child aggregator, then the parent will trigger star-tree pre-computation.
+                    // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
+                    return true;
+                }
+                precomputeLeafUsingStarTree(ctx, supportedStarTree);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
@@ -93,12 +112,6 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         final BigArrays bigArrays = context.bigArrays();
 
         if (valuesSource instanceof ValuesSource.Numeric) {
-
-            CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
-            if (supportedStarTree != null) {
-                return getStarTreeCollector(ctx, sub, supportedStarTree);
-            }
-
             final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
 
@@ -138,13 +151,11 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         };
     }
 
-    public LeafBucketCollector getStarTreeCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
-        throws IOException {
-        return StarTreeQueryHelper.getStarTreeLeafCollector(
+    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        StarTreeQueryHelper.precomputeLeafUsingStarTree(
             context,
             (ValuesSource.Numeric) valuesSource,
             ctx,
-            sub,
             starTree,
             MetricStat.VALUE_COUNT.getTypeName(),
             value -> counts.increment(0, value),
@@ -180,4 +191,22 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(counts);
     }
 
+    /**
+     * The parent aggregator invokes this method to get a StarTreeBucketCollector,
+     * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
+     */
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
+    ) throws IOException {
+        return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
+            starTree,
+            MetricStat.VALUE_COUNT.getTypeName(),
+            (ValuesSource.Numeric) valuesSource,
+            parentCollector,
+            (bucket) -> counts = context.bigArrays().grow(counts, bucket + 1),
+            (bucket, metricValue) -> counts.increment(bucket, metricValue)
+        );
+    }
 }

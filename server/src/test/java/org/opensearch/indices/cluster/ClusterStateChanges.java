@@ -56,7 +56,7 @@ import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
-import org.opensearch.action.support.clustermanager.TransportMasterNodeActionUtils;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeActionUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
@@ -443,12 +443,6 @@ public class ClusterStateChanges {
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #joinNodesAndBecomeClusterManager(ClusterState, List)} */
-    @Deprecated
-    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        return joinNodesAndBecomeClusterManager(clusterState, nodes);
-    }
-
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
             nodeRemovalExecutor,
@@ -513,7 +507,7 @@ public class ClusterStateChanges {
     ) {
         return executeClusterStateUpdateTask(clusterState, () -> {
             try {
-                TransportMasterNodeActionUtils.runClusterManagerOperation(
+                TransportClusterManagerNodeActionUtils.runClusterManagerOperation(
                     masterNodeAction,
                     request,
                     clusterState,

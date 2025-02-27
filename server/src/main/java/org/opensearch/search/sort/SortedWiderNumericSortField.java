@@ -19,16 +19,21 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.comparators.NumericComparator;
+import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
+import java.util.Comparator;
 
 /**
- * Sorted numeric field for wider sort types,
- * to help sorting two different numeric types.
+ * Sorted numeric field for wider sort types, to help sorting two different numeric types.
+ * NOTE: the unsigned_long is not supported by widening sort since the unsigned_long could not be used with other types
  *
  * @opensearch.internal
  */
 public class SortedWiderNumericSortField extends SortedNumericSortField {
+    private final int byteCounts;
+    private final Comparator<Number> comparator;
+
     /**
      * Creates a sort, possibly in reverse, specifying how the sort value from the document's set is
      * selected.
@@ -39,6 +44,15 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
      */
     public SortedWiderNumericSortField(String field, Type type, boolean reverse) {
         super(field, type, reverse);
+        if (type == Type.LONG) {
+            byteCounts = Long.BYTES;
+            comparator = Comparator.comparingLong(Number::longValue);
+        } else if (type == Type.DOUBLE) {
+            byteCounts = Double.BYTES;
+            comparator = Comparator.comparingDouble(Number::doubleValue);
+        } else {
+            throw new IllegalArgumentException("Unsupported numeric type: " + type);
+        }
     }
 
     /**
@@ -51,7 +65,7 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
      */
     @Override
     public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
-        return new NumericComparator<Number>(getField(), (Number) getMissingValue(), getReverse(), pruning, Double.BYTES) {
+        return new NumericComparator<Number>(getField(), (Number) getMissingValue(), getReverse(), pruning, byteCounts) {
             @Override
             public int compare(int slot1, int slot2) {
                 throw new UnsupportedOperationException();
@@ -78,8 +92,23 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
                 } else if (second == null) {
                     return 1;
                 } else {
-                    return Double.compare(first.doubleValue(), second.doubleValue());
+                    return comparator.compare(first, second);
                 }
+            }
+
+            @Override
+            protected long missingValueAsComparableLong() {
+                return switch (missingValue) {
+                    case Double d -> NumericUtils.doubleToSortableLong(d);
+                    case Float f -> NumericUtils.floatToSortableInt(f);
+                    case Number n -> n.longValue();
+                    case null -> 0L;
+                };
+            }
+
+            @Override
+            protected long sortableBytesToLong(byte[] bytes) {
+                throw new UnsupportedOperationException();
             }
         };
     }

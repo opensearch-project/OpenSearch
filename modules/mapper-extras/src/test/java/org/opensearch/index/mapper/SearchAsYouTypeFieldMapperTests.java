@@ -45,9 +45,9 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
@@ -577,7 +577,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         Query actual = new QueryStringQueryBuilder("field:*").toQuery(queryShardContext);
         Query expected = new ConstantScoreQuery(
-            new BooleanQuery.Builder().add(new NormsFieldExistsQuery("field.nested_field"), BooleanClause.Occur.SHOULD).build()
+            new BooleanQuery.Builder().add(new FieldExistsQuery("field.nested_field"), BooleanClause.Occur.SHOULD).build()
         );
         assertEquals(expected, actual);
     }

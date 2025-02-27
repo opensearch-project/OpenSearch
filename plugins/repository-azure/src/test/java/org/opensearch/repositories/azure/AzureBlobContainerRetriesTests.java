@@ -88,6 +88,7 @@ import java.util.stream.Collectors;
 
 import fixture.azure.AzureHttpHandler;
 import reactor.core.scheduler.Schedulers;
+import reactor.netty.http.HttpResources;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.opensearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
@@ -142,6 +143,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
 
     @AfterClass
     public static void shutdownSchedulers() {
+        HttpResources.disposeLoopsAndConnections();
         Schedulers.shutdownNow();
     }
 

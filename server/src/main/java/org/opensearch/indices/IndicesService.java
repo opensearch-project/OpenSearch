@@ -49,7 +49,6 @@ import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -105,6 +104,8 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
@@ -122,6 +123,7 @@ import org.opensearch.index.get.GetStats;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.query.BaseQueryRewriteContext;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
@@ -146,6 +148,7 @@ import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.pollingingest.IngestionEngineFactory;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -165,6 +168,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -205,7 +209,7 @@ import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
-import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING;
+import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -342,6 +346,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
+    private final Map<String, IngestionConsumerFactory> ingestionConsumerFactories;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
@@ -361,7 +366,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
-    private volatile boolean requestCachingEnabledForAllQueries;
+    private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
+    private volatile int maxSizeInRequestCache;
 
     @Override
     protected void doStart() {
@@ -394,12 +400,14 @@ public class IndicesService extends AbstractLifecycleComponent
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
         RecoverySettings recoverySettings,
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings,
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
-        Consumer<IndexShard> replicator
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -451,6 +459,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.ingestionConsumerFactories = ingestionConsumerFactories;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -509,9 +518,10 @@ public class IndicesService extends AbstractLifecycleComponent
         this.compositeIndexSettings = compositeIndexSettings;
         this.fileCache = fileCache;
         this.replicator = replicator;
-        this.requestCachingEnabledForAllQueries = INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING.get(clusterService.getSettings());
+        this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
+        this.maxSizeInRequestCache = INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_ENABLE_FOR_ALL_REQUESTS_SETTING, this::setRequestCachingEnabledForAllQueries);
+            .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING, this::setMaxSizeInRequestCache);
     }
 
     public IndicesService(
@@ -539,6 +549,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
         RecoverySettings recoverySettings,
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings
@@ -568,9 +579,11 @@ public class IndicesService extends AbstractLifecycleComponent
             repositoriesServiceSupplier,
             searchRequestStats,
             remoteStoreStatsTrackerFactory,
+            ingestionConsumerFactories,
             recoverySettings,
             cacheService,
             remoteStoreSettings,
+            null,
             null,
             null,
             null
@@ -990,7 +1003,8 @@ public class IndicesService extends AbstractLifecycleComponent
             this::getClusterDefaultRefreshInterval,
             this.recoverySettings,
             this.remoteStoreSettings,
-            replicator
+            replicator,
+            segmentReplicationStatsProvider
         );
     }
 
@@ -998,11 +1012,32 @@ public class IndicesService extends AbstractLifecycleComponent
         return new EngineConfigFactory(this.pluginsService, idxSettings);
     }
 
+    private IngestionConsumerFactory getIngestionConsumerFactory(final IndexSettings idxSettings) {
+        final IndexMetadata indexMetadata = idxSettings.getIndexMetadata();
+        if (indexMetadata == null) {
+            return null;
+        }
+        if (indexMetadata.useIngestionSource()) {
+            String type = indexMetadata.getIngestionSource().getType().toUpperCase(Locale.ROOT);
+            if (!ingestionConsumerFactories.containsKey(type)) {
+                throw new IllegalArgumentException("No factory found for ingestion source type [" + type + "]");
+            }
+            return ingestionConsumerFactories.get(type);
+        }
+        return null;
+    }
+
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
         final IndexMetadata indexMetadata = idxSettings.getIndexMetadata();
         if (indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             // NoOpEngine takes precedence as long as the index is closed
             return NoOpEngine::new;
+        }
+
+        // streaming ingestion
+        if (indexMetadata != null && indexMetadata.useIngestionSource()) {
+            IngestionConsumerFactory ingestionConsumerFactory = getIngestionConsumerFactory(idxSettings);
+            return new IngestionEngineFactory(ingestionConsumerFactory);
         }
 
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()
@@ -1752,10 +1787,9 @@ public class IndicesService extends AbstractLifecycleComponent
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
             if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false
-                || (context.size() > 0 && !requestCachingEnabledForAllQueries)) {
+                || (context.size() > maxSizeInRequestCache)) {
                 // If no request cache query parameter and shard request cache
-                // is enabled in settings don't cache for requests with size > 0
-                // unless this is enabled via cluster setting
+                // is enabled in settings, use cluster setting to check the maximum size allowed in the cache
                 return false;
             }
         } else if (request.requestCache() == false) {
@@ -1938,7 +1972,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     private QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, boolean validate) {
-        return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
+        return new BaseQueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis, validate);
     }
 
     /**
@@ -2125,7 +2159,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     // Package-private for testing
-    void setRequestCachingEnabledForAllQueries(Boolean requestCachingEnabledForAllQueries) {
-        this.requestCachingEnabledForAllQueries = requestCachingEnabledForAllQueries;
+    void setMaxSizeInRequestCache(Integer maxSizeInRequestCache) {
+        this.maxSizeInRequestCache = maxSizeInRequestCache;
     }
 }

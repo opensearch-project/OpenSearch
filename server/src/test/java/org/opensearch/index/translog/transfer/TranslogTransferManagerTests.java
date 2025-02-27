@@ -206,6 +206,80 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(4, fileTransferTracker.allUploaded().size());
     }
 
+    public void testTransferSnapshotOnFileTransferUploadFail() throws Exception {
+        AtomicInteger fileTransferSucceeded = new AtomicInteger();
+        AtomicInteger fileTransferFailed = new AtomicInteger();
+        AtomicInteger translogTransferSucceeded = new AtomicInteger();
+        AtomicInteger translogTransferFailed = new AtomicInteger();
+
+        doAnswer(invocationOnMock -> {
+            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[2];
+            Set<TransferFileSnapshot> transferFileSnapshots = (Set<TransferFileSnapshot>) invocationOnMock.getArguments()[0];
+
+            TransferFileSnapshot actualFileSnapshot = transferFileSnapshots.iterator().next();
+            FileTransferException testException = new FileTransferException(
+                actualFileSnapshot,
+                new RuntimeException("FileTransferUploadNeedsToFail-Exception")
+            );
+
+            listener.onFailure(testException);
+            transferFileSnapshots.stream().skip(1).forEach(listener::onResponse);
+            return null;
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
+
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+            new ShardId("index", "indexUUid", 0),
+            remoteTranslogTransferTracker
+        ) {
+            @Override
+            public void onSuccess(TransferFileSnapshot fileSnapshot) {
+                fileTransferSucceeded.incrementAndGet();
+                super.onSuccess(fileSnapshot);
+            }
+
+            @Override
+            public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
+                fileTransferFailed.incrementAndGet();
+                super.onFailure(fileSnapshot, e);
+            }
+        };
+
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            fileTransferTracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            isTranslogMetadataEnabled
+        );
+
+        SetOnce<Exception> exception = new SetOnce<>();
+        assertFalse(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {
+                translogTransferSucceeded.incrementAndGet();
+            }
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                translogTransferFailed.incrementAndGet();
+                exception.set(ex);
+            }
+        }));
+
+        assertNotNull(exception.get());
+        assertTrue(exception.get() instanceof TranslogUploadFailedException);
+        assertEquals("Failed to upload 1 files during transfer", exception.get().getMessage());
+        assertEquals(0, exception.get().getSuppressed().length);
+        assertEquals(3, fileTransferSucceeded.get());
+        assertEquals(1, fileTransferFailed.get());
+        assertEquals(0, translogTransferSucceeded.get());
+        assertEquals(1, translogTransferFailed.get());
+        assertEquals(3, fileTransferTracker.allUploaded().size());
+    }
+
     public void testTransferSnapshotOnUploadTimeout() throws Exception {
         doAnswer(invocationOnMock -> {
             Set<TransferFileSnapshot> transferFileSnapshots = invocationOnMock.getArgument(0);

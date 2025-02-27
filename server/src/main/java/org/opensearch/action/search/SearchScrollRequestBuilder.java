@@ -33,10 +33,10 @@
 package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.Scroll;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * A search scroll action request builder.

@@ -8,7 +8,6 @@
 
 package org.opensearch.remotestore.multipart;
 
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
@@ -19,6 +18,7 @@ import org.opensearch.remotestore.RemoteStoreIT;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.transport.client.Client;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -142,6 +142,6 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
             assertThat(uploadPauseTime, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(5, 10)).nanos()));
         }, 30, TimeUnit.SECONDS);
 
-        assertThat(client.prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value, equalTo(10L));
+        assertThat(client.prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value(), equalTo(10L));
     }
 }

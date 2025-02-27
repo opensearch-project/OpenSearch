@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -540,9 +541,15 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .toString();
 
+        Settings settings = Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+            .build();
+
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> createIndex("invalid").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping))
+            () -> createIndex("invalid", settings).mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping))
         );
         assertEquals(
             "star tree index is under an experimental feature and can be activated only by enabling opensearch.experimental.feature.composite_index.star_tree.enabled feature flag in the JVM options",
@@ -552,10 +559,6 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         final Settings starTreeEnabledSettings = Settings.builder().put(STAR_TREE_INDEX, "true").build();
         FeatureFlags.initializeFeatureFlags(starTreeEnabledSettings);
 
-        Settings settings = Settings.builder()
-            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
-            .build();
         DocumentMapper documentMapper = createIndex("test", settings).mapperService()
             .documentMapperParser()
             .parse("tweet", new CompressedXContent(mapping));

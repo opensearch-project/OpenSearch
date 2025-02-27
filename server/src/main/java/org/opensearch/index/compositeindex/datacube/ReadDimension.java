@@ -25,9 +25,25 @@ import java.util.function.Consumer;
 public class ReadDimension implements Dimension {
     public static final String READ = "read";
     private final String field;
+    private final DocValuesType docValuesType;
+    private final DimensionDataType dimensionDataType;
 
     public ReadDimension(String field) {
         this.field = field;
+        this.docValuesType = DocValuesType.SORTED_NUMERIC;
+        this.dimensionDataType = DimensionDataType.LONG;
+    }
+
+    public ReadDimension(String field, DocValuesType docValuesType) {
+        this.field = field;
+        this.docValuesType = docValuesType;
+        this.dimensionDataType = DimensionDataType.LONG;
+    }
+
+    public ReadDimension(String field, DocValuesType docValuesType, DimensionDataType dimensionDataType) {
+        this.field = field;
+        this.docValuesType = docValuesType;
+        this.dimensionDataType = dimensionDataType;
     }
 
     public String getField() {
@@ -47,6 +63,11 @@ public class ReadDimension implements Dimension {
     @Override
     public List<String> getSubDimensionNames() {
         return List.of(field);
+    }
+
+    @Override
+    public DocValuesType getDocValuesType() {
+        return docValuesType;
     }
 
     @Override
@@ -72,7 +93,8 @@ public class ReadDimension implements Dimension {
     }
 
     @Override
-    public DocValuesType getDocValuesType() {
-        return DocValuesType.SORTED_NUMERIC;
+    public DimensionDataType getDimensionDataType() {
+        return dimensionDataType;
     }
+
 }

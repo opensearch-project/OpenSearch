@@ -24,8 +24,26 @@ public enum DimensionType {
     NUMERIC,
 
     /**
+     * Represents an unsigned long dimension type.
+     * This is used for dimensions that contain numerical values of type unsigned long.
+     */
+    UNSIGNED_LONG,
+
+    /**
      * Represents a date dimension type.
      * This is used for dimensions that contain date or timestamp values.
      */
-    DATE
+    DATE,
+
+    /**
+     * Represents dimension types which uses ordinals.
+     * This is used for dimensions that contain sortedSet ordinals.
+     */
+    ORDINAL,
+
+    /**
+     * Represents an IP dimension type.
+     * This is used for dimensions that contain IP ordinals.
+     */
+    IP
 }

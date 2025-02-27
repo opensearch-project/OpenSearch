@@ -51,7 +51,7 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         public float maxScore, minCompetitiveScore;
 
         protected FakeScorer(Weight weight) {
-            super(weight);
+            super();
         }
 
         @Override
@@ -85,8 +85,7 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
-        ProfileWeight profileWeight = new ProfileWeight(query, weight, profile);
-        ProfileScorer profileScorer = new ProfileScorer(profileWeight, fakeScorer, profile);
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
         profileScorer.setMinCompetitiveScore(0.42f);
         assertEquals(0.42f, fakeScorer.minCompetitiveScore, 0f);
     }
@@ -96,8 +95,7 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
-        ProfileWeight profileWeight = new ProfileWeight(query, weight, profile);
-        ProfileScorer profileScorer = new ProfileScorer(profileWeight, fakeScorer, profile);
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
         profileScorer.setMinCompetitiveScore(0.42f);
         fakeScorer.maxScore = 42f;
         assertEquals(42f, profileScorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS), 0f);
