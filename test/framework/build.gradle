@@ -53,6 +53,16 @@ dependencies {
   api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
   api "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
 
+  // Allow usage of JUnit 5
+  api "org.junit.jupiter:junit-jupiter-api:${versions.junit5}"
+  runtimeOnly "org.junit.jupiter:junit-jupiter-engine:${versions.junit5}"
+  // Maintain Junit 4 compatibility
+  runtimeOnly "org.junit.platform:junit-platform-commons:${versions.junitplatform}"
+  runtimeOnly "org.junit.platform:junit-platform-engine:${versions.junitplatform}"
+  testRuntimeOnly "org.junit.platform:junit-platform-launcher:${versions.junitplatform}"
+  testRuntimeOnly("org.junit.vintage:junit-vintage-engine:${versions.junit5}") {
+      exclude group: 'junit', module: 'junit'
+  }
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 }
 
@@ -75,6 +85,13 @@ thirdPartyAudit.ignoreMissingClasses(
   // classes are missing
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
+  'kotlin.Unit',
+  'kotlin.collections.ArraysKt',
+  'kotlin.collections.CollectionsKt',
+  'kotlin.jvm.functions.Function0',
+  'kotlin.jvm.functions.Function1',
+  'kotlin.jvm.internal.Intrinsics',
+  'kotlin.jvm.internal.Lambda',
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
@@ -83,6 +100,7 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log4j.Priority',
   'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
   'org.opentest4j.AssertionFailedError',
+  'org.opentest4j.TestAbortedException',
   'net.bytebuddy.agent.ByteBuddyAgent',
   'net.bytebuddy.agent.Installer'
 )
@@ -93,6 +111,8 @@ thirdPartyAudit.ignoreViolations(
 )
 
 test {
+  useJUnitPlatform()
+
   systemProperty 'tests.gradle_index_compat_versions', BuildParams.bwcVersions.indexCompatible.join(',')
   systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
   systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')

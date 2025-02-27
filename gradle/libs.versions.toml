@@ -62,6 +62,8 @@ bouncycastle="1.78"
 # test dependencies
 randomizedrunner  = "2.7.1"
 junit             = "4.13.2"
+junit5            = "5.12.0"
+junitplatform     = "1.12.0"
 hamcrest          = "2.1"
 mockito           = "5.14.2"
 objenesis         = "3.3"
