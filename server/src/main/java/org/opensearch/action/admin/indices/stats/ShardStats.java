@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.stats;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -91,7 +92,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-        pollingIngestStats = in.readOptionalWriteable(PollingIngestStats::new);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            pollingIngestStats = in.readOptionalWriteable(PollingIngestStats::new);
+        }
     }
 
     public ShardStats(
@@ -162,7 +165,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
-        out.writeOptionalWriteable(pollingIngestStats);
+        if (out.getVersion().onOrAfter((Version.V_3_0_0))) {
+            out.writeOptionalWriteable(pollingIngestStats);
+        }
     }
 
     @Override
