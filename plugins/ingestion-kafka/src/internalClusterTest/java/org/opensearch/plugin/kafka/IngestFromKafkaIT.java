@@ -76,7 +76,8 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             refresh("test");
             SearchResponse response = client().prepareSearch("test").setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(1L));
-            PollingIngestStats stats = client().admin().indices().prepareStats("test").get().getIndex("test").getShards()[0].getPollingIngestStats();
+            PollingIngestStats stats = client().admin().indices().prepareStats("test").get().getIndex("test").getShards()[0]
+                .getPollingIngestStats();
             assertNotNull(stats);
             assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(2L));
             assertThat(stats.getConsumerStats().getTotalPolledCount(), is(2L));
