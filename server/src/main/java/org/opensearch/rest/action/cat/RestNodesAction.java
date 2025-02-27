@@ -32,13 +32,13 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.action.admin.cluster.node.Nodes.CatNodesAction;
+import org.opensearch.action.admin.cluster.node.Nodes.CatNodesRequest;
+import org.opensearch.action.admin.cluster.node.Nodes.CatNodesResponse;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
-import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
-import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -46,6 +46,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -69,7 +70,6 @@ import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.script.ScriptStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -81,6 +81,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
+import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
  * _cat API action to get node information
@@ -109,55 +110,34 @@ public class RestNodesAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.clear().nodes(true);
         if (request.hasParam("local")) {
             deprecationLogger.deprecate("cat_nodes_local_parameter", LOCAL_DEPRECATED_MESSAGE);
         }
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.clusterManagerNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
+        final CatNodesRequest catNodesRequest = new CatNodesRequest();
+        catNodesRequest.local(request.paramAsBoolean("local", catNodesRequest.local()));
+        catNodesRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", catNodesRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
+        catNodesRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", NO_TIMEOUT));
+        if (request.hasParam("timeout")) {
+            catNodesRequest.setTimeout(TimeValue.parseTimeValue(request.param("timeout"), "timeout").nanos());
+        }
+
+        parseDeprecatedMasterTimeoutParameter(catNodesRequest, request, deprecationLogger, getName());
         final boolean fullId = request.paramAsBoolean("full_id", false);
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        return channel -> client.execute(CatNodesAction.INSTANCE, catNodesRequest, new RestResponseListener<CatNodesResponse>(channel) {
             @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.timeout(request.param("timeout"));
-                nodesInfoRequest.clear()
-                    .addMetrics(
-                        NodesInfoRequest.Metric.JVM.metricName(),
-                        NodesInfoRequest.Metric.OS.metricName(),
-                        NodesInfoRequest.Metric.PROCESS.metricName(),
-                        NodesInfoRequest.Metric.HTTP.metricName()
-                    );
-                client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
-                    @Override
-                    public void processResponse(final NodesInfoResponse nodesInfoResponse) {
-                        NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.timeout(request.param("timeout"));
-                        nodesStatsRequest.clear()
-                            .indices(true)
-                            .addMetrics(
-                                NodesStatsRequest.Metric.JVM.metricName(),
-                                NodesStatsRequest.Metric.OS.metricName(),
-                                NodesStatsRequest.Metric.FS.metricName(),
-                                NodesStatsRequest.Metric.PROCESS.metricName(),
-                                NodesStatsRequest.Metric.SCRIPT.metricName()
-                            );
-                        nodesStatsRequest.indices().setIncludeIndicesStatsByLevel(true);
-                        client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
-                                return RestTable.buildResponse(
-                                    buildTable(fullId, request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse),
-                                    channel
-                                );
-                            }
-                        });
-                    }
-                });
+            public RestResponse buildResponse(CatNodesResponse response) throws Exception {
+                return RestTable.buildResponse(
+                    buildTable(
+                        fullId,
+                        request,
+                        response.getClusterStateResponse(),
+                        response.getNodesInfoResponse(),
+                        response.getNodesStatsResponse()
+                    ),
+                    channel
+                );
             }
         });
     }
