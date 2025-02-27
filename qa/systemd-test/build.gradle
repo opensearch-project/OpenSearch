@@ -1,0 +1,7 @@
+apply plugin: 'opensearch.standalone-rest-test'
+
+tasks.register("integTest", Test) {
+  include '**/*IT.class'
+}
+
+tasks.named("check").configure { dependsOn "integTest" }
