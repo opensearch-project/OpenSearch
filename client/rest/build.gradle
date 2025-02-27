@@ -75,10 +75,6 @@ tasks.withType(CheckForbiddenApis).configureEach {
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
 }
 
-forbiddenPatterns {
-  exclude '**/*.der'
-}
-
 tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'

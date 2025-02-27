@@ -9,6 +9,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.indices.pollingingest.StreamPoller;
 
 import java.util.Map;
 import java.util.Objects;
@@ -19,10 +20,10 @@ import java.util.Objects;
 @ExperimentalApi
 public class IngestionSource {
     private String type;
-    private String pointerInitReset;
+    private PointerInitReset pointerInitReset;
     private Map<String, Object> params;
 
-    public IngestionSource(String type, String pointerInitReset, Map<String, Object> params) {
+    public IngestionSource(String type, PointerInitReset pointerInitReset, Map<String, Object> params) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
         this.params = params;
@@ -32,7 +33,7 @@ public class IngestionSource {
         return type;
     }
 
-    public String getPointerInitReset() {
+    public PointerInitReset getPointerInitReset() {
         return pointerInitReset;
     }
 
@@ -58,5 +59,45 @@ public class IngestionSource {
     @Override
     public String toString() {
         return "IngestionSource{" + "type='" + type + '\'' + ",pointer_init_reset='" + pointerInitReset + '\'' + ", params=" + params + '}';
+    }
+
+    /**
+     * Class encapsulating the configuration of a pointer initialization.
+     */
+    @ExperimentalApi
+    public static class PointerInitReset {
+        private final StreamPoller.ResetState type;
+        private final String value;
+
+        public PointerInitReset(StreamPoller.ResetState type, String value) {
+            this.type = type;
+            this.value = value;
+        }
+
+        public StreamPoller.ResetState getType() {
+            return type;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PointerInitReset pointerInitReset = (PointerInitReset) o;
+            return Objects.equals(type, pointerInitReset.type) && Objects.equals(value, pointerInitReset.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, value);
+        }
+
+        @Override
+        public String toString() {
+            return "PointerInitReset{" + "type='" + type + '\'' + ", value=" + value + '}';
+        }
     }
 }
