@@ -30,12 +30,12 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
- * The {@link TranslogManager} implementation capable of orchestrating all read/write {@link Translog} operations while
- * interfacing with the {@link org.opensearch.index.engine.InternalEngine}
+ * The {@link TranslogManager} implementation capable of orchestrating all read/write {@link Translog} operations for
+ * the {@link org.opensearch.index.engine.InternalEngine}
  *
  * @opensearch.internal
  */
-public class InternalTranslogManager implements EngineTranslogManager {
+public class InternalTranslogManager implements TranslogManager {
 
     private final ReleasableLock readLock;
     private final LifecycleAware engineLifeCycleAware;

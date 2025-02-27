@@ -18,11 +18,11 @@ import java.util.stream.Stream;
 import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_LOCATION;
 
 /**
- * A no-op {@link TranslogManager} implementation capable of interfacing with the {@link org.opensearch.index.engine.Engine}
+ * A no-op {@link TranslogManager} implementation.
  *
  * @opensearch.internal
  */
-public class NoOpInternalTranslogManager implements EngineTranslogManager {
+public class NoOpInternalTranslogManager implements TranslogManager {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final String translogUUID;
 

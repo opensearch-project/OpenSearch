@@ -22,10 +22,10 @@ import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.translog.EngineTranslogManager;
 import org.opensearch.index.translog.NoOpInternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.indices.pollingingest.DefaultStreamPoller;
 import org.opensearch.indices.pollingingest.StreamPoller;
@@ -268,7 +268,7 @@ public class IngestionEngine extends InternalEngine {
     }
 
     @Override
-    protected EngineTranslogManager createTranslogManager(
+    protected TranslogManager createTranslogManager(
         String translogUUID,
         TranslogDeletionPolicy translogDeletionPolicy,
         CompositeTranslogEventListener translogEventListener

@@ -11,6 +11,7 @@ package org.opensearch.index.translog;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -134,4 +135,40 @@ public class NoOpTranslogManager implements TranslogManager {
     public Translog.TranslogGeneration getTranslogGeneration() {
         return null;
     }
+
+    @Override
+    public long getLastSyncedGlobalCheckpoint() {
+        return 0;
+    }
+
+    @Override
+    public long getMaxSeqNo() {
+        return SequenceNumbers.NO_OPS_PERFORMED;
+    }
+
+    @Override
+    public void trimUnreferencedReaders() throws IOException {}
+
+    @Override
+    public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {
+        return false;
+    }
+
+    @Override
+    public Exception getTragicExceptionIfClosed() {
+        return null;
+    }
+
+    @Override
+    public TranslogDeletionPolicy getDeletionPolicy() {
+        return null;
+    }
+
+    @Override
+    public String getTranslogUUID() {
+        return "";
+    }
+
+    @Override
+    public void close() throws IOException {}
 }

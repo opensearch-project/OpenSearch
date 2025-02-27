@@ -104,7 +104,6 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
-import org.opensearch.index.translog.EngineTranslogManager;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
@@ -156,7 +155,7 @@ public class InternalEngine extends Engine {
      */
     private volatile long lastDeleteVersionPruneTimeMSec;
 
-    protected final EngineTranslogManager translogManager;
+    protected final TranslogManager translogManager;
     protected final IndexWriter indexWriter;
     protected final LocalCheckpointTracker localCheckpointTracker;
     protected final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
@@ -248,7 +247,7 @@ public class InternalEngine extends Engine {
         ExternalReaderManager externalReaderManager = null;
         OpenSearchReaderManager internalReaderManager = null;
         EngineMergeScheduler scheduler = null;
-        EngineTranslogManager translogManagerRef = null;
+        TranslogManager translogManagerRef = null;
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
@@ -352,7 +351,7 @@ public class InternalEngine extends Engine {
         logger.trace("created new InternalEngine");
     }
 
-    protected EngineTranslogManager createTranslogManager(
+    protected TranslogManager createTranslogManager(
         String translogUUID,
         TranslogDeletionPolicy translogDeletionPolicy,
         CompositeTranslogEventListener translogEventListener
