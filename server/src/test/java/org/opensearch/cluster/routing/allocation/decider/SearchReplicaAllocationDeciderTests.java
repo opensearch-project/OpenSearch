@@ -148,6 +148,50 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
         assertEquals(decision.toString(), Decision.Type.YES, decision.type());
     }
 
+    public void testSearchReplicaRoutingDedicatedIncludesIsNull() {
+        Set<Setting<?>> settings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settings.add(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), settings);
+        Settings initialSettings = Settings.builder().build();
+        SearchReplicaAllocationDecider filterAllocationDecider = new SearchReplicaAllocationDecider(initialSettings, clusterSettings);
+
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
+            Arrays.asList(
+                filterAllocationDecider,
+                new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+                new ReplicaAfterPrimaryActiveAllocationDecider()
+            )
+        );
+        AllocationService service = new AllocationService(
+            allocationDeciders,
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        ClusterState state = FilterAllocationDeciderTests.createInitialClusterState(service, Settings.EMPTY, Settings.EMPTY);
+        RoutingTable routingTable = state.routingTable();
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
+        allocation.debugDecision(true);
+
+        ShardRouting searchReplica = ShardRouting.newUnassigned(
+            routingTable.index("sourceIndex").shard(0).shardId(),
+            false,
+            true,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "")
+        );
+
+        Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            searchReplica,
+            state.getRoutingNodes().node("node2"),
+            allocation
+        );
+        assertEquals(decision.toString(), Decision.Type.NO, decision.type());
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(searchReplica, state.getRoutingNodes().node("node1"), allocation);
+        assertEquals(decision.toString(), Decision.Type.NO, decision.type());
+    }
+
     public void testSearchReplicaWithThrottlingDecider_PrimaryBasedReplication() {
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         // throttle outgoing on primary

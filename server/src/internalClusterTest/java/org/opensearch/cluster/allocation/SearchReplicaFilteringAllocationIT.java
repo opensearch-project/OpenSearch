@@ -115,9 +115,42 @@ public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTest
         assertEquals(1, routingTable.searchOnlyReplicas().stream().filter(ShardRouting::unassigned).count());
     }
 
+    public void testSearchReplicaDedicatedIncludes_WhenNotSetDoNotAssign() {
+        List<String> nodesIds = internalCluster().startNodes(2);
+        final String node_0 = nodesIds.get(0);
+        final String node_1 = nodesIds.get(1);
+        assertEquals(2, cluster().size());
+
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build()
+        );
+        ensureYellowAndNoInitializingShards("test");
+        IndexShardRoutingTable routingTable = getRoutingTable();
+        assertNull(routingTable.searchOnlyReplicas().get(0).currentNodeId());
+
+        String primaryAssignedNodeName = getNodeName(routingTable.primaryShard().currentNodeId());
+        String emptyAllowedNode = primaryAssignedNodeName.equals(node_0) ? node_1 : node_0;
+
+        // set search only role on another node where primary not assigned
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", emptyAllowedNode))
+            .execute()
+            .actionGet();
+
+        ensureGreen("test");
+        assertEquals(emptyAllowedNode, getNodeName(getRoutingTable().searchOnlyReplicas().get(0).currentNodeId()));
+    }
+
     private IndexShardRoutingTable getRoutingTable() {
-        IndexShardRoutingTable routingTable = getClusterState().routingTable().index("test").getShards().get(0);
-        return routingTable;
+        return getClusterState().routingTable().index("test").getShards().get(0);
     }
 
     private String getNodeName(String id) {
