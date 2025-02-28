@@ -50,11 +50,11 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Locale;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-
 public class SystemdIT extends OpenSearchIntegTestCase {
 
     private static String opensearchPid;
@@ -167,7 +167,7 @@ public class SystemdIT extends OpenSearchIntegTestCase {
 
         String scriptPath;
         try {
-            scriptPath = getClass().getResource("/scripts/terminate.sh").toURI().getPath();
+            scriptPath = SystemdIT.class.getResource("/scripts/terminate.sh").toURI().getPath();
         } catch (URISyntaxException e) {
             throw new RuntimeException("Failed to convert URL to URI", e);
         }
