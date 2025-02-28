@@ -90,7 +90,7 @@ public class DateFormatters {
     private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder().appendValue(
         ChronoField.YEAR,
         4,
-        10,
+        4,
         SignStyle.EXCEEDS_PAD
     )
         .optionalStart()
