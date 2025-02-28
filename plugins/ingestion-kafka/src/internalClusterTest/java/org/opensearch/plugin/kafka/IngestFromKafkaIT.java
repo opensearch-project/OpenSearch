@@ -16,6 +16,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Assert;
@@ -75,6 +76,11 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             refresh("test");
             SearchResponse response = client().prepareSearch("test").setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(1L));
+            PollingIngestStats stats = client().admin().indices().prepareStats("test").get().getIndex("test").getShards()[0]
+                .getPollingIngestStats();
+            assertNotNull(stats);
+            assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(2L));
+            assertThat(stats.getConsumerStats().getTotalPolledCount(), is(2L));
         });
     }
 
