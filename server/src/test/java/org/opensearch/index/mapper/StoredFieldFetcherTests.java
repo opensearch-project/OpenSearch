@@ -8,18 +8,24 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.index.*;
-import org.junit.Before;
-import org.junit.Test;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.fieldvisitor.SingleFieldsVisitor;
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -31,21 +37,20 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class StoredFieldFetcherTests {
+public class StoredFieldFetcherTests extends OpenSearchTestCase {
     private StoredFieldFetcher fetcher;
     private MappedFieldType mappedFieldType;
     private LeafReader leafReader;
     private StoredFields storedFields;
 
     @Before
-    public void setUp() {
+    public void setupTest() {
         mappedFieldType = mock(MappedFieldType.class);
         leafReader = mock(LeafReader.class);
         storedFields = mock(StoredFields.class);
         fetcher = new StoredFieldFetcher(mappedFieldType);
     }
 
-    @Test
     public void testFetchStoredField() throws IOException {
         int docId = 1;
         when(leafReader.storedFields()).thenReturn(storedFields);
@@ -57,17 +62,14 @@ public class StoredFieldFetcherTests {
         verify(storedFields).document(eq(docId), any(SingleFieldsVisitor.class));
     }
 
-    @Test
     public void testFetchThrowsIOException() throws IOException {
         int docId = 1;
         when(leafReader.storedFields()).thenReturn(storedFields);
-        doThrow(new IOException("Test exception"))
-            .when(storedFields).document(eq(docId), any(SingleFieldsVisitor.class));
+        doThrow(new IOException("Test exception")).when(storedFields).document(eq(docId), any(SingleFieldsVisitor.class));
 
         assertThrows(IOException.class, () -> fetcher.fetch(leafReader, docId));
     }
 
-    @Test
     public void testMultipleFetchCalls() throws IOException {
         int docId1 = 1;
         int docId2 = 2;
@@ -81,23 +83,37 @@ public class StoredFieldFetcherTests {
         verify(storedFields).document(eq(docId2), any(SingleFieldsVisitor.class));
     }
 
-    @Test
     public void testNullStoredFields() throws IOException {
         when(leafReader.storedFields()).thenReturn(null);
 
         assertThrows(NullPointerException.class, () -> fetcher.fetch(leafReader, 1));
     }
 
-    @Test
     public void testWriteSingleValue() throws IOException {
         int docId = 1;
         when(mappedFieldType.name()).thenReturn("test_field");
         when(mappedFieldType.valueForDisplay("123")).thenReturn("123");
         when(leafReader.storedFields()).thenReturn(storedFields);
-        FieldInfo mockFieldInfo = new FieldInfo("test_field", 1, false, false,
-            true, IndexOptions.NONE, DocValuesType.NONE, DocValuesSkipIndexType.NONE, -1, Collections.emptyMap(), 0,
-            0, 0, 0, VectorEncoding.FLOAT32, VectorSimilarityFunction.EUCLIDEAN,
-            false, false);
+        FieldInfo mockFieldInfo = new FieldInfo(
+            "test_field",
+            1,
+            false,
+            false,
+            true,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
         doAnswer(invocation -> {
             SingleFieldsVisitor visitor = invocation.getArgument(1);
             visitor.stringField(mockFieldInfo, "123");
@@ -115,16 +131,31 @@ public class StoredFieldFetcherTests {
         assertEquals(expected, builder.toString());
     }
 
-    @Test
     public void testWriteMultiValue() throws IOException {
         int docId = 1;
         when(mappedFieldType.name()).thenReturn("test_field");
         when(mappedFieldType.valueForDisplay(anyString())).thenReturn("1", "2", "3");
         when(leafReader.storedFields()).thenReturn(storedFields);
-        FieldInfo mockFieldInfo = new FieldInfo("test_field", 1, false, false,
-            true, IndexOptions.NONE, DocValuesType.NONE, DocValuesSkipIndexType.NONE, -1, Collections.emptyMap(), 0,
-            0, 0, 0, VectorEncoding.FLOAT32, VectorSimilarityFunction.EUCLIDEAN,
-            false, false);
+        FieldInfo mockFieldInfo = new FieldInfo(
+            "test_field",
+            1,
+            false,
+            false,
+            true,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
         doAnswer(invocation -> {
             SingleFieldsVisitor visitor = invocation.getArgument(1);
             visitor.stringField(mockFieldInfo, "1");

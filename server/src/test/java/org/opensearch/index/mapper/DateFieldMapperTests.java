@@ -32,17 +32,17 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -381,10 +381,8 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testDeriveSource_WhenStoredFieldEnabled() throws IOException {
         MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "date")
-                .field("format", "strict_date_time_no_millis")
-                .field("doc_values", false)
-                .field("store", true)
+            fieldMapping(
+                b -> b.field("type", "date").field("format", "strict_date_time_no_millis").field("doc_values", false).field("store", true)
             )
         );
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
@@ -429,10 +427,8 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testDeriveSource_WhenStoredFieldEnabledWithMultiValue() throws IOException {
         MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "date")
-                .field("format", "strict_date_time_no_millis")
-                .field("doc_values", false)
-                .field("store", true)
+            fieldMapping(
+                b -> b.field("type", "date").field("format", "strict_date_time_no_millis").field("doc_values", false).field("store", true)
             )
         );
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
@@ -476,10 +472,8 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testDeriveSource_WhenDocValuesEnabled() throws IOException {
         MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "date")
-                .field("format", "strict_date_time_no_millis")
-                .field("store", false)
-                .field("doc_values", true)
+            fieldMapping(
+                b -> b.field("type", "date").field("format", "strict_date_time_no_millis").field("store", false).field("doc_values", true)
             )
         );
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
@@ -500,10 +494,8 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testDeriveSource_WhenDocValuesEnabledWithMultiValue() throws IOException {
         MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "date")
-                .field("format", "strict_date_time_no_millis")
-                .field("store", false)
-                .field("doc_values", true)
+            fieldMapping(
+                b -> b.field("type", "date").field("format", "strict_date_time_no_millis").field("store", false).field("doc_values", true)
             )
         );
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
@@ -514,9 +506,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         when(leafReader.getSortedNumericDocValues("field")).thenReturn(docValues);
         when(docValues.advanceExact(0)).thenReturn(true);
         when(docValues.docValueCount()).thenReturn(2);
-        when(docValues.nextValue())
-            .thenReturn(TEST_TIMESTAMP)
-            .thenReturn(TEST_TIMESTAMP + 3600000L); // One Hour Later
+        when(docValues.nextValue()).thenReturn(TEST_TIMESTAMP).thenReturn(TEST_TIMESTAMP + 3600000L); // One Hour Later
 
         dateFieldMapper.deriveSource(builder, leafReader, 0);
         builder.endObject();
@@ -526,10 +516,8 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testDeriveSource_NoValue() throws IOException {
         MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "date")
-                .field("format", "strict_date_time_no_millis")
-                .field("store", false)
-                .field("doc_values", true)
+            fieldMapping(
+                b -> b.field("type", "date").field("format", "strict_date_time_no_millis").field("store", false).field("doc_values", true)
             )
         );
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");

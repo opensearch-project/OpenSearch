@@ -10,23 +10,21 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class SortedNumericDocValuesFetcherTests {
+public class SortedNumericDocValuesFetcherTests extends OpenSearchTestCase {
     private MappedFieldType mappedFieldType;
     private LeafReader leafReader;
     private SortedNumericDocValues sortedNumericDocValues;
@@ -34,14 +32,13 @@ public class SortedNumericDocValuesFetcherTests {
     private SortedNumericDocValuesFetcher fetcher;
 
     @Before
-    public void setUp() {
+    public void setupTest() {
         mappedFieldType = mock(MappedFieldType.class);
         leafReader = mock(LeafReader.class);
         sortedNumericDocValues = mock(SortedNumericDocValues.class);
         fetcher = new SortedNumericDocValuesFetcher(mappedFieldType);
     }
 
-    @Test
     public void testFetchSingleValue() throws IOException {
         int docId = 1;
         long expectedValue = 123L;
@@ -58,18 +55,14 @@ public class SortedNumericDocValuesFetcherTests {
         assertEquals(expectedValue, fetcher.values.getFirst());
     }
 
-    @Test
     public void testFetchMultipleValues() throws IOException {
         int docId = 1;
-        long[] expectedValues = {1L, 2L, 3L};
+        long[] expectedValues = { 1L, 2L, 3L };
         when(mappedFieldType.name()).thenReturn("test_field");
         when(leafReader.getSortedNumericDocValues("test_field")).thenReturn(sortedNumericDocValues);
         when(sortedNumericDocValues.advanceExact(docId)).thenReturn(true);
         when(sortedNumericDocValues.docValueCount()).thenReturn(expectedValues.length);
-        when(sortedNumericDocValues.nextValue())
-            .thenReturn(expectedValues[0])
-            .thenReturn(expectedValues[1])
-            .thenReturn(expectedValues[2]);
+        when(sortedNumericDocValues.nextValue()).thenReturn(expectedValues[0]).thenReturn(expectedValues[1]).thenReturn(expectedValues[2]);
 
         fetcher.fetch(leafReader, docId);
 
@@ -80,7 +73,6 @@ public class SortedNumericDocValuesFetcherTests {
         }
     }
 
-    @Test
     public void testFetchNoValues() throws IOException {
         int docId = 1;
         when(mappedFieldType.name()).thenReturn("test_field");
@@ -94,7 +86,6 @@ public class SortedNumericDocValuesFetcherTests {
         Assert.assertTrue(fetcher.values.isEmpty());
     }
 
-    @Test
     public void testConvert() {
         Long value = 123L;
         String expectedDisplayValue = "123";
@@ -106,7 +97,6 @@ public class SortedNumericDocValuesFetcherTests {
         verify(mappedFieldType).valueForDisplay(value);
     }
 
-    @Test
     public void testWriteSingleValue() throws IOException {
         Long value = 123L;
         fetcher.values.add(value);
@@ -122,9 +112,8 @@ public class SortedNumericDocValuesFetcherTests {
         assertEquals(expected, builder.toString());
     }
 
-    @Test
     public void testWriteMultipleValues() throws IOException {
-        Long[] values = {1L, 2L, 3L};
+        Long[] values = { 1L, 2L, 3L };
         fetcher.values.addAll(Arrays.asList(values));
         when(mappedFieldType.name()).thenReturn("test_field");
         when(mappedFieldType.valueForDisplay(anyLong())).thenReturn(1, 2, 3);
@@ -138,7 +127,6 @@ public class SortedNumericDocValuesFetcherTests {
         assertEquals(expected, builder.toString());
     }
 
-    @Test
     public void testClear() {
         fetcher.values.add(1L);
         fetcher.values.add(2L);
@@ -150,7 +138,6 @@ public class SortedNumericDocValuesFetcherTests {
         Assert.assertTrue(fetcher.values.isEmpty());
     }
 
-    @Test
     public void testFetchThrowsIOException() throws IOException {
         int docId = 1;
         when(mappedFieldType.name()).thenReturn("test_field");

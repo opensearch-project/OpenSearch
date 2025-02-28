@@ -440,7 +440,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, true);
         }
 
-
         public DateFieldType(String name) {
             this(name, true, false, true, getDefaultDateTimeFormatter(), Resolution.MILLISECONDS, null, Collections.emptyMap());
         }
