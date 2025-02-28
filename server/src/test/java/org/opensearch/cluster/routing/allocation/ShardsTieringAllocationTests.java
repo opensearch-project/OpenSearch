@@ -29,7 +29,7 @@ public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase 
 
     @Before
     public void setup() {
-        FeatureFlagSetter.set(FeatureFlags.TIERED_REMOTE_INDEX);
+        FeatureFlagSetter.set(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG);
     }
 
     public void testShardsInLocalPool() {
