@@ -578,7 +578,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
     /**
      * Parses plugin-permissions.yml file.
      */
-    @SuppressWarnings("removal")
     public static Settings parseRequestedActions(Path file) throws IOException {
         return Settings.builder().loadFromPath(file).build();
     }
