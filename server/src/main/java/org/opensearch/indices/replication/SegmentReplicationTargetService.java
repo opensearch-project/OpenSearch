@@ -397,18 +397,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
         }
         ShardRouting primaryShard = clusterService.state().routingTable().shardRoutingTable(replicaShard.shardId()).primaryShard();
 
-        // Skip update if primary shard is null (which happens in search_only mode)
-        if (primaryShard == null) {
-            logger.debug(
-                () -> new ParameterizedMessage(
-                    "Skipping visible checkpoint update for replica {}-{} as primary shard is null (index in search_only mode)",
-                    replicaShard.shardId(),
-                    replicaShard.routingEntry().allocationId()
-                )
-            );
-            return;
-        }
-
         final UpdateVisibleCheckpointRequest request = new UpdateVisibleCheckpointRequest(
             replicationId,
             replicaShard.routingEntry().allocationId().getId(),
