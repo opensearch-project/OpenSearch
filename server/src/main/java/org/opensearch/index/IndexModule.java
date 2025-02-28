@@ -145,7 +145,7 @@ public final class IndexModule {
     );
 
     /**
-     * Index setting which used to determine how the data is cached locally fully or partially
+     * Index setting which used to determine how the data is cached locally fully or partially.
      */
     public static final Setting<DataLocalityType> INDEX_STORE_LOCALITY_SETTING = new Setting<>(
         "index.store.data_locality",

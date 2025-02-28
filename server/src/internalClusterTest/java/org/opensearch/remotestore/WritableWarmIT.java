@@ -63,7 +63,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     @Override
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
-        featureSettings.put(FeatureFlags.TIERED_REMOTE_INDEX, true);
+        featureSettings.put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true);
         return featureSettings.build();
     }
 
@@ -77,7 +77,11 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     }
 
     public void testWritableWarmFeatureFlagDisabled() {
-        Settings clusterSettings = Settings.builder().put(super.nodeSettings(0)).put(FeatureFlags.TIERED_REMOTE_INDEX, false).build();
+        Settings clusterSettings = Settings.builder()
+            .put(super.nodeSettings(0))
+            .put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, false)
+            .build();
+
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
         internalTestCluster.startDataAndSearchNodes(1);
