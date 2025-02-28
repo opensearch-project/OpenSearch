@@ -25,7 +25,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.opensearch.lucene.util.LongHashSet;
+import org.opensearch.lucene.util.UnsignedLongHashSet;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -40,12 +40,12 @@ import java.util.Objects;
 public abstract class SortedUnsignedLongDocValuesSetQuery extends Query {
 
     private final String field;
-    private final LongHashSet numbers;
+    private final UnsignedLongHashSet numbers;
 
     SortedUnsignedLongDocValuesSetQuery(String field, BigInteger[] numbers) {
         this.field = Objects.requireNonNull(field);
         Arrays.sort(numbers);
-        this.numbers = new LongHashSet(Arrays.stream(numbers).mapToLong(n -> n.longValue()).toArray());
+        this.numbers = new UnsignedLongHashSet(Arrays.stream(numbers).mapToLong(n -> n.longValue()).toArray());
     }
 
     @Override
