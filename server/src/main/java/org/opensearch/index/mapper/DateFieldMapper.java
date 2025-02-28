@@ -38,9 +38,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.StoredFields;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -58,12 +55,10 @@ import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.opensearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -79,7 +74,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -249,38 +243,20 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
      *        "format"
      */
     @Override
-    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
-        super.deriveSource(builder, leafReader, docId);
-        if (mappedFieldType.hasDocValues()) {
-            SortedNumericDocValues sortedNumericDocValues = leafReader.getSortedNumericDocValues(name());
-            if (sortedNumericDocValues != null && sortedNumericDocValues.advanceExact(docId)) {
-                int valueCount = sortedNumericDocValues.docValueCount();
-                if (valueCount > 0) {
-                    String[] values = new String[valueCount];
-                    DateFormatter dateFormatter = fieldType().dateTimeFormatter;
-                    for (int i = 0; i < valueCount; i++) {
-                        values[i] = dateFormatter.formatMillis(sortedNumericDocValues.nextValue());
-                    }
-                    if (valueCount > 1) {
-                        builder.array(name(), values);
-                    } else {
-                        builder.field(name(), values[0]);
-                    }
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        DerivedFieldGenerator generator = new DerivedFieldGenerator(mappedFieldType);
+        generator.registerFieldValueFetcher(FieldValueType.DOC_VALUES, new SortedNumericDocValuesFetcher(mappedFieldType) {
+            @Override
+            public Object convert(Object value) {
+                Long val = (Long) value;
+                if (val == null) {
+                    return null;
                 }
+                return fieldType().dateTimeFormatter().formatMillis(val);
             }
-        } else if (mappedFieldType.isStored()) {
-            List<Object> values = new ArrayList<>();
-            SingleFieldsVisitor singleFieldsVisitor = new SingleFieldsVisitor(mappedFieldType, values);
-            StoredFields storedFields = leafReader.storedFields();
-            storedFields.document(docId, singleFieldsVisitor);
-            if (!values.isEmpty()) {
-                if (values.size() > 1) {
-                    builder.array(name(), values.toArray());
-                } else {
-                    builder.field(name(), values.getFirst());
-                }
-            }
-        }
+        });
+        generator.registerFieldValueFetcher(FieldValueType.STORED, new StoredFieldFetcher(mappedFieldType));
+        return generator;
     }
 
     @Override
@@ -461,7 +437,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             String nullValue,
             Map<String, String> meta
         ) {
-            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, false);
+            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, true);
         }
 
 
