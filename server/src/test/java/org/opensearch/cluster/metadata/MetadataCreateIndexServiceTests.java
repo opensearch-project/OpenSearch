@@ -155,6 +155,7 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.cluster
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_MERGE_POLICY;
@@ -2546,6 +2547,96 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                     .contains("Cannot apply context template as user provide settings have overlap with the included context template")
             );
         });
+    }
+
+    public void testIndexTotalPrimaryShardsPerNodeSettingValidationWithRemoteStore() {
+        // Test case where setting is used with remote store enabled (should succeed)
+        Settings settings = Settings.builder().build();
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+
+        final Settings.Builder requestSettings = Settings.builder()
+            // Enable remote store
+            .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            // Set primary shards per node to valid value
+            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 2)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
+
+        request.settings(requestSettings.build());
+
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        // Verify that the value is the same as set earlier and validation was successful
+        assertEquals(Integer.valueOf(2), INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings));
+    }
+
+    public void testIndexTotalPrimaryShardsPerNodeSettingValidationWithoutRemoteStore() {
+        // Test case where setting is used without remote store (should fail)
+        Settings settings = Settings.builder().build();
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+
+        final Settings.Builder requestSettings = Settings.builder()
+            // Remote store not enabled
+            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 2)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
+
+        request.settings(requestSettings.build());
+
+        // Expect IllegalArgumentException
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                settings,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet(),
+                clusterSettings
+            )
+        );
+
+        // Verify error message
+        assertEquals(
+            "Setting [index.routing.allocation.total_primary_shards_per_node] can only be used with remote store enabled clusters",
+            exception.getMessage()
+        );
+    }
+
+    public void testIndexTotalPrimaryShardsPerNodeSettingValidationWithDefaultValue() {
+        // Test case with default value (-1) without remote store (should succeed)
+        Settings settings = Settings.builder().build();
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+
+        final Settings.Builder requestSettings = Settings.builder().put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1);
+
+        request.settings(requestSettings.build());
+
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        // Verify that default value passes validation
+        assertEquals(Integer.valueOf(-1), INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

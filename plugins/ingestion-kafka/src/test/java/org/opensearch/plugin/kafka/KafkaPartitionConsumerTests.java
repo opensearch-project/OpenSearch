@@ -90,6 +90,22 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         assertEquals(10L, offset.getOffset());
     }
 
+    public void testPointerFromTimestampMillis() {
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        when(mockConsumer.offsetsForTimes(Collections.singletonMap(topicPartition, 1000L))).thenReturn(
+            Collections.singletonMap(topicPartition, new org.apache.kafka.clients.consumer.OffsetAndTimestamp(5L, 1000L))
+        );
+
+        KafkaOffset offset = (KafkaOffset) consumer.pointerFromTimestampMillis(1000);
+
+        assertEquals(5L, offset.getOffset());
+    }
+
+    public void testPointerFromOffset() {
+        KafkaOffset offset = new KafkaOffset(5L);
+        assertEquals(5L, offset.getOffset());
+    }
+
     public void testTopicDoesNotExist() {
         Map<String, Object> params = new HashMap<>();
         params.put("topic", "non-existent-topic");
