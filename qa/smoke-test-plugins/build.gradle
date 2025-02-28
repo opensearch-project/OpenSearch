@@ -29,7 +29,6 @@
  */
 
 import org.opensearch.gradle.MavenFilteringHack
-import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
@@ -40,10 +39,6 @@ int pluginsCount = 0
 
 testClusters.integTest {
   project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-    if (BuildParams.inFipsJvm && pluginName == "ingest-attachment"){
-      //Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle
-      return
-    }
     plugin pluginProject.path
     pluginsCount += 1
   }

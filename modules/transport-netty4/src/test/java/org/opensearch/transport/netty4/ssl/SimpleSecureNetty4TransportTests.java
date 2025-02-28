@@ -13,6 +13,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.ssl.KeyStoreFactory;
+import org.opensearch.common.ssl.KeyStoreType;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.net.NetUtils;
@@ -77,9 +79,11 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
             @Override
             public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, Transport transport) throws SSLException {
                 try {
-                    final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+                    var keyStoreType = inFipsJvm() ? KeyStoreType.BCFKS : KeyStoreType.JKS;
+                    var fileExtension = KeyStoreType.TYPE_TO_EXTENSION_MAP.get(keyStoreType).get(0);
+                    final KeyStore keyStore = KeyStoreFactory.getInstance(keyStoreType);
                     keyStore.load(
-                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure.jks"),
+                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure" + fileExtension),
                         "password".toCharArray()
                     );
 
