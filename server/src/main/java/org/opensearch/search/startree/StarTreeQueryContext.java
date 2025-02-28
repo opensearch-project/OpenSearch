@@ -21,6 +21,7 @@ import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.StarTreeFilter;
@@ -113,6 +114,13 @@ public class StarTreeQueryContext {
             if (validateDateHistogramSupport(compositeMappedFieldType, aggregatorFactory)) {
                 continue;
             }
+
+            // validation for terms aggregation
+            if (validateKeywordTermsAggregationSupport(compositeMappedFieldType, aggregatorFactory)) {
+                continue;
+            }
+
+            // invalid query shape
             return false;
         }
 
@@ -149,6 +157,31 @@ public class StarTreeQueryContext {
             return field != null && supportedMetrics.containsKey(field) && supportedMetrics.get(field).contains(metricStat);
         }
         return false;
+    }
+
+    private static boolean validateKeywordTermsAggregationSupport(
+        CompositeDataCubeFieldType compositeIndexFieldInfo,
+        AggregatorFactory aggregatorFactory
+    ) {
+        if (!(aggregatorFactory instanceof TermsAggregatorFactory termsAggregatorFactory)) {
+            return false;
+        }
+
+        // Validate request field is part of dimensions
+        if (compositeIndexFieldInfo.getDimensions()
+            .stream()
+            .map(Dimension::getField)
+            .noneMatch(termsAggregatorFactory.getField()::equals)) {
+            return false;
+        }
+
+        // Validate all sub-factories
+        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
+            if (!validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private StarTreeFilter getStarTreeFilter(

@@ -33,18 +33,14 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
@@ -192,9 +188,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
-            if (preComputeWithStarTree(ctx, supportedStarTree) == true) {
-                return true;
-            }
+            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+            return true;
         }
         return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
     }
@@ -268,6 +264,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     ) throws IOException {
         assert parentCollector == null;
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+            .getDimensionValuesIterator(starTreeDateDimension);
+        SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
+
         return new StarTreeBucketCollector(
             starTreeValues,
             StarTreeTraversalUtil.getStarTreeResult(
@@ -287,17 +287,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 }
             }
 
-            SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
-                .getDimensionValuesIterator(starTreeDateDimension);
-
-            String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-                starTree.getField(),
-                "_doc_count",
-                MetricStat.DOC_COUNT.getTypeName()
-            );
-            SortedNumericStarTreeValuesIterator docCountsIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
-                .getMetricValuesIterator(metricName);
-
             @Override
             public void collectStarTreeEntry(int starTreeEntry, long owningBucketOrd) throws IOException {
                 if (!valuesIterator.advanceExact(starTreeEntry)) {
@@ -311,15 +300,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
                     if (docCountsIterator.advanceExact(starTreeEntry)) {
                         long metricValue = docCountsIterator.nextValue();
-
                         long bucketOrd = bucketOrds.add(owningBucketOrd, dimensionValue);
-                        if (bucketOrd < 0) {
-                            bucketOrd = -1 - bucketOrd;
-                            collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
-                        } else {
-                            grow(bucketOrd + 1);
-                            collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
-                        }
+                        collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
                     }
                 }
             }
@@ -392,21 +374,5 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         } else {
             return 1.0;
         }
-    }
-
-    private boolean preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
-        FixedBitSet matchingDocsBitSet = starTreeBucketCollector.getMatchingDocsBitSet();
-
-        int numBits = matchingDocsBitSet.length();
-
-        if (numBits > 0) {
-            for (int bit = matchingDocsBitSet.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
-                ? matchingDocsBitSet.nextSetBit(bit + 1)
-                : DocIdSetIterator.NO_MORE_DOCS) {
-                starTreeBucketCollector.collectStarTreeEntry(bit, 0);
-            }
-        }
-        return true;
     }
 }
