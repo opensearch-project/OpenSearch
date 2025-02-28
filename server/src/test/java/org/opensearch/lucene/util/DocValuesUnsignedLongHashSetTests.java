@@ -17,7 +17,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-public class TestDocValuesUnsignedLongHashSet extends LuceneTestCase {
+public class DocValuesUnsignedLongHashSetTests extends LuceneTestCase {
 
     private void assertEquals(Set<Long> set1, UnsignedLongHashSet unsignedLongHashSet) {
         assertEquals(set1.size(), unsignedLongHashSet.size());
