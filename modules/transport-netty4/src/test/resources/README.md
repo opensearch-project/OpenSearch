@@ -20,7 +20,7 @@ keytool -importkeystore -noprompt \
     -srcstoretype PKCS12 \
     -srcstorepass password \
     -alias netty4-secure \
-    -destkeystore netty4-secure.jks \ 
+    -destkeystore netty4-secure.jks \
     -deststoretype JKS \
     -deststorepass password
 ```

@@ -80,7 +80,7 @@ public class PemTrustConfigTests extends OpenSearchTestCase {
         final Path ca = createTempFile("ca", ".crt");
         final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca));
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ca));
-        assertEmptyFile(trustConfig, ca);
+        assertFailedToParse(trustConfig, ca);
     }
 
     public void testMissingFileFailsWithMeaningfulMessage() throws Exception {

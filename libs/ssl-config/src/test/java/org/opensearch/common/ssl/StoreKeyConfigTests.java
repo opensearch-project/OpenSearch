@@ -183,7 +183,7 @@ public class StoreKeyConfigTests extends OpenSearchTestCase {
     }
 
     public void testKeyConfigReloadsFileContents() throws Exception {
-        assumeFalse("Can't use PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path cert1 = getDataPath("/certs/cert1/cert1.p12");
         final Path cert2 = getDataPath("/certs/cert2/cert2.p12");
         final Path jks = getDataPath("/certs/cert-all/certs.jks");

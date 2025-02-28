@@ -71,7 +71,7 @@ final class PemUtils {
      * encoded formats of encrypted and plaintext RSA, DSA and EC(secp256r1) keys.
      *
      * @param keyPath           the path for the key file
-     * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
+     * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key. Unencrypted keys ignore this value.
      * @return a private key from the contents of the file
      */
     public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException, PKCSException {
