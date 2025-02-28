@@ -38,8 +38,8 @@ public interface IdentityPlugin {
      * Gets a subject corresponding to the passed plugin that can be utilized to perform transport actions
      * in the plugin system context
      *
-     * @param plugin The corresponding plugin
+     * @param pluginInfo The corresponding pluginInfo
      * @return Subject corresponding to the plugin
      */
-    PluginSubject getPluginSubject(Plugin plugin);
+    PluginSubject getPluginSubject(PluginInfo pluginInfo);
 }
