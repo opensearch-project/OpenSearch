@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -213,6 +214,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected MappedFieldType mappedFieldType;
     protected MultiFields multiFields;
     protected CopyTo copyTo;
+    protected DerivedFieldGenerator derivedFieldGenerator;
 
     protected FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
@@ -224,6 +226,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.mappedFieldType = mappedFieldType;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
+        if (mappedFieldType.isDerivedSourceSupported()) {
+            this.derivedFieldGenerator = derivedFieldGenerator();
+        }
     }
 
     @Override
@@ -570,6 +575,34 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected abstract String contentType();
+
+    /**
+     * Method to create derived source generator for this field mapper, it is illegal to enable the
+     * derived source feature and not implement this method for a field mapper
+     */
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        throw new UnsupportedOperationException("Derived source generator is not defined for [" + name() + "] field");
+    }
+
+    /**
+     * Method to determine, if it is possible to derive source for this field using field mapping parameters
+     */
+    public void canDeriveSource() {
+        if (!mappedFieldType.isDerivedSourceSupported()) throw new UnsupportedOperationException(
+            "Derived source field is not supported for [" + name() + "] field"
+        );
+    }
+
+    /**
+     * Method used for deriving source and building it to XContentBuilder object
+     * @param builder - builder to store the derived source filed
+     * @param leafReader - leafReader to read data from
+     * @param docId - docId for which we want to derive the source
+     */
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        canDeriveSource();
+        derivedFieldGenerator.generate(builder, leafReader, docId);
+    }
 
     /**
      * Multi field implementation used across field mappers
