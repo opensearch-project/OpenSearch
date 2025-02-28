@@ -899,6 +899,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         return deletionPolicy;
     }
 
+    public static final Translog.Location EMPTY_TRANSLOG_LOCATION = new Translog.Location(0, 0, 0);
+
     /**
      * Location in the translot
      *

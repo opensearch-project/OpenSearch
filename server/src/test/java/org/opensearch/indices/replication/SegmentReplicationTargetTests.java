@@ -177,6 +177,9 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 logger.error("Unexpected onFailure", e);
                 Assert.fail();
             }
+        }, (ReplicationCheckpoint checkpoint, IndexShard indexShard) -> {
+            assertEquals(repCheckpoint, checkpoint);
+            assertEquals(indexShard, spyIndexShard);
         });
     }
 
@@ -230,7 +233,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 assertEquals(exception, e.getCause().getCause());
                 segrepTarget.fail(new ReplicationFailedException(e), false);
             }
-        });
+        }, mock(BiConsumer.class));
     }
 
     public void testFailureResponse_getSegmentFiles() {
@@ -283,7 +286,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 assertEquals(exception, e.getCause().getCause());
                 segrepTarget.fail(new ReplicationFailedException(e), false);
             }
-        });
+        }, mock(BiConsumer.class));
     }
 
     public void testFailure_finalizeReplication_NonCorruptionException() throws IOException {
@@ -330,7 +333,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 assertEquals(exception, e.getCause());
                 segrepTarget.fail(new ReplicationFailedException(e), false);
             }
-        });
+        }, mock(BiConsumer.class));
     }
 
     public void testFailure_finalizeReplication_IndexFormatException() throws IOException {
@@ -376,7 +379,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 assertEquals(exception, e.getCause());
                 segrepTarget.fail(new ReplicationFailedException(e), false);
             }
-        });
+        }, mock(BiConsumer.class));
     }
 
     public void testFailure_differentSegmentFiles() throws IOException {
@@ -429,7 +432,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 assertTrue(e.getMessage().contains("has local copies of segments that differ from the primary"));
                 segrepTarget.fail(new ReplicationFailedException(e), false);
             }
-        });
+        }, mock(BiConsumer.class));
     }
 
     /**
@@ -483,7 +486,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 logger.error("Unexpected onFailure", e);
                 Assert.fail();
             }
-        });
+        }, mock(BiConsumer.class));
     }
 
     /**

@@ -20,6 +20,13 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class RemoteSegmentMetadataHandler implements IndexIOStreamHandler<RemoteSegmentMetadata> {
+
+    private final int version;
+
+    public RemoteSegmentMetadataHandler(int version) {
+        this.version = version;
+    }
+
     /**
      * Reads metadata content from metadata file input stream and parsed into {@link RemoteSegmentMetadata}
      * @param indexInput metadata file input stream with {@link IndexInput#getFilePointer()} pointing to metadata content
@@ -27,7 +34,7 @@ public class RemoteSegmentMetadataHandler implements IndexIOStreamHandler<Remote
      */
     @Override
     public RemoteSegmentMetadata readContent(IndexInput indexInput) throws IOException {
-        return RemoteSegmentMetadata.read(indexInput);
+        return RemoteSegmentMetadata.read(indexInput, version);
     }
 
     /**

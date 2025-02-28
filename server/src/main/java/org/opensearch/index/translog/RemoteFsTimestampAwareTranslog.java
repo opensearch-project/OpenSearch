@@ -125,20 +125,18 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         }
 
         // Update file tracker to reflect local translog state
-        Optional<Long> minLiveGeneration = readers.stream().map(BaseTranslogReader::getGeneration).min(Long::compareTo);
-        if (minLiveGeneration.isPresent()) {
-            List<String> staleFilesInTracker = new ArrayList<>();
-            for (String file : fileTransferTracker.allUploaded()) {
-                if (file.endsWith(TRANSLOG_FILE_SUFFIX)) {
-                    long generation = Translog.parseIdFromFileName(file);
-                    if (generation < minLiveGeneration.get()) {
-                        staleFilesInTracker.add(file);
-                        staleFilesInTracker.add(Translog.getCommitCheckpointFileName(generation));
-                    }
+        long minLiveGeneration = getMinFileGeneration();
+        List<String> staleFilesInTracker = new ArrayList<>();
+        for (String file : fileTransferTracker.allUploaded()) {
+            if (file.endsWith(TRANSLOG_FILE_SUFFIX)) {
+                long generation = Translog.parseIdFromFileName(file);
+                if (generation < minLiveGeneration) {
+                    staleFilesInTracker.add(file);
+                    staleFilesInTracker.add(Translog.getCommitCheckpointFileName(generation));
                 }
-                fileTransferTracker.delete(staleFilesInTracker);
             }
         }
+        fileTransferTracker.delete(staleFilesInTracker);
 
         // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
         // store.

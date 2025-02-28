@@ -197,6 +197,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
+    private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -235,7 +236,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         RemoteStoreSettings remoteStoreSettings,
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
-        Consumer<IndexShard> replicator
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -322,6 +324,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.compositeIndexSettings = compositeIndexSettings;
         this.fileCache = fileCache;
         this.replicator = replicator;
+        this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         updateFsyncTaskIfNecessary();
     }
 
@@ -398,7 +401,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             remoteStoreSettings,
             null,
             null,
-            s -> {}
+            s -> {},
+            (shardId) -> ReplicationStats.empty()
         );
     }
 
@@ -694,7 +698,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 recoverySettings,
                 remoteStoreSettings,
                 seedRemote,
-                discoveryNodes
+                discoveryNodes,
+                segmentReplicationStatsProvider
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

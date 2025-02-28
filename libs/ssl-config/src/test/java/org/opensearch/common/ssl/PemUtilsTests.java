@@ -89,6 +89,16 @@ public class PemUtilsTests extends OpenSearchTestCase {
         assertThat(privateKey, equalTo(key));
     }
 
+    public void testReadEncryptedPKCS8DsaKey() throws Exception {
+        Key key = getKeyFromKeystore("DSA");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_pkcs8_encrypted.pem"), TESTNODE_PASSWORD);
+
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
+    }
+
     public void testReadEcKeyCurves() throws Exception {
         String curve = randomFrom("secp256r1", "secp384r1", "secp521r1");
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/private_" + curve + ".pem"), ""::toCharArray);
@@ -106,6 +116,16 @@ public class PemUtilsTests extends OpenSearchTestCase {
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
+    }
+
+    public void testReadEncryptedPKCS8EcKey() throws Exception {
+        var key = getKeyFromKeystore("EC");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        var privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_pkcs8_encrypted.pem"), TESTNODE_PASSWORD);
+
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
