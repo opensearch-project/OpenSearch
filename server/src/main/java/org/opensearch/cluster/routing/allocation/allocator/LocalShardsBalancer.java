@@ -806,10 +806,19 @@ public class LocalShardsBalancer extends ShardsBalancer {
         final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
         final Comparator<ShardRouting> comparator = (o1, o2) -> {
             if (o1.primary() ^ o2.primary()) {
+                // If one is primary and the other isn't, primary comes first
                 return o1.primary() ? -1 : 1;
             }
             final int indexCmp;
+
             if ((indexCmp = o1.getIndexName().compareTo(o2.getIndexName())) == 0) {
+                if (o1.isSearchOnly() ^ o2.isSearchOnly()) {
+                    // If index names are equal, one shard is a regular replica,
+                    // and the other is search replica, regular replica comes first
+                    return o1.isSearchOnly() ? 1 : -1;
+                }
+
+                // If both are primary or both are non-primary, compare by ID
                 return o1.getId() - o2.getId();
             }
             // this comparator is more expensive than all the others up there

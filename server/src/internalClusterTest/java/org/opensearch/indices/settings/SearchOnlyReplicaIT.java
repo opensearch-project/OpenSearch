@@ -234,6 +234,105 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(nodeId, indexShardRoutingTable.searchOnlyReplicas().get(0).currentNodeId());
     }
 
+    public void testUnableToAllocateSearchReplicaWontBlockRegularReplicaAllocation() {
+        int numSearchReplicas = 1;
+        int numWriterReplicas = 1;
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(3);
+
+        createIndex(
+            TEST_INDEX,
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .build()
+        );
+
+        ensureYellow(TEST_INDEX);
+
+        // assert routing table
+        IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
+        assertEquals(
+            0,
+            indexShardRoutingTable.searchOnlyReplicas()
+                .stream()
+                .filter(shardRouting -> shardRouting.active() || shardRouting.initializing())
+                .count()
+        );
+        assertEquals(
+            numWriterReplicas,
+            indexShardRoutingTable.writerReplicas()
+                .stream()
+                .filter(shardRouting -> shardRouting.active() || shardRouting.initializing())
+                .count()
+        );
+
+        // assert routing nodes
+        ClusterState clusterState = getClusterState();
+        assertEquals(0, clusterState.getRoutingNodes().shards(r -> (r.active() || r.initializing()) && r.isSearchOnly()).size());
+        assertEquals(
+            numWriterReplicas,
+            clusterState.getRoutingNodes().shards(r -> (r.active() || r.initializing()) && !r.primary() && !r.isSearchOnly()).size()
+        );
+    }
+
+    public void testUnableToAllocateRegularReplicaWontBlockSearchReplicaAllocation() {
+        int numSearchReplicas = 1;
+        int numWriterReplicas = 1;
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        List<String> replicaNodes = internalCluster().startDataOnlyNodes(2);
+
+        // search node setting for both replica nodes
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", String.join(", ", replicaNodes))
+            )
+            .execute()
+            .actionGet();
+
+        createIndex(
+            TEST_INDEX,
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .build()
+        );
+        ensureYellow(TEST_INDEX);
+
+        // assert routing table
+        IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
+        assertEquals(
+            numSearchReplicas,
+            indexShardRoutingTable.searchOnlyReplicas()
+                .stream()
+                .filter(shardRouting -> shardRouting.active() || shardRouting.initializing())
+                .count()
+        );
+        assertEquals(
+            0,
+            indexShardRoutingTable.writerReplicas()
+                .stream()
+                .filter(shardRouting -> shardRouting.active() || shardRouting.initializing())
+                .count()
+        );
+
+        // assert routing nodes
+        ClusterState clusterState = getClusterState();
+        assertEquals(
+            numSearchReplicas,
+            clusterState.getRoutingNodes().shards(r -> (r.active() || r.initializing()) && r.isSearchOnly()).size()
+        );
+        assertEquals(
+            0,
+            clusterState.getRoutingNodes().shards(r -> (r.active() || r.initializing()) && !r.primary() && !r.isSearchOnly()).size()
+        );
+    }
+
     /**
      * Helper to assert counts of active shards for each type.
      */
