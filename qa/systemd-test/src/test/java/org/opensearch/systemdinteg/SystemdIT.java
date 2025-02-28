@@ -41,12 +41,16 @@ import org.junit.Test;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.io.BufferedReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Locale;
+
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -72,28 +76,28 @@ public class SystemdIT {
     }
 
     private boolean checkPathExists(String path) throws IOException, InterruptedException {
-        String command = String.format("test -e %s && echo true || echo false", path);
+        String command = String.format(Locale.ROOT, "test -e %s && echo true || echo false", path);
         return Boolean.parseBoolean(executeCommand(command, "Failed to check path existence"));
     }
 
     private boolean checkPathReadable(String path) throws IOException, InterruptedException {
-        String command = String.format("sudo su opensearch -s /bin/sh -c 'test -r %s && echo true || echo false'", path);
+        String command = String.format(Locale.ROOT, "sudo su opensearch -s /bin/sh -c 'test -r %s && echo true || echo false'", path);
         return Boolean.parseBoolean(executeCommand(command, "Failed to check read permission"));
     }
 
     private boolean checkPathWritable(String path) throws IOException, InterruptedException {
-        String command = String.format("sudo su opensearch -s /bin/sh -c 'test -w %s && echo true || echo false'", path);
+        String command = String.format(Locale.ROOT, "sudo su opensearch -s /bin/sh -c 'test -w %s && echo true || echo false'", path);
         return Boolean.parseBoolean(executeCommand(command, "Failed to check write permission"));
     }
 
     private String getPathOwnership(String path) throws IOException, InterruptedException {
-        String command = String.format("stat -c '%%U:%%G' %s", path);
+        String command = String.format(Locale.ROOT, "stat -c '%%U:%%G' %s", path);
         return executeCommand(command, "Failed to get path ownership");
     }
 
     private static String executeCommand(String command, String errorMessage) throws IOException, InterruptedException {
         Process process = Runtime.getRuntime().exec(new String[]{"bash", "-c", command});
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             StringBuilder output = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
@@ -106,7 +110,6 @@ public class SystemdIT {
         }
     }
 
-    @Test
     public void testReadOnlyPaths() throws IOException, InterruptedException {
         String[] readOnlyPaths = {
             "/etc/os-release", "/usr/lib/os-release", "/etc/system-release",
@@ -124,7 +127,6 @@ public class SystemdIT {
         }
     }
 
-    @Test
     public void testReadWritePaths() throws IOException, InterruptedException {
         String[] readWritePaths = {"/var/log/opensearch", "/var/lib/opensearch"};
         for (String path : readWritePaths) {
@@ -135,7 +137,6 @@ public class SystemdIT {
         }
     }
 
-    @Test
     public void testMaxProcesses() throws IOException, InterruptedException {
         String limits = executeCommand("sudo su -c 'cat /proc/" + opensearchPid + "/limits'", "Failed to read process limits");
         assertTrue("Max processes limit should be 4096 or unlimited", 
@@ -143,7 +144,6 @@ public class SystemdIT {
                 limits.contains("Max processes             unlimited            unlimited"));
     }
 
-    @Test
     public void testFileDescriptorLimit() throws IOException, InterruptedException {
         String limits = executeCommand("sudo su -c 'cat /proc/" + opensearchPid + "/limits'", "Failed to read process limits");
         assertTrue("File descriptor limit should be at least 65535", 
@@ -151,7 +151,6 @@ public class SystemdIT {
                 limits.contains("Max open files            unlimited            unlimited"));
     }
 
-    @Test
     public void testSystemCallFilter() throws IOException, InterruptedException {
         // Check if Seccomp is enabled
         String seccomp = executeCommand("sudo su -c 'grep Seccomp /proc/" + opensearchPid + "/status'", "Failed to read Seccomp status");
@@ -165,10 +164,14 @@ public class SystemdIT {
         assertTrue("Swap system call should be blocked", swapResult.contains("Operation not permitted"));
     }
 
-    @Test
     public void testOpenSearchProcessCannotExit() throws IOException, InterruptedException {
 
-        String scriptPath = getClass().getResource("/scripts/terminate.sh").getPath();
+        String scriptPath;
+        try {
+            scriptPath = getClass().getResource("/scripts/terminate.sh").toURI().getPath();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException("Failed to convert URL to URI", e);
+        }
 
         if (scriptPath == null) {
             throw new IllegalStateException("Could not find terminate.sh script in resources");
