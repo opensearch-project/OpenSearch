@@ -256,7 +256,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         // due to CS batching we might have missed the INIT state and straight went into ABORTED
                         // notify cluster-manager that abort has completed by moving to FAILED
                         if (shard.getValue().state() == ShardState.ABORTED && localNodeId.equals(shard.getValue().nodeId())) {
-                            notifyFailedSnapshotShard(snapshot, shard.getKey(), shard.getValue().reason());
+                            notifyFailedSnapshotShard(snapshot, shard.getKey(), shard.getValue().reason(), shard.getValue().generation());
                         }
                     } else {
                         snapshotStatus.abortIfNotCompleted("snapshot has been aborted");
@@ -314,7 +314,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
                             }
                             snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
-                            notifyFailedSnapshotShard(snapshot, shardId, failure);
+                            notifyFailedSnapshotShard(snapshot, shardId, failure, snapshotStatus.generation());
                         }
                     }
                 );
@@ -598,6 +598,15 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             snapshot,
             shardId,
             new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.FAILED, failure, null)
+        );
+    }
+
+    /** Notify the cluster-manager node that the given shard failed to be snapshotted **/
+    private void notifyFailedSnapshotShard(final Snapshot snapshot, final ShardId shardId, final String failure, String generation) {
+        sendSnapshotShardUpdate(
+            snapshot,
+            shardId,
+            new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.FAILED, failure, generation)
         );
     }
 
