@@ -49,7 +49,7 @@ opensearchplugin {
 
 dependencies {
   api 'com.google.api:api-common:1.8.1'
-  api 'com.google.api:gax:2.35.0'
+  api 'com.google.api:gax:2.62.0'
   api 'com.google.api:gax-httpjson:2.42.0'
 
   api 'com.google.apis:google-api-services-storage:v1-rev20230617-2.0.0'
