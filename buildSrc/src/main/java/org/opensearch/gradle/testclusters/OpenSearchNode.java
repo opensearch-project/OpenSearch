@@ -548,7 +548,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
         logToProcessStdout("Creating opensearch keystore with password set to [" + keystorePassword + "]");
         if (keystorePassword.length() > 0) {
-            runOpenSearchBinScriptWithInput(keystorePassword + "\n" + keystorePassword, "opensearch-keystore", "create", "-p");
+            runOpenSearchBinScriptWithInput(keystorePassword + "\n" + keystorePassword + "\n", "opensearch-keystore", "create", "-p");
         } else {
             runOpenSearchBinScript("opensearch-keystore", "-v", "create");
         }
@@ -556,7 +556,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
             logToProcessStdout("Adding " + keystoreSettings.size() + " keystore settings and " + keystoreFiles.size() + " keystore files");
 
-            keystoreSettings.forEach((key, value) -> runKeystoreCommandWithPassword(keystorePassword, value.toString(), "add", "-x", key));
+            keystoreSettings.forEach((key, value) -> runKeystoreCommandWithPassword(keystorePassword, value.toString(), "add", key));
 
             for (Map.Entry<String, File> entry : keystoreFiles.entrySet()) {
                 File file = entry.getValue();
@@ -738,7 +738,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     private void runKeystoreCommandWithPassword(String keystorePassword, String input, CharSequence... args) {
-        final String actualInput = keystorePassword.length() > 0 ? keystorePassword + "\n" + input : input;
+        final String actualInput;
+        if (keystorePassword.length() > 0) {
+            actualInput = keystorePassword + "\n" + input + "\n" + input;
+        } else {
+            actualInput = input + "\n" + input;
+        }
         runOpenSearchBinScriptWithInput(actualInput, "opensearch-keystore", args);
     }
 

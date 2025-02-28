@@ -110,7 +110,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 return;
             }
             logger.debug("Downloading segment files from remote store {}", filesToFetch);
-
             if (remoteMetadataExists()) {
                 final Directory storeDirectory = indexShard.store().directory();
                 final Collection<String> directoryFiles = List.of(storeDirectory.listAll());
