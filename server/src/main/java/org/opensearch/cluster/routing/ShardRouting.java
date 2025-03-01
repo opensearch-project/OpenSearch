@@ -440,8 +440,10 @@ public class ShardRouting implements Writeable, ToXContentObject {
         assert state != ShardRoutingState.UNASSIGNED : this;
         final RecoverySource recoverySource;
         if (active()) {
-            if (primary() || isSearchOnly()) {
+            if (primary()) {
                 recoverySource = ExistingStoreRecoverySource.INSTANCE;
+            } else if (isSearchOnly()) {
+                recoverySource = RecoverySource.EmptyStoreRecoverySource.INSTANCE;
             } else {
                 recoverySource = PeerRecoverySource.INSTANCE;
             }
