@@ -40,7 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class LocalShardsBalancerTest extends OpenSearchAllocationTestCase {
+public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
 
     private final DiscoveryNode node1 = newNode("node1", "node1", Collections.singletonMap("zone", "1a"));
     private final DiscoveryNode node2 = newNode("node2", "node2", Collections.singletonMap("zone", "1b"));

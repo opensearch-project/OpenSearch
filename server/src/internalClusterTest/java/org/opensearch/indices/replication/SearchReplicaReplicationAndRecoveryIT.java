@@ -87,12 +87,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         final String replica = internalCluster().startDataOnlyNode();
 
         // set search only role on node
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(replica);
 
         ensureGreen(INDEX_NAME);
 
@@ -118,12 +113,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         );
 
         // set search only role on node
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodes.get(0)))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(nodes.get(0));
 
         ensureGreen(INDEX_NAME);
 
@@ -163,12 +153,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         final String replica = internalCluster().startDataOnlyNode();
 
         // ensure search replicas are only allocated to "replica" node.
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(replica);
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -211,12 +196,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         final String replica = internalCluster().startDataOnlyNode();
 
         // search node setting
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(replica);
 
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, replica);
@@ -287,12 +267,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         final String replica = internalCluster().startDataOnlyNode();
 
         // search node setting
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(replica);
 
         ensureGreen(INDEX_NAME);
         assertDocCounts(docCount, replica);
@@ -332,12 +307,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         final String replica = internalCluster().startDataOnlyNode();
 
         // search node setting
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(replica);
 
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, replica);
@@ -366,5 +336,14 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         }
         refresh(INDEX_NAME);
         assertBusy(() -> assertDocCounts(20, replica, writer_replica));
+    }
+
+    private void setSearchDedicatedNodeSettings(String nodeName) {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodeName))
+            .execute()
+            .actionGet();
     }
 }

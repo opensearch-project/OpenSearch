@@ -76,12 +76,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         String replicaNode = internalCluster().startDataOnlyNode();
 
         // search node setting
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replicaNode))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(replicaNode);
 
         ensureGreen(RESTORED_INDEX_NAME);
         assertEquals(1, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
@@ -138,18 +133,22 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         createIndex(INDEX_NAME, settings);
 
         // search node setting
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodes.get(0)))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(nodes.get(0));
 
         ensureGreen(INDEX_NAME);
         for (int i = 0; i < DOC_COUNT; i++) {
             client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
         }
         flushAndRefresh(INDEX_NAME);
+    }
+
+    private void setSearchDedicatedNodeSettings(String nodeName) {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodeName))
+            .execute()
+            .actionGet();
     }
 
     private void createRepoAndSnapshot(String repositoryName, String repositoryType, String snapshotName, String indexName) {

@@ -76,12 +76,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         List<String> replicas = internalCluster().startDataOnlyNodes(2);
 
         // search node setting
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replicas.get(0)))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(replicas.get(0));
 
         ensureGreen(TEST_INDEX);
 
@@ -119,12 +114,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         String replica = internalCluster().startDataOnlyNode();
 
         // search node setting
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(replica);
 
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(numSearchReplicas);
@@ -143,12 +133,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         createIndex(TEST_INDEX);
 
         // search node setting
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodes.get(0)))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(nodes.get(0));
 
         ensureGreen(TEST_INDEX);
         // assert settings
@@ -168,14 +153,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
             .get();
 
         // search node setting
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", String.join(", ", nodes))
-            )
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(String.join(", ", nodes));
 
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(2);
@@ -209,14 +187,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         List<String> replicaNodes = internalCluster().startDataOnlyNodes(2);
 
         // search node setting
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replicaNodes.get(0))
-            )
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(replicaNodes.get(0));
 
         ensureGreen(TEST_INDEX);
 
@@ -249,32 +220,8 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
                 .build()
         );
 
-        ensureYellow(TEST_INDEX);
-
-        // assert routing table
-        IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
-        assertEquals(
-            0,
-            indexShardRoutingTable.searchOnlyReplicas()
-                .stream()
-                .filter(shardRouting -> shardRouting.active() || shardRouting.initializing())
-                .count()
-        );
-        assertEquals(
-            numWriterReplicas,
-            indexShardRoutingTable.writerReplicas()
-                .stream()
-                .filter(shardRouting -> shardRouting.active() || shardRouting.initializing())
-                .count()
-        );
-
-        // assert routing nodes
-        ClusterState clusterState = getClusterState();
-        assertEquals(0, clusterState.getRoutingNodes().shards(r -> (r.active() || r.initializing()) && r.isSearchOnly()).size());
-        assertEquals(
-            numWriterReplicas,
-            clusterState.getRoutingNodes().shards(r -> (r.active() || r.initializing()) && !r.primary() && !r.isSearchOnly()).size()
-        );
+        ensureYellowAndNoInitializingShards(TEST_INDEX);
+        assertActiveShardCounts(0, numWriterReplicas);
     }
 
     public void testUnableToAllocateRegularReplicaWontBlockSearchReplicaAllocation() {
@@ -285,14 +232,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         List<String> replicaNodes = internalCluster().startDataOnlyNodes(2);
 
         // search node setting for both replica nodes
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", String.join(", ", replicaNodes))
-            )
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(String.join(", ", replicaNodes));
 
         createIndex(
             TEST_INDEX,
@@ -302,35 +242,17 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
                 .build()
         );
-        ensureYellow(TEST_INDEX);
+        ensureYellowAndNoInitializingShards(TEST_INDEX);
+        assertActiveShardCounts(numSearchReplicas, 0);
+    }
 
-        // assert routing table
-        IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
-        assertEquals(
-            numSearchReplicas,
-            indexShardRoutingTable.searchOnlyReplicas()
-                .stream()
-                .filter(shardRouting -> shardRouting.active() || shardRouting.initializing())
-                .count()
-        );
-        assertEquals(
-            0,
-            indexShardRoutingTable.writerReplicas()
-                .stream()
-                .filter(shardRouting -> shardRouting.active() || shardRouting.initializing())
-                .count()
-        );
-
-        // assert routing nodes
-        ClusterState clusterState = getClusterState();
-        assertEquals(
-            numSearchReplicas,
-            clusterState.getRoutingNodes().shards(r -> (r.active() || r.initializing()) && r.isSearchOnly()).size()
-        );
-        assertEquals(
-            0,
-            clusterState.getRoutingNodes().shards(r -> (r.active() || r.initializing()) && !r.primary() && !r.isSearchOnly()).size()
-        );
+    private void setSearchDedicatedNodeSettings(String nodeName) {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodeName))
+            .execute()
+            .actionGet();
     }
 
     /**
