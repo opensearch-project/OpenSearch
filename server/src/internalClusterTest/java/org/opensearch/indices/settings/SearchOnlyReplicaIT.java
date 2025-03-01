@@ -128,6 +128,37 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         assertHitCount(client(replica).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1);
     }
 
+    public void testFailoverWithSearchReplicaWhenNodeLeavesCluster() throws IOException {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createIndex(TEST_INDEX);
+        indexSingleDoc(TEST_INDEX, true);
+        ensureYellow(TEST_INDEX);
+        // add another node for the search replica
+        String dataNodeOne = internalCluster().startDataOnlyNode();
+
+        // search node setting
+        setSearchDedicatedNodeSettings(dataNodeOne);
+
+        ensureGreen(TEST_INDEX);
+
+        // Stop Node which hosts the search replica
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNodeOne));
+
+        // Ensure search shard is unassigned
+        ensureYellowAndNoInitializingShards(TEST_INDEX);
+        assertActiveSearchShards(0);
+
+        // Add a node and ensure search shard will get assigned
+        dataNodeOne = internalCluster().startDataOnlyNode();
+        // search node setting
+        setSearchDedicatedNodeSettings(dataNodeOne);
+
+        // Ensure search shard is recovered
+        ensureGreen(TEST_INDEX);
+        assertActiveSearchShards(1);
+    }
+
     public void testSearchReplicaScaling() {
         List<String> nodes = internalCluster().startNodes(2);
         createIndex(TEST_INDEX);

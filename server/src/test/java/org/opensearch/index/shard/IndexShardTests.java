@@ -3052,7 +3052,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so")
         );
         searchReplicaShardRouting = ShardRoutingHelper.initialize(searchReplicaShardRouting, replica.routingEntry().currentNodeId());
-        assertEquals(RecoverySource.ExistingStoreRecoverySource.INSTANCE, searchReplicaShardRouting.recoverySource());
+        assertEquals(RecoverySource.EmptyStoreRecoverySource.INSTANCE, searchReplicaShardRouting.recoverySource());
         replica = reinitShard(replica, searchReplicaShardRouting);
         recoverShardFromStore(replica);
         assertDocs(replica, "1", "2");
