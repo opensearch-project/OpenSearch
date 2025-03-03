@@ -100,8 +100,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     private SegmentReplicationState state;
     private ReplicationCheckpoint initialCheckpoint;
 
-    private ClusterState clusterState;
-
     private static final long TRANSPORT_TIMEOUT = 30000;// 30sec
 
     @Override
@@ -140,13 +138,14 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
         indicesService = mock(IndicesService.class);
         ClusterService clusterService = mock(ClusterService.class);
-        clusterState = mock(ClusterState.class);
+        ClusterState clusterState = mock(ClusterState.class);
         RoutingTable mockRoutingTable = mock(RoutingTable.class);
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterState.routingTable()).thenReturn(mockRoutingTable);
         when(mockRoutingTable.shardRoutingTable(any())).thenReturn(primaryShard.getReplicationGroup().getRoutingTable());
 
         when(clusterState.nodes()).thenReturn(DiscoveryNodes.builder().add(localNode).build());
+
         sut = prepareForReplication(primaryShard, replicaShard, transportService, indicesService, clusterService);
         initialCheckpoint = primaryShard.getLatestReplicationCheckpoint();
         aheadCheckpoint = new ReplicationCheckpoint(
@@ -594,13 +593,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         targetService.shardRoutingChanged(shard, shard.routingEntry(), primaryShard.routingEntry());
         verifyNoInteractions(ongoingReplications);
         closeShards(shard);
-    }
-
-    public void testUpdateLatestReceivedCheckpoint() {
-        final SegmentReplicationTargetService spy = spy(sut);
-        sut.updateLatestReceivedCheckpoint(checkpoint, replicaShard);
-        sut.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
-        assertEquals(sut.latestReceivedCheckpoint.get(replicaShard.shardId()), aheadCheckpoint);
     }
 
     public void testForceSegmentSyncHandler() throws Exception {

@@ -361,6 +361,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private final ShardMigrationState shardMigrationState;
     private DiscoveryNodes discoveryNodes;
+    private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -391,7 +392,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RecoverySettings recoverySettings,
         final RemoteStoreSettings remoteStoreSettings,
         boolean seedRemote,
-        final DiscoveryNodes discoveryNodes
+        final DiscoveryNodes discoveryNodes,
+        final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -493,6 +495,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
         this.discoveryNodes = discoveryNodes;
+        this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
     }
 
     public ThreadPool getThreadPool() {
@@ -3233,17 +3236,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ReplicationStats getReplicationStats() {
-        if (indexSettings.isSegRepEnabledOrRemoteNode() && routingEntry().primary()) {
-            final Set<SegmentReplicationShardStats> stats = getReplicationStatsForTrackedReplicas();
-            long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0L);
-            long totalBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).sum();
-            long maxReplicationLag = stats.stream()
-                .mapToLong(SegmentReplicationShardStats::getCurrentReplicationLagMillis)
-                .max()
-                .orElse(0L);
-            return new ReplicationStats(maxBytesBehind, totalBytesBehind, maxReplicationLag);
+        if (indexSettings.isSegRepEnabledOrRemoteNode() && !routingEntry().primary()) {
+            return segmentReplicationStatsProvider.apply(shardId);
         }
-        return new ReplicationStats();
+        return ReplicationStats.empty();
     }
 
     /**
