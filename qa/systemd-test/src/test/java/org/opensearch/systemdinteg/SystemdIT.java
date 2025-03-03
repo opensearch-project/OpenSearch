@@ -51,7 +51,7 @@ public class SystemdIT extends OpenSearchIntegTestCase {
     }
 
     private static String getOpenSearchPid() throws IOException, InterruptedException {
-        String command = "systemctl show --property=MainPID opensearch";
+        String command = "sudo systemctl show --property=MainPID opensearch";
         String output = executeCommand(command, "Failed to get OpenSearch PID");
         return output.replace("MainPID=", "").trim();
     }
