@@ -124,7 +124,7 @@ public final class UnsignedLongHashSet implements Accountable {
 
     @Override
     public String toString() {
-        return stream().mapToObj(String::valueOf).collect(Collectors.joining(", ", "[", "]"));
+        return stream().mapToObj(Long::toUnsignedString).collect(Collectors.joining(", ", "[", "]"));
     }
 
     /** number of elements in the set */
