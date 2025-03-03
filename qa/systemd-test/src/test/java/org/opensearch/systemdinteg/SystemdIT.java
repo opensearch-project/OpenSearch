@@ -77,7 +77,7 @@ public class SystemdIT extends OpenSearchIntegTestCase {
     }
 
     private static String executeCommand(String command, String errorMessage) throws IOException, InterruptedException {
-        Process process = Runtime.getRuntime().exec(new String[]{"bash", "-c", command});
+        Process process = Runtime.getRuntime().exec(new String[]{command});
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             StringBuilder output = new StringBuilder();
             String line;
