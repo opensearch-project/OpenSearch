@@ -19,6 +19,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -35,8 +36,9 @@ import java.util.Locale;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
-public class SystemdTestInteg {
+public class SystemdIT extends OpenSearchIntegTestCase {
 
     private static String opensearchPid;
 
@@ -148,7 +150,7 @@ public class SystemdTestInteg {
 
         String scriptPath;
         try {
-            scriptPath = SystemdTestInteg.class.getResource("/scripts/terminate.sh").toURI().getPath();
+            scriptPath = SystemdIT.class.getResource("/scripts/terminate.sh").toURI().getPath();
         } catch (URISyntaxException e) {
             throw new RuntimeException("Failed to convert URL to URI", e);
         }
