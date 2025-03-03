@@ -230,6 +230,14 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
      *     Shard health is YELLOW when primary shard is active but at-least one replica shard is inactive.
      *     Shard health is RED when the primary is not active.
      * </p>
+     * <p>
+     *     In search-only mode (when {@link IndexMetadata#INDEX_BLOCKS_SEARCH_ONLY_SETTING} is enabled):
+     *     <ul>
+     *         <li>Shard health is GREEN when all expected search replicas are active</li>
+     *         <li>Shard health is YELLOW when some (but not all) search replicas are active</li>
+     *         <li>Shard health is RED when no search replicas are active</li>
+     *     </ul>
+     * </p>
      */
     public static ClusterHealthStatus getShardHealth(
         final ShardRouting primaryRouting,
@@ -237,11 +245,21 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         final int totalShards,
         final IndexMetadata indexMetadata
     ) {
+        boolean isSearchOnlyEnabled = indexMetadata.getSettings()
+            .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+
         if (primaryRouting == null) {
-            boolean isSearchOnlyEnabled = indexMetadata.getSettings()
-                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
-            return isSearchOnlyEnabled ? ClusterHealthStatus.GREEN : ClusterHealthStatus.RED;
+            if (isSearchOnlyEnabled) {
+                if (activeShards == 0) {
+                    return ClusterHealthStatus.RED;
+                } else {
+                    return (activeShards < totalShards) ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN;
+                }
+            } else {
+                return ClusterHealthStatus.RED;
+            }
         }
+
         if (primaryRouting.active()) {
             if (activeShards == totalShards) {
                 return ClusterHealthStatus.GREEN;

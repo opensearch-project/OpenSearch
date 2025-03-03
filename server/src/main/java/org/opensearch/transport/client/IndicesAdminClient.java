@@ -873,5 +873,5 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * @param index The index to make search only
      * @return The request builder
      */
-    SearchOnlyRequestBuilder prepareSearchOnly(String index);
+    SearchOnlyRequestBuilder prepareScaleSearchOnly(String index);
 }

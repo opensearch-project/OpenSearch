@@ -53,7 +53,7 @@ public class RestScaleSearchOnlyAction extends BaseRestHandler {
         // Then use the final value in the lambda
         return channel -> client.admin()
             .indices()
-            .prepareSearchOnly(index)
+            .prepareScaleSearchOnly(index)
             .setSearchOnly(searchOnly)
             .execute(new RestToXContentListener<>(channel));
     }
