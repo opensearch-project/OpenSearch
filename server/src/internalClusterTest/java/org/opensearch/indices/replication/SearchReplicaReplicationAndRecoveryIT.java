@@ -170,14 +170,11 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         // Node stats should show remote download stats as nonzero, use this as a precondition to compare
         // post restart.
         assertDownloadStats(replica, true);
-        NodesStatsResponse nodesStatsResponse;
-        NodeStats nodeStats;
 
         internalCluster().restartNode(replica);
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, replica);
 
-        // assert existing store recovery
         assertRecoverySourceType(replica, EXISTING_STORE);
         assertDownloadStats(replica, false);
     }
