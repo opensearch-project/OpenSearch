@@ -36,7 +36,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-public class SystemdInteg {
+public class SystemdTestInteg {
 
     private static String opensearchPid;
 
@@ -148,7 +148,7 @@ public class SystemdInteg {
 
         String scriptPath;
         try {
-            scriptPath = SystemdIT.class.getResource("/scripts/terminate.sh").toURI().getPath();
+            scriptPath = SystemdTestInteg.class.getResource("/scripts/terminate.sh").toURI().getPath();
         } catch (URISyntaxException e) {
             throw new RuntimeException("Failed to convert URL to URI", e);
         }
