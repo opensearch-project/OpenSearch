@@ -1413,6 +1413,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     createRandomCommonStats(),
                     null,
                     null,
+                    null,
                     null
                 );
                 List<ShardStats> shardStatsList = new ArrayList<>();
@@ -1462,6 +1463,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 shardRouting,
                 new ShardPath(false, path, path, shardRouting.shardId()),
                 commonStats,
+                null,
                 null,
                 null,
                 null

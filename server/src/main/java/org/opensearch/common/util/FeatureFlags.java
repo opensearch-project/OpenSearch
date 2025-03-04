@@ -128,6 +128,9 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    public static final String ARROW_STREAMS = "opensearch.experimental.feature.arrow.streams.enabled";
+    public static final Setting<Boolean> ARROW_STREAMS_SETTING = Setting.boolSetting(ARROW_STREAMS, false, Property.NodeScope);
+
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,
@@ -138,7 +141,8 @@ public class FeatureFlags {
         STAR_TREE_INDEX_SETTING,
         APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
         READER_WRITER_SPLIT_EXPERIMENTAL_SETTING,
-        TERM_VERSION_PRECOMMIT_ENABLE_SETTING
+        TERM_VERSION_PRECOMMIT_ENABLE_SETTING,
+        ARROW_STREAMS_SETTING
     );
 
     /**

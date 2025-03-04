@@ -168,6 +168,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -440,6 +441,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         if (consolidated) {
             searchContext.getQueryShardContext().setStarTreeQueryContext(starTreeQueryContext);
         }
+
+        Stream.of(fieldTypes).forEach(fieldType -> when(mapperService.fieldType(fieldType.name())).thenReturn(fieldType));
 
         return searchContext;
     }
@@ -1331,6 +1334,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     protected static class CountingAggregator extends Aggregator {
         private final AtomicInteger collectCounter;
         public final Aggregator delegate;
+        private LeafBucketCollector selectedCollector;
 
         public CountingAggregator(AtomicInteger collectCounter, Aggregator delegate) {
             this.collectCounter = collectCounter;
@@ -1339,6 +1343,10 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
         public AtomicInteger getCollectCount() {
             return collectCounter;
+        }
+
+        public LeafBucketCollector getSelectedCollector() {
+            return selectedCollector;
         }
 
         @Override
@@ -1381,7 +1389,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    delegate.getLeafCollector(ctx).collect(doc, bucket);
+                    selectedCollector = delegate.getLeafCollector(ctx);
+                    selectedCollector.collect(doc, bucket);
                     collectCounter.incrementAndGet();
                 }
             };

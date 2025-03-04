@@ -16,9 +16,11 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -175,6 +177,37 @@ public class StarTreeQueryHelper {
                 updateBucket.accept(bucket, metricValue);
             }
         };
+    }
+
+    /**
+     * Fetches the metric values iterator for document counts from StarTreeValues.
+     */
+    public static SortedNumericStarTreeValuesIterator getDocCountsIterator(
+        StarTreeValues starTreeValues,
+        CompositeIndexFieldInfo starTree
+    ) {
+        String metricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+            starTree.getField(),
+            DocCountFieldMapper.NAME,
+            MetricStat.DOC_COUNT.getTypeName()
+        );
+        return (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(metricName);
+    }
+
+    /**
+     * For a StarTreeBucketCollector, get matching star-tree entries and update relevant buckets in aggregator
+     */
+    public static void preComputeBucketsWithStarTree(StarTreeBucketCollector starTreeBucketCollector) throws IOException {
+        FixedBitSet matchingDocsBitSet = starTreeBucketCollector.getMatchingDocsBitSet();
+        int numBits = matchingDocsBitSet.length();
+
+        if (numBits > 0) {
+            for (int bit = matchingDocsBitSet.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
+                ? matchingDocsBitSet.nextSetBit(bit + 1)
+                : DocIdSetIterator.NO_MORE_DOCS) {
+                starTreeBucketCollector.collectStarTreeEntry(bit, 0);
+            }
+        }
     }
 
     public static StarTreeFilter mergeDimensionFilterIfNotExists(

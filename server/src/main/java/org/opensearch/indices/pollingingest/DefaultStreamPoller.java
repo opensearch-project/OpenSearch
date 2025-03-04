@@ -11,6 +11,7 @@ package org.opensearch.indices.pollingingest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
@@ -52,12 +53,15 @@ public class DefaultStreamPoller implements StreamPoller {
     private IngestionShardPointer batchStartPointer;
 
     private ResetState resetState;
+    private final String resetValue;
 
     private Set<IngestionShardPointer> persistedPointers;
 
     private BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
 
     private MessageProcessorRunnable processorRunnable;
+
+    private final CounterMetric totalPolledCount = new CounterMetric();
 
     // A pointer to the max persisted pointer for optimizing the check
     @Nullable
@@ -68,14 +72,16 @@ public class DefaultStreamPoller implements StreamPoller {
         Set<IngestionShardPointer> persistedPointers,
         IngestionShardConsumer consumer,
         IngestionEngine ingestionEngine,
-        ResetState resetState
+        ResetState resetState,
+        String resetValue
     ) {
         this(
             startPointer,
             persistedPointers,
             consumer,
             new MessageProcessorRunnable(new ArrayBlockingQueue<>(100), ingestionEngine),
-            resetState
+            resetState,
+            resetValue
         );
     }
 
@@ -84,10 +90,12 @@ public class DefaultStreamPoller implements StreamPoller {
         Set<IngestionShardPointer> persistedPointers,
         IngestionShardConsumer consumer,
         MessageProcessorRunnable processorRunnable,
-        ResetState resetState
+        ResetState resetState,
+        String resetValue
     ) {
         this.consumer = Objects.requireNonNull(consumer);
         this.resetState = resetState;
+        this.resetValue = resetValue;
         batchStartPointer = startPointer;
         this.persistedPointers = persistedPointers;
         if (!this.persistedPointers.isEmpty()) {
@@ -151,6 +159,18 @@ public class DefaultStreamPoller implements StreamPoller {
                             batchStartPointer = consumer.latestPointer();
                             logger.info("Resetting offset by seeking to latest offset {}", batchStartPointer.asString());
                             break;
+                        case REWIND_BY_OFFSET:
+                            batchStartPointer = consumer.pointerFromOffset(resetValue);
+                            logger.info("Resetting offset by seeking to offset {}", batchStartPointer.asString());
+                            break;
+                        case REWIND_BY_TIMESTAMP:
+                            batchStartPointer = consumer.pointerFromTimestampMillis(Long.parseLong(resetValue));
+                            logger.info(
+                                "Resetting offset by seeking to timestamp {}, corresponding offset {}",
+                                resetValue,
+                                batchStartPointer.asString()
+                            );
+                            break;
                     }
                     resetState = ResetState.NONE;
                 }
@@ -187,6 +207,7 @@ public class DefaultStreamPoller implements StreamPoller {
                         logger.info("Skipping message with pointer {} as it is already processed", result.getPointer().asString());
                         continue;
                     }
+                    totalPolledCount.inc();
                     blockingQueue.put(result);
                     logger.debug(
                         "Put message {} with pointer {} to the blocking queue",
@@ -278,6 +299,14 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public IngestionShardPointer getBatchStartPointer() {
         return batchStartPointer;
+    }
+
+    @Override
+    public PollingIngestStats getStats() {
+        PollingIngestStats.Builder builder = new PollingIngestStats.Builder();
+        builder.setTotalPolledCount(totalPolledCount.count());
+        builder.setTotalProcessedCount(processorRunnable.getStats().count());
+        return builder.build();
     }
 
     public State getState() {
