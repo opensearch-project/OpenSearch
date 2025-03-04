@@ -8,7 +8,11 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
@@ -21,7 +25,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -102,8 +108,8 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
 
         Settings settings = Settings.builder()
             .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
             .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, replicationType)
             .build();
@@ -114,13 +120,31 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         ensureGreen(INDEX_NAME);
     }
 
+    public void testRemoteStoreRestoreFailsForSearchOnlyIndex() throws Exception {
+        bootstrapIndexWithSearchReplicas();
+        assertAcked(client().admin().indices().prepareSearchOnly(INDEX_NAME).setSearchOnly(true).get());
+
+        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(INDEX_NAME).get();
+        assertEquals("true", settingsResponse.getSetting(INDEX_NAME, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey()));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            PlainActionFuture<RestoreRemoteStoreResponse> future = PlainActionFuture.newFuture();
+            client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), future);
+            future.actionGet();
+        });
+
+        assertTrue(
+            exception.getMessage().contains("Cannot use _remotestore/_restore on search_only mode enabled index [" + INDEX_NAME + "].")
+        );
+    }
+
     private void bootstrapIndexWithSearchReplicas() throws InterruptedException {
         startCluster(3);
 
         Settings settings = Settings.builder()
             .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
             .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
