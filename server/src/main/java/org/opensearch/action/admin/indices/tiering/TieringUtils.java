@@ -22,26 +22,25 @@ public class TieringUtils {
 
     /**
      *  Checks if the specified shard is a partial shard by
-     *  checking the INDEX_STORE_LOCALITY_SETTING for its index.
-     *  see {@link #isPartialIndex(IndexMetadata)}
+     *  checking the WARM_INDEX_ENABLED_SETTING for its index.
+     *  see {@link #isWarmIndex(IndexMetadata)} (IndexMetadata)}
      * @param shard ShardRouting object representing the shard
      * @param allocation RoutingAllocation object representing the allocation
      * @return true if the shard is a partial shard, false otherwise
      */
     public static boolean isPartialShard(ShardRouting shard, RoutingAllocation allocation) {
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shard.index());
-        return isPartialIndex(indexMetadata);
+        return isWarmIndex(indexMetadata);
     }
 
     /**
-     * Checks if the specified index is a partial index by
-     * checking the INDEX_STORE_LOCALITY_SETTING for the index.
+     * Checks if the specified index is a warm index by
+     * checking the WARM_INDEX_ENABLED_SETTING for the index.
      *
      * @param indexMetadata the metadata of the index
-     * @return true if the index is a partial index, false otherwise
+     * @return true if the index is a warm index, false otherwise
      */
-    public static boolean isPartialIndex(final IndexMetadata indexMetadata) {
-        return IndexModule.DataLocalityType.PARTIAL.name()
-            .equals(indexMetadata.getSettings().get(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()));
+    public static boolean isWarmIndex(final IndexMetadata indexMetadata) {
+        return indexMetadata.getSettings().getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
     }
 }

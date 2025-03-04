@@ -791,7 +791,7 @@ public final class IndexSettings {
     private final ReplicationType replicationType;
     private volatile boolean isRemoteStoreEnabled;
     // For warm index we would partially store files in local.
-    private final boolean isWritableWarmIndex;
+    private final boolean isWarmIndex;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
@@ -995,8 +995,9 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
-        isWritableWarmIndex = settings.get(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.FULL.toString())
-            .equalsIgnoreCase(IndexModule.DataLocalityType.PARTIAL.toString());
+
+        isWarmIndex = settings.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
+
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
@@ -1373,8 +1374,8 @@ public final class IndexSettings {
     /**
      * Returns true if the index is writable warm index and has partial store locality.
      */
-    public boolean isWritableWarmIndex() {
-        return isWritableWarmIndex;
+    public boolean isWarmIndex() {
+        return isWarmIndex;
     }
 
     /**
