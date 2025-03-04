@@ -81,8 +81,8 @@
 ---
 "Test deprecated _cat/snapshots endpoint":
   - skip:
-      version: " - 2.18.99"
-      reason: "Deprecation added in 2.19"
+      version: " - 3.0.0"
+      reason: "Deprecation added in 3.0"
       features: [ "warnings" ]
 
   - do:
