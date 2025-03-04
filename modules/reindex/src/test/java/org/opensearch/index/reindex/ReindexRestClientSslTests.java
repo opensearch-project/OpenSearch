@@ -56,7 +56,6 @@ import org.junit.BeforeClass;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedKeyManager;
@@ -65,6 +64,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.security.cert.CertPathBuilderException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -138,7 +138,13 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
         try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
-            expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
+            var exception = expectThrows(Exception.class, () -> client.performRequest(new Request("GET", "/")));
+            var rootCause = exception.getCause().getCause().getCause().getCause();
+            assertThat(rootCause, Matchers.instanceOf(CertPathBuilderException.class));
+            assertThat(
+                rootCause.getMessage(),
+                Matchers.containsString("No issuer certificate for certificate in certification path found")
+            );
         }
     }
 
@@ -206,7 +212,7 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
             assertThat(certs, Matchers.arrayWithSize(1));
             assertThat(certs[0], Matchers.instanceOf(X509Certificate.class));
             final X509Certificate clientCert = (X509Certificate) certs[0];
-            assertThat(clientCert.getSubjectDN().getName(), Matchers.is("CN=localhost, OU=UNIT, O=ORG, L=TORONTO, ST=ONTARIO, C=CA"));
+            assertThat(clientCert.getSubjectDN().getName(), Matchers.is("CN=localhost,OU=UNIT,O=ORG,L=TORONTO,ST=ONTARIO,C=CA"));
             assertThat(clientCert.getIssuerDN().getName(), Matchers.is("CN=OpenSearch Test Node"));
         }
     }

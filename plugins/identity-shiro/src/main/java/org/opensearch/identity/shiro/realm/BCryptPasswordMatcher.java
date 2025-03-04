@@ -12,7 +12,16 @@ import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.authc.credential.CredentialsMatcher;
-import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
+import org.opensearch.SpecialPermission;
+
+import java.nio.CharBuffer;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+
+import com.password4j.BcryptFunction;
+import com.password4j.Password;
+
+import static org.opensearch.core.common.Strings.isNullOrEmpty;
 
 /**
  * Password matcher for BCrypt
@@ -28,7 +37,25 @@ public class BCryptPasswordMatcher implements CredentialsMatcher {
     @Override
     public boolean doCredentialsMatch(AuthenticationToken token, AuthenticationInfo info) {
         final UsernamePasswordToken userToken = (UsernamePasswordToken) token;
-        return OpenBSDBCrypt.checkPassword((String) info.getCredentials(), userToken.getPassword());
+        return check(userToken.getPassword(), (String) info.getCredentials());
+    }
+
+    @SuppressWarnings("removal")
+    private boolean check(char[] password, String hash) {
+        if (password == null || password.length == 0) {
+            throw new IllegalStateException("Password cannot be empty or null");
+        }
+        if (isNullOrEmpty(hash)) {
+            throw new IllegalStateException("Hash cannot be empty or null");
+        }
+        CharBuffer passwordBuffer = CharBuffer.wrap(password);
+        SecurityManager securityManager = System.getSecurityManager();
+        if (securityManager != null) {
+            securityManager.checkPermission(new SpecialPermission());
+        }
+        return AccessController.doPrivileged(
+            (PrivilegedAction<Boolean>) () -> Password.check(passwordBuffer, hash).with(BcryptFunction.getInstanceFromHash(hash))
+        );
     }
 
 }

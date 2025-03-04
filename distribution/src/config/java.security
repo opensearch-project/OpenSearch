@@ -1,0 +1,9 @@
+# Security properties for non-approved mode 'org.bouncycastle.fips.approved_only=false'. Intended to be used complementary e.g.
+
+security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider
+security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider
+security.provider.3=SUN
+security.provider.4=SunJGSS
+
+ssl.KeyManagerFactory.algorithm=PKIX
+ssl.TrustManagerFactory.algorithm=PKIX
