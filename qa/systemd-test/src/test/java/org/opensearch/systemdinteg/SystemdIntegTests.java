@@ -11,6 +11,7 @@
 */
 
 package org.opensearch.systemdinteg;
+import org.apache.lucene.tests.util.LuceneTestCase;
 
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
@@ -36,9 +37,9 @@ import java.util.Locale;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import org.opensearch.test.OpenSearchIntegTestCase;
 
-public class SystemdIT extends OpenSearchIntegTestCase {
+
+public class SystemdIntegTests extends LuceneTestCase {
 
     private static String opensearchPid;
 
@@ -52,7 +53,7 @@ public class SystemdIT extends OpenSearchIntegTestCase {
     }
 
     private static String getOpenSearchPid() throws IOException, InterruptedException {
-        String command = "sudo systemctl show --property=MainPID opensearch";
+        String command = "systemctl show --property=MainPID opensearch";
         String output = executeCommand(command, "Failed to get OpenSearch PID");
         return output.replace("MainPID=", "").trim();
     }
@@ -78,7 +79,7 @@ public class SystemdIT extends OpenSearchIntegTestCase {
     }
 
     private static String executeCommand(String command, String errorMessage) throws IOException, InterruptedException {
-        Process process = Runtime.getRuntime().exec(new String[]{command});
+        Process process = Runtime.getRuntime().exec(new String[]{"bash", "-c", command});
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             StringBuilder output = new StringBuilder();
             String line;
@@ -150,7 +151,7 @@ public class SystemdIT extends OpenSearchIntegTestCase {
 
         String scriptPath;
         try {
-            scriptPath = SystemdIT.class.getResource("/scripts/terminate.sh").toURI().getPath();
+            scriptPath = SystemdIntegTests.class.getResource("/scripts/terminate.sh").toURI().getPath();
         } catch (URISyntaxException e) {
             throw new RuntimeException("Failed to convert URL to URI", e);
         }
