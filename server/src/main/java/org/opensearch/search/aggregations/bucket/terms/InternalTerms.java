@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -365,6 +366,65 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         return reducedBuckets;
     }
 
+    private List<B> reduceMergeSort3(List<InternalAggregation> aggregations, BucketOrder thisReduceOrder, ReduceContext reduceContext) {
+        assert isKeyOrder(thisReduceOrder);
+        final Comparator<MultiBucketsAggregation.Bucket> cmp = thisReduceOrder.comparator();
+
+        IteratorAndCurrent<B>[] iterators = new IteratorAndCurrent[aggregations.size()];
+        int activeIterators = 0;
+        for (InternalAggregation aggregation : aggregations) {
+            @SuppressWarnings("unchecked")
+            InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
+            if (!terms.getBuckets().isEmpty()) {
+                iterators[activeIterators++] = new IteratorAndCurrent(terms.getBuckets().iterator());
+            }
+        }
+
+        final PriorityQueue<B> pq = new PriorityQueue<B>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(B a, B b) {
+                return cmp.compare(a, b) < 0;
+            }
+        };
+        Map<Object, List<Integer>> keysMap = new HashMap<>();
+        for (int i = 0; i < activeIterators; i++) {
+            if (keysMap.containsKey(iterators[i].current().getKey())) {
+                keysMap.get(iterators[i].current().getKey()).add(i);
+            } else {
+                pq.add(iterators[i].current());
+                List<Integer> idx = new ArrayList<>();
+                idx.add(i);
+                keysMap.put(iterators[i].current().getKey(), idx);
+            }
+        }
+
+        List<B> reducedBuckets = new ArrayList<>();
+        List<B> currentBuckets = new ArrayList<>();
+
+        while (pq.size() > 0) {
+            Object minKeyBucket = pq.pop().getKey();
+            List<Integer> minBucketIndices = keysMap.remove(minKeyBucket);
+            currentBuckets.clear();
+            for (int i : minBucketIndices) {
+                currentBuckets.add(iterators[i].current());
+                if (iterators[i].hasNext()) {
+                    iterators[i].next();
+                    if (keysMap.containsKey(iterators[i].current().getKey())) {
+                        keysMap.get(iterators[i].current().getKey()).add(i);
+                    } else {
+                        pq.add(iterators[i].current());
+                        List<Integer> idx = new ArrayList<>();
+                        idx.add(i);
+                        keysMap.put(iterators[i].current().getKey(), idx);
+                    }
+                }
+            }
+            final B reduced = reduceBucket(currentBuckets, reduceContext);
+            reducedBuckets.add(reduced);
+        }
+        return reducedBuckets;
+    }
+
     private List<B> reduceLegacy(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<Object, List<B>> bucketMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
@@ -458,30 +518,68 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         final B[] list;
         if (reduceContext.isFinalReduce() || reduceContext.isSliceLevel()) {
             final int size = Math.min(localBucketCountThresholds.getRequiredSize(), reducedBuckets.size());
-            // final comparator
-            final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator());
-            for (B bucket : reducedBuckets) {
-                if (sumDocCountError == -1) {
-                    bucket.setDocCountError(-1);
-                } else {
-                    final long finalSumDocCountError = sumDocCountError;
-                    bucket.setDocCountError(docCountError -> docCountError + finalSumDocCountError);
+            if (size < reducedBuckets.size()) {
+                Comparator<MultiBucketsAggregation.Bucket> cmp = order.comparator();
+                B[] reducedBucketsArr  = createBucketsArray(reducedBuckets.size());;
+                for (int i = 0; i < reducedBuckets.size(); i++) {
+                    reducedBucketsArr[i] = reducedBuckets.get(i);
                 }
-                if (bucket.getDocCount() >= localBucketCountThresholds.getMinDocCount()) {
-                    B removed = ordered.insertWithOverflow(bucket);
-                    if (removed != null) {
-                        otherDocCount += removed.getDocCount();
-                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                ArrayUtil.select(
+                    reducedBucketsArr,
+                    0,
+                    reducedBuckets.size(),
+                    size,
+                    cmp
+                );
+                int sz = 0;
+                for (B bucket : reducedBucketsArr) {
+                    if (sumDocCountError == -1) {
+                        bucket.setDocCountError(-1);
                     } else {
-                        reduceContext.consumeBucketsAndMaybeBreak(1);
+                        final long finalSumDocCountError = sumDocCountError;
+                        bucket.setDocCountError(docCountError -> docCountError + finalSumDocCountError);
                     }
-                } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket));
+                    if (bucket.getDocCount() >= localBucketCountThresholds.getMinDocCount()) {
+                        B removed = ((sz == size) ? bucket : null);
+                        if (removed != null) {
+                            otherDocCount += removed.getDocCount();
+                            reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                        } else {
+                            sz++;
+                            reduceContext.consumeBucketsAndMaybeBreak(1);
+                        }
+                    } else {
+                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket));
+                    }
                 }
-            }
-            list = createBucketsArray(ordered.size());
-            for (int i = ordered.size() - 1; i >= 0; i--) {
-                list[i] = ordered.pop();
+                list = createBucketsArray(sz);
+                if (sz >= 0) System.arraycopy(reducedBucketsArr, 0, list, 0, sz);
+                Arrays.sort(list, cmp);
+            } else {
+                final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator());
+                for (B bucket : reducedBuckets) {
+                    if (sumDocCountError == -1) {
+                        bucket.setDocCountError(-1);
+                    } else {
+                        final long finalSumDocCountError = sumDocCountError;
+                        bucket.setDocCountError(docCountError -> docCountError + finalSumDocCountError);
+                    }
+                    if (bucket.getDocCount() >= localBucketCountThresholds.getMinDocCount()) {
+                        B removed = ordered.insertWithOverflow(bucket);
+                        if (removed != null) {
+                            otherDocCount += removed.getDocCount();
+                            reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                        } else {
+                            reduceContext.consumeBucketsAndMaybeBreak(1);
+                        }
+                    } else {
+                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket));
+                    }
+                }
+                list = createBucketsArray(ordered.size());
+                for (int i = ordered.size() - 1; i >= 0; i--) {
+                    list[i] = ordered.pop();
+                }
             }
         } else {
             // we can prune the list on partial reduce if the aggregation is ordered by key

@@ -94,6 +94,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Logger logger;
     private final SearchTransportService searchTransportService;
     private final Executor executor;
+    private final Executor fanoutExecutor;
     private final ActionListener<SearchResponse> listener;
     private final SearchRequest request;
     /**
@@ -137,6 +138,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         Map<String, Float> concreteIndexBoosts,
         Map<String, Set<String>> indexRoutings,
         Executor executor,
+        Executor fanoutExecutor,
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         GroupShardsIterator<SearchShardIterator> shardsIts,
@@ -173,6 +175,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.executor = executor;
+        this.fanoutExecutor = fanoutExecutor;
         this.request = request;
         this.task = task;
         this.listener = ActionListener.runAfter(listener, this::releaseContext);
@@ -185,6 +188,51 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusters = clusters;
         this.searchRequestContext = searchRequestContext;
         this.tracer = tracer;
+    }
+
+    AbstractSearchAsyncAction(
+        String name,
+        Logger logger,
+        SearchTransportService searchTransportService,
+        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+        Map<String, AliasFilter> aliasFilter,
+        Map<String, Float> concreteIndexBoosts,
+        Map<String, Set<String>> indexRoutings,
+        Executor executor,
+        SearchRequest request,
+        ActionListener<SearchResponse> listener,
+        GroupShardsIterator<SearchShardIterator> shardsIts,
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        ClusterState clusterState,
+        SearchTask task,
+        SearchPhaseResults<Result> resultConsumer,
+        int maxConcurrentRequestsPerNode,
+        SearchResponse.Clusters clusters,
+        SearchRequestContext searchRequestContext,
+        Tracer tracer
+    ) {
+        this(
+            name,
+            logger,
+            searchTransportService,
+            nodeIdToConnection,
+            aliasFilter,
+            concreteIndexBoosts,
+            indexRoutings,
+            executor,
+            executor,
+            request,
+            listener,
+            shardsIts,
+            timeProvider,
+            clusterState,
+            task,
+            resultConsumer,
+            maxConcurrentRequestsPerNode,
+            clusters,
+            searchRequestContext,
+            tracer);
+
     }
 
     @Override
@@ -827,7 +875,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void execute(Runnable command) {
-        executor.execute(command);
+        fanoutExecutor.execute(command);
     }
 
     @Override
