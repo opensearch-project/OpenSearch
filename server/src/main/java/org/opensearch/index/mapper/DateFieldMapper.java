@@ -227,6 +227,50 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Considerations:
+     *     1. When building source using doc_values, for multi-value field, it will result values in sorted order
+     *     2. If "null_value" is defined in field mapping and doc contains "null" field value then derived source will
+     *        contain "null_value" as field value instead of null and if "null_value" is not defined in mapping then
+     *        field will not be present in derived source
+     * <p>
+     * Date format:
+     *     1. If "print_format" specified in field mapping, then derived source will have date in this format
+     *     2. If multiple date formats are specified in field mapping and "print_format" is not specified then
+     *        derived source will contain date in first date format from "||" separated list of format defined in
+     *        "format"
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        DerivedFieldGenerator generator = new DerivedFieldGenerator(mappedFieldType);
+        generator.registerFieldValueFetcher(FieldValueType.DOC_VALUES, new SortedNumericDocValuesFetcher(mappedFieldType) {
+            @Override
+            public Object convert(Object value) {
+                Long val = (Long) value;
+                if (val == null) {
+                    return null;
+                }
+                return fieldType().dateTimeFormatter().formatMillis(val);
+            }
+        });
+        generator.registerFieldValueFetcher(FieldValueType.STORED, new StoredFieldFetcher(mappedFieldType));
+        return generator;
+    }
+
+    @Override
+    public void canDeriveSource() {
+        super.canDeriveSource();
+        if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with copy_to parameter set");
+        }
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with stored and docValues disabled");
+        }
+    }
+
+    /**
      * Builder for the date field mapper
      *
      * @opensearch.internal
@@ -373,13 +417,27 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateFormatter dateTimeFormatter,
             Resolution resolution,
             String nullValue,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean derivedSourceSupported
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta, derivedSourceSupported);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
             this.nullValue = nullValue;
+        }
+
+        public DateFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            Map<String, String> meta
+        ) {
+            this(name, isSearchable, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, meta, true);
         }
 
         public DateFieldType(String name) {
