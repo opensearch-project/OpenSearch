@@ -5,10 +5,15 @@ jobs:
   precommit:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       matrix:
         java: [ 21, 23 ]
         os: [ubuntu-latest, windows-latest, macos-latest, macos-13, ubuntu-24.04-arm]
+        include:
+          - java: 21
+            os: 'windows-2025'
+            experimental: true
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK ${{ matrix.java }}
