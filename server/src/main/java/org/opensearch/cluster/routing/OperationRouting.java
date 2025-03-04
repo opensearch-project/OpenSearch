@@ -256,7 +256,7 @@ public class OperationRouting {
                 preference = Preference.PRIMARY.type();
             }
 
-            if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)
+            if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
                 && IndexModule.DataLocalityType.PARTIAL.name()
                     .equals(indexMetadataForShard.getSettings().get(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()))
                 && (preference == null || preference.isEmpty())) {
