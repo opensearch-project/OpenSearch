@@ -25,10 +25,12 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -71,7 +73,11 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         );
         ensureYellow(TEST_INDEX);
         // add 2 nodes for the replicas
-        internalCluster().startDataOnlyNodes(2);
+        List<String> replicas = internalCluster().startDataOnlyNodes(2);
+
+        // search node setting
+        setSearchDedicatedNodeSettings(replicas.get(0));
+
         ensureGreen(TEST_INDEX);
 
         // assert shards are on separate nodes & all active
@@ -106,6 +112,10 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         // start a node for our search replica
         String replica = internalCluster().startDataOnlyNode();
+
+        // search node setting
+        setSearchDedicatedNodeSettings(replica);
+
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(numSearchReplicas);
         assertHitCount(client(replica).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1);
@@ -118,9 +128,44 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         assertHitCount(client(replica).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1);
     }
 
-    public void testSearchReplicaScaling() {
-        internalCluster().startNodes(2);
+    public void testFailoverWithSearchReplicaWhenNodeLeavesCluster() throws IOException {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
         createIndex(TEST_INDEX);
+        indexSingleDoc(TEST_INDEX, true);
+        ensureYellow(TEST_INDEX);
+        // add another node for the search replica
+        String dataNodeOne = internalCluster().startDataOnlyNode();
+
+        // search node setting
+        setSearchDedicatedNodeSettings(dataNodeOne);
+
+        ensureGreen(TEST_INDEX);
+
+        // Stop Node which hosts the search replica
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNodeOne));
+
+        // Ensure search shard is unassigned
+        ensureYellowAndNoInitializingShards(TEST_INDEX);
+        assertActiveSearchShards(0);
+
+        // Add a node and ensure search shard will get assigned
+        dataNodeOne = internalCluster().startDataOnlyNode();
+        // search node setting
+        setSearchDedicatedNodeSettings(dataNodeOne);
+
+        // Ensure search shard is recovered
+        ensureGreen(TEST_INDEX);
+        assertActiveSearchShards(1);
+    }
+
+    public void testSearchReplicaScaling() {
+        List<String> nodes = internalCluster().startNodes(2);
+        createIndex(TEST_INDEX);
+
+        // search node setting
+        setSearchDedicatedNodeSettings(nodes.get(0));
+
         ensureGreen(TEST_INDEX);
         // assert settings
         Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
@@ -137,6 +182,9 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
             .prepareUpdateSettings(TEST_INDEX)
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 2))
             .get();
+
+        // search node setting
+        setSearchDedicatedNodeSettings(String.join(", ", nodes));
 
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(2);
@@ -167,7 +215,11 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         ensureYellow(TEST_INDEX);
         client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         // add 2 nodes for the replicas
-        internalCluster().startDataOnlyNodes(2);
+        List<String> replicaNodes = internalCluster().startDataOnlyNodes(2);
+
+        // search node setting
+        setSearchDedicatedNodeSettings(replicaNodes.get(0));
+
         ensureGreen(TEST_INDEX);
 
         assertActiveShardCounts(numSearchReplicas, numWriterReplicas);
@@ -182,6 +234,56 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         String nodeId = response.getHits().getAt(0).getShard().getNodeId();
         IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
         assertEquals(nodeId, indexShardRoutingTable.searchOnlyReplicas().get(0).currentNodeId());
+    }
+
+    public void testUnableToAllocateSearchReplicaWontBlockRegularReplicaAllocation() {
+        int numSearchReplicas = 1;
+        int numWriterReplicas = 1;
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(3);
+
+        createIndex(
+            TEST_INDEX,
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .build()
+        );
+
+        ensureYellowAndNoInitializingShards(TEST_INDEX);
+        assertActiveShardCounts(0, numWriterReplicas);
+    }
+
+    public void testUnableToAllocateRegularReplicaWontBlockSearchReplicaAllocation() {
+        int numSearchReplicas = 1;
+        int numWriterReplicas = 1;
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        List<String> replicaNodes = internalCluster().startDataOnlyNodes(2);
+
+        // search node setting for both replica nodes
+        setSearchDedicatedNodeSettings(String.join(", ", replicaNodes));
+
+        createIndex(
+            TEST_INDEX,
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .build()
+        );
+        ensureYellowAndNoInitializingShards(TEST_INDEX);
+        assertActiveShardCounts(numSearchReplicas, 0);
+    }
+
+    private void setSearchDedicatedNodeSettings(String nodeName) {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodeName))
+            .execute()
+            .actionGet();
     }
 
     /**

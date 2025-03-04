@@ -85,6 +85,10 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         final String replica = internalCluster().startDataOnlyNode();
+
+        // set search only role on node
+        setSearchDedicatedNodeSettings(replica);
+
         ensureGreen(INDEX_NAME);
 
         final int docCount = 10;
@@ -107,6 +111,10 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );
+
+        // set search only role on node
+        setSearchDedicatedNodeSettings(nodes.get(0));
+
         ensureGreen(INDEX_NAME);
 
         final int docCount = 5;
@@ -145,12 +153,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         final String replica = internalCluster().startDataOnlyNode();
 
         // ensure search replicas are only allocated to "replica" node.
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(replica);
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -167,14 +170,11 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         // Node stats should show remote download stats as nonzero, use this as a precondition to compare
         // post restart.
         assertDownloadStats(replica, true);
-        NodesStatsResponse nodesStatsResponse;
-        NodeStats nodeStats;
 
         internalCluster().restartNode(replica);
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, replica);
 
-        // assert existing store recovery
         assertRecoverySourceType(replica, EXISTING_STORE);
         assertDownloadStats(replica, false);
     }
@@ -191,6 +191,10 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         refresh(INDEX_NAME);
 
         final String replica = internalCluster().startDataOnlyNode();
+
+        // search node setting
+        setSearchDedicatedNodeSettings(replica);
+
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, replica);
 
@@ -258,6 +262,10 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         assertDocCounts(docCount, primary);
 
         final String replica = internalCluster().startDataOnlyNode();
+
+        // search node setting
+        setSearchDedicatedNodeSettings(replica);
+
         ensureGreen(INDEX_NAME);
         assertDocCounts(docCount, replica);
         // stop the primary
@@ -294,6 +302,10 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         refresh(INDEX_NAME);
 
         final String replica = internalCluster().startDataOnlyNode();
+
+        // search node setting
+        setSearchDedicatedNodeSettings(replica);
+
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, replica);
 
@@ -321,5 +333,14 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         }
         refresh(INDEX_NAME);
         assertBusy(() -> assertDocCounts(20, replica, writer_replica));
+    }
+
+    private void setSearchDedicatedNodeSettings(String nodeName) {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodeName))
+            .execute()
+            .actionGet();
     }
 }

@@ -38,14 +38,7 @@ public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTest
         final String node_2 = nodesIds.get(2);
         assertEquals(3, cluster().size());
 
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node_1 + "," + node_0)
-            )
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(node_1 + "," + node_0);
 
         createIndex(
             "test",
@@ -65,12 +58,7 @@ public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTest
         String emptyAllowedNode = existingSearchReplicaNode.equals(node_0) ? node_1 : node_0;
 
         // set the included nodes to the other open node, search replica should relocate to that node.
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", emptyAllowedNode))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(emptyAllowedNode);
         ensureGreen("test");
 
         routingTable = getRoutingTable();
@@ -86,12 +74,7 @@ public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTest
         assertEquals(3, cluster().size());
 
         // set filter on 1 node and set search replica count to 2 - should leave 1 unassigned
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node_1))
-            .execute()
-            .actionGet();
+        setSearchDedicatedNodeSettings(node_1);
 
         logger.info("--> creating an index with no replicas");
         createIndex(
@@ -115,12 +98,49 @@ public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTest
         assertEquals(1, routingTable.searchOnlyReplicas().stream().filter(ShardRouting::unassigned).count());
     }
 
+    public void testSearchReplicaDedicatedIncludes_WhenNotSetDoNotAssign() {
+        List<String> nodesIds = internalCluster().startNodes(2);
+        final String node_0 = nodesIds.get(0);
+        final String node_1 = nodesIds.get(1);
+        assertEquals(2, cluster().size());
+
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build()
+        );
+        ensureYellowAndNoInitializingShards("test");
+        IndexShardRoutingTable routingTable = getRoutingTable();
+        assertNull(routingTable.searchOnlyReplicas().get(0).currentNodeId());
+
+        String primaryAssignedNodeName = getNodeName(routingTable.primaryShard().currentNodeId());
+        String emptyAllowedNode = primaryAssignedNodeName.equals(node_0) ? node_1 : node_0;
+
+        // set search only role on another node where primary not assigned
+        setSearchDedicatedNodeSettings(emptyAllowedNode);
+
+        ensureGreen("test");
+        assertEquals(emptyAllowedNode, getNodeName(getRoutingTable().searchOnlyReplicas().get(0).currentNodeId()));
+    }
+
     private IndexShardRoutingTable getRoutingTable() {
-        IndexShardRoutingTable routingTable = getClusterState().routingTable().index("test").getShards().get(0);
-        return routingTable;
+        return getClusterState().routingTable().index("test").getShards().get(0);
     }
 
     private String getNodeName(String id) {
         return getClusterState().nodes().get(id).getName();
+    }
+
+    private void setSearchDedicatedNodeSettings(String nodeName) {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodeName))
+            .execute()
+            .actionGet();
     }
 }
