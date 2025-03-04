@@ -46,11 +46,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -189,6 +191,16 @@ public class SystemIndicesTests extends OpenSearchTestCase {
             equalTo(Set.of(".system-index1", ".system-index-pattern1"))
         );
         assertThat(SystemIndexRegistry.matchesSystemIndexPattern(Set.of(".not-system")), equalTo(Collections.emptySet()));
+
+        assertThat(
+            SystemIndexRegistry.matchesSystemIndexDescriptor(Set.of(".system-index1", ".system-index2")),
+            containsInAnyOrder(
+                Stream.concat(
+                    plugin1.getSystemIndexDescriptors(Settings.EMPTY).stream(),
+                    plugin2.getSystemIndexDescriptors(Settings.EMPTY).stream()
+                ).toArray()
+            )
+        );
     }
 
     public void testRegisteredSystemIndexGetAllDescriptors() {
