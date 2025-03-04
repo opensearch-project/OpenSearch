@@ -47,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Use Lucene `BM25Similarity` as default since the `LegacyBM25Similarity` is marked as deprecated ([#17306](https://github.com/opensearch-project/OpenSearch/pull/17306))
 - Wildcard field index only 3gram of the input data [#17349](https://github.com/opensearch-project/OpenSearch/pull/17349)
 - Use BC libraries to parse PEM files, increase key length, allow general use of known cryptographic binary extensions, remove unused BC dependencies ([#3420](https://github.com/opensearch-project/OpenSearch/pull/14912))
+- Add segments codec check in UpgradeRequest to decide should upgrade segment or not ([#17491](https://github.com/opensearch-project/OpenSearch/pull/17491))
 
 ### Deprecated
 
