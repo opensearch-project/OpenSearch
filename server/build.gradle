@@ -114,6 +114,12 @@ dependencies {
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
+
+  // BC security provider
+  api libs.bcjce
+  api libs.bctls
+  api libs.bcutil
+
   testImplementation 'org.awaitility:awaitility:4.3.0'
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -161,6 +167,10 @@ tasks.named("testingConventions").configure {
             baseClass "org.opensearch.test.OpenSearchSingleNodeTestCase"
         }
     }
+}
+
+tasks.named("dependencyLicenses").configure {
+    mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 // Set to current version by default

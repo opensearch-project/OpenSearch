@@ -195,4 +195,22 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
+  // security
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.internal.spec";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "closeClassLoader";
+  permission java.lang.RuntimePermission "getProtectionDomain";
+  permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";
+  permission java.io.FilePermission "${java.home}/lib/security/jssecacerts", "read";
+  permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
+  permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
+  permission java.security.SecurityPermission "getProperty.jdk.tls.server.defaultDHEParameters";
+  permission java.security.SecurityPermission "getProperty.keystore.type.compat";
+  permission java.security.SecurityPermission "getProperty.org.bouncycastle.*";
+  permission java.security.SecurityPermission "removeProvider.SunJCE";
+  permission java.util.PropertyPermission "java.runtime.name", "read";
+  permission org.bouncycastle.crypto.CryptoServicesPermission "defaultRandomConfig";
+  permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
+  permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
 };
