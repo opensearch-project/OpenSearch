@@ -37,6 +37,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.opensearch.ExceptionsHelper;
@@ -76,6 +77,13 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AbstractSimpleTransportTestCase.StringMessageRequest;
+import org.opensearch.transport.AbstractSimpleTransportTestCase.StringMessageResponse;
+import org.opensearch.transport.AbstractSimpleTransportTestCase.Version0Request;
+import org.opensearch.transport.AbstractSimpleTransportTestCase.Version0Response;
+import org.opensearch.transport.AbstractSimpleTransportTestCase.Version1Request;
+import org.opensearch.transport.AbstractSimpleTransportTestCase.Version1Response;
+import org.opensearch.transport.TransportInterceptor.AsyncSender;
 import org.junit.After;
 import org.junit.Before;
 
@@ -119,6 +127,16 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
+import static org.mockito.ArgumentMatchers.startsWith;
 
 public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase {
 
@@ -2293,6 +2311,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16731")
     public void testTcpHandshakeTimeout() throws IOException {
         try (ServerSocket socket = new ServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
@@ -2322,6 +2341,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16731")
     public void testTcpHandshakeConnectionReset() throws IOException, InterruptedException {
         try (ServerSocket socket = new ServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
