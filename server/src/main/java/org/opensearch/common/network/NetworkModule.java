@@ -55,6 +55,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
@@ -210,6 +211,18 @@ public final class NetworkModule {
             );
         }
 
+        final Collection<SecureAuxTransportSettingsProvider> secureAuxTransportSettingsProviders = secureSettingsFactories.stream()
+            .map(p -> p.getSecureAuxTransportSettingsProvider(settings))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+
+        if (secureAuxTransportSettingsProviders.size() > 1) {
+            throw new IllegalArgumentException(
+                "there is more than one secure auxiliary transport settings provider: " + secureAuxTransportSettingsProviders
+            );
+        }
+
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
                 settings,
@@ -271,6 +284,24 @@ public final class NetworkModule {
                 );
                 for (Map.Entry<String, Supplier<HttpServerTransport>> entry : secureHttpTransportFactory.entrySet()) {
                     registerHttpTransport(entry.getKey(), entry.getValue());
+                }
+            }
+
+            // Register any secure auxiliary transports if available
+            if (secureAuxTransportSettingsProviders.isEmpty() == false) {
+                final SecureAuxTransportSettingsProvider secureSettingProvider = secureAuxTransportSettingsProviders.iterator().next();
+
+                final Map<String, Supplier<NetworkPlugin.AuxTransport>> secureAuxTransportFactory = plugin.getSecureAuxTransports(
+                    settings,
+                    threadPool,
+                    circuitBreakerService,
+                    networkService,
+                    clusterSettings,
+                    secureSettingProvider,
+                    tracer
+                );
+                for (Map.Entry<String, Supplier<NetworkPlugin.AuxTransport>> entry : secureAuxTransportFactory.entrySet()) {
+                    registerAuxTransport(entry.getKey(), entry.getValue());
                 }
             }
 
