@@ -293,6 +293,7 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
         assertThat(result, equalTo(1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16731")
     public void testCancellation() {
         // Initialize dependencies of TransportMultiSearchAction
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
