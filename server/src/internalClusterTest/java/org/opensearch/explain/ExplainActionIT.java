@@ -40,6 +40,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.TermsQueryBuilder;
+import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -52,6 +54,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -304,5 +307,26 @@ public class ExplainActionIT extends OpenSearchIntegTestCase {
 
         result = Lucene.readExplanation(esBuffer);
         assertThat(exp.toString(), equalTo(result.toString()));
+    }
+
+    public void testQueryRewrite() {
+        client().admin()
+            .indices()
+            .prepareCreate("twitter")
+            .setMapping("user", "type=integer", "followers", "type=integer")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2))
+            .get();
+        client().prepareIndex("twitter").setId("1").setSource("followers", new int[] { 1, 2, 3 }).get();
+        refresh();
+
+        TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "1", "followers"));
+        ExplainResponse response = client().prepareExplain("twitter", "1").setQuery(termsLookupQuery).get();
+        assertNotNull(response);
+        assertTrue(response.isExists());
+        assertFalse(response.isMatch());
+        assertThat(response.getIndex(), equalTo("twitter"));
+        assertThat(response.getId(), equalTo("1"));
+        assertNotNull(response.getExplanation());
+        assertFalse(response.getExplanation().isMatch());
     }
 }
