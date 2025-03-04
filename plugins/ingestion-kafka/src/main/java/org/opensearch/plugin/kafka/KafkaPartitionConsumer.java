@@ -133,6 +133,11 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
+    public KafkaOffset nextPointer(KafkaOffset pointer) {
+        return new KafkaOffset(pointer.getOffset() + 1);
+    }
+
+    @Override
     public IngestionShardPointer earliestPointer() {
         long startOffset = AccessController.doPrivileged(
             (PrivilegedAction<Long>) () -> consumer.beginningOffsets(Collections.singletonList(topicPartition))
