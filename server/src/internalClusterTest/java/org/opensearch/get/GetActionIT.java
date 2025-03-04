@@ -64,6 +64,7 @@ import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.IndexSettings.INDEX_DERIVED_SOURCE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -84,7 +85,9 @@ public class GetActionIT extends OpenSearchIntegTestCase {
     public void testSimpleGet() {
         assertAcked(
             prepareCreate("test").setMapping("field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
-                .setSettings(Settings.builder().put("index.refresh_interval", -1))
+                .setSettings(
+                    Settings.builder().put("index.refresh_interval", -1).put(INDEX_DERIVED_SOURCE_SETTING.getKey(), randomBoolean())
+                )
                 .addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null)))
         );
         ensureGreen();
