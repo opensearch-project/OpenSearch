@@ -14,6 +14,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.Term;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -48,6 +49,7 @@ public class MessageProcessorRunnable implements Runnable {
 
     private final BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
     private final MessageProcessor messageProcessor;
+    private final CounterMetric stats = new CounterMetric();
 
     private static final String ID = "_id";
     private static final String OP_TYPE = "_op_type";
@@ -229,8 +231,13 @@ public class MessageProcessorRunnable implements Runnable {
                 Thread.currentThread().interrupt(); // Restore interrupt status
             }
             if (result != null) {
+                stats.inc();
                 messageProcessor.process(result.getMessage(), result.getPointer());
             }
         }
+    }
+
+    public CounterMetric getStats() {
+        return stats;
     }
 }
