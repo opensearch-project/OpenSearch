@@ -2341,50 +2341,50 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16731")
-    public void testTcpHandshakeConnectionReset() throws IOException, InterruptedException {
-        try (ServerSocket socket = new ServerSocket()) {
-            socket.bind(getLocalEphemeral(), 1);
-            socket.setReuseAddress(true);
-            DiscoveryNode dummy = new DiscoveryNode(
-                "TEST",
-                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
-            Thread t = new Thread() {
-                @Override
-                public void run() {
-                    try (Socket accept = socket.accept()) {
-                        if (randomBoolean()) { // sometimes wait until the other side sends the message
-                            accept.getInputStream().read();
-                        }
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
-            };
-            t.start();
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-            builder.addConnections(
-                1,
-                TransportRequestOptions.Type.BULK,
-                TransportRequestOptions.Type.PING,
-                TransportRequestOptions.Type.RECOVERY,
-                TransportRequestOptions.Type.REG,
-                TransportRequestOptions.Type.STATE
-            );
-            builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
-            ConnectTransportException ex = expectThrows(
-                ConnectTransportException.class,
-                () -> serviceA.connectToNode(dummy, builder.build())
-            );
-            assertEquals(ex.getMessage(), "[][" + dummy.getAddress() + "] general node connection failure");
-            assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
-            t.join();
-        }
-    }
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16731")
+    // public void testTcpHandshakeConnectionReset() throws IOException, InterruptedException {
+    //     try (ServerSocket socket = new ServerSocket()) {
+    //         socket.bind(getLocalEphemeral(), 1);
+    //         socket.setReuseAddress(true);
+    //         DiscoveryNode dummy = new DiscoveryNode(
+    //             "TEST",
+    //             new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
+    //             emptyMap(),
+    //             emptySet(),
+    //             version0
+    //         );
+    //         Thread t = new Thread() {
+    //             @Override
+    //             public void run() {
+    //                 try (Socket accept = socket.accept()) {
+    //                     if (randomBoolean()) { // sometimes wait until the other side sends the message
+    //                         accept.getInputStream().read();
+    //                     }
+    //                 } catch (IOException e) {
+    //                     throw new UncheckedIOException(e);
+    //                 }
+    //             }
+    //         };
+    //         t.start();
+    //         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+    //         builder.addConnections(
+    //             1,
+    //             TransportRequestOptions.Type.BULK,
+    //             TransportRequestOptions.Type.PING,
+    //             TransportRequestOptions.Type.RECOVERY,
+    //             TransportRequestOptions.Type.REG,
+    //             TransportRequestOptions.Type.STATE
+    //         );
+    //         builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
+    //         ConnectTransportException ex = expectThrows(
+    //             ConnectTransportException.class,
+    //             () -> serviceA.connectToNode(dummy, builder.build())
+    //         );
+    //         assertEquals(ex.getMessage(), "[][" + dummy.getAddress() + "] general node connection failure");
+    //         assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
+    //         t.join();
+    //     }
+    // }
 
     public void testResponseHeadersArePreserved() throws InterruptedException {
         List<String> executors = new ArrayList<>(ThreadPool.THREAD_POOL_TYPES.keySet());
