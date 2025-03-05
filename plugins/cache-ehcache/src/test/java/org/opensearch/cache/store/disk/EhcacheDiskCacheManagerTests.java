@@ -127,6 +127,7 @@ public class EhcacheDiskCacheManagerTests extends OpenSearchSingleNodeTestCase {
             IllegalStateException.class,
             () -> EhcacheDiskCacheManager.createCache(CacheType.INDICES_REQUEST_CACHE, cacheName, cacheConfigurationBuilder)
         );
+        EhcacheDiskCacheManager.getCacheManagerMap().remove(CacheType.INDICES_REQUEST_CACHE); // Clear up
     }
 
     public void testCreateCacheWithCacheManagerDoesNotExist() {
