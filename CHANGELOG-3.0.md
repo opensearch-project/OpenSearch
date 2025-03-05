@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update Apache Lucene to 10.1.0 ([#16366](https://github.com/opensearch-project/OpenSearch/pull/16366))
 - Bump Apache HttpCore5/HttpClient5 dependencies from 5.2.5/5.3.1 to 5.3.1/5.4.1 to support ExtendedSocketOption in HttpAsyncClient ([#16757](https://github.com/opensearch-project/OpenSearch/pull/16757))
 - Bumps `jetty` version from 9.4.55.v20240627 to 9.4.57.v20241219
+- Switch main/3.x to use JDK21 LTS version ([#17515](https://github.com/opensearch-project/OpenSearch/pull/17515))
 
 ### Changed
 - Changed locale provider from COMPAT to CLDR  ([#14345](https://github.com/opensearch-project/OpenSearch/pull/14345))
