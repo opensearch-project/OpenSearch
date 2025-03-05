@@ -8,165 +8,164 @@
 
 package org.opensearch.autotagging;
 
-import org.opensearch.autotagging.Rule.Attribute;
-import org.opensearch.autotagging.Rule.Feature;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
-import org.joda.time.Instant;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.autotagging.Rule.MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING;
-import static org.opensearch.autotagging.Rule.MAX_NUMBER_OF_VALUES_PER_ATTRIBUTE;
 import static org.opensearch.autotagging.Rule._ID_STRING;
+import static org.opensearch.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_1;
+import static org.opensearch.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_2;
 
-public class RuleTests extends AbstractSerializingTestCase<Rule> {
-    public static final String _ID = "test_id_AgfUfjw039vhdONlYi3TQ==";
-    public static final String LABEL = "test_label";
-    public static final String DESCRIPTION = "test_description";
+public class RuleTests extends AbstractSerializingTestCase<Rule<? extends FeatureType>> {
+    public static final String TEST_ATTR1_NAME = "test_attr1";
+    public static final String TEST_ATTR2_NAME = "test_attr2";
+    public static final String TEST_FEATURE_TYPE = "test_feature_type";
+    public static final String DESCRIPTION = "description";
+    public static final String _ID = "test_id";
+    public static final String LABEL = "label";
+    public static final TestFeatureType FEATURE_TYPE = TestFeatureType.INSTANCE;
+    public static final Map<Attribute, Set<String>> ATTRIBUTE_MAP = Map.of(
+        TEST_ATTRIBUTE_1,
+        Set.of("value1"),
+        TEST_ATTRIBUTE_2,
+        Set.of("value2")
+    );
+    public static final String UPDATED_AT = "2025-02-24T07:42:10.123456Z";
+    public static final String INVALID_CLASS = "invalid_class";
+    public static final String INVALID_ATTRIBUTE = "invalid_attribute";
+    public static final String INVALID_FEATURE = "invalid_feature";
 
-    static Rule createRandomRule(String description, String label) {
-        Feature feature = randomFeature();
-        return Rule.builder()
-            .description(description)
-            .label(label)
-            .feature(feature.getName())
-            .attributeMap(randomAttributeMaps(feature))
-            .updatedAt(Instant.now().toString())
-            .build();
-    }
-
-    private static Feature randomFeature() {
-        return Feature.values()[randomIntBetween(0, Feature.values().length - 1)];
-    }
-
-    private static Map<Attribute, Set<String>> randomAttributeMaps(Feature feature) {
-        Map<Attribute, Set<String>> attributeMap = new HashMap<>();
-        if (feature == null) {
-            return attributeMap;
-        }
-        List<Attribute> allowedAttributes = new ArrayList<>(feature.getAllowedAttributes());
-        do {
-            attributeMap.clear();
-            for (Attribute currAttribute : allowedAttributes) {
-                if (randomBoolean()) {
-                    attributeMap.put(currAttribute, randomAttributeValues());
-                }
-            }
-        } while (attributeMap.isEmpty());
-        return attributeMap;
-    }
-
-    private static Set<String> randomAttributeValues() {
-        Set<String> res = new HashSet<>();
-        int numberOfValues = randomIntBetween(1, MAX_NUMBER_OF_VALUES_PER_ATTRIBUTE);
-        for (int i = 0; i < numberOfValues; i++) {
-            res.add(randomAlphaOfLength(randomIntBetween(1, MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING)));
-        }
-        return res;
+    @Override
+    protected Rule<? extends FeatureType> createTestInstance() {
+        String description = randomAlphaOfLength(10);
+        String label = randomAlphaOfLength(5);
+        String updatedAt = Instant.now().toString();
+        return new Rule<>(description, ATTRIBUTE_MAP, FEATURE_TYPE, label, updatedAt);
     }
 
     @Override
-    protected Rule doParseInstance(XContentParser parser) throws IOException {
-        return Rule.fromXContent(parser);
-    }
-
-    @Override
-    protected Writeable.Reader<Rule> instanceReader() {
+    protected Writeable.Reader<Rule<? extends FeatureType>> instanceReader() {
         return Rule::new;
     }
 
     @Override
-    protected Rule createTestInstance() {
-        return createRandomRule(DESCRIPTION, LABEL);
+    protected Rule<? extends FeatureType> doParseInstance(XContentParser parser) throws IOException {
+        return Rule.fromXContent(parser, FEATURE_TYPE);
     }
 
-    static Rule buildRule(String feature, Map<Attribute, Set<String>> attributeListMap, String updatedAt) {
-        return Rule.builder()
-            .description(DESCRIPTION)
-            .label(LABEL)
-            .feature(feature)
+    public enum TestAttribute implements Attribute {
+        TEST_ATTRIBUTE_1(TEST_ATTR1_NAME),
+        TEST_ATTRIBUTE_2(TEST_ATTR2_NAME);
+
+        private final String name;
+
+        TestAttribute(String name) {
+            this.name = name;
+        }
+
+        static {
+            for (TestAttribute attr : TestAttribute.values()) {
+                attr.registerAttribute();
+            }
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public void registerAttribute() {
+            AutoTaggingRegistry.registerAttribute(this);
+        }
+    }
+
+    public static class TestFeatureType implements FeatureType {
+        public static final TestFeatureType INSTANCE = new TestFeatureType();
+        private static final String NAME = TEST_FEATURE_TYPE;
+        private static final int MAX_ATTRIBUTE_VALUES = 10;
+        private static final int MAX_ATTRIBUTE_VALUE_LENGTH = 100;
+        private static final Set<Attribute> ALLOWED_ATTRIBUTES = Set.of(TEST_ATTRIBUTE_1, TEST_ATTRIBUTE_2);
+
+        public TestFeatureType() {}
+
+        static {
+            INSTANCE.registerFeatureType();
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
+        }
+
+        @Override
+        public int getMaxNumberOfValuesPerAttribute() {
+            return MAX_ATTRIBUTE_VALUES;
+        }
+
+        @Override
+        public int getMaxCharLengthPerAttributeValue() {
+            return MAX_ATTRIBUTE_VALUE_LENGTH;
+        }
+
+        @Override
+        public Set<Attribute> getAllowedAttributes() {
+            return ALLOWED_ATTRIBUTES;
+        }
+
+        @Override
+        public void registerFeatureType() {
+            AutoTaggingRegistry.registerFeatureType(INSTANCE);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T extends FeatureType> Rule<T> buildRule(
+        String label,
+        T featureType,
+        Map<Attribute, Set<String>> attributeListMap,
+        String updatedAt,
+        String description
+    ) {
+        return (Rule<T>) Rule.builder()
+            .label(label)
+            .featureType(featureType)
+            .description(description)
             .attributeMap(attributeListMap)
             .updatedAt(updatedAt)
             .build();
     }
 
-    public void testInvalidFeature() {
-        assertThrows(IllegalArgumentException.class, () -> buildRule(null, randomAttributeMaps(null), Instant.now().toString()));
-        assertThrows(IllegalArgumentException.class, () -> buildRule("invalid", randomAttributeMaps(null), Instant.now().toString()));
-    }
-
-    public void testInvalidDescription() {
-        assertThrows(IllegalArgumentException.class, () -> createRandomRule(null, LABEL));
-        assertThrows(IllegalArgumentException.class, () -> createRandomRule("", LABEL));
-    }
-
-    public void testInvalidLabel() {
-        assertThrows(IllegalArgumentException.class, () -> createRandomRule(DESCRIPTION, null));
-        assertThrows(IllegalArgumentException.class, () -> createRandomRule(DESCRIPTION, ""));
-    }
-
-    public void testInvalidUpdateTime() {
-        Feature feature = randomFeature();
-        assertThrows(IllegalArgumentException.class, () -> buildRule(feature.toString(), randomAttributeMaps(feature), null));
-    }
-
-    public void testNullOrEmptyAttributeMap() {
-        Feature feature = randomFeature();
-        assertThrows(IllegalArgumentException.class, () -> buildRule(feature.toString(), new HashMap<>(), Instant.now().toString()));
-        assertThrows(IllegalArgumentException.class, () -> buildRule(feature.toString(), null, Instant.now().toString()));
-    }
-
-    public void testInvalidAttributeMap() {
-        Map<Attribute, Set<String>> map = new HashMap<>();
-        map.put(Attribute.INDEX_PATTERN, Set.of(""));
-        assertThrows(IllegalArgumentException.class, () -> buildRule(randomFeature().getName(), map, Instant.now().toString()));
-
-        map.put(Attribute.INDEX_PATTERN, Set.of(randomAlphaOfLength(MAX_CHARACTER_LENGTH_PER_ATTRIBUTE_VALUE_STRING + 1)));
-        assertThrows(IllegalArgumentException.class, () -> buildRule(randomFeature().getName(), map, Instant.now().toString()));
-
-        map.put(Attribute.INDEX_PATTERN, new HashSet<>());
-        for (int i = 0; i < MAX_NUMBER_OF_VALUES_PER_ATTRIBUTE + 1; i++) {
-            map.get(Attribute.INDEX_PATTERN).add(String.valueOf(i));
-        }
-        assertThrows(IllegalArgumentException.class, () -> buildRule(randomFeature().getName(), map, Instant.now().toString()));
-    }
-
     public void testValidRule() {
-        Map<Attribute, Set<String>> map = Map.of(Attribute.INDEX_PATTERN, Set.of("index*", "log*"));
-        String updatedAt = Instant.now().toString();
-        Rule rule = buildRule(Feature.QUERY_GROUP.getName(), map, updatedAt);
+        Rule<TestFeatureType> rule = buildRule(LABEL, FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, DESCRIPTION);
         assertNotNull(rule.getLabel());
         assertEquals(LABEL, rule.getLabel());
-        assertNotNull(updatedAt);
-        assertEquals(updatedAt, rule.getUpdatedAt());
+        assertNotNull(rule.getUpdatedAt());
+        assertEquals(UPDATED_AT, rule.getUpdatedAt());
         Map<Attribute, Set<String>> resultMap = rule.getAttributeMap();
         assertNotNull(resultMap);
         assertFalse(resultMap.isEmpty());
-        assertNotNull(rule.getFeature());
-        assertEquals(Feature.QUERY_GROUP, rule.getFeature());
+        assertNotNull(rule.getFeatureType());
     }
 
     public void testToXContent() throws IOException {
-        Map<Attribute, Set<String>> map = Map.of(Attribute.INDEX_PATTERN, Set.of("log*"));
         String updatedAt = Instant.now().toString();
-        Rule rule = buildRule(Feature.QUERY_GROUP.getName(), map, updatedAt);
+        Rule<TestFeatureType> rule = buildRule(LABEL, FEATURE_TYPE, Map.of(TEST_ATTRIBUTE_1, Set.of("value1")), updatedAt, DESCRIPTION);
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         rule.toXContent(builder, new ToXContent.MapParams(Map.of(_ID_STRING, _ID)));
-
         assertEquals(
-            "{\"_id\":\"test_id_AgfUfjw039vhdONlYi3TQ==\",\"description\":\"test_description\",\"index_pattern\":[\"log*\"],\"query_group\":\"test_label\",\"updated_at\":\""
+            "{\"_id\":\""
+                + _ID
+                + "\",\"description\":\"description\",\"test_attr1\":[\"value1\"],\"test_feature_type\":\"label\",\"updated_at\":\""
                 + updatedAt
                 + "\"}",
             builder.toString()
