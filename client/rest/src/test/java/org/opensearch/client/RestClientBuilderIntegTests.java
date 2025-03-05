@@ -32,8 +32,6 @@
 
 package org.opensearch.client;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsConfigurator;
@@ -66,7 +64,6 @@ import static org.junit.Assert.fail;
 /**
  * Integration test to validate the builder builds a client with the correct configuration
  */
-@ThreadLeakFilters(filters = { BCDisposalDaemonFilter.class })
 public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     private static HttpsServer httpsServer;

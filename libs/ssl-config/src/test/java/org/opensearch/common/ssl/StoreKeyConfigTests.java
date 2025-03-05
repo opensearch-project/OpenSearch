@@ -32,8 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -60,7 +58,6 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ThreadLeakFilters(filters = { BCDisposalDaemonFilter.class })
 public class StoreKeyConfigTests extends OpenSearchTestCase {
 
     private static final int IP_NAME = 7;

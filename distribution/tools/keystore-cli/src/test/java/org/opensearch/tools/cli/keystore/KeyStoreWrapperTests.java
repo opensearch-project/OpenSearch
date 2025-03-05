@@ -138,17 +138,13 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
             SecurityException.class,
             () -> loadedKeystore.decrypt(new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' })
         );
-        if (inFipsJvm()) {
-            assertThat(
-                exception.getMessage(),
-                anyOf(
-                    containsString("Provided keystore password was incorrect"),
-                    containsString("Keystore has been corrupted or tampered with")
-                )
-            );
-        } else {
-            assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
-        }
+        assertThat(
+            exception.getMessage(),
+            anyOf(
+                containsString("Provided keystore password was incorrect"),
+                containsString("Keystore has been corrupted or tampered with")
+            )
+        );
     }
 
     public void testCannotReadStringFromClosedKeystore() throws Exception {

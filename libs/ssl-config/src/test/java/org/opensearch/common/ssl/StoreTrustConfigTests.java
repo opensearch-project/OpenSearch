@@ -32,8 +32,6 @@
 
 package org.opensearch.common.ssl;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -54,7 +52,6 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 
-@ThreadLeakFilters(filters = { BCDisposalDaemonFilter.class })
 public class StoreTrustConfigTests extends OpenSearchTestCase {
 
     private static final char[] P12_PASS = "p12-pass".toCharArray();
