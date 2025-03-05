@@ -84,6 +84,11 @@ public class FakeIngestionSource {
         }
 
         @Override
+        public FakeIngestionShardPointer nextPointer(FakeIngestionShardPointer startPointer) {
+            return new FakeIngestionShardPointer(startPointer.offset + 1);
+        }
+
+        @Override
         public FakeIngestionShardPointer earliestPointer() {
             return new FakeIngestionShardPointer(0);
         }
