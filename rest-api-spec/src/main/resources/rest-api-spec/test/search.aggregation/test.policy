@@ -1,0 +1,10 @@
+grant {
+  permission java.net.NetPermission "accessUnixDomainSocket";
+  permission java.net.SocketPermission "*", "connect,resolve,listen,accept";
+};
+
+grant codeBase "${codebase.opensearch-core}" {
+  // opensearch-nio makes and accepts socket connections
+  permission java.net.SocketPermission "*", "accept,connect";
+  permission java.net.SocketPermission "*", "connect,resolve,listen,accept";
+};

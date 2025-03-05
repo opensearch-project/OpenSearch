@@ -13,8 +13,3 @@ grant {
   permission java.net.NetPermission "accessUnixDomainSocket";
   permission java.net.SocketPermission "*", "accept,connect";
 };
-
-grant codeBase "${codebase.framework}" {
-  permission java.net.NetPermission "accessUnixDomainSocket";
-  permission java.net.SocketPermission "*", "accept,connect";
-};
