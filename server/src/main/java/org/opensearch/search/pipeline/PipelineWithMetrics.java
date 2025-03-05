@@ -33,10 +33,12 @@ class PipelineWithMetrics extends Pipeline {
 
     private final OperationMetrics totalRequestMetrics;
     private final OperationMetrics totalResponseMetrics;
+    private final OperationMetrics totalPhaseResultsMetrics;
     private final OperationMetrics pipelineRequestMetrics = new OperationMetrics();
     private final OperationMetrics pipelineResponseMetrics = new OperationMetrics();
     private final Map<String, OperationMetrics> requestProcessorMetrics = new HashMap<>();
     private final Map<String, OperationMetrics> responseProcessorMetrics = new HashMap<>();
+    private final Map<String, OperationMetrics> phaseResultsProcessorMetrics = new HashMap<>();
 
     PipelineWithMetrics(
         String id,
@@ -48,6 +50,7 @@ class PipelineWithMetrics extends Pipeline {
         NamedWriteableRegistry namedWriteableRegistry,
         OperationMetrics totalRequestMetrics,
         OperationMetrics totalResponseMetrics,
+        OperationMetrics totalPhaseResultMetrics,
         LongSupplier relativeTimeSupplier
     ) {
         super(
@@ -62,11 +65,15 @@ class PipelineWithMetrics extends Pipeline {
         );
         this.totalRequestMetrics = totalRequestMetrics;
         this.totalResponseMetrics = totalResponseMetrics;
+        this.totalPhaseResultsMetrics = totalPhaseResultMetrics;
         for (Processor requestProcessor : getSearchRequestProcessors()) {
             requestProcessorMetrics.putIfAbsent(getProcessorKey(requestProcessor), new OperationMetrics());
         }
         for (Processor responseProcessor : getSearchResponseProcessors()) {
             responseProcessorMetrics.putIfAbsent(getProcessorKey(responseProcessor), new OperationMetrics());
+        }
+        for (Processor phaseResultsProcessor : getSearchPhaseResultsProcessors()) {
+            phaseResultsProcessorMetrics.putIfAbsent(getProcessorKey(phaseResultsProcessor), new OperationMetrics());
         }
     }
 
@@ -79,6 +86,7 @@ class PipelineWithMetrics extends Pipeline {
         NamedWriteableRegistry namedWriteableRegistry,
         OperationMetrics totalRequestProcessingMetrics,
         OperationMetrics totalResponseProcessingMetrics,
+        OperationMetrics totalPhaseResultProcessingMetrics,
         Processor.PipelineContext pipelineContext
     ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
@@ -129,6 +137,7 @@ class PipelineWithMetrics extends Pipeline {
             namedWriteableRegistry,
             totalRequestProcessingMetrics,
             totalResponseProcessingMetrics,
+            totalPhaseResultProcessingMetrics,
             System::nanoTime
         );
 
@@ -236,6 +245,39 @@ class PipelineWithMetrics extends Pipeline {
         responseProcessorMetrics.get(getProcessorKey(processor)).failed();
     }
 
+    @Override
+    protected void beforeTransformPhaseResults() {
+        super.beforeTransformRequest();
+        totalRequestMetrics.before();
+        pipelineRequestMetrics.before();
+    }
+
+    @Override
+    protected void afterTransformPhaseResults(long timeInNanos) {
+        super.afterTransformRequest(timeInNanos);
+        totalRequestMetrics.after(timeInNanos);
+        pipelineRequestMetrics.after(timeInNanos);
+    }
+
+    @Override
+    protected void onTransformPhaseResultsFailure() {
+        super.onTransformRequestFailure();
+        totalRequestMetrics.failed();
+        pipelineRequestMetrics.failed();
+    }
+
+    protected void beforePhaseResultsProcessor(Processor processor) {
+        phaseResultsProcessorMetrics.get(getProcessorKey(processor)).before();
+    }
+
+    protected void afterPhaseResultsProcessor(Processor processor, long timeInNanos) {
+        phaseResultsProcessorMetrics.get(getProcessorKey(processor)).after(timeInNanos);
+    }
+
+    protected void onPhaseResultsProcessorFailed(Processor processor) {
+        phaseResultsProcessorMetrics.get(getProcessorKey(processor)).failed();
+    }
+
     void copyMetrics(PipelineWithMetrics oldPipeline) {
         pipelineRequestMetrics.add(oldPipeline.pipelineRequestMetrics);
         pipelineResponseMetrics.add(oldPipeline.pipelineResponseMetrics);
@@ -271,6 +313,10 @@ class PipelineWithMetrics extends Pipeline {
         for (Processor processor : getSearchResponseProcessors()) {
             String key = getProcessorKey(processor);
             statsBuilder.addResponseProcessorStats(getId(), key, processor.getType(), responseProcessorMetrics.get(key));
+        }
+        for (Processor phaseResultsProcessor : getSearchPhaseResultsProcessors()) {
+            String key = getProcessorKey(phaseResultsProcessor);
+            statsBuilder.addPhaseResultsProcessorStats(getId(), key, phaseResultsProcessor.getType(), phaseResultsProcessorMetrics.get(key));
         }
     }
 }
