@@ -35,14 +35,13 @@ package org.opensearch.index.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.StoredFieldsWriter;
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormatComparator;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.ByteBuffersDirectory;
-import org.apache.lucene.store.IOContext;
 import org.opensearch.Version;
 
 import java.io.IOException;
@@ -112,18 +111,13 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
         }
 
         if (info.info.getAttributes() != null) {
-            // Only way to compare Codec.mode(BEST_SPEED or BEST_COMPRESSION) is try to create fields writer
-            // and catch an IllegalStateException if they are different, and ignore others exceptions
-            try {
-                StoredFieldsWriter writer = actualCodec.storedFieldsFormat().fieldsWriter(new ByteBuffersDirectory(), info.info, IOContext.DEFAULT);
-                writer.close();
-            } catch (IllegalStateException e) {
-                // fieldsWriter throw an exception if previous mode not equal to current
-                logger.debug("Received expected IllegalStateException", e);
-                return true;
-            } catch (Exception e) {
-                // Most of the time it will be java.nio.file.FileAlreadyExistsException, which means codec mode same as should be,
-                // otherwise it is something wrong and will be processed somewhere else
+            if (info.info.getCodec().storedFieldsFormat() instanceof Lucene90StoredFieldsFormat
+                && actualCodec.storedFieldsFormat() instanceof Lucene90StoredFieldsFormat) {
+                var current = (Lucene90StoredFieldsFormat) info.info.getCodec().storedFieldsFormat();
+                var target = (Lucene90StoredFieldsFormat) actualCodec.storedFieldsFormat();
+                if (!Lucene90StoredFieldsFormatComparator.equal(current, target)) {
+                    return true;
+                }
             }
         }
 
