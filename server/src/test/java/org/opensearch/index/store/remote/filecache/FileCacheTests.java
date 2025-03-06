@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.breaker.TestCircuitBreaker;
@@ -74,6 +76,35 @@ public class FileCacheTests extends OpenSearchTestCase {
         // verify all blocks are put into file cache
         for (int i = 0; i < 4; i++) {
             assertNotNull(fileCache.get(createPath(Integer.toString(i))));
+        }
+    }
+
+    public void testGetWithCachedFullFileIndexInput() throws IOException {
+
+        FileCache fileCache = createFileCache(8 * MEGA_BYTES);
+        for (int i = 0; i < 4; i++) {
+            Path filePath = path.resolve(NodeEnvironment.CACHE_FOLDER)
+                .resolve("indexName")
+                .resolve("shardId")
+                .resolve(Integer.toString(i))
+                .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION);
+            createFile("indexName", "shardId/".concat(Integer.toString(i)), "test_file");
+            FSDirectory fsDirectory = FSDirectory.open(filePath);
+            FileCachedIndexInput fileCachedIndexInput = new FileCachedIndexInput(
+                fileCache,
+                filePath,
+                fsDirectory.openInput("test_file", IOContext.DEFAULT)
+            );
+            fileCache.put(filePath, new CachedFullFileIndexInput(fileCache, filePath, fileCachedIndexInput));
+        }
+        // verify all blocks are put into file cache
+        for (int i = 0; i < 4; i++) {
+            Path filePath = path.resolve(NodeEnvironment.CACHE_FOLDER)
+                .resolve("indexName")
+                .resolve("shardId")
+                .resolve(Integer.toString(i))
+                .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION);
+            assertNotNull(fileCache.get(filePath));
         }
     }
 

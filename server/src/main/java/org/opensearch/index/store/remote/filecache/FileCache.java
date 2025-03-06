@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.index.store.remote.utils.cache.CacheUsage;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
+import static org.opensearch.ExceptionsHelper.catchAsRuntimeException;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
 
 /**
@@ -51,12 +53,66 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
 public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     private static final Logger logger = LogManager.getLogger(FileCache.class);
     private final SegmentedCache<Path, CachedIndexInput> theCache;
+    private final FullFileCacheStatsCollector fullFileCacheStatsCollector;
 
     private final CircuitBreaker circuitBreaker;
 
-    public FileCache(SegmentedCache<Path, CachedIndexInput> cache, CircuitBreaker circuitBreaker) {
-        this.theCache = cache;
+    public FileCache(long capacity, CircuitBreaker circuitBreaker) {
+
         this.circuitBreaker = circuitBreaker;
+        this.fullFileCacheStatsCollector = new FullFileCacheStatsCollector();
+
+        this.theCache = SegmentedCache.<Path, CachedIndexInput>builder()
+            // use length in bytes as the weight of the file item
+            .weigher(CachedIndexInput::length)
+            .listener((removalNotification) -> {
+                RemovalReason removalReason = removalNotification.getRemovalReason();
+                CachedIndexInput value = removalNotification.getValue();
+                Path key = removalNotification.getKey();
+
+                if (removalReason != RemovalReason.REPLACED) {
+
+                    // check if full file and publish metric
+                    if (value instanceof CachedFullFileIndexInput) {
+                        fullFileCacheStatsCollector.recordUsedFileBytes(value.length(), false);
+                    }
+
+                    catchAsRuntimeException(value::close);
+                    catchAsRuntimeException(() -> Files.deleteIfExists(key));
+                }
+            })
+            .capacity(capacity)
+            .build();
+        ;
+
+    }
+
+    public FileCache(long capacity, int concurrencyLevel, CircuitBreaker circuitBreaker) {
+        this.circuitBreaker = circuitBreaker;
+        this.fullFileCacheStatsCollector = new FullFileCacheStatsCollector();
+
+        this.theCache = SegmentedCache.<Path, CachedIndexInput>builder()
+            // use length in bytes as the weight of the file item
+            .weigher(CachedIndexInput::length)
+            .listener((removalNotification) -> {
+                RemovalReason removalReason = removalNotification.getRemovalReason();
+                CachedIndexInput value = removalNotification.getValue();
+                Path key = removalNotification.getKey();
+                if (removalReason != RemovalReason.REPLACED) {
+
+                    // check if full file and publish metric
+                    if (value instanceof CachedFullFileIndexInput) {
+                        fullFileCacheStatsCollector.recordUsedFileBytes(value.length(), false);
+                    }
+
+                    catchAsRuntimeException(value::close);
+                    catchAsRuntimeException(() -> Files.deleteIfExists(key));
+                }
+            })
+            .capacity(capacity)
+            .concurrencyLevel(concurrencyLevel)
+            .build();
+        ;
     }
 
     public long capacity() {
@@ -65,6 +121,10 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
     @Override
     public CachedIndexInput put(Path filePath, CachedIndexInput indexInput) {
+        // check if full file and publish metric
+        if (indexInput instanceof CachedFullFileIndexInput) {
+            fullFileCacheStatsCollector.recordUsedFileBytes(indexInput.length(), true);
+        }
         CachedIndexInput cachedIndexInput = theCache.put(filePath, indexInput);
         checkParentBreaker(filePath);
         return cachedIndexInput;
@@ -208,6 +268,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     public FileCacheStats fileCacheStats() {
         CacheStats stats = stats();
         CacheUsage usage = usage();
+
         return new FileCacheStats(
             System.currentTimeMillis(),
             usage.activeUsage(),
@@ -215,8 +276,17 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
             usage.usage(),
             stats.evictionWeight(),
             stats.hitCount(),
-            stats.missCount()
+            stats.missCount(),
+            this.fullFileCacheStats()
         );
+    }
+
+    /**
+     * Returns the current {@link FullFileCacheStats}
+     * @return
+     */
+    private FullFileCacheStats fullFileCacheStats() {
+        return fullFileCacheStatsCollector.getStats();
     }
 
     /**
