@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTestCase {
@@ -133,14 +132,5 @@ public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTest
 
     private String getNodeName(String id) {
         return getClusterState().nodes().get(id).getName();
-    }
-
-    private void setSearchDedicatedNodeSettings(String nodeName) {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodeName))
-            .execute()
-            .actionGet();
     }
 }
