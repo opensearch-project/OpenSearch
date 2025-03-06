@@ -127,7 +127,7 @@ All distributions built will be under `distributions/archives`.
 #### Generated Code
 
 OpenSearch uses code generators like [Protobuf](https://protobuf.dev/).
-OpenSearch build system already takes a dependency of generating code from protobuf, incase you run into compilation errors, run:
+OpenSearch build system already takes a dependency of generating code from protobuf, if you run into compilation errors, run:
 
 ```
 ./gradlew generateProto
