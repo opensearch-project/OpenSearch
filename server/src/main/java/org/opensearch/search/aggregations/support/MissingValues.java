@@ -359,7 +359,7 @@ public enum MissingValues {
 
             @Override
             public int docValueCount() {
-                return values.docValueCount();
+                return Math.max(1, values.docValueCount());
             }
 
             @Override

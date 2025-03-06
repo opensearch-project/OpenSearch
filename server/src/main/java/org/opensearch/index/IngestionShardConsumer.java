@@ -73,6 +73,11 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
     T nextPointer();
 
     /**
+     * @return the immediate next pointer from the provided start pointer
+     */
+    T nextPointer(T startPointer);
+
+    /**
      * @return the earliest pointer in the shard
      */
     IngestionShardPointer earliestPointer();
@@ -81,6 +86,22 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @return the latest pointer in the shard. The pointer points to the next offset of the last message in the stream.
      */
     IngestionShardPointer latestPointer();
+
+    /**
+     * Returns an ingestion shard pointer based on the provided timestamp in milliseconds.
+     *
+     * @param timestampMillis the timestamp in milliseconds
+     * @return the ingestion shard pointer corresponding to the given timestamp
+     */
+    IngestionShardPointer pointerFromTimestampMillis(long timestampMillis);
+
+    /**
+     * Returns an ingestion shard pointer based on the provided offset.
+     *
+     * @param offset the offset value
+     * @return the ingestion shard pointer corresponding to the given offset
+     */
+    IngestionShardPointer pointerFromOffset(String offset);
 
     /**
      * @return the shard id

@@ -9,9 +9,12 @@
 package org.opensearch.plugin.kafka;
 
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
+import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -27,6 +30,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
 
@@ -47,6 +51,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     private long lastFetchedOffset = -1;
     final String clientId;
     final TopicPartition topicPartition;
+    final KafkaSourceConfig config;
 
     /**
      * Constructor
@@ -68,6 +73,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     protected KafkaPartitionConsumer(String clientId, KafkaSourceConfig config, int partitionId, Consumer<byte[], byte[]> consumer) {
         this.clientId = clientId;
         this.consumer = consumer;
+        this.config = config;
         String topic = config.getTopic();
         List<PartitionInfo> partitionInfos = AccessController.doPrivileged(
             (PrivilegedAction<List<PartitionInfo>>) () -> consumer.partitionsFor(topic, Duration.ofMillis(timeoutMillis))
@@ -93,6 +99,9 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         Properties consumerProp = new Properties();
         consumerProp.put("bootstrap.servers", config.getBootstrapServers());
         consumerProp.put("client.id", clientId);
+        if (config.getAutoOffsetResetConfig() != null && !config.getAutoOffsetResetConfig().isEmpty()) {
+            consumerProp.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, config.getAutoOffsetResetConfig());
+        }
         // TODO: why Class org.apache.kafka.common.serialization.StringDeserializer could not be found if set the deserializer as prop?
         // consumerProp.put("key.deserializer",
         // "org.apache.kafka.common.serialization.StringDeserializer");
@@ -124,6 +133,11 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
+    public KafkaOffset nextPointer(KafkaOffset pointer) {
+        return new KafkaOffset(pointer.getOffset() + 1);
+    }
+
+    @Override
     public IngestionShardPointer earliestPointer() {
         long startOffset = AccessController.doPrivileged(
             (PrivilegedAction<Long>) () -> consumer.beginningOffsets(Collections.singletonList(topicPartition))
@@ -138,6 +152,43 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             (PrivilegedAction<Long>) () -> consumer.endOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L)
         );
         return new KafkaOffset(endOffset);
+    }
+
+    @Override
+    public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
+        long offset = AccessController.doPrivileged((PrivilegedAction<Long>) () -> {
+            Map<TopicPartition, OffsetAndTimestamp> position = consumer.offsetsForTimes(
+                Collections.singletonMap(topicPartition, timestampMillis)
+            );
+            if (position == null || position.isEmpty()) {
+                return -1L;
+            }
+            OffsetAndTimestamp offsetAndTimestamp = position.values().iterator().next();
+            if (offsetAndTimestamp == null) {
+                return -1L;
+            }
+            return offsetAndTimestamp.offset();
+        });
+        if (offset < 0) {
+            logger.warn("No message found for timestamp {}, fall back to auto.offset.reset policy", timestampMillis);
+            String autoOffsetResetConfig = config.getAutoOffsetResetConfig();
+            if (OffsetResetStrategy.EARLIEST.toString().equals(autoOffsetResetConfig)) {
+                logger.warn("The auto.offset.reset is set to earliest, seek to earliest pointer");
+                return earliestPointer();
+            } else if (OffsetResetStrategy.LATEST.toString().equals(autoOffsetResetConfig)) {
+                logger.warn("The auto.offset.reset is set to latest, seek to latest pointer");
+                return latestPointer();
+            } else {
+                throw new IllegalArgumentException("No message found for timestamp " + timestampMillis);
+            }
+        }
+        return new KafkaOffset(offset);
+    }
+
+    @Override
+    public IngestionShardPointer pointerFromOffset(String offset) {
+        long offsetValue = Long.parseLong(offset);
+        return new KafkaOffset(offsetValue);
     }
 
     private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {
