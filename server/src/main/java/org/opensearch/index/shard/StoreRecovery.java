@@ -784,9 +784,15 @@ final class StoreRecovery {
         indexShard.recoveryState().getIndex().setFileDetailsComplete();
     }
 
-    private void recoverLocalFiles(RecoveryState recoveryState, SegmentInfos si, Store store) throws IOException {
+    private void recoverLocalFiles(RecoveryState recoveryState, SegmentInfos si, Store store) {
         final ReplicationLuceneIndex index = recoveryState.getIndex();
-        addRecoveredFileDetails(si, store, index);
+        try {
+            if (si != null) {
+                addRecoveredFileDetails(si, store, index);
+            }
+        } catch (IOException e) {
+            logger.debug("failed to list file details", e);
+        }
         index.setFileDetailsComplete();
     }
 
