@@ -11,9 +11,11 @@ package org.opensearch.plugin.wlm.rule.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceAlreadyExistsException;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.autotagging.Rule;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -22,14 +24,14 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.action.CreateRuleResponse;
-import org.opensearch.wlm.Rule;
 
 import java.io.IOException;
 import java.util.Map;
 
 /**
- * This class defines the functions for Rule persistence
+ * This class encapsulates the logic to manage the lifecycle of rules at index level
  * @opensearch.experimental
  */
 public class RulePersistenceService {
@@ -48,15 +50,20 @@ public class RulePersistenceService {
         this.client = client;
     }
 
-    /**
-     * This method is the entry point for create rule logic in persistence service.
-     * @param rule - the rule that we're persisting
-     * @param listener - ActionListener for CreateRuleResponse
-     */
-    public void createRule(Rule rule, ActionListener<CreateRuleResponse> listener) {
-        createRuleIndexIfAbsent(new ActionListener<>() {
+    public void createRule(Rule<QueryGroupFeatureType> rule, ActionListener<CreateRuleResponse> listener) {
+        String queryGroupId = rule.getLabel();
+        if (!clusterService.state().metadata().queryGroups().containsKey(queryGroupId)) {
+            listener.onFailure(new ResourceNotFoundException("Couldn't find an existing query group with id: " + queryGroupId));
+        }
+
+        final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
+        createIfAbsent(indexSettings, new ActionListener<>() {
             @Override
             public void onResponse(Boolean indexCreated) {
+                if (!indexCreated) {
+                    listener.onFailure(new IllegalStateException(RULE_INDEX + " index creation failed and rule cannot be persisted"));
+                    return;
+                }
                 persistRule(rule, listener);
             }
 
@@ -67,12 +74,7 @@ public class RulePersistenceService {
         });
     }
 
-    /**
-     * This method handles the core logic to save a rule to the system index.
-     * @param rule - the rule that we're persisting
-     * @param listener - ActionListener for CreateRuleResponse
-     */
-    void persistRule(Rule rule, ActionListener<CreateRuleResponse> listener) {
+    public void persistRule(Rule<QueryGroupFeatureType> rule, ActionListener<CreateRuleResponse> listener) {
         try (ThreadContext.StoredContext context = client.threadPool().getThreadContext().stashContext()) {
             IndexRequest indexRequest = new IndexRequest(RULE_INDEX).source(
                 rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
@@ -86,22 +88,17 @@ public class RulePersistenceService {
                 listener.onFailure(e);
             }));
         } catch (IOException e) {
-            logger.warn("Error saving rule to index: {}", e.getMessage());
+            logger.error("Error saving rule to index: {}", RULE_INDEX, e);
             listener.onFailure(new RuntimeException("Failed to save rule to index."));
         }
     }
 
-    /**
-     * This method creates the rule system index if it's absent.
-     * @param listener - ActionListener for CreateRuleResponse
-     */
-    void createRuleIndexIfAbsent(ActionListener<Boolean> listener) {
+    private void createIfAbsent(Map<String, Object> indexSettings, ActionListener<Boolean> listener) {
         if (clusterService.state().metadata().hasIndex(RulePersistenceService.RULE_INDEX)) {
             listener.onResponse(true);
             return;
         }
         try (ThreadContext.StoredContext context = client.threadPool().getThreadContext().stashContext()) {
-            final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
             final CreateIndexRequest createIndexRequest = new CreateIndexRequest(RulePersistenceService.RULE_INDEX).settings(indexSettings);
             client.admin().indices().create(createIndexRequest, new ActionListener<>() {
                 @Override
@@ -124,17 +121,7 @@ public class RulePersistenceService {
         }
     }
 
-    /**
-     * client getter
-     */
     public Client getClient() {
         return client;
-    }
-
-    /**
-     * clusterService getter
-     */
-    public ClusterService getClusterService() {
-        return clusterService;
     }
 }

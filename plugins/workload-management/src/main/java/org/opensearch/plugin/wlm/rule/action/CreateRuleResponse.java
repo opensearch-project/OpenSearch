@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.wlm.rule.action;
 
+import org.opensearch.autotagging.Rule;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -15,12 +16,12 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.wlm.Rule;
+import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.wlm.Rule._ID_STRING;
+import static org.opensearch.autotagging.Rule._ID_STRING;
 
 /**
  * Response for the create API for Rule
@@ -28,7 +29,7 @@ import static org.opensearch.wlm.Rule._ID_STRING;
  */
 public class CreateRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final String _id;
-    private final Rule rule;
+    private final Rule<QueryGroupFeatureType> rule;
     private final RestStatus restStatus;
 
     /**
@@ -36,7 +37,7 @@ public class CreateRuleResponse extends ActionResponse implements ToXContent, To
      * @param rule - The Rule to be included in the response
      * @param restStatus - The restStatus for the response
      */
-    public CreateRuleResponse(String id, final Rule rule, RestStatus restStatus) {
+    public CreateRuleResponse(String id, final Rule<QueryGroupFeatureType> rule, RestStatus restStatus) {
         this._id = id;
         this.rule = rule;
         this.restStatus = restStatus;
@@ -48,7 +49,7 @@ public class CreateRuleResponse extends ActionResponse implements ToXContent, To
      */
     public CreateRuleResponse(StreamInput in) throws IOException {
         _id = in.readString();
-        rule = new Rule(in);
+        rule = new Rule<>(in);
         restStatus = RestStatus.readFrom(in);
     }
 
@@ -67,7 +68,7 @@ public class CreateRuleResponse extends ActionResponse implements ToXContent, To
     /**
      * rule getter
      */
-    public Rule getRule() {
+    public Rule<QueryGroupFeatureType> getRule() {
         return rule;
     }
 

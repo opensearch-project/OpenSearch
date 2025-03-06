@@ -8,14 +8,15 @@
 
 package org.opensearch.plugin.wlm.rule.action;
 
+import org.opensearch.autotagging.Rule;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.wlm.Rule;
 
 import java.io.IOException;
 import java.util.Map;
@@ -37,8 +38,8 @@ public class CreateRuleResponseTests extends OpenSearchTestCase {
         StreamInput streamInput = out.bytes().streamInput();
         CreateRuleResponse otherResponse = new CreateRuleResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
-        Rule responseRule = response.getRule();
-        Rule otherResponseRule = otherResponse.getRule();
+        Rule<QueryGroupFeatureType> responseRule = response.getRule();
+        Rule<QueryGroupFeatureType> otherResponseRule = otherResponse.getRule();
         assertEqualRules(Map.of(_ID_ONE, responseRule), Map.of(_ID_ONE, otherResponseRule), false);
     }
 
@@ -51,6 +52,7 @@ public class CreateRuleResponseTests extends OpenSearchTestCase {
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"
+            + "  \"description\" : \"description_1\",\n"
             + "  \"index_pattern\" : [\n"
             + "    \"pattern_1\"\n"
             + "  ],\n"

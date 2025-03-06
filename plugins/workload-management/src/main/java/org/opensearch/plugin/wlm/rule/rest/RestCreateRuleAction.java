@@ -34,9 +34,6 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  */
 public class RestCreateRuleAction extends BaseRestHandler {
 
-    /**
-     * Constructor for RestCreateRuleAction
-     */
     public RestCreateRuleAction() {}
 
     @Override
@@ -55,7 +52,7 @@ public class RestCreateRuleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final CreateRuleRequest createRuleRequest = CreateRuleRequest.fromXContent(parser);
+            CreateRuleRequest createRuleRequest = CreateRuleRequest.fromXContent(parser);
             return channel -> client.execute(CreateRuleAction.INSTANCE, createRuleRequest, createRuleResponse(channel));
         }
     }
