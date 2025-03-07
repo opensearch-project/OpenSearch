@@ -95,6 +95,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -815,6 +816,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         public void executeConsistentStateUpdate(
             Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
             String source,
+            Supplier<Repository> currentRepositeSupplier,
             Consumer<Exception> onFailure
         ) {}
 
@@ -839,6 +841,11 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             ActionListener<String> listener
         ) {
 
+        }
+
+        @Override
+        public boolean isOpen() {
+            return isClosed == false;
         }
 
         @Override

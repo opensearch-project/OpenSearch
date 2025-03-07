@@ -32,7 +32,9 @@
 
 package org.opensearch.repositories;
 
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -45,6 +47,8 @@ import org.opensearch.transport.client.Client;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -122,4 +126,66 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
 
         assertThrows(RepositoryException.class, () -> createRepository(repositoryName, FsRepository.TYPE, repoSettings));
     }
+
+    public void testCreatSnapAndUpdateReposityCauseInfiniteLoop() throws InterruptedException {
+        // create index
+        internalCluster();
+        String indexName = "test-index";
+        createIndex(indexName, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0).put(SETTING_NUMBER_OF_SHARDS, 1).build());
+        index(indexName, "_doc", "1", Collections.singletonMap("user", generateRandomStringArray(1, 10, false, false)));
+        flush(indexName);
+
+        // create repository
+        final String repositoryName = "test-repo";
+        Settings.Builder repoSettings = Settings.builder()
+            .put("location", randomRepoPath())
+            .put("max_snapshot_bytes_per_sec", "10mb")
+            .put("max_restore_bytes_per_sec", "10mb");
+        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+            client().admin().cluster(),
+            repositoryName,
+            FsRepository.TYPE,
+            true,
+            repoSettings
+        );
+
+        Thread thread = new Thread(() -> {
+            String snapshotName = "test-snapshot";
+            logger.info("--> starting snapshot");
+            CreateSnapshotResponse createSnapshotResponse = client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repositoryName, snapshotName)
+                .setWaitForCompletion(true)
+                .setIndices(indexName)
+                .get();
+            logger.info("--> finishing snapshot");
+        });
+        thread.start();
+
+        logger.info("--> begin to reset repository");
+        repoSettings = Settings.builder().put("location", randomRepoPath()).put("max_snapshot_bytes_per_sec", "300mb");
+        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+            client().admin().cluster(),
+            repositoryName,
+            FsRepository.TYPE,
+            true,
+            repoSettings
+        );
+        logger.info("--> finish to reset repository");
+
+        GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest(new String[] { repositoryName });
+        try {
+            GetRepositoriesResponse getRepositoriesResponse = client().admin().cluster().getRepositories(getRepositoriesRequest).get();
+            assertThat(getRepositoriesResponse.repositories(), hasSize(1));
+            RepositoryMetadata repositoryMetadata = getRepositoriesResponse.repositories().get(0);
+            assertThat(repositoryMetadata.type(), equalTo(FsRepository.TYPE));
+            assertThat(repositoryMetadata.settings().get("max_snapshot_bytes_per_sec"), equalTo("300mb"));
+            assertThat(repositoryMetadata.settings().hasValue("max_restore_bytes_per_sec"), equalTo(false));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        logger.info("--> finish to get response about repository");
+        thread.join();
+    }
+
 }

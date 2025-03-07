@@ -58,6 +58,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Repository that is filtered
@@ -288,9 +289,10 @@ public class FilterRepository implements Repository {
     public void executeConsistentStateUpdate(
         Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
         String source,
+        Supplier<Repository> currentRepositeSupplier,
         Consumer<Exception> onFailure
     ) {
-        in.executeConsistentStateUpdate(createUpdateTask, source, onFailure);
+        in.executeConsistentStateUpdate(createUpdateTask, source, currentRepositeSupplier, onFailure);
     }
 
     @Override
@@ -344,5 +346,10 @@ public class FilterRepository implements Repository {
     @Override
     public void close() {
         in.close();
+    }
+
+    @Override
+    public boolean isOpen() {
+        return in.isOpen();
     }
 }
