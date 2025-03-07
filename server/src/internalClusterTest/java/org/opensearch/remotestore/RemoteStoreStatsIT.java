@@ -283,16 +283,16 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 // Existing validation logic
                 List<RemoteStoreStats> primaryStatsList = Arrays.stream(response.getRemoteStoreStats())
                     .filter(remoteStoreStats -> remoteStoreStats.getShardRouting().primary())
-                    .toList();
+                    .collect(Collectors.toList());
                 assertEquals(1, primaryStatsList.size());
 
                 List<RemoteStoreStats> replicaStatsList = Arrays.stream(response.getRemoteStoreStats())
                     .filter(remoteStoreStats -> !remoteStoreStats.getShardRouting().primary())
-                    .toList();
+                    .collect(Collectors.toList());
                 assertEquals(1, replicaStatsList.size());
 
-                RemoteSegmentTransferTracker.Stats primaryStats = primaryStatsList.getFirst().getSegmentStats();
-                RemoteSegmentTransferTracker.Stats replicaStats = replicaStatsList.getFirst().getSegmentStats();
+                RemoteSegmentTransferTracker.Stats primaryStats = primaryStatsList.get(0).getSegmentStats();
+                RemoteSegmentTransferTracker.Stats replicaStats = replicaStatsList.get(0).getSegmentStats();
 
                 // Existing assertions
                 assertTrue(primaryStats.totalUploadsStarted > 0);
@@ -409,7 +409,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 assertEquals(0, stats.getSegmentStats().directoryFileTransferTrackerStats.transferredBytesSucceeded);
             });
         } else {
-            RemoteSegmentTransferTracker.Stats replicaStats = zeroStateReplicaStats.getFirst().getSegmentStats();
+            RemoteSegmentTransferTracker.Stats replicaStats = zeroStateReplicaStats.get(0).getSegmentStats();
             assertEquals(0, replicaStats.directoryFileTransferTrackerStats.transferredBytesStarted);
             assertEquals(0, replicaStats.directoryFileTransferTrackerStats.transferredBytesSucceeded);
         }
@@ -434,8 +434,8 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
 
             RemoteSegmentTransferTracker.Stats primaryStats = Arrays.stream(zeroStateResponse.getRemoteStoreStats())
                 .filter(remoteStoreStats -> remoteStoreStats.getShardRouting().primary())
-                .toList()
-                .getFirst()
+                .collect(Collectors.toList())
+                .get(0)
                 .getSegmentStats();
 
             validateZeroStatePrimaryStats(primaryStats);
