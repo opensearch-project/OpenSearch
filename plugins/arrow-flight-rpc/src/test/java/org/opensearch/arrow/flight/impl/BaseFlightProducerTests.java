@@ -8,7 +8,13 @@
 
 package org.opensearch.arrow.flight.impl;
 
+import org.apache.arrow.flight.FlightClient;
+import org.apache.arrow.flight.FlightDescriptor;
+import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.FlightProducer;
+import org.apache.arrow.flight.FlightRuntimeException;
+import org.apache.arrow.flight.FlightStream;
+import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
@@ -457,7 +463,127 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
         verify(streamManager).removeStreamProducer(any(FlightStreamTicket.class));
     }
 
-    public void testProxyStreamProviderCreationWithDifferentNodeIDs() {
-        // TODO: proxy stream provider coverage
+    public void testGetStreamRemoteNode() {
+        final String remoteNodeId = "remote-node";
+        FlightStreamTicket remoteTicket = new FlightStreamTicket("test-id", remoteNodeId);
+        FlightClient remoteClient = mock(FlightClient.class);
+        FlightStream mockFlightStream = mock(FlightStream.class);
+
+        when(flightClientManager.getFlightClient(remoteNodeId)).thenReturn(Optional.of(remoteClient));
+        when(remoteClient.getStream(any(Ticket.class))).thenReturn(mockFlightStream);
+        TestServerStreamListener listener = new TestServerStreamListener();
+
+        baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), new Ticket(remoteTicket.toBytes()), listener);
+        verify(remoteClient).getStream(any(Ticket.class));
+    }
+
+    public void testGetStreamRemoteNodeWithNonExistentClient() {
+        final String remoteNodeId = "remote-node-5";
+        FlightStreamTicket remoteTicket = new FlightStreamTicket("test-id", remoteNodeId);
+        TestServerStreamListener listener = new TestServerStreamListener();
+
+        expectThrows(
+            RuntimeException.class,
+            () -> baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), new Ticket(remoteTicket.toBytes()), listener)
+        );
+        assertNotNull(listener.getError());
+        assertEquals("Either server is not up yet or node does not support Streams.", listener.getError().getMessage());
+    }
+
+    public void testGetFlightInfo() {
+        final VectorSchemaRoot root = mock(VectorSchemaRoot.class);
+
+        when(streamManager.getStreamProducer(any(FlightStreamTicket.class))).thenReturn(
+            Optional.of(FlightStreamManager.StreamProducerHolder.create(streamProducer, allocator))
+        );
+        when(streamProducer.createJob(any(BufferAllocator.class))).thenReturn(batchedJob);
+        when(streamProducer.createRoot(any(BufferAllocator.class))).thenReturn(root);
+
+        Location location = Location.forGrpcInsecure(LOCAL_NODE_ID, 8815);
+        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(location);
+        when(streamProducer.estimatedRowCount()).thenReturn(100);
+        FlightDescriptor descriptor = FlightDescriptor.command(ticket.getBytes());
+        FlightInfo flightInfo = baseFlightProducer.getFlightInfo(null, descriptor);
+
+        assertNotNull(flightInfo);
+        assertEquals(100L, flightInfo.getRecords());
+        assertEquals(1, flightInfo.getEndpoints().size());
+        assertEquals(location, flightInfo.getEndpoints().getFirst().getLocations().getFirst());
+    }
+
+    public void testGetFlightInfo_NotFound() {
+        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(null);
+
+        FlightDescriptor descriptor = FlightDescriptor.command(ticket.getBytes());
+        FlightRuntimeException exception = expectThrows(
+            FlightRuntimeException.class,
+            () -> baseFlightProducer.getFlightInfo(null, descriptor)
+        );
+
+        assertEquals("FlightInfo not found",
+            exception.getMessage());
+    }
+
+    public void testGetFlightInfo_LocationNotFound() {
+        final VectorSchemaRoot root = mock(VectorSchemaRoot.class);
+
+        when(streamManager.getStreamProducer(any(FlightStreamTicket.class))).thenReturn(
+            Optional.of(FlightStreamManager.StreamProducerHolder.create(streamProducer, allocator))
+        );
+        when(streamProducer.createJob(any(BufferAllocator.class))).thenReturn(batchedJob);
+        when(streamProducer.createRoot(any(BufferAllocator.class))).thenReturn(root);
+
+        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(null);
+
+        FlightDescriptor descriptor = FlightDescriptor.command(ticket.getBytes());
+        FlightRuntimeException exception = expectThrows(
+            FlightRuntimeException.class,
+            () -> baseFlightProducer.getFlightInfo(null, descriptor)
+        );
+
+        assertEquals("Internal error while determining location information from ticket.", exception.getMessage());
+    }
+
+    public void testGetFlightInfo_SchemaError() {
+        when(streamManager.getStreamProducer(any(FlightStreamTicket.class))).thenReturn(
+            Optional.of(FlightStreamManager.StreamProducerHolder.create(streamProducer, allocator))
+        );
+        Location location = Location.forGrpcInsecure("localhost", 8815);
+        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(location);
+        when(streamProducer.estimatedRowCount()).thenThrow(new RuntimeException("Schema error"));
+
+        FlightDescriptor descriptor = FlightDescriptor.command(ticket.getBytes());
+        FlightRuntimeException exception = expectThrows(
+            FlightRuntimeException.class,
+            () -> baseFlightProducer.getFlightInfo(null, descriptor)
+        );
+
+        assertEquals("Internal error while creating VectorSchemaRoot.",
+            exception.getMessage());
+    }
+
+    public void testGetFlightInfo_NonLocalNode() {
+        final String remoteNodeId = "remote-node";
+        FlightStreamTicket remoteTicket = new FlightStreamTicket("test-id", remoteNodeId);
+        FlightClient remoteClient = mock(FlightClient.class);
+        FlightInfo mockFlightInfo = mock(FlightInfo.class);
+        when(flightClientManager.getFlightClient(remoteNodeId)).thenReturn(Optional.of(remoteClient));
+        when(remoteClient.getInfo(any(FlightDescriptor.class))).thenReturn(mockFlightInfo);
+        when(streamProducer.estimatedRowCount()).thenReturn(100);
+
+        FlightDescriptor descriptor = FlightDescriptor.command(remoteTicket.toBytes());
+        FlightInfo flightInfo = baseFlightProducer.getFlightInfo(null, descriptor);
+        assertEquals(mockFlightInfo, flightInfo);
+    }
+
+    public void testGetFlightInfo_NonLocalNode_LocationNotFound() {
+        final String remoteNodeId = "remote-node-2";
+        FlightStreamTicket remoteTicket = new FlightStreamTicket("test-id", remoteNodeId);
+        FlightDescriptor descriptor = FlightDescriptor.command(remoteTicket.toBytes());
+        FlightRuntimeException exception = expectThrows(
+            FlightRuntimeException.class,
+            () -> baseFlightProducer.getFlightInfo(null, descriptor)
+        );
+        assertEquals("Client doesn't support Stream", exception.getMessage());
     }
 }
