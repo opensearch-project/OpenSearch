@@ -22,7 +22,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
-import static org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -73,10 +72,8 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build()
         );
         ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
-        String replicaNode = internalCluster().startDataOnlyNode();
 
-        // search node setting
-        setSearchDedicatedNodeSettings(replicaNode);
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         ensureGreen(RESTORED_INDEX_NAME);
         assertEquals(1, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
@@ -85,7 +82,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         assertHitCount(resp, DOC_COUNT);
     }
 
-    public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRep() throws Exception {
+    public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRep() {
         bootstrapIndexWithSearchReplicas();
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
@@ -120,7 +117,8 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
     }
 
     private void bootstrapIndexWithSearchReplicas() {
-        List<String> nodes = internalCluster().startNodes(3);
+        internalCluster().startNodes(2);
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         Settings settings = Settings.builder()
             .put(super.indexSettings())
@@ -132,23 +130,11 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
 
         createIndex(INDEX_NAME, settings);
 
-        // search node setting
-        setSearchDedicatedNodeSettings(nodes.get(0));
-
         ensureGreen(INDEX_NAME);
         for (int i = 0; i < DOC_COUNT; i++) {
             client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
         }
         flushAndRefresh(INDEX_NAME);
-    }
-
-    private void setSearchDedicatedNodeSettings(String nodeName) {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodeName))
-            .execute()
-            .actionGet();
     }
 
     private void createRepoAndSnapshot(String repositoryName, String repositoryType, String snapshotName, String indexName) {

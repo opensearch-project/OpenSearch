@@ -23,21 +23,19 @@ import java.util.stream.Collectors;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTestCase {
+public class SearchReplicaAllocationIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Settings featureFlagSettings() {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, Boolean.TRUE).build();
     }
 
-    public void testSearchReplicaDedicatedIncludes() {
-        List<String> nodesIds = internalCluster().startNodes(3);
-        final String node_0 = nodesIds.get(0);
-        final String node_1 = nodesIds.get(1);
-        final String node_2 = nodesIds.get(2);
-        assertEquals(3, cluster().size());
+    public void testSearchReplicaAllocatedToDedicatedSearchNode() {
+        internalCluster().startClusterManagerOnlyNode();
+        String primaryNode = internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
-        setSearchDedicatedNodeSettings(node_1 + "," + node_0);
+        assertEquals(3, cluster().size());
 
         createIndex(
             "test",
@@ -49,31 +47,15 @@ public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTest
                 .build()
         );
         ensureGreen("test");
-        // ensure primary is not on node 0 or 1,
+        // ensure primary is not on searchNode
         IndexShardRoutingTable routingTable = getRoutingTable();
-        assertEquals(node_2, getNodeName(routingTable.primaryShard().currentNodeId()));
-
-        String existingSearchReplicaNode = getNodeName(routingTable.searchOnlyReplicas().get(0).currentNodeId());
-        String emptyAllowedNode = existingSearchReplicaNode.equals(node_0) ? node_1 : node_0;
-
-        // set the included nodes to the other open node, search replica should relocate to that node.
-        setSearchDedicatedNodeSettings(emptyAllowedNode);
-        ensureGreen("test");
-
-        routingTable = getRoutingTable();
-        assertEquals(node_2, getNodeName(routingTable.primaryShard().currentNodeId()));
-        assertEquals(emptyAllowedNode, getNodeName(routingTable.searchOnlyReplicas().get(0).currentNodeId()));
+        assertEquals(primaryNode, getNodeName(routingTable.primaryShard().currentNodeId()));
     }
 
     public void testSearchReplicaDedicatedIncludes_DoNotAssignToOtherNodes() {
-        List<String> nodesIds = internalCluster().startNodes(3);
-        final String node_0 = nodesIds.get(0);
-        final String node_1 = nodesIds.get(1);
-        final String node_2 = nodesIds.get(2);
+        internalCluster().startNodes(2);
+        final String node_1 = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
         assertEquals(3, cluster().size());
-
-        // set filter on 1 node and set search replica count to 2 - should leave 1 unassigned
-        setSearchDedicatedNodeSettings(node_1);
 
         logger.info("--> creating an index with no replicas");
         createIndex(
@@ -98,9 +80,7 @@ public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTest
     }
 
     public void testSearchReplicaDedicatedIncludes_WhenNotSetDoNotAssign() {
-        List<String> nodesIds = internalCluster().startNodes(2);
-        final String node_0 = nodesIds.get(0);
-        final String node_1 = nodesIds.get(1);
+        internalCluster().startNodes(2);
         assertEquals(2, cluster().size());
 
         createIndex(
@@ -116,14 +96,11 @@ public class SearchReplicaFilteringAllocationIT extends RemoteStoreBaseIntegTest
         IndexShardRoutingTable routingTable = getRoutingTable();
         assertNull(routingTable.searchOnlyReplicas().get(0).currentNodeId());
 
-        String primaryAssignedNodeName = getNodeName(routingTable.primaryShard().currentNodeId());
-        String emptyAllowedNode = primaryAssignedNodeName.equals(node_0) ? node_1 : node_0;
-
-        // set search only role on another node where primary not assigned
-        setSearchDedicatedNodeSettings(emptyAllowedNode);
+        // Add a search node
+        final String searchNode = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         ensureGreen("test");
-        assertEquals(emptyAllowedNode, getNodeName(getRoutingTable().searchOnlyReplicas().get(0).currentNodeId()));
+        assertEquals(searchNode, getNodeName(getRoutingTable().searchOnlyReplicas().get(0).currentNodeId()));
     }
 
     private IndexShardRoutingTable getRoutingTable() {
