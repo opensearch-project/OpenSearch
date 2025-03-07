@@ -31,7 +31,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
@@ -39,7 +38,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.routing.RecoverySource.Type.EMPTY_STORE;
 import static org.opensearch.cluster.routing.RecoverySource.Type.EXISTING_STORE;
-import static org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBaseIT {
@@ -84,10 +82,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startDataOnlyNode();
-
-        // set search only role on node
-        setSearchDedicatedNodeSettings(replica);
+        final String replica = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         ensureGreen(INDEX_NAME);
 
@@ -101,7 +96,8 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
 
     public void testSegmentReplicationStatsResponseWithSearchReplica() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        final List<String> nodes = internalCluster().startDataOnlyNodes(2);
+        final String replica = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        final String primary = internalCluster().startDataOnlyNode();
         createIndex(
             INDEX_NAME,
             Settings.builder()
@@ -112,9 +108,6 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
                 .build()
         );
 
-        // set search only role on node
-        setSearchDedicatedNodeSettings(nodes.get(0));
-
         ensureGreen(INDEX_NAME);
 
         final int docCount = 5;
@@ -122,7 +115,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
         refresh(INDEX_NAME);
-        waitForSearchableDocs(docCount, nodes);
+        waitForSearchableDocs(docCount, primary, replica);
 
         SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
             .indices()
@@ -150,10 +143,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
     public void testSearchReplicaRecovery() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String primary = internalCluster().startDataOnlyNode();
-        final String replica = internalCluster().startDataOnlyNode();
-
-        // ensure search replicas are only allocated to "replica" node.
-        setSearchDedicatedNodeSettings(replica);
+        final String replica = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -190,10 +180,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         }
         refresh(INDEX_NAME);
 
-        final String replica = internalCluster().startDataOnlyNode();
-
-        // search node setting
-        setSearchDedicatedNodeSettings(replica);
+        final String replica = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, replica);
@@ -261,10 +248,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         refresh(INDEX_NAME);
         assertDocCounts(docCount, primary);
 
-        final String replica = internalCluster().startDataOnlyNode();
-
-        // search node setting
-        setSearchDedicatedNodeSettings(replica);
+        final String replica = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         ensureGreen(INDEX_NAME);
         assertDocCounts(docCount, replica);
@@ -301,10 +285,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         }
         refresh(INDEX_NAME);
 
-        final String replica = internalCluster().startDataOnlyNode();
-
-        // search node setting
-        setSearchDedicatedNodeSettings(replica);
+        final String replica = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, replica);
@@ -333,14 +314,5 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         }
         refresh(INDEX_NAME);
         assertBusy(() -> assertDocCounts(20, replica, writer_replica));
-    }
-
-    private void setSearchDedicatedNodeSettings(String nodeName) {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", nodeName))
-            .execute()
-            .actionGet();
     }
 }

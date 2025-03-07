@@ -25,7 +25,6 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
@@ -72,10 +71,8 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         );
         ensureYellow(TEST_INDEX);
         // add 2 nodes for the replicas
-        List<String> replicas = internalCluster().startDataOnlyNodes(2);
-
-        // search node setting
-        setSearchDedicatedNodeSettings(replicas.get(0));
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         ensureGreen(TEST_INDEX);
 
@@ -110,10 +107,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         ensureYellow(TEST_INDEX);
         client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         // start a node for our search replica
-        String replica = internalCluster().startDataOnlyNode();
-
-        // search node setting
-        setSearchDedicatedNodeSettings(replica);
+        final String replica = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(numSearchReplicas);
@@ -134,24 +128,17 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         indexSingleDoc(TEST_INDEX, true);
         ensureYellow(TEST_INDEX);
         // add another node for the search replica
-        String dataNodeOne = internalCluster().startDataOnlyNode();
-
-        // search node setting
-        setSearchDedicatedNodeSettings(dataNodeOne);
-
+        String searchNode = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
         ensureGreen(TEST_INDEX);
 
         // Stop Node which hosts the search replica
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNodeOne));
-
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(searchNode));
         // Ensure search shard is unassigned
         ensureYellowAndNoInitializingShards(TEST_INDEX);
         assertActiveSearchShards(0);
 
         // Add a node and ensure search shard will get assigned
-        dataNodeOne = internalCluster().startDataOnlyNode();
-        // search node setting
-        setSearchDedicatedNodeSettings(dataNodeOne);
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         // Ensure search shard is recovered
         ensureGreen(TEST_INDEX);
@@ -159,12 +146,11 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
     }
 
     public void testSearchReplicaScaling() {
-        List<String> nodes = internalCluster().startNodes(2);
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        internalCluster().startDataOnlyNode();
+
         createIndex(TEST_INDEX);
-
-        // search node setting
-        setSearchDedicatedNodeSettings(nodes.get(0));
-
         ensureGreen(TEST_INDEX);
         // assert settings
         Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
@@ -174,16 +160,14 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         // assert cluster state & routing table
         assertActiveSearchShards(1);
 
-        // Add another node and search replica
-        internalCluster().startDataOnlyNode();
+        // Add another search node and search replica
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+
         client().admin()
             .indices()
             .prepareUpdateSettings(TEST_INDEX)
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 2))
             .get();
-
-        // search node setting
-        setSearchDedicatedNodeSettings(String.join(", ", nodes));
 
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(2);
@@ -202,7 +186,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         int numSearchReplicas = 1;
         int numWriterReplicas = 1;
         internalCluster().startClusterManagerOnlyNode();
-        String primaryNodeName = internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
         createIndex(
             TEST_INDEX,
             Settings.builder()
@@ -214,10 +198,8 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         ensureYellow(TEST_INDEX);
         client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         // add 2 nodes for the replicas
-        List<String> replicaNodes = internalCluster().startDataOnlyNodes(2);
-
-        // search node setting
-        setSearchDedicatedNodeSettings(replicaNodes.get(0));
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
 
         ensureGreen(TEST_INDEX);
 
@@ -259,10 +241,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         int numWriterReplicas = 1;
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
-        List<String> replicaNodes = internalCluster().startDataOnlyNodes(2);
-
-        // search node setting for both replica nodes
-        setSearchDedicatedNodeSettings(String.join(", ", replicaNodes));
+        internalCluster().startDataOnlyNodes(2, Settings.builder().put("node.attr.searchonly", "true").build());
 
         createIndex(
             TEST_INDEX,

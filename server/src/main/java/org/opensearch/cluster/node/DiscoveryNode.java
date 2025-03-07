@@ -77,6 +77,8 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
 
+    static final String SEARCH_ONLY = "searchonly";
+
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
         if (localStorageEnable == false && (isDataNode(settings) || isClusterManagerNode(settings))) {
@@ -512,6 +514,10 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      */
     public boolean isRemoteStatePublicationEnabled() {
         return isClusterStateRepoConfigured(this.getAttributes()) && isRoutingTableRepoConfigured(this.getAttributes());
+    }
+
+    public boolean isSearchDedicatedDataNode() {
+        return attributes.containsKey(SEARCH_ONLY) && Objects.equals(attributes.get(SEARCH_ONLY), "true");
     }
 
     /**
