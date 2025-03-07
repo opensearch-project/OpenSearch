@@ -551,6 +551,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     protected volatile int bufferSize;
 
+    private volatile boolean closed;
+
     /**
      * Constructs new BlobStoreRepository
      * @param repositoryMetadata   The metadata for this repository including name and settings
@@ -630,6 +632,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         if (store != null) {
             try {
+                closed = true;
                 store.close();
             } catch (Exception t) {
                 logger.warn("cannot close blob store", t);
@@ -637,14 +640,36 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    @Deprecated
     @Override
     public void executeConsistentStateUpdate(
         Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
         String source,
         Consumer<Exception> onFailure
     ) {
-        final RepositoryMetadata repositoryMetadataStart = metadata;
-        getRepositoryData(ActionListener.wrap(repositoryData -> {
+        executeConsistentStateUpdate(createUpdateTask, source, () -> this, onFailure);
+    }
+
+    @Override
+    public void executeConsistentStateUpdate(
+        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+        String source,
+        Supplier<Repository> currentRepositeSupplier,
+        Consumer<Exception> onFailure
+    ) {
+        Repository currentRepository = this;
+        final RepositoryMetadata repositoryMetadataStart;
+        if (currentRepository != currentRepositeSupplier.get()) {
+            if (this.isOpen()) {
+                throw new IllegalStateException("the repository should be closed");
+            }
+            currentRepository = currentRepositeSupplier.get();
+            repositoryMetadataStart = currentRepository.getMetadata();
+        } else {
+            repositoryMetadataStart = metadata;
+        }
+
+        currentRepository.getRepositoryData(ActionListener.wrap(repositoryData -> {
             final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
             clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(updateTask.priority()) {
 
@@ -679,7 +704,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (executedTask) {
                         updateTask.clusterStateProcessed(source, oldState, newState);
                     } else {
-                        executeConsistentStateUpdate(createUpdateTask, source, onFailure);
+                        executeConsistentStateUpdate(createUpdateTask, source, currentRepositeSupplier, onFailure);
                     }
                 }
 
@@ -4688,6 +4713,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotStatus.addProcessedFile(0);
             throw t;
         }
+    }
+
+    @Override
+    public boolean isOpen() {
+        return closed == false;
     }
 
     private static void failStoreIfCorrupted(Store store, Exception e) {
