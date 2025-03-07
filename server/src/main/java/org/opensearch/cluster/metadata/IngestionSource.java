@@ -9,6 +9,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
 
 import java.util.Map;
@@ -21,12 +22,19 @@ import java.util.Objects;
 public class IngestionSource {
     private String type;
     private PointerInitReset pointerInitReset;
+    private IngestionErrorStrategy.ErrorStrategy errorStrategy;
     private Map<String, Object> params;
 
-    public IngestionSource(String type, PointerInitReset pointerInitReset, Map<String, Object> params) {
+    public IngestionSource(
+        String type,
+        PointerInitReset pointerInitReset,
+        IngestionErrorStrategy.ErrorStrategy errorStrategy,
+        Map<String, Object> params
+    ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
         this.params = params;
+        this.errorStrategy = errorStrategy;
     }
 
     public String getType() {
@@ -35,6 +43,10 @@ public class IngestionSource {
 
     public PointerInitReset getPointerInitReset() {
         return pointerInitReset;
+    }
+
+    public IngestionErrorStrategy.ErrorStrategy getErrorStrategy() {
+        return errorStrategy;
     }
 
     public Map<String, Object> params() {
@@ -48,17 +60,30 @@ public class IngestionSource {
         IngestionSource ingestionSource = (IngestionSource) o;
         return Objects.equals(type, ingestionSource.type)
             && Objects.equals(pointerInitReset, ingestionSource.pointerInitReset)
+            && Objects.equals(errorStrategy, ingestionSource.errorStrategy)
             && Objects.equals(params, ingestionSource.params);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, pointerInitReset, params);
+        return Objects.hash(type, pointerInitReset, params, errorStrategy);
     }
 
     @Override
     public String toString() {
-        return "IngestionSource{" + "type='" + type + '\'' + ",pointer_init_reset='" + pointerInitReset + '\'' + ", params=" + params + '}';
+        return "IngestionSource{"
+            + "type='"
+            + type
+            + '\''
+            + ",pointer_init_reset='"
+            + pointerInitReset
+            + '\''
+            + ",error_strategy='"
+            + errorStrategy
+            + '\''
+            + ", params="
+            + params
+            + '}';
     }
 
     /**

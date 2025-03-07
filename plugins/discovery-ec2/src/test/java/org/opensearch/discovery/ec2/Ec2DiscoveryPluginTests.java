@@ -180,14 +180,11 @@ public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
                         assertThat(credentials, instanceOf(AwsBasicCredentials.class));
                     }
 
-                    assertEquals(
-                        mockEc2Client.proxyConfiguration.toString(),
-                        "ProxyConfiguration(endpoint=https://proxy-host-1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
-                    );
                     assertEquals(mockEc2Client.proxyConfiguration.host(), "proxy-host-1");
                     assertEquals(mockEc2Client.proxyConfiguration.port(), 881);
                     assertEquals(mockEc2Client.proxyConfiguration.username(), "proxy_username_1");
                     assertEquals(mockEc2Client.proxyConfiguration.password(), "proxy_password_1");
+                    assertFalse(mockEc2Client.proxyConfiguration.preemptiveBasicAuthenticationEnabled());
                 }
                 // reload secure settings2
                 plugin.reload(settings2);
@@ -204,14 +201,11 @@ public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
                         assertThat(credentials, instanceOf(AwsBasicCredentials.class));
                     }
 
-                    assertEquals(
-                        mockEc2Client.proxyConfiguration.toString(),
-                        "ProxyConfiguration(endpoint=https://proxy-host-1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
-                    );
                     assertEquals(mockEc2Client.proxyConfiguration.host(), "proxy-host-1");
                     assertEquals(mockEc2Client.proxyConfiguration.port(), 881);
                     assertEquals(mockEc2Client.proxyConfiguration.username(), "proxy_username_1");
                     assertEquals(mockEc2Client.proxyConfiguration.password(), "proxy_password_1");
+                    assertFalse(mockEc2Client.proxyConfiguration.preemptiveBasicAuthenticationEnabled());
                 }
             }
             try (AmazonEc2ClientReference clientReference = plugin.ec2Service.client()) {
@@ -228,14 +222,11 @@ public class Ec2DiscoveryPluginTests extends AbstractEc2DiscoveryTestCase {
                     assertThat(credentials, instanceOf(AwsBasicCredentials.class));
                 }
 
-                assertEquals(
-                    mockEc2Client.proxyConfiguration.toString(),
-                    "ProxyConfiguration(endpoint=https://proxy-host-2:882, username=proxy_username_2, preemptiveBasicAuthenticationEnabled=false)"
-                );
                 assertEquals(mockEc2Client.proxyConfiguration.host(), "proxy-host-2");
                 assertEquals(mockEc2Client.proxyConfiguration.port(), 882);
                 assertEquals(mockEc2Client.proxyConfiguration.username(), "proxy_username_2");
                 assertEquals(mockEc2Client.proxyConfiguration.password(), "proxy_password_2");
+                assertFalse(mockEc2Client.proxyConfiguration.preemptiveBasicAuthenticationEnabled());
             }
         }
     }
