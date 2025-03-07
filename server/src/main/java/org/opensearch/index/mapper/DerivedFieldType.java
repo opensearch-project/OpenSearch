@@ -244,34 +244,6 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        QueryShardContext context
-    ) {
-        Query query = typeFieldMapper.mappedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
-        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
-            query,
-            () -> valueFetcher(context, context.lookup(), null),
-            context.lookup(),
-            getIndexAnalyzer(),
-            indexableFieldGenerator,
-            derivedField.getIgnoreMalformed()
-        );
-        return Optional.ofNullable(getPrefilterFieldType(context))
-            .map(
-                prefilterFieldType -> createConjuctionQuery(
-                    prefilterFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context),
-                    derivedFieldQuery
-                )
-            )
-            .orElse(derivedFieldQuery);
-    }
-
-    @Override
-    public Query fuzzyQuery(
-        Object value,
-        Fuzziness fuzziness,
-        int prefixLength,
-        int maxExpansions,
-        boolean transpositions,
         @Nullable MultiTermQuery.RewriteMethod method,
         QueryShardContext context
     ) {

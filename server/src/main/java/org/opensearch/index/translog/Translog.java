@@ -899,6 +899,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         return deletionPolicy;
     }
 
+    public static final Translog.Location EMPTY_TRANSLOG_LOCATION = new Translog.Location(0, 0, 0);
+
     /**
      * Location in the translot
      *
@@ -958,6 +960,21 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             return result;
         }
     }
+
+    public static final Translog.Snapshot EMPTY_TRANSLOG_SNAPSHOT = new Translog.Snapshot() {
+        @Override
+        public void close() {}
+
+        @Override
+        public int totalOperations() {
+            return 0;
+        }
+
+        @Override
+        public Translog.Operation next() {
+            return null;
+        }
+    };
 
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.

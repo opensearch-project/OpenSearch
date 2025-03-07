@@ -40,6 +40,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -65,6 +66,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
 
 /**
  * A basic read-only engine that allows switching a shard to be true read-only temporarily or permanently.
@@ -150,20 +153,7 @@ public class ReadOnlyEngine extends Engine {
 
                 completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
 
-                translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, new Translog.Snapshot() {
-                    @Override
-                    public void close() {}
-
-                    @Override
-                    public int totalOperations() {
-                        return 0;
-                    }
-
-                    @Override
-                    public Translog.Operation next() {
-                        return null;
-                    }
-                });
+                translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, EMPTY_TRANSLOG_SNAPSHOT);
 
                 success = true;
             } finally {
@@ -177,7 +167,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(final SeqNoStats seqNoStats) {
-        if (requireCompleteHistory == false) {
+        if (requireCompleteHistory == false || isClosedRemoteIndex()) {
             return;
         }
         // Before 3.0 the global checkpoint is not known and up to date when the engine is created after
@@ -196,6 +186,14 @@ public class ReadOnlyEngine extends Engine {
                     + "]"
             );
         }
+    }
+
+    /**
+     * Returns true if this is a remote store index (included if migrating as well) which is closed.
+     */
+    private boolean isClosedRemoteIndex() {
+        return this.engineConfig.getIndexSettings().isAssignedOnRemoteNode()
+            && this.engineConfig.getIndexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE;
     }
 
     protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {

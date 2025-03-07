@@ -1,9 +1,9 @@
 [versions]
 opensearch        = "3.0.0"
-lucene            = "9.12.1"
+lucene            = "10.1.0"
 
 bundled_jdk_vendor = "adoptium"
-bundled_jdk = "23.0.1+11"
+bundled_jdk = "21.0.6+7"
 
 # optional dependencies
 spatial4j         = "0.7"
@@ -32,12 +32,12 @@ grpc              = "1.68.2"
 # when updating the JNA version, also update the version in buildSrc/build.gradle
 jna               = "5.13.0"
 
-netty             = "4.1.115.Final"
+netty             = "4.1.118.Final"
 joda              = "2.12.7"
 roaringbitmap     = "1.3.0"
 
 # project reactor
-reactor_netty     = "1.1.26"
+reactor_netty     = "1.1.27"
 reactor           = "3.5.20"
 
 # client dependencies
@@ -52,7 +52,8 @@ commonslang       = "3.14.0"
 commonscompress   = "1.26.1"
 commonsio         = "2.16.0"
 # plugin dependencies
-aws               = "2.20.86"
+aws               = "2.30.31"
+awscrt            = "0.35.0"
 reactivestreams   = "1.0.4"
 
 # when updating this version, you need to ensure compatibility with:
@@ -82,7 +83,7 @@ opentelemetry         = "1.46.0"
 opentelemetrysemconv  = "1.29.0-alpha"
 
 # arrow dependencies
-arrow                 = "17.0.0"
+arrow                 = "18.1.0"
 flatbuffers           = "2.0.0"
 
 [libraries]
@@ -95,6 +96,7 @@ jzlib = { group = "com.jcraft", name = "jzlib", version.ref = "jzlib" }
 log4japi = { group = "org.apache.logging.log4j", name = "log4j-api", version.ref = "log4j" }
 log4jjul = { group = "org.apache.logging.log4j", name = "log4j-jul", version.ref = "log4j" }
 log4jcore = { group = "org.apache.logging.log4j", name = "log4j-core", version.ref = "log4j" }
+log4jslf4jimpl = { group = "org.apache.logging.log4j", name = "log4j-slf4j-impl", version.ref = "log4j" }
 lucene-core = { group = "org.apache.lucene", name = "lucene-core", version.ref = "lucene" }
 lucene-analysis-common = { group = "org.apache.lucene", name = "lucene-analysis-common", version.ref = "lucene" }
 lucene-backward-codecs = { group = "org.apache.lucene", name = "lucene-backward-codecs", version.ref = "lucene" }
@@ -109,9 +111,24 @@ lucene-sandbox = { group = "org.apache.lucene", name = "lucene-sandbox", version
 lucene-spatial-extras = { group = "org.apache.lucene", name = "lucene-spatial-extras", version.ref = "lucene" }
 lucene-spatial3d = { group = "org.apache.lucene", name = "lucene-spatial3d", version.ref = "lucene" }
 lucene-suggest = { group = "org.apache.lucene", name = "lucene-suggest", version.ref = "lucene" }
+netty-buffer = { group = "io.netty", name = "netty-buffer", version.ref = "netty" }
+netty-codec = { group = "io.netty", name = "netty-codec", version.ref = "netty" }
+netty-codec-dns = { group = "io.netty", name = "netty-codec-dns", version.ref = "netty" }
+netty-codec-http = { group = "io.netty", name = "netty-codec-http", version.ref = "netty" }
+netty-codec-http2 = { group = "io.netty", name = "netty-codec-http2", version.ref = "netty" }
+netty-common = { group = "io.netty", name = "netty-common", version.ref = "netty" }
+netty-handler = { group = "io.netty", name = "netty-handler", version.ref = "netty" }
+netty-resolver-dns = { group = "io.netty", name = "netty-resolver-dns", version.ref = "netty" }
+netty-resolver = { group = "io.netty", name = "netty-resolver", version.ref = "netty" }
+netty-transport = { group = "io.netty", name = "netty-transport", version.ref = "netty" }
+netty-transport-native-unix-common = { group = "io.netty", name = "netty-transport-native-unix-common", version.ref = "netty" }
 protobuf = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobuf" }
-reactivestreams = { group = "io.projectreactor", name = "reactor-core", version.ref = "reactor" }
-reactorcore = { group = "org.reactivestreams", name = "reactive-streams", version.ref = "reactivestreams" }
+reactivestreams = { group = "org.reactivestreams", name = "reactive-streams", version.ref = "reactivestreams" }
+reactor-core = { group = "io.projectreactor", name = "reactor-core", version.ref = "reactor" }
+reactor-test = { group = "io.projectreactor", name = "reactor-test", version.ref = "reactor" }
+reactor-netty-core = { group = "io.projectreactor.netty", name = "reactor-netty-core", version.ref = "reactor_netty" }
+reactor-netty-http = { group = "io.projectreactor.netty", name = "reactor-netty-http", version.ref = "reactor_netty" }
+
 roaringbitmap = { group = "org.roaringbitmap", name = "RoaringBitmap", version.ref = "roaringbitmap" }
 spatial4j = { group = "org.locationtech.spatial4j", name = "spatial4j", version.ref = "spatial4j" }
 tdigest = { group = "com.tdunning", name = "t-digest", version.ref = "tdigest" }
@@ -132,4 +149,23 @@ lucene = [
     "lucene-spatial-extras",
     "lucene-spatial3d",
     "lucene-suggest"
+]
+
+netty = [
+    "netty-buffer",
+    "netty-codec",
+    "netty-codec-dns",
+    "netty-codec-http",
+    "netty-codec-http2",
+    "netty-common",
+    "netty-handler",
+    "netty-resolver-dns",
+    "netty-resolver",
+    "netty-transport",
+    "netty-transport-native-unix-common"
+]
+
+reactornetty = [
+    "reactor-netty-core",
+    "reactor-netty-http"
 ]

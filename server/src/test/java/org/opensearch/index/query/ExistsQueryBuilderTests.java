@@ -35,9 +35,8 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.test.AbstractQueryTestCase;
@@ -92,15 +91,15 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 assertThat(booleanQuery.clauses().size(), equalTo(childFields.size()));
                 for (int i = 0; i < childFields.size(); i++) {
                     BooleanClause booleanClause = booleanQuery.clauses().get(i);
-                    assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                    assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
             } else if (context.getMapperService().fieldType(field).hasDocValues()) {
-                assertThat(constantScoreQuery.getQuery(), instanceOf(DocValuesFieldExistsQuery.class));
-                DocValuesFieldExistsQuery dvExistsQuery = (DocValuesFieldExistsQuery) constantScoreQuery.getQuery();
+                assertThat(constantScoreQuery.getQuery(), instanceOf(FieldExistsQuery.class));
+                FieldExistsQuery dvExistsQuery = (FieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, dvExistsQuery.getField());
             } else if (context.getMapperService().fieldType(field).getTextSearchInfo().hasNorms()) {
-                assertThat(constantScoreQuery.getQuery(), instanceOf(NormsFieldExistsQuery.class));
-                NormsFieldExistsQuery normsExistsQuery = (NormsFieldExistsQuery) constantScoreQuery.getQuery();
+                assertThat(constantScoreQuery.getQuery(), instanceOf(FieldExistsQuery.class));
+                FieldExistsQuery normsExistsQuery = (FieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, normsExistsQuery.getField());
             } else {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(TermQuery.class));
@@ -115,7 +114,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             assertThat(booleanQuery.clauses().size(), equalTo(mappedFields.size()));
             for (int i = 0; i < mappedFields.size(); i++) {
                 BooleanClause booleanClause = booleanQuery.clauses().get(i);
-                assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.SHOULD));
             }
         }
     }

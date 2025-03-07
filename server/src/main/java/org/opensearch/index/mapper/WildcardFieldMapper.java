@@ -37,6 +37,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
@@ -101,7 +102,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         );
         private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false);
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false).alwaysSerialize();
         private final IndexAnalyzers indexAnalyzers;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
@@ -158,6 +159,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
     }
 
+    public static final int NGRAM_SIZE = 3;
     public static final String CONTENT_TYPE = "wildcard";
     public static final TypeParser PARSER = new TypeParser((n, c) -> new WildcardFieldMapper.Builder(n, c.getIndexAnalyzers()));
 
@@ -229,97 +231,49 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     /**
      * Tokenizer to emit tokens to support wildcard first-phase matching.
      * <p>
-     * Will emit all substrings of length 1,2, and 3, with 0-valued anchors for the prefix/suffix.
+     * Will emit all substrings of only 3, with 0-valued anchors for the prefix/suffix.
      * <p>
      * For example, given the string "lucene", output the following terms:
      * <p>
-     * [0, 'l']
+     * [0, 0, 'l']
      * [0, 'l', 'u']
-     * ['l']
-     * ['l', 'u']
      * ['l', 'u', 'c']
-     * ['u']
-     * ['u','c']
      * ['u','c','e']
-     * ['c']
-     * ['c', 'e']
      * ['c', 'e', 'n']
-     * ['e']
-     * ['e', 'n']
      * ['e', 'n', 'e']
-     * ['n']
-     * ['n', 'e']
      * ['n', 'e', 0]
-     * ['e']
-     * ['e', 0]
+     * ['e', 0, 0]
      * <p>
      * Visible for testing.
      */
     static final class WildcardFieldTokenizer extends Tokenizer {
         private final CharTermAttribute charTermAttribute = addAttribute(CharTermAttribute.class);
-        private final char[] buffer = new char[3]; // Ring buffer for up to 3 chars
-        private int offset = 0; // Position in the buffer
-        private int length = 2; // First token is anchor + first char
+        private final char[] buffer = new char[NGRAM_SIZE]; // Ring buffer for up to 3 chars
+        private int offset = NGRAM_SIZE - 1; // next position in buffer to store next input char
 
         @Override
         public void reset() throws IOException {
             super.reset();
-            buffer[0] = 0;
-            int firstChar = input.read();
-            if (firstChar != -1) {
-                buffer[1] = (char) firstChar;
-                int secondChar = input.read();
-                if (secondChar != -1) {
-                    buffer[2] = (char) secondChar;
-                } else {
-                    buffer[2] = 0;
-                }
-            } else {
-                buffer[1] = 0;
+            for (int i = 0; i < NGRAM_SIZE - 1; i++) {
+                buffer[i] = 0;
             }
-
         }
 
         @Override
         public boolean incrementToken() throws IOException {
-            charTermAttribute.setLength(length);
-            int numZeroes = 0;
-            for (int i = 0; i < length; i++) {
-                char curChar = buffer[(i + offset) % 3];
-                if (curChar == 0) {
-                    numZeroes++;
-                }
-                charTermAttribute.buffer()[i] = buffer[(i + offset) % 3];
+            charTermAttribute.setLength(NGRAM_SIZE);
+            int c = input.read();
+            c = c == -1 ? 0 : c;
+
+            buffer[offset++ % NGRAM_SIZE] = (char) c;
+            boolean has_next = false;
+            for (int i = 0; i < NGRAM_SIZE; i++) {
+                char curChar = buffer[(offset + i) % NGRAM_SIZE];
+                charTermAttribute.buffer()[i] = curChar;
+                has_next |= curChar != 0;
             }
-            if (numZeroes == 2) {
-                // Two zeroes usually means we're done.
-                if (length == 3 && charTermAttribute.buffer()[1] != 0) {
-                    // The only case where we're not done is if the input has exactly 1 character, so the buffer
-                    // contains 0, char, 0. In that case, we return char now, then return char, 0 on the next iteration
-                    charTermAttribute.buffer()[0] = charTermAttribute.buffer()[1];
-                    charTermAttribute.buffer()[1] = 0;
-                    charTermAttribute.setLength(1);
-                    length = 2;
-                    offset = 1;
-                    return true;
-                }
-                return false;
-            }
-            if (length == 3) {
-                // Read the next character, overwriting the current offset
-                int nextChar = input.read();
-                if (nextChar != -1) {
-                    buffer[offset] = (char) nextChar;
-                } else {
-                    // End of input. Pad with extra 0 to trigger the logic above.
-                    buffer[offset] = 0;
-                }
-                offset = (offset + 1) % 3;
-                length = 1;
-            } else {
-                length = length + 1;
-            }
-            return true;
+
+            return has_next;
         }
     }
 
@@ -361,7 +315,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         }
 
         public WildcardFieldType(String name, NamedAnalyzer normalizer, Builder builder) {
-            super(name, true, true, builder.hasDocValues.getValue(), TextSearchInfo.SIMPLE_MATCH_ONLY, builder.meta.getValue());
+            super(name, true, false, builder.hasDocValues.getValue(), TextSearchInfo.SIMPLE_MATCH_ONLY, builder.meta.getValue());
             setIndexAnalyzer(normalizer);
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
@@ -422,6 +376,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
+            MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
             // TODO: Not sure if we can reasonably describe a fuzzy query in terms of n-grams without exploding the cardinality
@@ -449,7 +404,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 finalValue = value;
             }
             Predicate<String> matchPredicate;
-            Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), finalValue));
+            Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), finalValue), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
             if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.SINGLE) {
                 // when type equals SINGLE, #compiledAutomaton.runAutomaton is null
@@ -477,8 +432,8 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             Query approximation;
             if (requiredNGrams.isEmpty()) {
                 // This only happens when all characters are wildcard characters (* or ?),
-                // or it's the empty string.
-                if (value.length() == 0 || value.contains("?")) {
+                // or it's only contains sequential characters less than NGRAM_SIZE (which defaults to 3).
+                if (findNonWildcardSequence(value, 0) != value.length() || value.length() == 0 || value.contains("?")) {
                     approximation = this.existsQuery(context);
                 } else {
                     return existsQuery(context);
@@ -500,15 +455,20 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             int pos = 0;
             String rawSequence = null;
             String currentSequence = null;
+            char[] buffer = new char[NGRAM_SIZE];
             if (!value.startsWith("?") && !value.startsWith("*")) {
                 // Can add prefix term
                 rawSequence = getNonWildcardSequence(value, 0);
                 currentSequence = performEscape(rawSequence, regexpMode);
-                if (currentSequence.length() == 1) {
-                    terms.add(new String(new char[] { 0, currentSequence.charAt(0) }));
-                } else {
-                    terms.add(new String(new char[] { 0, currentSequence.charAt(0), currentSequence.charAt(1) }));
+
+                // buffer[0] is automatically set to 0
+                Arrays.fill(buffer, (char) 0);
+                int startIdx = Math.max(NGRAM_SIZE - currentSequence.length(), 1);
+                for (int j = 0; j < currentSequence.length() && j < NGRAM_SIZE - 1; j++) {
+                    buffer[startIdx + j] = currentSequence.charAt(j);
                 }
+
+                terms.add(new String(buffer));
             } else {
                 pos = findNonWildcardSequence(value, pos);
                 rawSequence = getNonWildcardSequence(value, pos);
@@ -516,23 +476,27 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             while (pos < value.length()) {
                 boolean isEndOfValue = pos + rawSequence.length() == value.length();
                 currentSequence = performEscape(rawSequence, regexpMode);
-                if (!currentSequence.isEmpty() && currentSequence.length() < 3 && !isEndOfValue && pos > 0) {
-                    // If this is a prefix or suffix of length < 3, then we already have a longer token including the anchor.
-                    terms.add(currentSequence);
-                } else {
-                    for (int i = 0; i < currentSequence.length() - 2; i++) {
-                        terms.add(currentSequence.substring(i, i + 3));
-                    }
+
+                for (int i = 0; i < currentSequence.length() - NGRAM_SIZE + 1; i++) {
+                    terms.add(currentSequence.substring(i, i + 3));
                 }
                 if (isEndOfValue) {
                     // This is the end of the input. We can attach a suffix anchor.
-                    if (currentSequence.length() == 1) {
-                        terms.add(new String(new char[] { currentSequence.charAt(0), 0 }));
-                    } else {
-                        char a = currentSequence.charAt(currentSequence.length() - 2);
-                        char b = currentSequence.charAt(currentSequence.length() - 1);
-                        terms.add(new String(new char[] { a, b, 0 }));
+                    // special case when we should generate '0xxxxxxx0', where we have (NGRAM_SIZE - 2) * x
+                    Arrays.fill(buffer, (char) 0);
+                    if (pos == 0 && currentSequence.length() == NGRAM_SIZE - 2) {
+                        for (int i = 0; i < currentSequence.length(); i++) {
+                            buffer[i + 1] = currentSequence.charAt(i);
+                        }
+                        terms.add(new String(buffer));
+                        Arrays.fill(buffer, (char) 0);
                     }
+                    int rightStartIdx = NGRAM_SIZE - currentSequence.length() - 2;
+                    rightStartIdx = rightStartIdx < 0 ? NGRAM_SIZE - 2 : rightStartIdx;
+                    for (int j = 0; j < currentSequence.length() && j < NGRAM_SIZE - 1; j++) {
+                        buffer[rightStartIdx - j] = currentSequence.charAt(currentSequence.length() - j - 1);
+                    }
+                    terms.add(new String(buffer));
                 }
                 pos = findNonWildcardSequence(value, pos + rawSequence.length());
                 rawSequence = getNonWildcardSequence(value, pos);
@@ -614,7 +578,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             final boolean caseInsensitive = matchFlags == RegExp.ASCII_CASE_INSENSITIVE;
 
             RegExp regExp = new RegExp(finalValue, syntaxFlags, matchFlags);
-            Automaton automaton = regExp.toAutomaton(maxDeterminizedStates);
+            Automaton automaton = Operations.determinize(regExp.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
 
             Predicate<String> regexpPredicate;
@@ -705,7 +669,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     return new MatchAllDocsQuery();
                 }
             if (query.clauses().size() == 1) {
-                return query.iterator().next().getQuery();
+                return query.iterator().next().query();
             } else if (query.clauses().size() == 0) {
                 return new MatchAllDocsQuery();
             }
@@ -863,17 +827,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             Weight firstPhaseWeight = firstPhaseQuery.createWeight(searcher, scoreMode, boost);
             return new ConstantScoreWeight(this, boost) {
                 @Override
-                public Scorer scorer(LeafReaderContext leafReaderContext) throws IOException {
-                    ScorerSupplier supplier = scorerSupplier(leafReaderContext);
-                    if (supplier == null) {
-                        return null;
-                    }
-                    return supplier.get(Long.MAX_VALUE);
-                }
-
-                @Override
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                    Weight weight = this;
                     ScorerSupplier firstPhaseSupplier = firstPhaseWeight.scorerSupplier(context);
                     if (firstPhaseSupplier == null) {
                         return null;
@@ -904,7 +858,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                                     return MATCH_COST_ESTIMATE;
                                 }
                             };
-                            return new ConstantScoreScorer(weight, score(), scoreMode, twoPhaseIterator);
+                            return new ConstantScoreScorer(score(), scoreMode, twoPhaseIterator);
                         }
 
                         @Override

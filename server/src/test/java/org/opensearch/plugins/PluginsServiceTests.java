@@ -38,7 +38,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.bootstrap.JarHell;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
@@ -1128,6 +1128,78 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertFalse(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("~1.0.1"), Version.fromString("1.0.0")));
 
         assertFalse(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("~1.0.0"), Version.fromString("1.1.0")));
+    }
+
+    public void testFindPluginsByDependency() throws Exception {
+        Path tempDir = createTempDir();
+        Path pluginsDir = tempDir.resolve("plugins");
+        Files.createDirectories(pluginsDir);
+
+        Path plugin1Dir = pluginsDir.resolve("plugin1");
+        PluginTestUtil.writePluginProperties(
+            plugin1Dir,
+            "description",
+            "Plugin 1",
+            "name",
+            "plugin1",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            "1.8",
+            "classname",
+            "Plugin1",
+            "extended.plugins",
+            "base-plugin"
+        );
+
+        Path plugin2Dir = pluginsDir.resolve("plugin2");
+        PluginTestUtil.writePluginProperties(
+            plugin2Dir,
+            "description",
+            "Plugin 2",
+            "name",
+            "plugin2",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            "1.8",
+            "classname",
+            "Plugin2",
+            "extended.plugins",
+            "base-plugin,other-plugin"
+        );
+
+        Path plugin3Dir = pluginsDir.resolve("plugin3");
+        PluginTestUtil.writePluginProperties(
+            plugin3Dir,
+            "description",
+            "Plugin 3",
+            "name",
+            "plugin3",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            "1.8",
+            "classname",
+            "Plugin3",
+            "extended.plugins",
+            "other-plugin"
+        );
+
+        List<String> basePluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "base-plugin");
+        assertThat(basePluginDependents, containsInAnyOrder("plugin1", "plugin2"));
+
+        List<String> otherPluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "other-plugin");
+        assertThat(otherPluginDependents, containsInAnyOrder("plugin2", "plugin3"));
+
+        List<String> nonExistentDependents = PluginsService.findPluginsByDependency(pluginsDir, "non-existent");
+        assertTrue(nonExistentDependents.isEmpty());
     }
 
     private PluginInfo getPluginInfoWithWithSemverRange(String semverRange) {

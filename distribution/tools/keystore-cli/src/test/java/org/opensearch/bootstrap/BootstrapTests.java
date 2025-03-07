@@ -31,7 +31,6 @@
 
 package org.opensearch.bootstrap;
 
-import org.opensearch.common.settings.KeyStoreCommandTestCase;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
@@ -39,6 +38,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tools.cli.keystore.KeyStoreCommandTestCase;
 import org.junit.After;
 import org.junit.Before;
 

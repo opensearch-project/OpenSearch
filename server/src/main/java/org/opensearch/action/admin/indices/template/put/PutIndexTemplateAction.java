@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.template.put;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 
 /**
  * An action for putting an index template into the cluster state

@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.Set;
 

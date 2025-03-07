@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.cluster.reroute;
 
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;

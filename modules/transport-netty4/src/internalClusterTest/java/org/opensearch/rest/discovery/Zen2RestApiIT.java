@@ -35,7 +35,6 @@ package org.opensearch.rest.discovery;
 import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.client.Client;
 import org.opensearch.client.Node;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -49,6 +48,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

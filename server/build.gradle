@@ -36,7 +36,7 @@ plugins {
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')
   id('opensearch.optional-dependencies')
-  id('me.champeau.gradle.japicmp') version '0.4.5'
+  id('me.champeau.gradle.japicmp') version '0.4.6'
 }
 
 publishing {
@@ -69,7 +69,7 @@ dependencies {
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
-
+  implementation project(':libs:opensearch-arrow-spi')
 
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
@@ -105,7 +105,7 @@ dependencies {
   api libs.jzlib
 
   // reactor
-  api libs.reactorcore
+  api libs.reactor.core
   api libs.reactivestreams
 
   // protobuf
@@ -114,7 +114,7 @@ dependencies {
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
-
+  testImplementation 'org.awaitility:awaitility:4.3.0'
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -371,7 +371,6 @@ tasks.named("licenseHeaders").configure {
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
-    excludes << 'org/opensearch/client/documentation/placeholder.txt'
     // Ignore for protobuf generated code
     excludes << 'org/opensearch/extensions/proto/*'
 }

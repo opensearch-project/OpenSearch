@@ -34,7 +34,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.Alias;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
 import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
@@ -69,6 +69,7 @@ import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -92,6 +93,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader.TEMPLATE_LOADER_IDENTIFIER;
 import static org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata.fromComponentTemplateInfo;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.common.settings.Settings.builder;
 import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
 import static org.opensearch.env.Environment.PATH_HOME_SETTING;
@@ -2438,6 +2440,23 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         request.settings(settingsBuilder.build());
         List<Throwable> throwables = putTemplate(xContentRegistry(), request, clusterSettings);
         assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
+    }
+
+    public void testIndexPrimaryShardsSetting() {
+        Settings clusterSettings = Settings.builder().build();
+        PutRequest request = new PutRequest("test", "test_index_primary_shard_constraint");
+        request.patterns(singletonList("test_shards_wait*"));
+        Settings.Builder settingsBuilder = builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 2)
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString());
+        request.settings(settingsBuilder.build());
+        List<Throwable> throwables = putTemplate(xContentRegistry(), request, clusterSettings);
+        assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
+        assertEquals(
+            "Setting [index.routing.allocation.total_primary_shards_per_node] can only be used with remote store enabled clusters",
+            throwables.get(0).getMessage()
+        );
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

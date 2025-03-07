@@ -103,6 +103,6 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
 
     @Override
     public TimeValue timeout() {
-        return request.masterNodeTimeout();
+        return request.clusterManagerNodeTimeout();
     }
 }

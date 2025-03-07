@@ -75,7 +75,8 @@ public class TranslogTransferManager {
     private final Logger logger;
 
     private static final VersionedCodecStreamWrapper<TranslogTransferMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
-        new TranslogTransferMetadataHandler(),
+        new TranslogTransferMetadataHandlerFactory(),
+        TranslogTransferMetadata.CURRENT_VERSION,
         TranslogTransferMetadata.CURRENT_VERSION,
         TranslogTransferMetadata.METADATA_CODEC
     );
@@ -206,7 +207,8 @@ public class TranslogTransferManager {
         } catch (Exception ex) {
             logger.error(() -> new ParameterizedMessage("Transfer failed for snapshot {}", transferSnapshot), ex);
             captureStatsOnUploadFailure();
-            translogTransferListener.onUploadFailed(transferSnapshot, ex);
+            Exception exWithoutSuppressed = new TranslogUploadFailedException(ex.getMessage());
+            translogTransferListener.onUploadFailed(transferSnapshot, exWithoutSuppressed);
             return false;
         }
     }

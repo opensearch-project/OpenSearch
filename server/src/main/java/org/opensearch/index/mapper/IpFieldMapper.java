@@ -32,9 +32,12 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.sandbox.search.MultiRangeQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -451,7 +454,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             public void setNextDocId(int docId) throws IOException {
                 count = 0;
                 if (in.advanceExact(docId)) {
-                    for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
+                    for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_DOCS && count < in.docValueCount(); ord = in
+                        .nextOrd()) {
                         ords = ArrayUtil.grow(ords, count + 1);
                         ords[count++] = ord;
                     }
@@ -613,16 +617,42 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        if (indexed) {
+        if (indexed && hasDocValues) {
+            context.doc().add(new InetAddressField(fieldType().name(), address));
+        } else if (indexed) {
             context.doc().add(new InetAddressPoint(fieldType().name(), address));
-        }
-        if (hasDocValues) {
+        } else if (hasDocValues) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
-        } else if (stored || indexed) {
+        }
+        if ((stored || indexed) && hasDocValues == false) {
             createFieldNamesField(context);
         }
         if (stored) {
             context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+        }
+    }
+
+    public static InetAddressField buildInetAddressField(String name, InetAddress value) {
+        return new InetAddressField(name, value);
+    }
+
+    /**
+     * Field type that combines dimensional points and doc values for IP fields
+     */
+    public static class InetAddressField extends Field {
+        private static final FieldType FIELD_TYPE = new FieldType();
+        static {
+            FIELD_TYPE.setDimensions(1, InetAddressPoint.BYTES);
+            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_SET);
+            FIELD_TYPE.freeze();
+        }
+
+        /**
+         * Create new instance
+         */
+        public InetAddressField(String name, InetAddress value) {
+            super(name, FIELD_TYPE);
+            fieldsData = new BytesRef(InetAddressPoint.encode(value));
         }
     }
 
