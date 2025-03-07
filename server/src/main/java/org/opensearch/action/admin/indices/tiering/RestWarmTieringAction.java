@@ -9,12 +9,12 @@
 package org.opensearch.action.admin.indices.tiering;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.List;
 

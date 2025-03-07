@@ -13,8 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.opensearch.client.OriginSettingClient;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -23,6 +21,8 @@ import org.opensearch.search.SearchService;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.OriginSettingClient;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;

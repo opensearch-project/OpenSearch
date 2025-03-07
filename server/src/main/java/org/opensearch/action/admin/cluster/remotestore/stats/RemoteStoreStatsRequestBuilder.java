@@ -9,9 +9,9 @@
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Builder for RemoteStoreStatsRequest

@@ -77,7 +77,7 @@ ${path.logs}
 #
 # Block initial recovery after a full cluster restart until N nodes are started:
 #
-#gateway.recover_after_nodes: 3
+#gateway.recover_after_data_nodes: 3
 #
 # For more information, consult the gateway module documentation.
 #

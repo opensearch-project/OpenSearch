@@ -23,7 +23,6 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.InternalClusterInfoService;
@@ -50,6 +49,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.transport.client.Client;
 import org.junit.Before;
 
 import java.util.Arrays;

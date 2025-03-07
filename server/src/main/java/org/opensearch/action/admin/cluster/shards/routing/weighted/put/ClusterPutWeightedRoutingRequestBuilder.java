@@ -9,9 +9,9 @@
 package org.opensearch.action.admin.cluster.shards.routing.weighted.put;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Request builder to update weights for weighted round-robin shard routing policy.

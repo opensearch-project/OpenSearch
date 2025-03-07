@@ -53,7 +53,6 @@ import org.opensearch.action.support.replication.TransportWriteAction.WritePrima
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -95,6 +94,7 @@ import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TestTransportChannel;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -84,6 +84,11 @@ public class FakeIngestionSource {
         }
 
         @Override
+        public FakeIngestionShardPointer nextPointer(FakeIngestionShardPointer startPointer) {
+            return new FakeIngestionShardPointer(startPointer.offset + 1);
+        }
+
+        @Override
         public FakeIngestionShardPointer earliestPointer() {
             return new FakeIngestionShardPointer(0);
         }
@@ -91,6 +96,16 @@ public class FakeIngestionSource {
         @Override
         public FakeIngestionShardPointer latestPointer() {
             return new FakeIngestionShardPointer(messages.size());
+        }
+
+        @Override
+        public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
+            throw new UnsupportedOperationException("Not implemented yet.");
+        }
+
+        @Override
+        public IngestionShardPointer pointerFromOffset(String offset) {
+            return new FakeIngestionShardPointer(Long.parseLong(offset));
         }
 
         @Override

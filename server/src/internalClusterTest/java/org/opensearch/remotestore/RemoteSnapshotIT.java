@@ -10,7 +10,6 @@ package org.opensearch.remotestore;
 
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
@@ -18,6 +17,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.opensearch.transport.client.Client;
 import org.junit.After;
 import org.junit.Before;
 

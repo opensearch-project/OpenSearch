@@ -1,0 +1,50 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: legacy_bm25_test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            similarity:
+              default:
+                type: LegacyBM25
+                k1: 1.2
+                b: 0.75
+          mappings:
+            properties:
+              content:
+                type: text
+  - do:
+      index:
+        index: legacy_bm25_test
+        id: "1"
+        body: { "content": "This is a test document for legacy BM25 scoring" }
+  - do:
+      index:
+        index: legacy_bm25_test
+        id: "2"
+        body: { "content": "legacy legacy legacy scoring" }
+  - do:
+      indices.refresh:
+        index: legacy_bm25_test
+
+---
+"Legacy BM25 search":
+  - do:
+      search:
+        index: legacy_bm25_test
+        body:
+          query:
+            match:
+              content: "legacy"
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: legacy_bm25_test

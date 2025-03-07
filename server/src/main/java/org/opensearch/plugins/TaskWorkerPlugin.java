@@ -8,12 +8,12 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.task.commons.task.TaskType;
 import org.opensearch.task.commons.worker.TaskWorker;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 /**
  * Plugin for providing TaskWorkers for Offline Nodes

@@ -32,8 +32,8 @@
 package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Base request builder for cluster-manager node operations that support acknowledgements

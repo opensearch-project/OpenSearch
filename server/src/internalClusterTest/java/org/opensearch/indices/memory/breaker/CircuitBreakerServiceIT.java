@@ -44,8 +44,6 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.settings.Settings;
@@ -63,6 +61,8 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 import org.junit.After;
 import org.junit.Before;
 

@@ -48,7 +48,6 @@ import org.opensearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.action.termvectors.TermVectorsResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.common.settings.ClusterSettings;
@@ -58,6 +57,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Requests;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

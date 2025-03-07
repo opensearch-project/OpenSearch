@@ -38,7 +38,6 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Booleans;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -58,6 +57,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Arrays;

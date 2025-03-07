@@ -13,19 +13,22 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -187,6 +190,89 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
         assertEquals(actionGet.getRelocatingShards(), 0);
         assertEquals(docRepNode, primaryNodeName("test"));
+
+        asyncIndexingService.stopIndexing();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.getKey(), (String) null))
+            .get();
+    }
+
+    public void testMixedModeRelocation_FailInFinalize() throws Exception {
+        String docRepNode = internalCluster().startNode();
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        // create shard with 0 replica and 1 shard
+        client().admin().indices().prepareCreate("test").setSettings(indexSettings()).setMapping("field", "type=text").get();
+        ensureGreen("test");
+
+        AsyncIndexingService asyncIndexingService = new AsyncIndexingService("test");
+        asyncIndexingService.startIndexing();
+
+        refresh("test");
+
+        // add remote node in mixed mode cluster
+        setAddRemote(true);
+        String remoteNode = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+
+        AtomicBoolean failFinalize = new AtomicBoolean(true);
+
+        MockTransportService remoteNodeTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            remoteNode
+        );
+
+        remoteNodeTransportService.addRequestHandlingBehavior(
+            PeerRecoveryTargetService.Actions.FINALIZE,
+            (handler, request, channel, task) -> {
+                if (failFinalize.get()) {
+                    throw new IOException("Failing finalize");
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            }
+        );
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.getKey(), "40s"))
+            .get();
+
+        // Change direction to remote store
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        logger.info("--> relocating from {} to {} ", docRepNode, remoteNode);
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setTimeout(TimeValue.timeValueSeconds(5))
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .execute()
+            .actionGet();
+
+        assertTrue(clusterHealthResponse.getRelocatingShards() == 1);
+
+        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest()
+            .waitForNoRelocatingShards(true)
+            .waitForNoInitializingShards(true);
+        ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
+        assertEquals(actionGet.getRelocatingShards(), 0);
+        assertEquals(docRepNode, primaryNodeName("test"));
+
+        // now unblock it
+        logger.info("Unblocking the finalize recovery now");
+        failFinalize.set(false);
+
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
+        waitForRelocation();
 
         asyncIndexingService.stopIndexing();
         client().admin()

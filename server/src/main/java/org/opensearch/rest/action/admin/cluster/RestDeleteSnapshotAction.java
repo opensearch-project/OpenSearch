@@ -33,19 +33,19 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.opensearch.client.Requests.deleteSnapshotRequest;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
+import static org.opensearch.transport.client.Requests.deleteSnapshotRequest;
 
 /**
  * Deletes a snapshot

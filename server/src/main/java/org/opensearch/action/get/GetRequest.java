@@ -45,6 +45,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 
@@ -52,14 +54,14 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to get a document (its source) from an index based on its id. Best created using
- * {@link org.opensearch.client.Requests#getRequest(String)}.
+ * {@link Requests#getRequest(String)}.
  * <p>
  * The operation requires the {@link #index()}} and {@link #id(String)}
  * to be set.
  *
  * @see GetResponse
- * @see org.opensearch.client.Requests#getRequest(String)
- * @see org.opensearch.client.Client#get(GetRequest)
+ * @see Requests#getRequest(String)
+ * @see Client#get(GetRequest)
  *
  * @opensearch.api
  */

@@ -52,12 +52,12 @@ import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import java.io.IOException;
 
 import static org.opensearch.action.DocWriteRequest.OpType;
-import static org.opensearch.client.Requests.clearIndicesCacheRequest;
-import static org.opensearch.client.Requests.getRequest;
-import static org.opensearch.client.Requests.indexRequest;
-import static org.opensearch.client.Requests.refreshRequest;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.opensearch.transport.client.Requests.clearIndicesCacheRequest;
+import static org.opensearch.transport.client.Requests.getRequest;
+import static org.opensearch.transport.client.Requests.indexRequest;
+import static org.opensearch.transport.client.Requests.refreshRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 

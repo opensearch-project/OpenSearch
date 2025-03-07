@@ -35,7 +35,7 @@ package org.opensearch.index.reindex;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.support.tasks.TasksRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Java API support for changing the throttle on reindex tasks while they are running.

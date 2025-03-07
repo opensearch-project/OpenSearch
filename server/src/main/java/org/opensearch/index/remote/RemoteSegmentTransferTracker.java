@@ -580,5 +580,53 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
                 directoryFileTransferTrackerStats
             );
         }
+
+        @Override
+        public String toString() {
+            return "Stats{"
+                + "shardId="
+                + shardId
+                + ", localRefreshClockTimeMs="
+                + localRefreshClockTimeMs
+                + ", remoteRefreshClockTimeMs="
+                + remoteRefreshClockTimeMs
+                + ", refreshTimeLagMs="
+                + refreshTimeLagMs
+                + ", localRefreshNumber="
+                + localRefreshNumber
+                + ", remoteRefreshNumber="
+                + remoteRefreshNumber
+                + ", uploadBytesStarted="
+                + uploadBytesStarted
+                + ", uploadBytesFailed="
+                + uploadBytesFailed
+                + ", uploadBytesSucceeded="
+                + uploadBytesSucceeded
+                + ", totalUploadsStarted="
+                + totalUploadsStarted
+                + ", totalUploadsFailed="
+                + totalUploadsFailed
+                + ", totalUploadsSucceeded="
+                + totalUploadsSucceeded
+                + ", rejectionCount="
+                + rejectionCount
+                + ", consecutiveFailuresCount="
+                + consecutiveFailuresCount
+                + ", lastSuccessfulRemoteRefreshBytes="
+                + lastSuccessfulRemoteRefreshBytes
+                + ", uploadBytesMovingAverage="
+                + uploadBytesMovingAverage
+                + ", uploadBytesPerSecMovingAverage="
+                + uploadBytesPerSecMovingAverage
+                + ", totalUploadTimeInMs="
+                + totalUploadTimeInMs
+                + ", uploadTimeMovingAverage="
+                + uploadTimeMovingAverage
+                + ", bytesLag="
+                + bytesLag
+                + ", directoryFileTransferTrackerStats="
+                + directoryFileTransferTrackerStats
+                + '}';
+        }
     }
 }

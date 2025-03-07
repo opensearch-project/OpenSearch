@@ -15,7 +15,6 @@ import org.opensearch.action.admin.indices.view.ListViewNamesAction;
 import org.opensearch.action.admin.indices.view.SearchViewAction;
 import org.opensearch.action.admin.indices.view.UpdateViewAction;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.XContentParser;
@@ -26,6 +25,7 @@ import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.rest.action.search.RestSearchAction;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;

@@ -46,7 +46,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.action.ActionFuture;
@@ -73,6 +72,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.Before;
 
 import java.io.IOException;

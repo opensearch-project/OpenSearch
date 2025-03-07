@@ -37,7 +37,6 @@ import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.Priority;
@@ -53,6 +52,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;

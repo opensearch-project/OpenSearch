@@ -34,7 +34,6 @@ package org.opensearch.rest.action.cat;
 
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;
@@ -44,6 +43,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.time.Instant;
 import java.time.ZoneOffset;

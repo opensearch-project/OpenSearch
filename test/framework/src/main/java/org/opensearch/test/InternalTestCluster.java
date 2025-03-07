@@ -48,7 +48,6 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.support.replication.TransportReplicationAction;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
@@ -99,6 +98,7 @@ import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineTestCase;
+import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -122,6 +122,7 @@ import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.TransportSettings;
+import org.opensearch.transport.client.Client;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -1378,7 +1379,9 @@ public final class InternalTestCluster extends TestCluster {
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
                         try {
-                            if (IndexShardTestCase.getEngine(indexShard) instanceof InternalEngine) {
+                            if (IndexShardTestCase.getEngine(indexShard) instanceof IngestionEngine) {
+                                // no-op, as IngestionEngine does not use translog.
+                            } else if (IndexShardTestCase.getEngine(indexShard) instanceof InternalEngine) {
                                 IndexShardTestCase.getTranslog(indexShard).getDeletionPolicy().assertNoOpenTranslogRefs();
                             }
                         } catch (AlreadyClosedException ok) {

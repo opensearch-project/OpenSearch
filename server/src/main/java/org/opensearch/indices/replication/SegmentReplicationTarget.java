@@ -36,9 +36,11 @@ import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -161,7 +163,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
      *
      * @param listener {@link ActionListener} listener.
      */
-    public void startReplication(ActionListener<Void> listener) {
+    public void startReplication(ActionListener<Void> listener, BiConsumer<ReplicationCheckpoint, IndexShard> checkpointUpdater) {
         cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
             throw new CancellableThreads.ExecutionCancelledException("replication was canceled reason [" + reason + "]");
         });
@@ -177,6 +179,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
+            checkpointUpdater.accept(checkpointInfo.getCheckpoint(), this.indexShard);
+
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
             cancellableThreads.checkForCancel();
@@ -199,6 +203,12 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo) throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
+
+        // Return an empty list for warm indices, In this case, replica shards don't require downloading files from remote storage
+        // as replicas will sync all files from remote in case of failure.
+        if (indexShard.indexSettings().isStoreLocalityPartial()) {
+            return Collections.emptyList();
+        }
         final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
         // local files
         final Set<String> localFiles = Set.of(indexShard.store().directory().listAll());

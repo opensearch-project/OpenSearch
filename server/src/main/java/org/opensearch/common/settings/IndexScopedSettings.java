@@ -166,6 +166,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
+                ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,
                 IndexSettings.INDEX_GC_DELETES_SETTING,
                 IndexSettings.INDEX_SOFT_DELETES_SETTING,
                 IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
@@ -263,7 +264,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // Settings for ingestion source
                 IndexMetadata.INGESTION_SOURCE_TYPE_SETTING,
                 IndexMetadata.INGESTION_SOURCE_POINTER_INIT_RESET_SETTING,
+                IndexMetadata.INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING,
                 IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING,
+                IndexMetadata.INGESTION_SOURCE_ERROR_STRATEGY_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
