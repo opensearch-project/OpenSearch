@@ -42,43 +42,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fixes and refactoring in stream transport to make it more robust ([#20359](https://github.com/opensearch-project/OpenSearch/pull/20359))
 
 ### Dependencies
-- Bump `com.google.auth:google-auth-library-oauth2-http` from 1.38.0 to 1.41.0 ([#20183](https://github.com/opensearch-project/OpenSearch/pull/20183))
-- Bump `actions/checkout` from 5 to 6 ([#20186](https://github.com/opensearch-project/OpenSearch/pull/20186))
-- Bump `org.apache.commons:commons-configuration2` from 2.12.0 to 2.13.0 ([#20185](https://github.com/opensearch-project/OpenSearch/pull/20185), [#20184](https://github.com/opensearch-project/OpenSearch/pull/20184))
-- Bump Project Reactor to 3.8.1 and Reactor Netty to 1.3.1 ([#20217](https://github.com/opensearch-project/OpenSearch/pull/20217))
-- Bump OpenTelemetry to 1.57.0 and OpenTelemetry Semconv to 1.37.0 ([#20231](https://github.com/opensearch-project/OpenSearch/pull/20231))
-- Bump `peter-evans/create-pull-request` from 7 to 8 ([#20236](https://github.com/opensearch-project/OpenSearch/pull/20236))
-- Bump `org.apache.kerby:kerb-admin` from 2.1.0 to 2.1.1 ([#20235](https://github.com/opensearch-project/OpenSearch/pull/20235))
-- Bump `org.checkerframework:checker-qual` from 3.49.0 to 3.52.1 ([#20234](https://github.com/opensearch-project/OpenSearch/pull/20234))
-- Bump `netty` to 4.2.9.Final ([#20230](https://github.com/opensearch-project/OpenSearch/pull/20230))
-- Bump `log4j` from 2.21.0 to 2.25.3 ([#20308](https://github.com/opensearch-project/OpenSearch/pull/20308))
-- Bump `org.apache.logging.log4j:log4j-core` from 2.25.2 to 2.25.3 ([#20300](https://github.com/opensearch-project/OpenSearch/pull/20300))
-- Bump `ch.qos.logback:logback-core` from 1.5.20 to 1.5.23 ([#20303](https://github.com/opensearch-project/OpenSearch/pull/20303))
-- Bump `com.google.api.grpc:proto-google-iam-v1` from 1.57.0 to 1.58.2 ([#20302](https://github.com/opensearch-project/OpenSearch/pull/20302))
-- Bump `actions/setup-java` from 4 to 5 ([#20304](https://github.com/opensearch-project/OpenSearch/pull/20304))
-- Bump `com.squareup.okhttp3:okhttp` from 5.3.0 to 5.3.2 ([#20331](https://github.com/opensearch-project/OpenSearch/pull/20331))
-- Bump `asm` from 9.7 to 9.9.1 ([#20330](https://github.com/opensearch-project/OpenSearch/pull/20330))
-- Bump `actions/upload-artifact` from 5 to 6 ([#20333](https://github.com/opensearch-project/OpenSearch/pull/20333))
-- Bump `com.google.http-client:google-http-client-appengine` from 2.0.2 to 2.0.3 ([#20332](https://github.com/opensearch-project/OpenSearch/pull/20332))
-- Bump `jackson` from 2.18.1 to 2.20.1 ([#20343](https://github.com/opensearch-project/OpenSearch/pull/20343))
-- Bump `opensearch-protobufs` from 0.24.0 to 1.0.0 and update transport-grpc module compatibility ([#20335](https://github.com/opensearch-project/OpenSearch/pull/20335))
-- Bump Apache HttpClient5 to 5.6 ([#20358](https://github.com/opensearch-project/OpenSearch/pull/20358))
-- Bump Apache HttpCore5 to 5.4 ([#20358](https://github.com/opensearch-project/OpenSearch/pull/20358))
-- Bump `org.jsoup:jsoup` from 1.21.2 to 1.22.1 ([#20368](https://github.com/opensearch-project/OpenSearch/pull/20368))
-- Bump `org.jline:jline` from 3.30.5 to 3.30.6 ([#20369](https://github.com/opensearch-project/OpenSearch/pull/20369))
-- Bump `lycheeverse/lychee-action` from 2.6.1 to 2.7.0 ([#20370](https://github.com/opensearch-project/OpenSearch/pull/20370))
-- Bump `opensearch-protobufs` from 1.0.0 to 1.1.0 and update transport-grpc module compatibility ([#20396](https://github.com/opensearch-project/OpenSearch/pull/20396))
-- Bump `ch.qos.logback:logback-classic` from 1.5.23 to 1.5.24 ([#20407](https://github.com/opensearch-project/OpenSearch/pull/20407))
-- Bump `org.wiremock:wiremock-standalone` from 3.6.0 to 3.13.2 ([#20406](https://github.com/opensearch-project/OpenSearch/pull/20406))
-- Bump `tj-actions/changed-files` from 47.0.0 to 47.0.1 ([#20408](https://github.com/opensearch-project/OpenSearch/pull/20408))
-- Bump `reactor-netty` to 1.3.2, `reactor` to 3.8.2 ([#20419](https://github.com/opensearch-project/OpenSearch/pull/20419))
-- Bump `org.apache.maven:maven-model` from 3.9.6 to 3.9.12 ([#20438](https://github.com/opensearch-project/OpenSearch/pull/20438))
-- Bump `dnsjava:dnsjava` from 3.6.3 to 3.6.4 ([#20440](https://github.com/opensearch-project/OpenSearch/pull/20440))
-- Bump `com.netflix.nebula.ospackage-base` from 12.1.1 to 12.2.0 ([#20439](https://github.com/opensearch-project/OpenSearch/pull/20439))
-- Bump OpenTelemetry to 1.58.0 ([#20441](https://github.com/opensearch-project/OpenSearch/pull/20441))
-- Bump `com.nimbusds:nimbus-jose-jwt` from 10.6 to 10.7 ([#20478](https://github.com/opensearch-project/OpenSearch/pull/20478))
-- Bump opensearch-protobufs from 1.1.0 to 1.2.0 ([#20480](https://github.com/opensearch-project/OpenSearch/pull/20480))
-- Bump `com.netflix.nebula:nebula-publishing-plugin` from 21.1.0 to 23.0.0 ([#20477](https://github.com/opensearch-project/OpenSearch/pull/20477))
+
+### Changed
+- Version file standarization [[#693]](https://github.com/wazuh/wazuh-indexer/pull/693)
+
+### Deprecated
 
 ### Removed
 
