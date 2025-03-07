@@ -106,8 +106,10 @@ public class ScaleSearchOnlyIT extends RemoteStoreBaseIntegTestCase {
         GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(TEST_INDEX).get();
         assertTrue(settingsResponse.getSetting(TEST_INDEX, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey()).equals("true"));
 
-        SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).get();
-        assertHitCount(searchResponse, 10);
+        assertBusy(() -> {
+            SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).get();
+            assertHitCount(searchResponse, 10);
+        }, 30, TimeUnit.SECONDS);
 
         try {
             client().prepareIndex(TEST_INDEX).setId("new-doc").setSource("field1", "new-value").get();
