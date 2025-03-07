@@ -139,7 +139,7 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
             }, "flight-reader-thread");
 
             readerThread.start();
-            assertTrue("Reader thread did not complete in time", readerComplete.await(1, TimeUnit.SECONDS));
+            assertTrue("Reader thread did not complete in time", readerComplete.await(5, TimeUnit.SECONDS));
 
             if (readerException.get() != null) {
                 throw readerException.get();

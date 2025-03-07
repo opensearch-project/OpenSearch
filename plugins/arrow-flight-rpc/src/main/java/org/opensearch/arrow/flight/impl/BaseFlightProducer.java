@@ -77,7 +77,7 @@ public class BaseFlightProducer extends NoOpFlightProducer {
                     listener.error(
                         CallStatus.UNAVAILABLE.withDescription("Either server is not up yet or node does not support Streams.").cause()
                     );
-                    return;
+                    throw new RuntimeException("Either server is not up yet or node does not support Streams.");
                 }
                 StreamProducer<VectorSchemaRoot, BufferAllocator> proxyProvider = new ProxyStreamProducer(
                     new FlightStreamReader(remoteClient.get().getStream(ticket))
