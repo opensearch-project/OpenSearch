@@ -49,8 +49,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
-import static org.opensearch.test.OpenSearchIntegTestCase.client;
-import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
