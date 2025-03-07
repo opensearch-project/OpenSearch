@@ -129,7 +129,7 @@ public class ScaleSearchOnlyIT extends RemoteStoreBaseIntegTestCase {
      */
     public void testScaleUpFromSearchOnly() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(6);
+        internalCluster().startDataOnlyNodes(3);
 
         Settings specificSettings = Settings.builder()
             .put(indexSettings())
@@ -258,7 +258,7 @@ public class ScaleSearchOnlyIT extends RemoteStoreBaseIntegTestCase {
      */
     public void testRecoveryWithoutDataDirPreservation() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(6);
+        internalCluster().startDataOnlyNodes(3);
 
         Settings specificSettings = Settings.builder()
             .put(indexSettings())
@@ -272,7 +272,7 @@ public class ScaleSearchOnlyIT extends RemoteStoreBaseIntegTestCase {
 
         internalCluster().stopAllNodes();
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(6);
+        internalCluster().startDataOnlyNodes(3);
 
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().setIndices(TEST_INDEX).get());
     }
@@ -285,7 +285,7 @@ public class ScaleSearchOnlyIT extends RemoteStoreBaseIntegTestCase {
         Settings remoteStoreSettings = Settings.builder().put(nodeSettings(0)).put("cluster.remote_store.state.enabled", true).build();
 
         internalCluster().startClusterManagerOnlyNode(remoteStoreSettings);
-        internalCluster().startDataOnlyNodes(6);
+        internalCluster().startDataOnlyNodes(3);
 
         Settings specificSettings = Settings.builder()
             .put(indexSettings())
@@ -302,7 +302,7 @@ public class ScaleSearchOnlyIT extends RemoteStoreBaseIntegTestCase {
         internalCluster().stopAllNodes();
 
         internalCluster().startClusterManagerOnlyNode(remoteStoreSettings);
-        internalCluster().startDataOnlyNodes(6);
+        internalCluster().startDataOnlyNodes(3);
 
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -324,7 +324,7 @@ public class ScaleSearchOnlyIT extends RemoteStoreBaseIntegTestCase {
         Settings remoteStoreSettings = Settings.builder().put(nodeSettings(0)).put("cluster.remote_store.state.enabled", true).build();
 
         internalCluster().startClusterManagerOnlyNode(remoteStoreSettings);
-        internalCluster().startDataOnlyNodes(6);
+        internalCluster().startDataOnlyNodes(3);
 
         Settings specificSettings = Settings.builder()
             .put(indexSettings())
@@ -362,7 +362,7 @@ public class ScaleSearchOnlyIT extends RemoteStoreBaseIntegTestCase {
     */
     public void testScaleSearchReplicasInSearchOnlyMode() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(5);
+        internalCluster().startDataOnlyNodes(3);
 
         Settings initialSettings = Settings.builder()
             .put(indexSettings())

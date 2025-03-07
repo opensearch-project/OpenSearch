@@ -232,12 +232,12 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
      * </p>
      * <p>
      *     In search-only mode (when {@link IndexMetadata#INDEX_BLOCKS_SEARCH_ONLY_SETTING} is enabled):
-     *     <ul>
-     *         <li>Shard health is GREEN when all expected search replicas are active</li>
-     *         <li>Shard health is YELLOW when some (but not all) search replicas are active</li>
-     *         <li>Shard health is RED when no search replicas are active</li>
-     *     </ul>
      * </p>
+     * <ul>
+     *     <li>Shard health is GREEN when all expected search replicas are active</li>
+     *     <li>Shard health is YELLOW when some (but not all) search replicas are active</li>
+     *     <li>Shard health is RED when no search replicas are active</li>
+     * </ul>
      */
     public static ClusterHealthStatus getShardHealth(
         final ShardRouting primaryRouting,

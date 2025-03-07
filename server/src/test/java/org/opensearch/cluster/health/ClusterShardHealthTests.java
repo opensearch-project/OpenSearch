@@ -209,7 +209,7 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
         // When search-only is not enabled (default), expect RED status
         assertEquals(ClusterHealthStatus.RED, ClusterShardHealth.getShardHealth(null, 0, 0, indexMetadata));
 
-        // When search-only is enabled, expect GREEN status
+        // When search-only is enabled, expect RED status
         IndexMetadata.Builder searchOnlyMetadataBuilder = IndexMetadata.builder("test")
             .settings(
                 Settings.builder()
@@ -220,7 +220,7 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
             );
         IndexMetadata searchOnlyMetadata = searchOnlyMetadataBuilder.build();
 
-        assertEquals(ClusterHealthStatus.GREEN, ClusterShardHealth.getShardHealth(null, 0, 0, searchOnlyMetadata));
+        assertEquals(ClusterHealthStatus.RED, ClusterShardHealth.getShardHealth(null, 0, 0, searchOnlyMetadata));
     }
 
     @Override
