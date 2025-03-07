@@ -1260,7 +1260,7 @@ public abstract class StreamOutput extends OutputStream {
      * For null enum set, writes false;
      */
     public <E extends Enum<E>> void writeOptionalEnumSet(@Nullable EnumSet<E> enumSet) throws IOException {
-        if (enumSet != null) {
+        if (enumSet != null && enumSet.size() > 0) {
             writeBoolean(true);
             writeEnumSet(enumSet);
         } else {
