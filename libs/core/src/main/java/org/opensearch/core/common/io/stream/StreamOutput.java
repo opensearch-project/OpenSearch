@@ -1257,7 +1257,7 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Writes an optional EnumSet with type E that by serialized it based on it's ordinal value
-     * For null enum set, writes false;
+     * For null or empty enum set, writes false;
      */
     public <E extends Enum<E>> void writeOptionalEnumSet(@Nullable EnumSet<E> enumSet) throws IOException {
         if (enumSet != null && enumSet.size() > 0) {
