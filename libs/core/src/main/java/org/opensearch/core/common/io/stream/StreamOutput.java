@@ -1256,6 +1256,19 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes an optional EnumSet with type E that by serialized it based on it's ordinal value
+     * For null enum set, writes false;
+     */
+    public <E extends Enum<E>> void writeOptionalEnumSet(@Nullable EnumSet<E> enumSet) throws IOException {
+        if (enumSet != null) {
+            writeBoolean(true);
+            writeEnumSet(enumSet);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
+    /**
      * Write a {@link TimeValue} to the stream
      */
     public void writeTimeValue(TimeValue timeValue) throws IOException {
