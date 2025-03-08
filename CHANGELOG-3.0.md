@@ -21,11 +21,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add execution_hint to cardinality aggregator request (#[17312](https://github.com/opensearch-project/OpenSearch/pull/17312))
 - Arrow Flight RPC plugin with Flight server bootstrap logic and client for internode communication ([#16962](https://github.com/opensearch-project/OpenSearch/pull/16962))
 - Added offset management for the pull-based Ingestion ([#17354](https://github.com/opensearch-project/OpenSearch/pull/17354))
+- Added integ tests for systemd configs ([#17410](https://github.com/opensearch-project/OpenSearch/pull/17410))
+- Add filter function for AbstractQueryBuilder, BoolQueryBuilder, ConstantScoreQueryBuilder([#17409](https://github.com/opensearch-project/OpenSearch/pull/17409))
+- [Star Tree] [Search] Resolving keyword & numeric bucket aggregation with metric aggregation using star-tree ([#17165](https://github.com/opensearch-project/OpenSearch/pull/17165))
+- Added error handling support for the pull-based ingestion ([#17427](https://github.com/opensearch-project/OpenSearch/pull/17427))
+
 
 ### Dependencies
 - Update Apache Lucene to 10.1.0 ([#16366](https://github.com/opensearch-project/OpenSearch/pull/16366))
 - Bump Apache HttpCore5/HttpClient5 dependencies from 5.2.5/5.3.1 to 5.3.1/5.4.1 to support ExtendedSocketOption in HttpAsyncClient ([#16757](https://github.com/opensearch-project/OpenSearch/pull/16757))
 - Bumps `jetty` version from 9.4.55.v20240627 to 9.4.57.v20241219
+- Switch main/3.x to use JDK21 LTS version ([#17515](https://github.com/opensearch-project/OpenSearch/pull/17515))
 
 ### Changed
 - Changed locale provider from COMPAT to CLDR  ([#14345](https://github.com/opensearch-project/OpenSearch/pull/14345))
@@ -67,6 +73,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove package org.opensearch.action.support.master ([#4856](https://github.com/opensearch-project/OpenSearch/issues/4856))
 - Remove transport-nio plugin ([#16887](https://github.com/opensearch-project/OpenSearch/issues/16887))
 - Remove deprecated 'gateway' settings used to defer cluster recovery ([#3117](https://github.com/opensearch-project/OpenSearch/issues/3117))
+- Remove FeatureFlags.PLUGGABLE_CACHE as the feature is no longer experimental ([#17344](https://github.com/opensearch-project/OpenSearch/pull/17344))
 
 ### Fixed
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
@@ -75,6 +82,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix swapped field formats in nodes API where `total_indexing_buffer_in_bytes` and `total_indexing_buffer` values were reversed ([#17070](https://github.com/opensearch-project/OpenSearch/pull/17070))
 - Add HTTP/2 protocol support to HttpRequest.HttpVersion ([#17248](https://github.com/opensearch-project/OpenSearch/pull/17248))
 - Fix missing bucket in terms aggregation with missing value ([#17418](https://github.com/opensearch-project/OpenSearch/pull/17418))
+- Fix explain action on query rewrite ([#17286](https://github.com/opensearch-project/OpenSearch/pull/17286))
 
 ### Security
 

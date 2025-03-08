@@ -101,6 +101,22 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         builder.endObject();
     }
 
+    /**
+     * Adds a filter to the current ConstantScoreQuery.
+     * @param filter the filter to add to the current ConstantScoreQuery
+     * @return query builder with filter combined
+     */
+    public ConstantScoreQueryBuilder filter(QueryBuilder filter) {
+        if (validateFilterParams(filter) == false) {
+            return this;
+        }
+        QueryBuilder filteredFilterBuilder = filterBuilder.filter(filter);
+        if (filteredFilterBuilder != filterBuilder) {
+            return new ConstantScoreQueryBuilder(filteredFilterBuilder);
+        }
+        return this;
+    }
+
     public static ConstantScoreQueryBuilder fromXContent(XContentParser parser) throws IOException {
         QueryBuilder query = null;
         boolean queryFound = false;

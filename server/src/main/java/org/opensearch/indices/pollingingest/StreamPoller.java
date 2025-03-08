@@ -50,6 +50,8 @@ public interface StreamPoller extends Closeable {
      */
     IngestionShardPointer getBatchStartPointer();
 
+    PollingIngestStats getStats();
+
     /**
      * a state to indicate the current state of the poller
      */
