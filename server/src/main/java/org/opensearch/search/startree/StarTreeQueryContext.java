@@ -21,6 +21,7 @@ import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
+import org.opensearch.search.aggregations.bucket.range.RangeAggregatorFactory;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.opensearch.search.aggregations.metrics.MetricAggregatorFactory;
 import org.opensearch.search.internal.SearchContext;
@@ -120,6 +121,10 @@ public class StarTreeQueryContext {
                 continue;
             }
 
+            // validation for range aggregation
+            if (validateRangeAggregationSupport(compositeMappedFieldType, aggregatorFactory)) {
+                continue;
+            }
             // invalid query shape
             return false;
         }
@@ -172,6 +177,31 @@ public class StarTreeQueryContext {
             .stream()
             .map(Dimension::getField)
             .noneMatch(termsAggregatorFactory.getField()::equals)) {
+            return false;
+        }
+
+        // Validate all sub-factories
+        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
+            if (!validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean validateRangeAggregationSupport(
+        CompositeDataCubeFieldType compositeIndexFieldInfo,
+        AggregatorFactory aggregatorFactory
+    ) {
+        if (!(aggregatorFactory instanceof RangeAggregatorFactory rangeAggregatorFactory)) {
+            return false;
+        }
+
+        // Validate request field is part of dimensions
+        if (compositeIndexFieldInfo.getDimensions()
+            .stream()
+            .map(Dimension::getField)
+            .noneMatch(rangeAggregatorFactory.getField()::equals)) {
             return false;
         }
 
