@@ -8,14 +8,7 @@
 
 package org.opensearch.index.store.remote.filecache;
 
-import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import static org.opensearch.ExceptionsHelper.catchAsRuntimeException;
 
 /**
  * File Cache (FC) is introduced to solve the problem that the local disk cannot hold
@@ -38,26 +31,11 @@ import static org.opensearch.ExceptionsHelper.catchAsRuntimeException;
 public class FileCacheFactory {
 
     public static FileCache createConcurrentLRUFileCache(long capacity, CircuitBreaker circuitBreaker) {
-        return new FileCache(createDefaultBuilder().capacity(capacity).build(), circuitBreaker);
+        return new FileCache(capacity, circuitBreaker);
     }
 
     public static FileCache createConcurrentLRUFileCache(long capacity, int concurrencyLevel, CircuitBreaker circuitBreaker) {
-        return new FileCache(createDefaultBuilder().capacity(capacity).concurrencyLevel(concurrencyLevel).build(), circuitBreaker);
-    }
-
-    private static SegmentedCache.Builder<Path, CachedIndexInput> createDefaultBuilder() {
-        return SegmentedCache.<Path, CachedIndexInput>builder()
-            // use length in bytes as the weight of the file item
-            .weigher(CachedIndexInput::length)
-            .listener((removalNotification) -> {
-                RemovalReason removalReason = removalNotification.getRemovalReason();
-                CachedIndexInput value = removalNotification.getValue();
-                Path key = removalNotification.getKey();
-                if (removalReason != RemovalReason.REPLACED) {
-                    catchAsRuntimeException(value::close);
-                    catchAsRuntimeException(() -> Files.deleteIfExists(key));
-                }
-            });
+        return new FileCache(capacity, concurrencyLevel, circuitBreaker);
     }
 
 }

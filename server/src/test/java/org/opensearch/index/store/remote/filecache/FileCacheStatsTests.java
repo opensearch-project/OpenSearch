@@ -46,13 +46,46 @@ public class FileCacheStatsTests extends OpenSearchTestCase {
             usage.usage(),
             stats.evictionWeight(),
             stats.hitCount(),
-            stats.missCount()
+            stats.missCount(),
+            getMockFullFileCacheStats()
+        );
+    }
+
+    public static FullFileCacheStats getMockFullFileCacheStats() {
+        final long activeFullFileBytes = randomLongBetween(100000, BYTES_IN_GB);
+        final long activeFullFileCount = randomLongBetween(10, 100);
+        final long usedFullFileBytes = randomLongBetween(100000, BYTES_IN_GB);
+        final long usedFullFileCount = randomLongBetween(activeFullFileCount, 200);
+        final long evictedFullFileBytes = randomLongBetween(0, activeFullFileBytes);
+        final long evictedFullFileCount = randomLongBetween(0, activeFullFileCount);
+        final long hitCount = randomLongBetween(0, 10);
+        final long missCount = 10 - hitCount;
+        return new FullFileCacheStats(
+            activeFullFileBytes,
+            activeFullFileCount,
+            usedFullFileBytes,
+            usedFullFileCount,
+            evictedFullFileBytes,
+            evictedFullFileCount,
+            hitCount,
+            missCount
         );
     }
 
     public static FileCacheStats getMockFileCacheStats() {
         final long fcSize = getMockCacheCapacity();
         return getFileCacheStats(fcSize, getMockCacheStats(), getMockCacheUsage(fcSize));
+    }
+
+    public static void validateFullFileStats(FullFileCacheStats original, FullFileCacheStats deserialized) {
+        assertEquals(original.getActiveFullFileBytes(), deserialized.getActiveFullFileBytes());
+        assertEquals(original.getActiveFullFileCount(), deserialized.getActiveFullFileCount());
+        assertEquals(original.getUsedFullFileBytes(), deserialized.getUsedFullFileBytes());
+        assertEquals(original.getUsedFullFileCount(), deserialized.getUsedFullFileCount());
+        assertEquals(original.getEvictedFullFileBytes(), deserialized.getEvictedFullFileBytes());
+        assertEquals(original.getEvictedFullFileCount(), deserialized.getEvictedFullFileCount());
+        assertEquals(original.getHitCount(), deserialized.getHitCount());
+        assertEquals(original.getMissCount(), deserialized.getMissCount());
     }
 
     public static void validateFileCacheStats(FileCacheStats original, FileCacheStats deserialized) {
@@ -64,6 +97,7 @@ public class FileCacheStatsTests extends OpenSearchTestCase {
         assertEquals(original.getEvicted(), deserialized.getEvicted());
         assertEquals(original.getCacheHits(), deserialized.getCacheHits());
         assertEquals(original.getCacheMisses(), deserialized.getCacheMisses());
+        validateFullFileStats(original.fullFileCacheStats(), deserialized.fullFileCacheStats());
     }
 
     public void testFileCacheStatsSerialization() throws IOException {
