@@ -53,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Use BC libraries to parse PEM files, increase key length, allow general use of known cryptographic binary extensions, remove unused BC dependencies ([#3420](https://github.com/opensearch-project/OpenSearch/pull/14912))
 
 ### Deprecated
+- Add deprecation warning for `_cat/snapshots` in favor of `_cat/snapshots/<repository>` ([#9345](https://github.com/opensearch-project/OpenSearch/pull/9345))
 
 ### Removed
 - Remove deprecated code to add node name into log pattern of log4j property file ([#4568](https://github.com/opensearch-project/OpenSearch/pull/4568))
