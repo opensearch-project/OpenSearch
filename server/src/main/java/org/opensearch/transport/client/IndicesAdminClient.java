@@ -92,6 +92,7 @@ import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
+import org.opensearch.action.admin.indices.scale.searchonly.SearchOnlyRequestBuilder;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
@@ -865,4 +866,12 @@ public interface IndicesAdminClient extends OpenSearchClient {
 
     /** Update a view */
     ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request);
+
+    /**
+     * Make one or more indices search only.
+     *
+     * @param index The index to make search only
+     * @return The request builder
+     */
+    SearchOnlyRequestBuilder prepareScaleSearchOnly(String index);
 }
