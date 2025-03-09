@@ -35,6 +35,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.util.io.IOUtils;
 
 import java.io.Closeable;
@@ -103,7 +104,7 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
 
     static class FuzzyFilteredFieldsProducer extends FieldsProducer {
         private FieldsProducer delegateFieldsProducer;
-        HashMap<String, FuzzySet> fuzzySetsByFieldName = new HashMap<>();
+        HashMap<String, CheckedSupplier<FuzzySet, IOException>> fuzzySetsByFieldName = new HashMap<>();
         private List<Closeable> closeables = new ArrayList<>();
 
         public FuzzyFilteredFieldsProducer(SegmentReadState state) throws IOException {
@@ -132,10 +133,9 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
                 int numFilters = filterIn.readInt();
                 for (int i = 0; i < numFilters; i++) {
                     int fieldNum = filterIn.readInt();
-                    FuzzySet set = FuzzySetFactory.deserializeFuzzySet(filterIn);
-                    closeables.add(set);
+                    CheckedSupplier<FuzzySet, IOException> setBuilder = FuzzySetFactory.buildSetProvider(filterIn);
                     FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldNum);
-                    fuzzySetsByFieldName.put(fieldInfo.name, set);
+                    fuzzySetsByFieldName.put(fieldInfo.name, setBuilder);
                 }
                 CodecUtil.retrieveChecksum(filterIn);
 
@@ -164,7 +164,10 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
 
         @Override
         public Terms terms(String field) throws IOException {
-            FuzzySet filter = fuzzySetsByFieldName.get(field);
+            FuzzySet filter = null;
+            if (fuzzySetsByFieldName.get(field) != null) {
+                filter = fuzzySetsByFieldName.get(field).get();
+            }
             if (filter == null) {
                 return delegateFieldsProducer.terms(field);
             } else {
