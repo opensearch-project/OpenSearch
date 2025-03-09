@@ -1306,7 +1306,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an optional enum set with type E that was serialized based on the value of the enum's ordinal
+     * Reads an optional enum set with type E that was serialized based on the value of each enum's ordinal
      * The set is expected to have been written using {@link StreamOutput#writeOptionalEnumSet(EnumSet)}
      *
      * @return the enum set of strings

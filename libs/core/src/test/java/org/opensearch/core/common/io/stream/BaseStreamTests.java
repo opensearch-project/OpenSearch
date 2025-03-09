@@ -567,8 +567,11 @@ public abstract class BaseStreamTests extends OpenSearchTestCase {
         });
     }
 
-
     private enum TestEnum {
-        A, B, C, D, E;
+        A,
+        B,
+        C,
+        D,
+        E;
     }
 }
