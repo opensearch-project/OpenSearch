@@ -67,6 +67,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
@@ -142,6 +143,7 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
@@ -6602,6 +6604,61 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
             }
         }
+    }
+
+    public void testMultiSettingsDynamicForMerge() {
+        boolean checkPendingFlushEnabled = true;
+        boolean mergeOnFlushEnabled = true;
+        TimeValue maxFullFlushMergeWaitTime = TimeValue.timeValueSeconds(1);
+
+        final IndexSettings indexSettings = engine.config().getIndexSettings();
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
+            .settings(
+                Settings.builder()
+                    .put(indexSettings.getSettings())
+                    .put(IndexSettings.INDEX_CHECK_PENDING_FLUSH_ENABLED.getKey(), checkPendingFlushEnabled)
+                    .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), mergeOnFlushEnabled)
+                    .put(IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME.getKey(), maxFullFlushMergeWaitTime)
+                    .put(IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY.getKey(), "merge-on-flush")
+            )
+            .build();
+        indexSettings.updateIndexMetadata(indexMetadata);
+        engine.onSettingsChanged(
+            indexSettings.getTranslogRetentionAge(),
+            indexSettings.getTranslogRetentionSize(),
+            indexSettings.getSoftDeleteRetentionOperations()
+        );
+
+        assertEquals(checkPendingFlushEnabled, engine.getCurrentIndexWriterConfig().isCheckPendingFlushOnUpdate());
+        assertEquals(maxFullFlushMergeWaitTime.millis(), engine.getCurrentIndexWriterConfig().getMaxFullFlushMergeWaitMillis());
+        MergePolicy mergePolicy = engine.getCurrentIndexWriterConfig().getMergePolicy();
+        assertTrue(mergePolicy instanceof OpenSearchMergePolicy);
+        assertTrue(((OpenSearchMergePolicy) mergePolicy).getDelegate() instanceof MergeOnFlushMergePolicy);
+
+        mergeOnFlushEnabled = false;
+        checkPendingFlushEnabled = false;
+        indexMetadata = IndexMetadata.builder(indexSettings.getIndexMetadata())
+            .settings(
+                Settings.builder()
+                    .put(indexSettings.getSettings())
+                    .put(IndexSettings.INDEX_CHECK_PENDING_FLUSH_ENABLED.getKey(), checkPendingFlushEnabled)
+                    .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), mergeOnFlushEnabled)
+                    .put(IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME.getKey(), maxFullFlushMergeWaitTime)
+                    .put(IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY.getKey(), "merge-on-flush")
+            )
+            .build();
+        indexSettings.updateIndexMetadata(indexMetadata);
+        engine.onSettingsChanged(
+            indexSettings.getTranslogRetentionAge(),
+            indexSettings.getTranslogRetentionSize(),
+            indexSettings.getSoftDeleteRetentionOperations()
+        );
+
+        assertEquals(checkPendingFlushEnabled, engine.getCurrentIndexWriterConfig().isCheckPendingFlushOnUpdate());
+        assertEquals(0, engine.getCurrentIndexWriterConfig().getMaxFullFlushMergeWaitMillis());
+        mergePolicy = engine.getCurrentIndexWriterConfig().getMergePolicy();
+        assertTrue(mergePolicy instanceof OpenSearchMergePolicy);
+        assertTrue(((OpenSearchMergePolicy) mergePolicy).getDelegate() instanceof ShuffleForcedMergePolicy);
     }
 
     public void testStressUpdateSameDocWhileGettingIt() throws IOException, InterruptedException {
