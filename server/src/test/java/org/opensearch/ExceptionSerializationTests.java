@@ -162,6 +162,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ExceptionSerializationTests extends OpenSearchTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16731")
     public void testExceptionRegistration() throws ClassNotFoundException, IOException, URISyntaxException {
         final Set<Class<?>> notRegistered = new HashSet<>();
         final Set<Class<?>> hasDedicatedWrite = new HashSet<>();

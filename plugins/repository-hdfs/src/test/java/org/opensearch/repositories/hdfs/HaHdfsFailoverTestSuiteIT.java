@@ -65,6 +65,7 @@ import java.util.List;
 @SuppressWarnings("removal")
 public class HaHdfsFailoverTestSuiteIT extends OpenSearchRestTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16731")
     public void testHAFailoverWithRepository() throws Exception {
         RestClient client = client();
 

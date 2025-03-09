@@ -97,6 +97,7 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
         return 3;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/16731")
     public void testConnectException() throws UnknownHostException {
         try {
             serviceA.connectToNode(
