@@ -12,6 +12,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * Represents the data type of the dimension value.
+ * TODO: This needs to be eventually merged with DimensionFilterMapper and all indexing related code
+ *  which use this should instead use the mapper
  *
  * @opensearch.experimental
  */
@@ -19,7 +21,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 public enum DimensionDataType {
     LONG {
         @Override
-        int compare(Long a, Long b) {
+        public int compare(Long a, Long b) {
             if (a == null && b == null) {
                 return 0;
             }
@@ -34,7 +36,7 @@ public enum DimensionDataType {
     },
     UNSIGNED_LONG {
         @Override
-        int compare(Long a, Long b) {
+        public int compare(Long a, Long b) {
             if (a == null && b == null) {
                 return 0;
             }
@@ -48,5 +50,5 @@ public enum DimensionDataType {
         }
     };
 
-    abstract int compare(Long a, Long b);
+    public abstract int compare(Long a, Long b);
 }
