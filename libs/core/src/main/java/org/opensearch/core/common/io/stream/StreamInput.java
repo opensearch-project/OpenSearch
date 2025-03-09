@@ -1316,7 +1316,7 @@ public abstract class StreamInput extends InputStream {
         if (readBoolean()) {
             return readEnumSet(enumClass);
         } else {
-            return null;
+            return EnumSet.noneOf(enumClass);
         }
     }
 
