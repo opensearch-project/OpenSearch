@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -354,6 +355,32 @@ public abstract class BaseStreamTests extends OpenSearchTestCase {
         }
     }
 
+    public void testOptionalEnumSet() throws IOException {
+        EnumSet<TestEnum> enumSet = EnumSet.allOf(TestEnum.class);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeOptionalEnumSet(enumSet);
+        EnumSet<TestEnum> targetSet = getStreamInput(out.bytes()).readOptionalEnumSet(TestEnum.class);
+        assertEquals(enumSet, targetSet);
+
+        enumSet = EnumSet.of(TestEnum.A, TestEnum.C, TestEnum.E);
+        out = new BytesStreamOutput();
+        out.writeOptionalEnumSet(enumSet);
+        targetSet = getStreamInput(out.bytes()).readOptionalEnumSet(TestEnum.class);
+        assertEquals(enumSet, targetSet);
+
+        enumSet = EnumSet.noneOf(TestEnum.class);
+        out = new BytesStreamOutput();
+        out.writeOptionalEnumSet(enumSet);
+        targetSet = getStreamInput(out.bytes()).readOptionalEnumSet(TestEnum.class);
+        assertEquals(enumSet, targetSet);
+
+        enumSet = null;
+        out = new BytesStreamOutput();
+        out.writeOptionalEnumSet(enumSet);
+        targetSet = getStreamInput(out.bytes()).readOptionalEnumSet(TestEnum.class);
+        assertEquals(EnumSet.noneOf(TestEnum.class), targetSet);
+    }
+
     public void testSetOfLongs() throws IOException {
         final int size = randomIntBetween(0, 6);
         final Set<Long> sourceSet = new HashSet<>(size);
@@ -540,4 +567,11 @@ public abstract class BaseStreamTests extends OpenSearchTestCase {
         });
     }
 
+    private enum TestEnum {
+        A,
+        B,
+        C,
+        D,
+        E;
+    }
 }
