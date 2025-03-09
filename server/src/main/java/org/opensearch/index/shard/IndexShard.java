@@ -238,6 +238,7 @@ import java.util.stream.StreamSupport;
 import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.index.shard.IndexShard.ShardMigrationState.REMOTE_MIGRATING_SEEDED;
 import static org.opensearch.index.shard.IndexShard.ShardMigrationState.REMOTE_MIGRATING_UNSEEDED;
@@ -451,7 +452,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             aId,
             indexSettings,
             primaryTerm,
-            UNASSIGNED_SEQ_NO,
+            getInitialGlobalCheckpointForShard(indexSettings),
             globalCheckpointListeners::globalCheckpointUpdated,
             threadPool::absoluteTimeInMillis,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
@@ -497,6 +498,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
         this.discoveryNodes = discoveryNodes;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
+    }
+
+    /**
+     * By default, UNASSIGNED_SEQ_NO is used as the initial global checkpoint for new shard initialization. Ingestion
+     * source does not track sequence numbers explicitly and hence defaults to NO_OPS_PERFORMED for compatibility.
+     *
+     */
+    private long getInitialGlobalCheckpointForShard(IndexSettings indexSettings) {
+        if (indexSettings.getIndexMetadata().useIngestionSource()) {
+            return NO_OPS_PERFORMED;
+        }
+
+        return UNASSIGNED_SEQ_NO;
     }
 
     public ThreadPool getThreadPool() {
