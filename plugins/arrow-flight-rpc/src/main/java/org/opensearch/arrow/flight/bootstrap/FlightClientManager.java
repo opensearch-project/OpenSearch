@@ -15,10 +15,10 @@ import org.apache.arrow.util.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
-import org.opensearch.arrow.flight.api.NodeFlightInfo;
-import org.opensearch.arrow.flight.api.NodesFlightInfoAction;
-import org.opensearch.arrow.flight.api.NodesFlightInfoRequest;
-import org.opensearch.arrow.flight.api.NodesFlightInfoResponse;
+import org.opensearch.arrow.flight.api.flightinfo.NodeFlightInfo;
+import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoRequest;
+import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoResponse;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
@@ -59,8 +59,9 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
     static final int LOCATION_TIMEOUT_MS = 1000;
     private final ExecutorService grpcExecutor;
     private final ClientConfiguration clientConfig;
-    private final Map<String, FlightClient> flightClients = new ConcurrentHashMap<>();
+    private final Map<String, ClientHolder> flightClients = new ConcurrentHashMap<>();
     private final Client client;
+    private volatile boolean closed = false;
 
     /**
      * Creates a new FlightClientManager instance.
@@ -99,7 +100,19 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
      * @return An OpenSearchFlightClient instance for the specified node
      */
     public Optional<FlightClient> getFlightClient(String nodeId) {
-        return Optional.ofNullable(flightClients.get(nodeId));
+        ClientHolder clientHolder = flightClients.getOrDefault(nodeId, null);
+        return clientHolder == null ? Optional.empty() : Optional.ofNullable(clientHolder.flightClient);
+    }
+
+    /**
+     * Returns the location of a Flight client for a given node ID.
+     *
+     * @param nodeId The ID of the node for which to retrieve the location
+     * @return The Location of the Flight client for the specified node
+     */
+    public Location getFlightClientLocation(String nodeId) {
+        ClientHolder clientHolder = flightClients.getOrDefault(nodeId, null);
+        return clientHolder != null ? clientHolder.location : null;
     }
 
     /**
@@ -118,6 +131,10 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         requestNodeLocation(nodeId, locationFuture);
     }
 
+    Map<String, ClientHolder> getClients() {
+        return flightClients;
+    }
+
     private void buildClientAndAddToPool(Location location, DiscoveryNode node) {
         if (!isValidNode(node)) {
             logger.warn(
@@ -128,40 +145,39 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
             );
             return;
         }
-        flightClients.computeIfAbsent(node.getId(), key -> buildClient(location));
+        if (closed) {
+            return;
+        }
+        FlightClient flightClient = buildClient(location);
+        flightClients.put(node.getId(), new ClientHolder(location, flightClient));
     }
 
     private void requestNodeLocation(String nodeId, CompletableFuture<Location> future) {
         NodesFlightInfoRequest request = new NodesFlightInfoRequest(nodeId);
-        try {
+        client.execute(NodesFlightInfoAction.INSTANCE, request, new ActionListener<>() {
+            @Override
+            public void onResponse(NodesFlightInfoResponse response) {
+                NodeFlightInfo nodeInfo = response.getNodesMap().get(nodeId);
+                if (nodeInfo != null) {
+                    TransportAddress publishAddress = nodeInfo.getBoundAddress().publishAddress();
+                    String address = publishAddress.getAddress();
+                    int flightPort = publishAddress.address().getPort();
+                    Location location = clientConfig.sslContextProvider != null
+                        ? Location.forGrpcTls(address, flightPort)
+                        : Location.forGrpcInsecure(address, flightPort);
 
-            client.execute(NodesFlightInfoAction.INSTANCE, request, new ActionListener<>() {
-                @Override
-                public void onResponse(NodesFlightInfoResponse response) {
-                    NodeFlightInfo nodeInfo = response.getNodesMap().get(nodeId);
-                    if (nodeInfo != null) {
-                        TransportAddress publishAddress = nodeInfo.getBoundAddress().publishAddress();
-                        String address = publishAddress.getAddress();
-                        int flightPort = publishAddress.address().getPort();
-                        Location location = clientConfig.sslContextProvider != null
-                            ? Location.forGrpcTls(address, flightPort)
-                            : Location.forGrpcInsecure(address, flightPort);
-
-                        future.complete(location);
-                    } else {
-                        future.completeExceptionally(new IllegalStateException("No Flight info received for node: [" + nodeId + "]"));
-                    }
+                    future.complete(location);
+                } else {
+                    future.completeExceptionally(new IllegalStateException("No Flight info received for node: [" + nodeId + "]"));
                 }
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    future.completeExceptionally(e);
-                    logger.error("Failed to get Flight server info for node: [{}] {}", nodeId, e);
-                }
-            });
-        } catch (final Exception ex) {
-            future.completeExceptionally(ex);
-        }
+            @Override
+            public void onFailure(Exception e) {
+                future.completeExceptionally(e);
+                logger.error("Failed to get Flight server info for node: [{}] {}", nodeId, e);
+            }
+        });
     }
 
     private FlightClient buildClient(Location location) {
@@ -184,13 +200,16 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
      */
     @Override
     public void close() throws Exception {
-        for (FlightClient flightClient : flightClients.values()) {
-            flightClient.close();
+        closed = true;
+        for (ClientHolder clientHolder : flightClients.values()) {
+            clientHolder.flightClient.close();
         }
         flightClients.clear();
         grpcExecutor.shutdown();
         grpcExecutor.awaitTermination(5, TimeUnit.SECONDS);
-        clientConfig.clusterService.removeListener(this);
+    }
+
+    private record ClientHolder(Location location, FlightClient flightClient) {
     }
 
     /**
@@ -229,7 +248,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
     }
 
     @VisibleForTesting
-    Map<String, FlightClient> getFlightClients() {
+    Map<String, ClientHolder> getFlightClients() {
         return flightClients;
     }
 
