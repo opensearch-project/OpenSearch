@@ -16,6 +16,7 @@ import org.opensearch.common.unit.TimeValue;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.lang.Math.max;
 import static org.opensearch.common.settings.Setting.Property.NodeScope;
 
 /**
@@ -36,17 +37,25 @@ public class EhcacheDiskCacheSettings {
 
     public static final Setting.AffixSetting<Integer> DISK_WRITE_MINIMUM_THREADS_SETTING = Setting.suffixKeySetting(
         EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".min_threads",
-        (key) -> Setting.intSetting(key, 2, 1, 5, NodeScope)
+        (key) -> Setting.intSetting(key, 2, 1, max(2, Runtime.getRuntime().availableProcessors() / 8), NodeScope)
     );
 
     /**
-     *  Ehcache disk write maximum threads for its pool
+     *  Ehcache disk write maximum threads for its pool. We max disk write threads to ony go upto max(2, N / 8) where N
+     *  is the number of CPU cores. This is done as disk operations are typically I/O bound rather than CPU bound, so
+     *  can't scale this blindly just based on the CPU cores.
      *
      *  Setting pattern: {cache_type}.ehcache_disk.max_threads
      */
     public static final Setting.AffixSetting<Integer> DISK_WRITE_MAXIMUM_THREADS_SETTING = Setting.suffixKeySetting(
         EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".max_threads",
-        (key) -> Setting.intSetting(key, 2, 1, 20, NodeScope)
+        (key) -> Setting.intSetting(
+            key,
+            max(2, Runtime.getRuntime().availableProcessors() / 8),
+            1,
+            Runtime.getRuntime().availableProcessors(),
+            NodeScope
+        )
     );
 
     /**
