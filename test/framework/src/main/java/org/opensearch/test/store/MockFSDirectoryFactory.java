@@ -36,7 +36,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
@@ -202,6 +205,19 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         @Override
         public Set<String> getPendingDeletions() throws IOException {
             return in.getPendingDeletions();
+        }
+
+        // In remote store feature, the upload flow is async and IndexInput can be opened and closed
+        // by different threads, so we always use IOContext.DEFAULT.
+        // But MockDirectoryWrapper throws an exception if segments_N fil is opened with any IOContext other than READONCE.
+        // Following change is temporary override to avoid the test failures. We should fix the multiple thread access
+        // in remote store upload flow.
+        @Override
+        public synchronized IndexInput openInput(String name, IOContext context) throws IOException {
+            if (name.startsWith(IndexFileNames.SEGMENTS)) {
+                context = IOContext.READONCE;
+            }
+            return super.openInput(name, context);
         }
     }
 
