@@ -168,6 +168,47 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testStarTreeDocValuesWithDecimals() throws IOException {
+        final List<DimensionFieldData> dimensionFieldDatum = List.of(
+            new DimensionFieldData("double_field", () -> 10.75, DimensionTypes.DOUBLE),
+            new DimensionFieldData("float_field", () -> 5.25f, DimensionTypes.FLOAT)
+        );
+        testStarTreeDocValuesInternal(
+            getCodec(() -> 10,
+                dimensionFieldDatum.stream().collect(
+                    Collectors.toMap(
+                        df -> df.getDimension().getField(),
+                        DimensionFieldData::getFieldType,
+                        (v1, v2) -> v1,
+                        LinkedHashMap::new
+                    )
+                ),
+                StarTreeFilterTests.METRIC_TYPE_MAP
+            ),
+            dimensionFieldDatum
+        );
+    }
+    public void testStarTreeDocValuesDecimalPrecision() throws IOException {
+        final List<DimensionFieldData> dimensionFieldDatum = List.of(
+            new DimensionFieldData("double_field", () -> 10.9999, DimensionTypes.DOUBLE),
+            new DimensionFieldData("float_field", () -> 99.999f, DimensionTypes.FLOAT)
+        );
+        testStarTreeDocValuesInternal(
+            getCodec(() -> 50,
+                dimensionFieldDatum.stream().collect(
+                    Collectors.toMap(
+                        df -> df.getDimension().getField(),
+                        DimensionFieldData::getFieldType,
+                        (v1, v2) -> v1,
+                        LinkedHashMap::new
+                    )
+                ),
+                StarTreeFilterTests.METRIC_TYPE_MAP
+            ),
+            dimensionFieldDatum
+        );
+    }
+
     private void testStarTreeDocValuesInternal(Codec codec, List<DimensionFieldData> dimensionFieldData) throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
