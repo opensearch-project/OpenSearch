@@ -323,7 +323,7 @@ class Pipeline {
         } catch (RuntimeException e) {
             onTransformPhaseResultsFailure();
             throw new SearchPipelineProcessingException(e);
-        }  finally {
+        } finally {
             long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart);
             afterTransformPhaseResults(took);
         }

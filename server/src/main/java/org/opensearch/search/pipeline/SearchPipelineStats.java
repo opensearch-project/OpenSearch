@@ -89,7 +89,11 @@ public class SearchPipelineStats implements Writeable, ToXContentFragment {
             }
             pipelineDetailStatsMap.put(
                 pipelineId,
-                new PipelineDetailStats(unmodifiableList(requestProcessorStats), unmodifiableList(phaseResultsProcessorStats), unmodifiableList(responseProcessorStats))
+                new PipelineDetailStats(
+                    unmodifiableList(requestProcessorStats),
+                    unmodifiableList(phaseResultsProcessorStats),
+                    unmodifiableList(responseProcessorStats)
+                )
             );
         }
         this.perPipelineStats = unmodifiableList(perPipelineStats);
@@ -184,7 +188,11 @@ public class SearchPipelineStats implements Writeable, ToXContentFragment {
         private final Map<String, List<ProcessorStats>> responseProcessorStatsPerPipeline = new HashMap<>();
         private final Map<String, List<ProcessorStats>> phaseResultsProcessorStatsPerPipeline = new HashMap<>();
 
-        Builder withTotalStats(OperationMetrics totalRequestMetrics, OperationMetrics totalResponseMetrics, OperationMetrics totalPhaseProcessingMetrics) {
+        Builder withTotalStats(
+            OperationMetrics totalRequestMetrics,
+            OperationMetrics totalResponseMetrics,
+            OperationMetrics totalPhaseProcessingMetrics
+        ) {
             this.totalRequestStats = totalRequestMetrics.createStats();
             this.totalResponseStats = totalResponseMetrics.createStats();
             this.totalPhaseResultsStats = totalPhaseProcessingMetrics.createStats();
@@ -204,7 +212,12 @@ public class SearchPipelineStats implements Writeable, ToXContentFragment {
             return this;
         }
 
-        Builder addPhaseResultsProcessorStats(String pipelineId, String processorName, String processorType, OperationMetrics processorMetrics) {
+        Builder addPhaseResultsProcessorStats(
+            String pipelineId,
+            String processorName,
+            String processorType,
+            OperationMetrics processorMetrics
+        ) {
             this.phaseResultsProcessorStatsPerPipeline.computeIfAbsent(pipelineId, k -> new ArrayList<>())
                 .add(new ProcessorStats(processorName, processorType, processorMetrics.createStats()));
             return this;
@@ -294,7 +307,11 @@ public class SearchPipelineStats implements Writeable, ToXContentFragment {
         private final List<ProcessorStats> phaseResultsProcessorStats;
         private final List<ProcessorStats> responseProcessorStats;
 
-        public PipelineDetailStats(List<ProcessorStats> requestProcessorStats, List<ProcessorStats> phaseResultsProcessorStats, List<ProcessorStats> responseProcessorStats) {
+        public PipelineDetailStats(
+            List<ProcessorStats> requestProcessorStats,
+            List<ProcessorStats> phaseResultsProcessorStats,
+            List<ProcessorStats> responseProcessorStats
+        ) {
             this.requestProcessorStats = requestProcessorStats;
             this.phaseResultsProcessorStats = phaseResultsProcessorStats;
             this.responseProcessorStats = responseProcessorStats;
@@ -317,7 +334,9 @@ public class SearchPipelineStats implements Writeable, ToXContentFragment {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             PipelineDetailStats that = (PipelineDetailStats) o;
-            return requestProcessorStats.equals(that.requestProcessorStats) && responseProcessorStats.equals(that.responseProcessorStats) && phaseResultsProcessorStats.equals(that.phaseResultsProcessorStats);
+            return requestProcessorStats.equals(that.requestProcessorStats)
+                && responseProcessorStats.equals(that.responseProcessorStats)
+                && phaseResultsProcessorStats.equals(that.phaseResultsProcessorStats);
         }
 
         @Override

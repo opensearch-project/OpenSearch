@@ -316,7 +316,12 @@ class PipelineWithMetrics extends Pipeline {
         }
         for (Processor phaseResultsProcessor : getSearchPhaseResultsProcessors()) {
             String key = getProcessorKey(phaseResultsProcessor);
-            statsBuilder.addPhaseResultsProcessorStats(getId(), key, phaseResultsProcessor.getType(), phaseResultsProcessorMetrics.get(key));
+            statsBuilder.addPhaseResultsProcessorStats(
+                getId(),
+                key,
+                phaseResultsProcessor.getType(),
+                phaseResultsProcessorMetrics.get(key)
+            );
         }
     }
 }
