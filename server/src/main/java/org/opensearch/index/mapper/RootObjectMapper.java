@@ -32,13 +32,17 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -530,5 +534,22 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         return false;
+    }
+
+    @Override
+    public void fillSource(LeafReader reader, int docID, XContentBuilder builder) throws IOException {
+        throw new UnsupportedOperationException("this method shouldn't be called, use reconstructSource instead");
+    }
+
+    public byte[] reconstructSource(LeafReader reader, int docID) throws IOException {
+        BytesStreamOutput bso = new BytesStreamOutput();
+        try (XContentBuilder builder = XContentFactory.jsonBuilder(bso)) {
+            builder.startObject();
+            for (Mapper mapper : this) {
+                mapper.fillSource(reader, docID, builder);
+            }
+            builder.endObject();
+        }
+        return BytesReference.toBytes(bso.bytes());
     }
 }

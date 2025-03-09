@@ -35,6 +35,11 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -43,6 +48,7 @@ import org.opensearch.core.xcontent.AbstractXContentParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.opensearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 
 import java.io.IOException;
@@ -761,6 +767,111 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         public List<String> copyToFields() {
             return copyToFields;
+        }
+    }
+
+    @Override
+    public void validateDerivedSource() {
+        if (copyTo.copyToFields.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                getDerivedSourceUnsupportedMessage(typeName(), name(), Map.of("copy_to", copyTo.copyToFields))
+            );
+        }
+        doValidateDerivedSource();
+    }
+
+    protected void doValidateDerivedSource() {
+        throw new IllegalArgumentException(getDerivedSourceUnsupportedMessage(typeName(), name(), null));
+    }
+
+    protected void checkDocValuesForDerivedSource() {
+        if (mappedFieldType.hasDocValues() == false) {
+            throw new IllegalArgumentException(getDerivedSourceUnsupportedMessage(typeName(), name(), Map.of("doc_values", false)));
+        }
+    }
+
+    protected void checkStoredForDerivedSource() {
+        if (mappedFieldType.isStored() == false) {
+            throw new IllegalArgumentException(getDerivedSourceUnsupportedMessage(typeName(), name(), Map.of("store", false)));
+        }
+    }
+
+    protected void checkDocValuesAndStoredForDerivedSource() {
+        if (mappedFieldType.hasDocValues() == false && mappedFieldType.isStored() == false) {
+            throw new IllegalArgumentException(
+                getDerivedSourceUnsupportedMessage(typeName(), name(), Map.of("doc_values", false, "store", false))
+            );
+        }
+    }
+
+    protected static void fillSourceFromStoredField(
+        LeafReader reader,
+        int docID,
+        MappedFieldType fieldType,
+        String fieldName,
+        XContentBuilder builder
+    ) throws IOException {
+        assert fieldType.isStored();
+        final List<Object> values = new ArrayList<>();
+        SingleFieldsVisitor visitor = new SingleFieldsVisitor(fieldType, values);
+        reader.storedFields().document(docID, visitor);
+        if (values.isEmpty() == false) {
+            builder.field(fieldName, values.size() == 1 ? values.getFirst() : values);
+        }
+    }
+
+    protected <T> void fillSourceFromSortedNumericDV(
+        LeafReader reader,
+        int docID,
+        CheckedFunction<Long, T, IOException> converter,
+        XContentBuilder builder
+    ) throws IOException {
+        assert fieldType().hasDocValues();
+        SortedNumericDocValues raw = reader.getSortedNumericDocValues(name());
+        if (raw == null || raw.advanceExact(docID) == false) {
+            return;
+        }
+        if (raw.docValueCount() == 1) {
+            builder.field(simpleName(), converter.apply(raw.nextValue()));
+        } else {
+            List<T> values = new ArrayList<>(raw.docValueCount());
+            for (int i = 0; i < raw.docValueCount(); i++) {
+                values.add(converter.apply(raw.nextValue()));
+            }
+            builder.field(simpleName(), values);
+        }
+    }
+
+    protected <T> void fillSourceFromSortedSetDV(
+        LeafReader reader,
+        int docID,
+        CheckedFunction<BytesRef, T, IOException> converter,
+        XContentBuilder builder
+    ) throws IOException {
+        fillSourceFromSortedSetDV(reader, docID, fieldType(), simpleName(), converter, builder);
+    }
+
+    protected static <T> void fillSourceFromSortedSetDV(
+        LeafReader reader,
+        int docID,
+        MappedFieldType fieldType,
+        String fieldName,
+        CheckedFunction<BytesRef, T, IOException> converter,
+        XContentBuilder builder
+    ) throws IOException {
+        assert fieldType.hasDocValues();
+        final SortedSetDocValues raw = reader.getSortedSetDocValues(fieldType.name());
+        if (raw == null || raw.advanceExact(docID) == false) {
+            return;
+        }
+        if (raw.docValueCount() == 1) {
+            builder.field(fieldName, converter.apply(raw.lookupOrd(raw.nextOrd())));
+        } else {
+            List<T> values = new ArrayList<>(raw.docValueCount());
+            for (int i = 0; i < raw.docValueCount(); i++) {
+                values.add(converter.apply(raw.lookupOrd(raw.nextOrd())));
+            }
+            builder.field(fieldName, values);
         }
     }
 

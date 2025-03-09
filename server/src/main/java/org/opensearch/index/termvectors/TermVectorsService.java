@@ -399,7 +399,7 @@ public class TermVectorsService {
         MapperService mapperService = indexShard.mapperService();
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate();
         ParsedDocument parsedDocument = docMapper.getDocumentMapper()
-            .parse(new SourceToParse(index, "_id_for_tv_api", doc, mediaType, routing));
+            .parseRequiredSourceField(new SourceToParse(index, "_id_for_tv_api", doc, mediaType, routing));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
         }
