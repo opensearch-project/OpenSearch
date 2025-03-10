@@ -31,11 +31,7 @@ public class ByteArrayBackedBitset {
      */
     public ByteArrayBackedBitset(RandomAccessInput in, long offset, int length) throws IOException {
         byteArray = new byte[length];
-        int i = 0;
-        while (i < length) {
-            byteArray[i] = in.readByte(offset + i);
-            i++;
-        }
+        in.readBytes(offset, byteArray, 0, length);
     }
 
     /**
