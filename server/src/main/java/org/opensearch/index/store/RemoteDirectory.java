@@ -383,6 +383,7 @@ public class RemoteDirectory extends Directory {
         ActionListener<Void> listener,
         boolean lowPriorityUpload
     ) throws Exception {
+        assert ioContext != IOContext.READONCE : "Remote upload will fail with IoContext.READONCE";
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
         long contentLength;
         try (IndexInput indexInput = from.openInput(src, ioContext)) {
