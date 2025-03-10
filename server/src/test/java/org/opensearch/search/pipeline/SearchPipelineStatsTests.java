@@ -51,6 +51,7 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
                 "p1",
                 new SearchPipelineStats.PipelineDetailStats(
                     List.of(new SearchPipelineStats.ProcessorStats("req1:a", "req1", new OperationStats(25, 26, 27, 28))),
+                    List.of(new SearchPipelineStats.ProcessorStats("pha1:a", "pha1", new OperationStats(25, 26, 27, 28))),
                     List.of(new SearchPipelineStats.ProcessorStats("rsp1:a", "rsp1", new OperationStats(29, 30, 31, 32)))
                 ),
                 "p2",
@@ -59,6 +60,7 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
                         new SearchPipelineStats.ProcessorStats("req1:a", "req1", new OperationStats(33, 34, 35, 36)),
                         new SearchPipelineStats.ProcessorStats("req2", "req2", new OperationStats(37, 38, 39, 40))
                     ),
+                    List.of(new SearchPipelineStats.ProcessorStats("pha1:a", "pha1", new OperationStats(25, 26, 27, 28))),
                     List.of()
                 )
             )
