@@ -65,7 +65,7 @@ dependencies {
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
-  api 'net.minidev:json-smart:2.5.2'
+  api "net.minidev:json-smart:${versions.json_smart}"
   api "org.mockito:mockito-core:${versions.mockito}"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
