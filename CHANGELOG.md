@@ -41,6 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.nimbusds:oauth2-oidc-sdk` from 11.21 to 11.23.1 ([#17729](https://github.com/opensearch-project/OpenSearch/pull/17729))
 - Bump `com.google.api.grpc:proto-google-common-protos` from 2.52.0 to 2.54.1 ([#17733](https://github.com/opensearch-project/OpenSearch/pull/17733))
 - Bump `ch.qos.logback:logback-classic` from 1.5.17 to 1.5.18 ([#17730](https://github.com/opensearch-project/OpenSearch/pull/17730))
+- Bump `reactor_netty` from 1.1.26 to 1.2.3 ([#17322](https://github.com/opensearch-project/OpenSearch/pull/17322), [#17377](https://github.com/opensearch-project/OpenSearch/pull/17377))
 
 ### Changed
 
