@@ -294,7 +294,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        protected BytesRef indexedValueForSearch(Object value) {
+        public BytesRef indexedValueForSearch(Object value) {
             if (getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
                 // flat_object analyzer with the default attribute source which encodes terms using UTF8
                 // in that case we skip normalization, which may be slow if there many terms need to
