@@ -810,7 +810,16 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ResponseLimitSettings.CAT_SEGMENTS_RESPONSE_LIMIT_SETTING,
 
                 // Thread pool Settings
-                ThreadPool.CLUSTER_THREAD_POOL_SIZE_SETTING
+                ThreadPool.CLUSTER_THREAD_POOL_SIZE_SETTING,
+
+                // Tiered caching settings
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE),
+                OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ),
+                OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                )
             )
         )
     );
@@ -830,16 +839,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING,
             TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING,
             TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING
-        ),
-        List.of(FeatureFlags.PLUGGABLE_CACHE),
-        List.of(
-            CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE),
-            OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES.getConcreteSettingForNamespace(
-                CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-            ),
-            OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
-                CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-            )
         ),
         List.of(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL),
         List.of(SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING)
