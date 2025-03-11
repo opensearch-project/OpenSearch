@@ -20,7 +20,6 @@ import org.opensearch.transport.client.Requests;
 
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
@@ -117,6 +116,43 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         ensureGreen(indexName);
         waitForSearchableDocs(2, Arrays.asList(nodeA, nodeB));
         client().admin().indices().close(Requests.closeIndexRequest(indexName)).get();
+    }
+
+    public void testErrorStrategy() throws Exception {
+        produceData("1", "name1", "25");
+        // malformed message
+        produceData("2", "", "");
+        produceData("3", "name3", "25");
+
+        internalCluster().startClusterManagerOnlyNode();
+        final String node = internalCluster().startDataOnlyNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.error_strategy", "block")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+        waitForState(() -> "block".equalsIgnoreCase(getSettings(indexName, "index.ingestion_source.error_strategy")));
+        waitForSearchableDocs(1, Arrays.asList(node));
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("ingestion_source.error_strategy", "drop"))
+            .get();
+        waitForState(() -> "drop".equalsIgnoreCase(getSettings(indexName, "index.ingestion_source.error_strategy")));
+        waitForSearchableDocs(2, Arrays.asList(node));
     }
 
     private void verifyRemoteStoreEnabled(String node) {

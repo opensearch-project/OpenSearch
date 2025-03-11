@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import org.testcontainers.containers.KafkaContainer;
@@ -109,6 +110,18 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
                 }
             }
         }, 1, TimeUnit.MINUTES);
+    }
+
+    protected void waitForState(Callable<Boolean> checkState) throws Exception {
+        assertBusy(() -> {
+            if (checkState.call() == false) {
+                fail("Provided state requirements not met");
+            }
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    protected String getSettings(String indexName, String setting) {
+        return client().admin().indices().prepareGetSettings(indexName).get().getSetting(indexName, setting);
     }
 
     protected void createIndexWithDefaultSettings(int numShards, int numReplicas) {

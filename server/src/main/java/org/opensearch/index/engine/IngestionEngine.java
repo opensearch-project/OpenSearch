@@ -57,7 +57,7 @@ public class IngestionEngine extends InternalEngine {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
         this.documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
-
+        registerDynamicIndexSettingsHandlers();
     }
 
     /**
@@ -303,5 +303,22 @@ public class IngestionEngine extends InternalEngine {
     @Override
     public PollingIngestStats pollingIngestStats() {
         return streamPoller.getStats();
+    }
+
+    private void registerDynamicIndexSettingsHandlers() {
+        engineConfig.getIndexSettings()
+            .getScopedSettings()
+            .addSettingsUpdateConsumer(IndexMetadata.INGESTION_SOURCE_ERROR_STRATEGY_SETTING, this::updateErrorHandlingStrategy);
+    }
+
+    /**
+     * Handler for updating ingestion error strategy in the stream poller on dynamic index settings update.
+     */
+    private void updateErrorHandlingStrategy(IngestionErrorStrategy.ErrorStrategy errorStrategy) {
+        IngestionErrorStrategy updatedIngestionErrorStrategy = IngestionErrorStrategy.create(
+            errorStrategy,
+            engineConfig.getIndexSettings().getIndexMetadata().getIngestionSource().getType()
+        );
+        streamPoller.updateErrorStrategy(updatedIngestionErrorStrategy);
     }
 }

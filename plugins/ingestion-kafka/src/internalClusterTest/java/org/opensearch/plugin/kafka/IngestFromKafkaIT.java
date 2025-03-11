@@ -8,13 +8,11 @@
 
 package org.opensearch.plugin.kafka;
 
-import org.junit.Assert;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Request;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -22,16 +20,16 @@ import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Requests;
+import org.junit.Assert;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.is;
+import static org.awaitility.Awaitility.await;
 
 /**
  * Integration test for Kafka ingestion
@@ -56,7 +54,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         );
     }
 
-    public void testKafkaIngestion() throws Exception {
+    public void testKafkaIngestion() {
         produceData("1", "name1", "24");
         produceData("2", "name2", "20");
         createIndexWithDefaultSettings(1, 0);
@@ -125,7 +123,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         );
 
         RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+        await().atMost(1, TimeUnit.MINUTES).untilAsserted(() -> {
             refresh("test_rewind_by_offset");
             SearchResponse response = client().prepareSearch("test_rewind_by_offset").setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(1L));

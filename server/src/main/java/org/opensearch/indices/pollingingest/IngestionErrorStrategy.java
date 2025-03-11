@@ -25,9 +25,9 @@ public interface IngestionErrorStrategy {
     void handleError(Throwable e, ErrorStage stage);
 
     /**
-     * Indicates if ingestion must be paused, blocking further writes.
+     * Indicates if the error should be ignored.
      */
-    boolean shouldPauseIngestion(Throwable e, ErrorStage stage);
+    boolean shouldIgnoreError(Throwable e, ErrorStage stage);
 
     static IngestionErrorStrategy create(ErrorStrategy errorStrategy, String ingestionSource) {
         switch (errorStrategy) {
