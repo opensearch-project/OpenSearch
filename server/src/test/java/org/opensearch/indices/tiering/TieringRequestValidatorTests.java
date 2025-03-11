@@ -212,7 +212,7 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
 
     public void testGetTotalAvailableBytesInWarmTier() {
         Map<String, DiskUsage> diskUsages = diskUsages(2, 500, 100);
-        assertEquals(200, getTotalAvailableBytesInWarmTier(diskUsages, Set.of("node-s0", "node-s1")));
+        assertEquals(200, getTotalAvailableBytesInWarmTier(diskUsages, Set.of("node-w0", "node-w1")));
     }
 
     public void testEligibleNodes() {
