@@ -67,6 +67,24 @@ public class RuleValidator {
         errorMessages.addAll(validateFeatureType());
         errorMessages.addAll(validateUpdatedAtEpoch());
         errorMessages.addAll(validateAttributeMap());
+        handleErrorMessages(errorMessages);
+    }
+
+    public void validateUpdatingRuleParams() {
+        List<String> errorMessages = new ArrayList<>();
+        if (isEmpty(description)) {
+            errorMessages.add("Rule description can't be empty");
+        }
+        if (isEmpty(featureValue)) {
+            errorMessages.add("Rule featureValue can't be empty");
+        }
+        if (attributeMap != null && !attributeMap.isEmpty()) {
+            validateAttributeMap();
+        }
+        handleErrorMessages(errorMessages);
+    }
+
+    private void handleErrorMessages(List<String> errorMessages) {
         if (!errorMessages.isEmpty()) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(errorMessages);
