@@ -39,42 +39,44 @@ import java.util.Set;
  */
 public class Rule<T extends FeatureType> implements Writeable, ToXContentObject {
     private final String description;
-    private final Map<Attribute, Set<String>> attributeMap;
     private final T featureType;
-    private final String label;
+    private final Map<Attribute, Set<String>> attributeMap;
+    private final String featureValue;
     private final String updatedAt;
     public static final String _ID_STRING = "_id";
     public static final String DESCRIPTION_STRING = "description";
     public static final String UPDATED_AT_STRING = "updated_at";
 
-    public Rule(String description, Map<Attribute, Set<String>> attributeMap, T featureType, String label, String updatedAt) {
-        RuleValidator<T> validator = new RuleValidator<>(description, attributeMap, label, updatedAt, featureType);
-        validator.validate();
-
+    public Rule(String description, Map<Attribute, Set<String>> attributeMap, T featureType, String featureValue, String updatedAt) {
         this.description = description;
-        this.attributeMap = attributeMap;
         this.featureType = featureType;
-        this.label = label;
+        this.attributeMap = attributeMap;
+        this.featureValue = featureValue;
         this.updatedAt = updatedAt;
+        validateRule();
     }
 
     @SuppressWarnings("unchecked")
     public Rule(StreamInput in) throws IOException {
-        this(
-            in.readString(),
-            in.readMap(Attribute::from, i -> new HashSet<>(i.readStringList())),
-            (T) FeatureType.from(in),
-            in.readString(),
-            in.readString()
-        );
+        description = in.readString();
+        featureType = (T) FeatureType.from(in);
+        attributeMap = in.readMap(i -> Attribute.from(i, featureType), i -> new HashSet<>(i.readStringList()));
+        featureValue = in.readString();
+        updatedAt = in.readString();
+        validateRule();
+    }
+
+    private void validateRule() {
+        RuleValidator<T> validator = new RuleValidator<>(description, attributeMap, featureValue, updatedAt, featureType);
+        validator.validate();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(description);
-        out.writeMap(attributeMap, (output, attribute) -> attribute.writeTo(output), StreamOutput::writeStringCollection);
         featureType.writeTo(out);
-        out.writeString(label);
+        out.writeMap(attributeMap, (output, attribute) -> attribute.writeTo(output), StreamOutput::writeStringCollection);
+        out.writeString(featureValue);
         out.writeString(updatedAt);
     }
 
@@ -86,8 +88,8 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
         return description;
     }
 
-    public String getLabel() {
-        return label;
+    public String getFeatureValue() {
+        return featureValue;
     }
 
     public String getUpdatedAt() {
@@ -113,7 +115,7 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
         for (Map.Entry<Attribute, Set<String>> entry : attributeMap.entrySet()) {
             builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
         }
-        builder.field(featureType.getName(), label);
+        builder.field(featureType.getName(), featureValue);
         builder.field(UPDATED_AT_STRING, updatedAt);
         builder.endObject();
         return builder;
@@ -125,7 +127,7 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
         if (o == null || getClass() != o.getClass()) return false;
         Rule<?> that = (Rule<?>) o;
         return Objects.equals(description, that.description)
-            && Objects.equals(label, that.label)
+            && Objects.equals(featureValue, that.featureValue)
             && Objects.equals(featureType, that.featureType)
             && Objects.equals(attributeMap, that.attributeMap)
             && Objects.equals(updatedAt, that.updatedAt);
@@ -133,7 +135,7 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
 
     @Override
     public int hashCode() {
-        return Objects.hash(description, label, featureType, attributeMap, updatedAt);
+        return Objects.hash(description, featureValue, featureType, attributeMap, updatedAt);
     }
 
     /**
@@ -152,7 +154,7 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
         private String description;
         private Map<Attribute, Set<String>> attributeMap;
         private T featureType;
-        private String label;
+        private String featureValue;
         private String updatedAt;
 
         private Builder() {}
@@ -179,7 +181,7 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
                         builder.updatedAt(parser.text());
                     } else if (fieldName.equals(featureType.getName())) {
                         builder.featureType(featureType);
-                        builder.label(parser.text());
+                        builder.featureValue(parser.text());
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     fromXContentParseArray(parser, fieldName, featureType, attributeMap1);
@@ -214,8 +216,8 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
             return this;
         }
 
-        public Builder<T> label(String label) {
-            this.label = label;
+        public Builder<T> featureValue(String featureValue) {
+            this.featureValue = featureValue;
             return this;
         }
 
@@ -235,11 +237,11 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
         }
 
         public Rule<T> build() {
-            return new Rule<>(description, attributeMap, featureType, label, updatedAt);
+            return new Rule<>(description, attributeMap, featureType, featureValue, updatedAt);
         }
 
-        public String getLabel() {
-            return label;
+        public String getFeatureValue() {
+            return featureValue;
         }
 
         public Map<Attribute, Set<String>> getAttributeMap() {

@@ -17,7 +17,7 @@ import java.util.Set;
 import static org.opensearch.cluster.metadata.QueryGroup.isValid;
 
 /**
- * This is the validator for rule. It ensures that the rule has a valid description, label,
+ * This is the validator for rule. It ensures that the rule has a valid description, feature value,
  * update time, attribute map, and the rule adheres to the feature type's constraints.
  *
  * @opensearch.experimental
@@ -25,21 +25,28 @@ import static org.opensearch.cluster.metadata.QueryGroup.isValid;
 public class RuleValidator<T extends FeatureType> {
     private final String description;
     private final Map<Attribute, Set<String>> attributeMap;
-    private final String label;
+    private final String featureValue;
     private final String updatedAt;
     private final T featureType;
     private final ValidationException validationException = new ValidationException();
+    public static final int MAX_DESCRIPTION_LENGTH = 256;
 
-    public RuleValidator(String description, Map<Attribute, Set<String>> attributeMap, String label, String updatedAt, T featureType) {
+    public RuleValidator(
+        String description,
+        Map<Attribute, Set<String>> attributeMap,
+        String featureValue,
+        String updatedAt,
+        T featureType
+    ) {
         this.description = description;
         this.attributeMap = attributeMap;
-        this.label = label;
+        this.featureValue = featureValue;
         this.updatedAt = updatedAt;
         this.featureType = featureType;
     }
 
     public void validate() {
-        validateRequiredFields();
+        validateStringFields();
         validateFeatureType();
         validateUpdatedAtEpoch();
         validateAttributeMap();
@@ -48,9 +55,12 @@ public class RuleValidator<T extends FeatureType> {
         }
     }
 
-    private void validateRequiredFields() {
+    private void validateStringFields() {
         requireNonNullOrEmpty(description, "Rule description can't be null or empty");
-        requireNonNullOrEmpty(label, "Rule label can't be null or empty");
+        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+            validationException.addValidationError("Rule description cannot exceed " + MAX_DESCRIPTION_LENGTH + " characters.");
+        }
+        requireNonNullOrEmpty(featureValue, "Rule featureValue can't be null or empty");
         requireNonNullOrEmpty(updatedAt, "Rule update time can't be null or empty");
     }
 

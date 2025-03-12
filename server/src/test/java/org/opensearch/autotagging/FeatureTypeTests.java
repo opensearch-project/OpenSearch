@@ -19,7 +19,6 @@ import static org.opensearch.autotagging.RuleTests.TEST_ATTR1_NAME;
 import static org.opensearch.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_1;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class FeatureTypeTests extends OpenSearchTestCase {
@@ -36,6 +35,6 @@ public class FeatureTypeTests extends OpenSearchTestCase {
     public void testWriteTo() throws IOException {
         StreamOutput mockOutput = mock(StreamOutput.class);
         FEATURE_TYPE.writeTo(mockOutput);
-        verify(mockOutput, times(2)).writeString(anyString());
+        verify(mockOutput).writeString(anyString());
     }
 }
