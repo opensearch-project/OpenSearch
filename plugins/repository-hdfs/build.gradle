@@ -81,7 +81,7 @@ dependencies {
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  api 'net.minidev:json-smart:2.5.2'
+  api "net.minidev:json-smart:${versions.json_smart}"
   api "io.netty:netty-all:${versions.netty}"
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   implementation 'org.codehaus.woodstox:stax2-api:4.2.2'
