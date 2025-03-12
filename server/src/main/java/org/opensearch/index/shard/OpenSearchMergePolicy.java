@@ -87,7 +87,7 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
         return in;
     }
 
-    private boolean shouldUpgrade(SegmentCommitInfo info) {
+    boolean shouldUpgrade(SegmentCommitInfo info) {
         org.apache.lucene.util.Version old = info.info.getVersion();
         org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
 
@@ -99,9 +99,12 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
             return true;
         }
 
-        if (upgradeOnlyAncientSegments == false && cur.minor > old.minor) {
-            // If it's only a minor version difference, and we are not upgrading only ancient segments,
-            // also upgrade:
+        if (upgradeOnlyAncientSegments) {
+            // Skip other checks, because we already check major versions and we are upgrading only ancient segments
+            return false;
+        }
+
+        if (cur.minor > old.minor) {
             return true;
         }
 
