@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm;
+package org.opensearch.plugin.wlm.querygroup;
 
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -19,7 +19,11 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+<<<<<<<< HEAD:plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/WorkloadGroupTestUtils.java
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+========
+import org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService;
+>>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/QueryGroupTestUtils.java
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;

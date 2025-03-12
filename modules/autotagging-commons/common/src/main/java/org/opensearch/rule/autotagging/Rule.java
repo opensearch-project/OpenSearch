@@ -368,5 +368,9 @@ public class Rule implements Writeable, ToXContentObject {
         public Map<Attribute, Set<String>> getAttributeMap() {
             return attributeMap;
         }
+
+        public String getDescription() {
+            return description;
+        }
     }
 }

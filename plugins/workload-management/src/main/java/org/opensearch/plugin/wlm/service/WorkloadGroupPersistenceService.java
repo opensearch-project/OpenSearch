@@ -27,11 +27,18 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
+<<<<<<<< HEAD:plugins/workload-management/src/main/java/org/opensearch/plugin/wlm/querygroup/service/WorkloadGroupPersistenceService.java
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupResponse;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
+========
+import org.opensearch.plugin.wlm.querygroup.action.CreateQueryGroupResponse;
+import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupRequest;
+import org.opensearch.plugin.wlm.querygroup.action.UpdateQueryGroupResponse;
+import org.opensearch.wlm.MutableQueryGroupFragment;
+>>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/main/java/org/opensearch/plugin/wlm/querygroup/service/QueryGroupPersistenceService.java
 import org.opensearch.wlm.ResourceType;
 
 import java.util.Collection;
