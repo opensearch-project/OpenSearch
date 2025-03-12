@@ -395,7 +395,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
     }
 
     public void testOnTaskCompleted() {
-        Task task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
+        Task task = new SearchTask(12, "", "", () -> "", null, null);
         mockThreadPool = new TestThreadPool("queryGroupServiceTests");
         mockThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, "testId");
         QueryGroupState queryGroupState = new QueryGroupState();
