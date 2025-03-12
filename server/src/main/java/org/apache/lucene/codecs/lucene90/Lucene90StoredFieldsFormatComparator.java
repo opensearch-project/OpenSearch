@@ -11,7 +11,9 @@ package org.apache.lucene.codecs.lucene90;
 /**
  * This class is a custom comparator for Lucene90StoredFieldsFormat
  */
-public class Lucene90StoredFieldsFormatComparator {
+public final class Lucene90StoredFieldsFormatComparator {
+    private Lucene90StoredFieldsFormatComparator() {}
+
     public static boolean equal(Lucene90StoredFieldsFormat one, Lucene90StoredFieldsFormat two) {
         return one.mode == two.mode;
     }
