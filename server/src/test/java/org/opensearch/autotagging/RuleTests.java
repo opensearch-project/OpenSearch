@@ -30,7 +30,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
     public static final String TEST_FEATURE_TYPE = "test_feature_type";
     public static final String DESCRIPTION = "description";
     public static final String _ID = "test_id";
-    public static final String LABEL = "label";
+    public static final String FEATURE_VALUE = "feature_value";
     public static final TestFeatureType FEATURE_TYPE = TestFeatureType.INSTANCE;
     public static final Map<Attribute, Set<String>> ATTRIBUTE_MAP = Map.of(
         TEST_ATTRIBUTE_1,
@@ -46,9 +46,9 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
     @Override
     protected Rule<? extends FeatureType> createTestInstance() {
         String description = randomAlphaOfLength(10);
-        String label = randomAlphaOfLength(5);
+        String featureValue = randomAlphaOfLength(5);
         String updatedAt = Instant.now().toString();
-        return new Rule<>(description, ATTRIBUTE_MAP, FEATURE_TYPE, label, updatedAt);
+        return new Rule<>(description, ATTRIBUTE_MAP, FEATURE_TYPE, featureValue, updatedAt);
     }
 
     @Override
@@ -71,20 +71,9 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
             this.name = name;
         }
 
-        static {
-            for (TestAttribute attr : TestAttribute.values()) {
-                attr.registerAttribute();
-            }
-        }
-
         @Override
         public String getName() {
             return name;
-        }
-
-        @Override
-        public void registerAttribute() {
-            AutoTaggingRegistry.registerAttribute(this);
         }
     }
 
@@ -93,7 +82,12 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
         private static final String NAME = TEST_FEATURE_TYPE;
         private static final int MAX_ATTRIBUTE_VALUES = 10;
         private static final int MAX_ATTRIBUTE_VALUE_LENGTH = 100;
-        private static final Set<Attribute> ALLOWED_ATTRIBUTES = Set.of(TEST_ATTRIBUTE_1, TEST_ATTRIBUTE_2);
+        private static final Map<String, Attribute> ALLOWED_ATTRIBUTES = Map.of(
+            TEST_ATTR1_NAME,
+            TEST_ATTRIBUTE_1,
+            TEST_ATTR2_NAME,
+            TEST_ATTRIBUTE_2
+        );
 
         public TestFeatureType() {}
 
@@ -117,7 +111,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
         }
 
         @Override
-        public Set<Attribute> getAllowedAttributes() {
+        public Map<String, Attribute> getAllowedAttributesRegistry() {
             return ALLOWED_ATTRIBUTES;
         }
 
@@ -129,14 +123,14 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
 
     @SuppressWarnings("unchecked")
     static <T extends FeatureType> Rule<T> buildRule(
-        String label,
+        String featureValue,
         T featureType,
         Map<Attribute, Set<String>> attributeListMap,
         String updatedAt,
         String description
     ) {
         return (Rule<T>) Rule.builder()
-            .label(label)
+            .featureValue(featureValue)
             .featureType(featureType)
             .description(description)
             .attributeMap(attributeListMap)
@@ -145,9 +139,9 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
     }
 
     public void testValidRule() {
-        Rule<TestFeatureType> rule = buildRule(LABEL, FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, DESCRIPTION);
-        assertNotNull(rule.getLabel());
-        assertEquals(LABEL, rule.getLabel());
+        Rule<TestFeatureType> rule = buildRule(FEATURE_VALUE, FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, DESCRIPTION);
+        assertNotNull(rule.getFeatureValue());
+        assertEquals(FEATURE_VALUE, rule.getFeatureValue());
         assertNotNull(rule.getUpdatedAt());
         assertEquals(UPDATED_AT, rule.getUpdatedAt());
         Map<Attribute, Set<String>> resultMap = rule.getAttributeMap();
@@ -158,14 +152,20 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
 
     public void testToXContent() throws IOException {
         String updatedAt = Instant.now().toString();
-        Rule<TestFeatureType> rule = buildRule(LABEL, FEATURE_TYPE, Map.of(TEST_ATTRIBUTE_1, Set.of("value1")), updatedAt, DESCRIPTION);
+        Rule<TestFeatureType> rule = buildRule(
+            FEATURE_VALUE,
+            FEATURE_TYPE,
+            Map.of(TEST_ATTRIBUTE_1, Set.of("value1")),
+            updatedAt,
+            DESCRIPTION
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         rule.toXContent(builder, new ToXContent.MapParams(Map.of(_ID_STRING, _ID)));
         assertEquals(
             "{\"_id\":\""
                 + _ID
-                + "\",\"description\":\"description\",\"test_attr1\":[\"value1\"],\"test_feature_type\":\"label\",\"updated_at\":\""
+                + "\",\"description\":\"description\",\"test_attr1\":[\"value1\"],\"test_feature_type\":\"feature_value\",\"updated_at\":\""
                 + updatedAt
                 + "\"}",
             builder.toString()

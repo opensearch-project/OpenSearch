@@ -19,14 +19,14 @@ import java.util.Set;
 import static org.opensearch.autotagging.RuleTests.ATTRIBUTE_MAP;
 import static org.opensearch.autotagging.RuleTests.DESCRIPTION;
 import static org.opensearch.autotagging.RuleTests.FEATURE_TYPE;
-import static org.opensearch.autotagging.RuleTests.LABEL;
+import static org.opensearch.autotagging.RuleTests.FEATURE_VALUE;
+import static org.opensearch.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_1;
 import static org.opensearch.autotagging.RuleTests.UPDATED_AT;
-import static org.mockito.Mockito.mock;
 
 public class RuleValidatorTests extends OpenSearchTestCase {
 
     public void testValidRule() {
-        RuleValidator<FeatureType> validator = new RuleValidator<>(DESCRIPTION, ATTRIBUTE_MAP, LABEL, UPDATED_AT, FEATURE_TYPE);
+        RuleValidator<FeatureType> validator = new RuleValidator<>(DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
         try {
             validator.validate();
         } catch (Exception e) {
@@ -36,53 +36,75 @@ public class RuleValidatorTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     public static <T extends FeatureType> void validateRule(
-        String label,
+        String featureValue,
         T featureType,
         Map<Attribute, Set<String>> attributeMap,
         String updatedAt,
         String description
     ) {
-        RuleValidator<T> validator = new RuleValidator<>(description, attributeMap, label, updatedAt, featureType);
+        RuleValidator<T> validator = new RuleValidator<>(description, attributeMap, featureValue, updatedAt, featureType);
         validator.validate();
     }
 
     public void testInvalidDescription() {
-        assertThrows(IllegalArgumentException.class, () -> validateRule(LABEL, FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, ""));
-        assertThrows(IllegalArgumentException.class, () -> validateRule(LABEL, FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, null));
+        assertThrows(IllegalArgumentException.class, () -> validateRule(FEATURE_VALUE, FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, ""));
+        assertThrows(IllegalArgumentException.class, () -> validateRule(FEATURE_VALUE, FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, null));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validateRule(
+                FEATURE_VALUE,
+                FEATURE_TYPE,
+                ATTRIBUTE_MAP,
+                UPDATED_AT,
+                randomAlphaOfLength(RuleValidator.MAX_DESCRIPTION_LENGTH + 1)
+            )
+        );
     }
 
     public void testInvalidUpdateTime() {
-        assertThrows(IllegalArgumentException.class, () -> validateRule(LABEL, FEATURE_TYPE, ATTRIBUTE_MAP, null, DESCRIPTION));
+        assertThrows(IllegalArgumentException.class, () -> validateRule(FEATURE_VALUE, FEATURE_TYPE, ATTRIBUTE_MAP, null, DESCRIPTION));
     }
 
     public void testNullOrEmptyAttributeMap() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> validateRule(LABEL, FEATURE_TYPE, new HashMap<>(), Instant.now().toString(), DESCRIPTION)
+            () -> validateRule(FEATURE_VALUE, FEATURE_TYPE, new HashMap<>(), Instant.now().toString(), DESCRIPTION)
         );
-        assertThrows(IllegalArgumentException.class, () -> validateRule(LABEL, FEATURE_TYPE, null, Instant.now().toString(), DESCRIPTION));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validateRule(FEATURE_VALUE, FEATURE_TYPE, null, Instant.now().toString(), DESCRIPTION)
+        );
     }
 
     public void testInvalidAttributeMap() {
         Map<Attribute, Set<String>> map = new HashMap<>();
-        Attribute attribute = mock(Attribute.class);
+        Attribute attribute = TEST_ATTRIBUTE_1;
         map.put(attribute, Set.of(""));
-        assertThrows(IllegalArgumentException.class, () -> validateRule(LABEL, FEATURE_TYPE, map, Instant.now().toString(), DESCRIPTION));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validateRule(FEATURE_VALUE, FEATURE_TYPE, map, Instant.now().toString(), DESCRIPTION)
+        );
 
         map.put(attribute, Set.of(randomAlphaOfLength(FEATURE_TYPE.getMaxCharLengthPerAttributeValue() + 1)));
-        assertThrows(IllegalArgumentException.class, () -> validateRule(LABEL, FEATURE_TYPE, map, Instant.now().toString(), DESCRIPTION));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validateRule(FEATURE_VALUE, FEATURE_TYPE, map, Instant.now().toString(), DESCRIPTION)
+        );
 
         map.put(attribute, new HashSet<>());
         for (int i = 0; i < FEATURE_TYPE.getMaxNumberOfValuesPerAttribute() + 1; i++) {
             map.get(attribute).add(String.valueOf(i));
         }
-        assertThrows(IllegalArgumentException.class, () -> validateRule(LABEL, FEATURE_TYPE, map, Instant.now().toString(), DESCRIPTION));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validateRule(FEATURE_VALUE, FEATURE_TYPE, map, Instant.now().toString(), DESCRIPTION)
+        );
     }
 
     public void testInvalidFeature() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> validateRule(LABEL, null, new HashMap<>(), Instant.now().toString(), DESCRIPTION)
+            () -> validateRule(FEATURE_VALUE, null, new HashMap<>(), Instant.now().toString(), DESCRIPTION)
         );
     }
 

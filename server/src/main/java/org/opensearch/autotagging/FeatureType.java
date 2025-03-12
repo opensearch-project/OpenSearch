@@ -13,7 +13,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * Represents a feature type within the auto-tagging feature. Feature types define different categories of
@@ -28,31 +28,37 @@ import java.util.Set;
  * @opensearch.experimental
  */
 public interface FeatureType extends Writeable {
+    int DEFAULT_MAX_ATTRIBUTE_VALUES = 10;
+    int DEFAULT_MAX_ATTRIBUTE_VALUE_LENGTH = 100;
+
     String getName();
 
-    int getMaxNumberOfValuesPerAttribute();
+    Map<String, Attribute> getAllowedAttributesRegistry();
 
-    int getMaxCharLengthPerAttributeValue();
+    default int getMaxNumberOfValuesPerAttribute() {
+        return DEFAULT_MAX_ATTRIBUTE_VALUES;
+    }
 
-    Set<Attribute> getAllowedAttributes();
+    default int getMaxCharLengthPerAttributeValue() {
+        return DEFAULT_MAX_ATTRIBUTE_VALUE_LENGTH;
+    }
 
     void registerFeatureType();
 
     default boolean isValidAttribute(Attribute attribute) {
-        return getAllowedAttributes().contains(attribute);
+        return getAllowedAttributesRegistry().containsValue(attribute);
     }
 
-    default Attribute getAttributeFromName(String fieldName) {
-        return getAllowedAttributes().stream().filter(attr -> attr.getName().equals(fieldName)).findFirst().orElse(null);
+    default Attribute getAttributeFromName(String name) {
+        return getAllowedAttributesRegistry().get(name);
     }
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getClass().getName());
         out.writeString(getName());
     }
 
     static FeatureType from(StreamInput in) throws IOException {
-        return AutoTaggingRegistry.getFeatureType(in.readString(), in.readString());
+        return AutoTaggingRegistry.getFeatureType(in.readString());
     }
 }
