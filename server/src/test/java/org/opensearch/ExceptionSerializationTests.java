@@ -36,6 +36,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.RoutingMissingException;
@@ -162,6 +163,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ExceptionSerializationTests extends OpenSearchTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/16731")
     public void testExceptionRegistration() throws ClassNotFoundException, IOException, URISyntaxException {
         final Set<Class<?>> notRegistered = new HashSet<>();
         final Set<Class<?>> hasDedicatedWrite = new HashSet<>();

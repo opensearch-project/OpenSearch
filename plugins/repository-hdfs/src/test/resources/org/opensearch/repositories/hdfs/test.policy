@@ -1,0 +1,16 @@
+grant {
+  permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+  permission java.net.SocketPermission "localhost:0", "listen,resolve";
+};
+
+
+grant codeBase "${codebase.opensearch-nio}" {
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant {
+  permission java.net.NetPermission "accessUnixDomainSocket";
+  permission java.net.SocketPermission "*", "accept,connect";
+  permission java.net.SocketPermission "localhost:0", "listen,resolve";
+};
