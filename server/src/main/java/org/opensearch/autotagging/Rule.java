@@ -37,9 +37,9 @@ import java.util.Set;
  * }
  * @opensearch.experimental
  */
-public class Rule<T extends FeatureType> implements Writeable, ToXContentObject {
+public class Rule implements Writeable, ToXContentObject {
     private final String description;
-    private final T featureType;
+    private final FeatureType featureType;
     private final Map<Attribute, Set<String>> attributeMap;
     private final String featureValue;
     private final String updatedAt;
@@ -47,7 +47,13 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
     public static final String DESCRIPTION_STRING = "description";
     public static final String UPDATED_AT_STRING = "updated_at";
 
-    public Rule(String description, Map<Attribute, Set<String>> attributeMap, T featureType, String featureValue, String updatedAt) {
+    public Rule(
+        String description,
+        Map<Attribute, Set<String>> attributeMap,
+        FeatureType featureType,
+        String featureValue,
+        String updatedAt
+    ) {
         this.description = description;
         this.featureType = featureType;
         this.attributeMap = attributeMap;
@@ -56,10 +62,9 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
         validateRule();
     }
 
-    @SuppressWarnings("unchecked")
     public Rule(StreamInput in) throws IOException {
         description = in.readString();
-        featureType = (T) FeatureType.from(in);
+        featureType = FeatureType.from(in);
         attributeMap = in.readMap(i -> Attribute.from(i, featureType), i -> new HashSet<>(i.readStringList()));
         featureValue = in.readString();
         updatedAt = in.readString();
@@ -67,7 +72,7 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
     }
 
     private void validateRule() {
-        RuleValidator<T> validator = new RuleValidator<>(description, attributeMap, featureValue, updatedAt, featureType);
+        RuleValidator validator = new RuleValidator(description, attributeMap, featureValue, updatedAt, featureType);
         validator.validate();
     }
 
@@ -80,7 +85,7 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
         out.writeString(updatedAt);
     }
 
-    public static <T extends FeatureType> Rule<T> fromXContent(final XContentParser parser, T featureType) throws IOException {
+    public static Rule fromXContent(final XContentParser parser, FeatureType featureType) throws IOException {
         return Builder.fromXContent(parser, featureType).build();
     }
 
@@ -96,7 +101,7 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
         return updatedAt;
     }
 
-    public T getFeatureType() {
+    public FeatureType getFeatureType() {
         return featureType;
     }
 
@@ -125,7 +130,7 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Rule<?> that = (Rule<?>) o;
+        Rule that = (Rule) o;
         return Objects.equals(description, that.description)
             && Objects.equals(featureValue, that.featureValue)
             && Objects.equals(featureType, that.featureType)
@@ -142,28 +147,28 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
      * builder method for the {@link Rule}
      * @return Builder object
      */
-    public static <T extends FeatureType> Builder<T> builder() {
-        return new Builder<>();
+    public static Builder builder() {
+        return new Builder();
     }
 
     /**
      * Builder class for {@link Rule}
      * @opensearch.experimental
      */
-    public static class Builder<T extends FeatureType> {
+    public static class Builder {
         private String description;
         private Map<Attribute, Set<String>> attributeMap;
-        private T featureType;
+        private FeatureType featureType;
         private String featureValue;
         private String updatedAt;
 
         private Builder() {}
 
-        public static <T extends FeatureType> Builder<T> fromXContent(XContentParser parser, T featureType) throws IOException {
+        public static Builder fromXContent(XContentParser parser, FeatureType featureType) throws IOException {
             if (parser.currentToken() == null) {
                 parser.nextToken();
             }
-            Builder<T> builder = builder();
+            Builder builder = builder();
             XContentParser.Token token = parser.currentToken();
 
             if (token != XContentParser.Token.START_OBJECT) {
@@ -190,10 +195,10 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
             return builder.attributeMap(attributeMap1);
         }
 
-        public static <T extends FeatureType> void fromXContentParseArray(
+        public static void fromXContentParseArray(
             XContentParser parser,
             String fieldName,
-            T featureType,
+            FeatureType featureType,
             Map<Attribute, Set<String>> attributeMap
         ) throws IOException {
             Attribute attribute = featureType.getAttributeFromName(fieldName);
@@ -211,33 +216,33 @@ public class Rule<T extends FeatureType> implements Writeable, ToXContentObject 
             attributeMap.put(attribute, attributeValueSet);
         }
 
-        public Builder<T> description(String description) {
+        public Builder description(String description) {
             this.description = description;
             return this;
         }
 
-        public Builder<T> featureValue(String featureValue) {
+        public Builder featureValue(String featureValue) {
             this.featureValue = featureValue;
             return this;
         }
 
-        public Builder<T> attributeMap(Map<Attribute, Set<String>> attributeMap) {
+        public Builder attributeMap(Map<Attribute, Set<String>> attributeMap) {
             this.attributeMap = attributeMap;
             return this;
         }
 
-        public Builder<T> featureType(T featureType) {
+        public Builder featureType(FeatureType featureType) {
             this.featureType = featureType;
             return this;
         }
 
-        public Builder<T> updatedAt(String updatedAt) {
+        public Builder updatedAt(String updatedAt) {
             this.updatedAt = updatedAt;
             return this;
         }
 
-        public Rule<T> build() {
-            return new Rule<>(description, attributeMap, featureType, featureValue, updatedAt);
+        public Rule build() {
+            return new Rule(description, attributeMap, featureType, featureValue, updatedAt);
         }
 
         public String getFeatureValue() {
