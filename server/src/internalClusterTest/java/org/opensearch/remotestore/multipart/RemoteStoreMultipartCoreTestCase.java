@@ -14,7 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.remotestore.RemoteStoreIT;
+import org.opensearch.remotestore.RemoteStoreCoreTestCase;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -34,7 +34,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class RemoteStoreMultipartIT extends RemoteStoreIT {
+public class RemoteStoreMultipartCoreTestCase extends RemoteStoreCoreTestCase {
 
     Path repositoryLocation;
     boolean compress;
