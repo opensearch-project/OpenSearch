@@ -24,7 +24,7 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
 import static org.opensearch.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_1;
 import static org.opensearch.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_2;
 
-public class RuleTests extends AbstractSerializingTestCase<Rule<? extends FeatureType>> {
+public class RuleTests extends AbstractSerializingTestCase<Rule> {
     public static final String TEST_ATTR1_NAME = "test_attr1";
     public static final String TEST_ATTR2_NAME = "test_attr2";
     public static final String TEST_FEATURE_TYPE = "test_feature_type";
@@ -44,20 +44,20 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
     public static final String INVALID_FEATURE = "invalid_feature";
 
     @Override
-    protected Rule<? extends FeatureType> createTestInstance() {
+    protected Rule createTestInstance() {
         String description = randomAlphaOfLength(10);
         String featureValue = randomAlphaOfLength(5);
         String updatedAt = Instant.now().toString();
-        return new Rule<>(description, ATTRIBUTE_MAP, FEATURE_TYPE, featureValue, updatedAt);
+        return new Rule(description, ATTRIBUTE_MAP, FEATURE_TYPE, featureValue, updatedAt);
     }
 
     @Override
-    protected Writeable.Reader<Rule<? extends FeatureType>> instanceReader() {
+    protected Writeable.Reader<Rule> instanceReader() {
         return Rule::new;
     }
 
     @Override
-    protected Rule<? extends FeatureType> doParseInstance(XContentParser parser) throws IOException {
+    protected Rule doParseInstance(XContentParser parser) throws IOException {
         return Rule.fromXContent(parser, FEATURE_TYPE);
     }
 
@@ -121,15 +121,14 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
         }
     }
 
-    @SuppressWarnings("unchecked")
-    static <T extends FeatureType> Rule<T> buildRule(
+    static Rule buildRule(
         String featureValue,
-        T featureType,
+        FeatureType featureType,
         Map<Attribute, Set<String>> attributeListMap,
         String updatedAt,
         String description
     ) {
-        return (Rule<T>) Rule.builder()
+        return Rule.builder()
             .featureValue(featureValue)
             .featureType(featureType)
             .description(description)
@@ -139,7 +138,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
     }
 
     public void testValidRule() {
-        Rule<TestFeatureType> rule = buildRule(FEATURE_VALUE, FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, DESCRIPTION);
+        Rule rule = buildRule(FEATURE_VALUE, FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, DESCRIPTION);
         assertNotNull(rule.getFeatureValue());
         assertEquals(FEATURE_VALUE, rule.getFeatureValue());
         assertNotNull(rule.getUpdatedAt());
@@ -152,13 +151,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule<? extends Featur
 
     public void testToXContent() throws IOException {
         String updatedAt = Instant.now().toString();
-        Rule<TestFeatureType> rule = buildRule(
-            FEATURE_VALUE,
-            FEATURE_TYPE,
-            Map.of(TEST_ATTRIBUTE_1, Set.of("value1")),
-            updatedAt,
-            DESCRIPTION
-        );
+        Rule rule = buildRule(FEATURE_VALUE, FEATURE_TYPE, Map.of(TEST_ATTRIBUTE_1, Set.of("value1")), updatedAt, DESCRIPTION);
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         rule.toXContent(builder, new ToXContent.MapParams(Map.of(_ID_STRING, _ID)));

@@ -26,7 +26,7 @@ import static org.opensearch.autotagging.RuleTests.UPDATED_AT;
 public class RuleValidatorTests extends OpenSearchTestCase {
 
     public void testValidRule() {
-        RuleValidator<FeatureType> validator = new RuleValidator<>(DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
+        RuleValidator validator = new RuleValidator(DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
         try {
             validator.validate();
         } catch (Exception e) {
@@ -34,7 +34,6 @@ public class RuleValidatorTests extends OpenSearchTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public static <T extends FeatureType> void validateRule(
         String featureValue,
         T featureType,
@@ -42,7 +41,7 @@ public class RuleValidatorTests extends OpenSearchTestCase {
         String updatedAt,
         String description
     ) {
-        RuleValidator<T> validator = new RuleValidator<>(description, attributeMap, featureValue, updatedAt, featureType);
+        RuleValidator validator = new RuleValidator(description, attributeMap, featureValue, updatedAt, featureType);
         validator.validate();
     }
 

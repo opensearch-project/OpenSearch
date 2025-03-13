@@ -22,12 +22,12 @@ import static org.opensearch.cluster.metadata.QueryGroup.isValid;
  *
  * @opensearch.experimental
  */
-public class RuleValidator<T extends FeatureType> {
+public class RuleValidator {
     private final String description;
     private final Map<Attribute, Set<String>> attributeMap;
     private final String featureValue;
     private final String updatedAt;
-    private final T featureType;
+    private final FeatureType featureType;
     private final ValidationException validationException = new ValidationException();
     public static final int MAX_DESCRIPTION_LENGTH = 256;
 
@@ -36,7 +36,7 @@ public class RuleValidator<T extends FeatureType> {
         Map<Attribute, Set<String>> attributeMap,
         String featureValue,
         String updatedAt,
-        T featureType
+        FeatureType featureType
     ) {
         this.description = description;
         this.attributeMap = attributeMap;
