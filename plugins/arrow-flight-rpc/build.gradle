@@ -20,10 +20,7 @@ dependencies {
   implementation project(':libs:opensearch-arrow-spi')
   compileOnly 'org.checkerframework:checker-qual:3.44.0'
 
-  implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-format:${versions.arrow}"
   implementation "org.apache.arrow:flight-core:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
 
   runtimeOnly "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
   runtimeOnly "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
@@ -227,7 +224,8 @@ tasks.named('thirdPartyAudit').configure {
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
 
-    'com.google.protobuf.util.Timestamps'
+    'com.google.protobuf.util.Timestamps',
+    'io.grpc.stub.BlockingClientCall'
   )
   ignoreViolations(
     // Guava internal classes
@@ -293,9 +291,6 @@ tasks.named('thirdPartyAudit').configure {
     'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1'
-
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
   )
 }

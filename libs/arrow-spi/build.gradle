@@ -13,8 +13,41 @@ testingConventions.enabled = false
 
 dependencies {
   api project(':libs:opensearch-core')
+  api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  api "org.apache.arrow:arrow-vector:${versions.arrow}"
+  api "org.apache.arrow:arrow-format:${versions.arrow}"
 }
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('thirdPartyAudit').configure {
+  ignoreMissingClasses(
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'com.fasterxml.jackson.databind.JsonNode',
+    'com.fasterxml.jackson.databind.MapperFeature',
+    'com.fasterxml.jackson.databind.MappingJsonFactory',
+    'com.fasterxml.jackson.databind.ObjectMapper',
+    'com.fasterxml.jackson.databind.ObjectReader',
+    'com.fasterxml.jackson.databind.ObjectWriter',
+    'com.fasterxml.jackson.databind.SerializerProvider',
+    'com.fasterxml.jackson.databind.json.JsonMapper',
+    'com.fasterxml.jackson.databind.json.JsonMapper$Builder',
+    'com.fasterxml.jackson.databind.node.ObjectNode',
+    'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+    'com.google.flatbuffers.BaseVector',
+    'com.google.flatbuffers.Constants',
+    'com.google.flatbuffers.FlatBufferBuilder',
+    'com.google.flatbuffers.IntVector',
+    'com.google.flatbuffers.LongVector',
+    'com.google.flatbuffers.Struct',
+    'com.google.flatbuffers.Table',
+    'org.apache.commons.codec.binary.Hex'
+  )
+  ignoreViolations(
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1'
+  )
 }
