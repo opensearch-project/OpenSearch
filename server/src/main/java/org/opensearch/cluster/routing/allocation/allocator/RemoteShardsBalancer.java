@@ -33,6 +33,8 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
+import static org.opensearch.action.admin.indices.tiering.TieringUtils.isPartialIndex;
+
 /**
  * A {@link RemoteShardsBalancer} used by the {@link BalancedShardsAllocator} to perform allocation operations
  * for remote shards within the cluster.
@@ -345,7 +347,8 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                 // Remote shards do not have an existing store to recover from and can be recovered from an empty source
                 // to re-fetch any shard blocks from the repository.
                 if (shard.primary()) {
-                    if (RecoverySource.Type.SNAPSHOT.equals(shard.recoverySource().getType()) == false) {
+                    if (RecoverySource.Type.SNAPSHOT.equals(shard.recoverySource().getType()) == false
+                        && isPartialIndex(allocation.metadata().getIndexSafe(shard.index())) == false) {
                         unassignedShard = shard.updateUnassigned(shard.unassignedInfo(), RecoverySource.EmptyStoreRecoverySource.INSTANCE);
                     }
                 }

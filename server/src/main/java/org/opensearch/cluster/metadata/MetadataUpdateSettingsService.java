@@ -43,6 +43,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
@@ -78,12 +79,12 @@ import java.util.Set;
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateIndexTotalPrimaryShardsPerNodeSetting;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateOverlap;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogDurabilitySettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findComponentTemplate;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.index.IndexSettings.same;
 
@@ -140,7 +141,7 @@ public class MetadataUpdateSettingsService {
 
         validateRefreshIntervalSettings(normalizedSettings, clusterService.getClusterSettings());
         validateTranslogDurabilitySettings(normalizedSettings, clusterService.getClusterSettings(), clusterService.getSettings());
-        validateIndexTotalPrimaryShardsPerNodeSetting(normalizedSettings);
+        validateIndexTotalPrimaryShardsPerNodeSetting(normalizedSettings, clusterService);
         final int defaultReplicaCount = clusterService.getClusterSettings().get(Metadata.DEFAULT_REPLICA_COUNT_SETTING);
 
         Settings.Builder settingsForClosedIndices = Settings.builder();
@@ -547,6 +548,33 @@ public class MetadataUpdateSettingsService {
                     "To set " + SETTING_NUMBER_OF_SEARCH_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
                 );
             }
+        }
+    }
+
+    /**
+     * Validates the 'index.routing.allocation.total_primary_shards_per_node' setting during index settings update.
+     * Ensures this setting can only be modified for existing indices in remote store enabled clusters.
+     */
+    public static void validateIndexTotalPrimaryShardsPerNodeSetting(Settings indexSettings, ClusterService clusterService) {
+        // Get the setting value
+        int indexPrimaryShardsPerNode = INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings);
+
+        // If default value (-1), no validation needed
+        if (indexPrimaryShardsPerNode == -1) {
+            return;
+        }
+
+        // Check if remote store is enabled
+        boolean isRemoteStoreEnabled = clusterService.state()
+            .nodes()
+            .getNodes()
+            .values()
+            .stream()
+            .allMatch(DiscoveryNode::isRemoteStoreNode);
+        if (!isRemoteStoreEnabled) {
+            throw new IllegalArgumentException(
+                "Setting [" + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store enabled clusters"
+            );
         }
     }
 }

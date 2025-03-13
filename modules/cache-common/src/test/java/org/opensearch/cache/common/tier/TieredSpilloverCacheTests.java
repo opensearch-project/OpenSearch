@@ -30,7 +30,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -183,7 +182,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             )
             .put(TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(), 1)
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .build();
         String storagePath = getStoragePath(settings);
         ICache<String, String> tieredSpilloverICache = new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
@@ -283,7 +281,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             )
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .build();
         String storagePath = getStoragePath(settings);
         ICache<String, String> tieredSpilloverICache = new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
@@ -406,7 +403,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             )
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .build();
 
         IllegalArgumentException ex = assertThrows(
@@ -491,7 +487,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             )
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .put(
                 TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
                     CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
@@ -1276,7 +1271,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             )
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .put(
                 TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
                     CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
@@ -2160,7 +2154,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             )
             .put(TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(), 1)
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .put(TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(), 3)
             .build();
         String storagePath = getStoragePath(settings);
@@ -2226,7 +2219,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 ).getKey(),
                 1L
             )
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .put(TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(), 2)
             .build();
         String storagePath = getStoragePath(settings);
@@ -2285,7 +2277,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             )
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .build();
         String storagePath = getStoragePath(settings);
 
@@ -2419,7 +2410,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 ).getKey(),
                 heapSizeFromImplSetting + "b"
             )
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .put(
                 TIERED_SPILLOVER_SEGMENTS.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()).getKey(),
                 numSegments
@@ -2466,7 +2456,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             )
-            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             // The size setting from the OpenSearchOnHeapCache implementation should not be honored
             .put(
                 OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES.getConcreteSettingForNamespace(
@@ -2697,7 +2686,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                         CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
                     )
-                    .put(FeatureFlags.PLUGGABLE_CACHE, "true")
                     .put(settings)
                     .build()
             )
@@ -2750,7 +2738,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                         CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
                     )
-                    .put(FeatureFlags.PLUGGABLE_CACHE, "true")
                     .put(settings)
                     .build()
             )
