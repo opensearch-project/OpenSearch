@@ -36,11 +36,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -121,7 +121,7 @@ public class SearchWhileCreatingIndexIT extends ParameterizedStaticSettingsOpenS
                 .setPreference(preference + Integer.toString(counter++))
                 .setQuery(QueryBuilders.termQuery("field", "test"))
                 .get();
-            if (searchResponse.getHits().getTotalHits().value != 1) {
+            if (searchResponse.getHits().getTotalHits().value() != 1) {
                 refresh();
                 SearchResponse searchResponseAfterRefresh = client.prepareSearch("test")
                     .setPreference(preference)
@@ -129,7 +129,7 @@ public class SearchWhileCreatingIndexIT extends ParameterizedStaticSettingsOpenS
                     .get();
                 logger.info(
                     "hits count mismatch on any shard search failed, post explicit refresh hits are {}",
-                    searchResponseAfterRefresh.getHits().getTotalHits().value
+                    searchResponseAfterRefresh.getHits().getTotalHits().value()
                 );
                 ensureGreen();
                 SearchResponse searchResponseAfterGreen = client.prepareSearch("test")
@@ -138,7 +138,7 @@ public class SearchWhileCreatingIndexIT extends ParameterizedStaticSettingsOpenS
                     .get();
                 logger.info(
                     "hits count mismatch on any shard search failed, post explicit wait for green hits are {}",
-                    searchResponseAfterGreen.getHits().getTotalHits().value
+                    searchResponseAfterGreen.getHits().getTotalHits().value()
                 );
                 assertHitCount(searchResponse, 1);
             }

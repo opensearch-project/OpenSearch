@@ -170,6 +170,24 @@ public class DateDimension implements Dimension {
     }
 
     /**
+     * Returns the closest valid calendar interval to be used for the search interval
+     */
+    public DateTimeUnitRounding findClosestValidInterval(DateTimeUnitRounding searchInterval) {
+        DateTimeUnitComparator comparator = new DateTimeUnitComparator();
+        DateTimeUnitRounding closestValidInterval = null;
+
+        // Find the largest interval that is less than or equal to search interval
+        for (DateTimeUnitRounding interval : sortedCalendarIntervals) {
+            if (comparator.compare(interval, searchInterval) <= 0) {
+                closestValidInterval = interval;
+            } else {
+                break;
+            }
+        }
+        return closestValidInterval;
+    }
+
+    /**
      * Returns a sorted list of dateTimeUnits based on the DateTimeUnitComparator
      */
     public static List<DateTimeUnitRounding> getSortedDateTimeUnits(List<DateTimeUnitRounding> dateTimeUnits) {

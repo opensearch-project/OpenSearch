@@ -93,6 +93,7 @@ public class RestShardsActionTests extends OpenSearchTestCase {
                 commonStats,
                 null,
                 null,
+                null,
                 null
             );
             shardStatsMap.put(shardRouting, shardStats);

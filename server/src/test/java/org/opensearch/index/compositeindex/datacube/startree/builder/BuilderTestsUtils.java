@@ -9,7 +9,8 @@
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene912.Lucene912Codec;
+import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -35,6 +36,7 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionConfig;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
@@ -438,7 +440,7 @@ public class BuilderTestsUtils {
         StarTreeDocument[] expectedStarTreeDocumentsArray = expectedStarTreeDocuments.toArray(new StarTreeDocument[0]);
         StarTreeTestUtils.assertStarTreeDocuments(starTreeDocuments, expectedStarTreeDocumentsArray);
 
-        validateFileFormats(dataIn, metaIn, rootNode, expectedStarTreeMetadata);
+        validateFileFormats(dataIn, metaIn, rootNode, expectedStarTreeMetadata, starTreeField);
 
         dataIn.close();
         metaIn.close();
@@ -447,7 +449,7 @@ public class BuilderTestsUtils {
 
     public static SegmentReadState getReadState(
         int numDocs,
-        Map<String, DocValuesType> dimensionFields,
+        Map<String, DimensionConfig> dimensionFields,
         List<Metric> metrics,
         StarTreeField compositeField,
         SegmentWriteState writeState,
@@ -470,7 +472,8 @@ public class BuilderTestsUtils {
                 false,
                 true,
                 IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
-                dimensionFields.get(dimension),
+                dimensionFields.get(dimension).getDocValuesType(),
+                DocValuesSkipIndexType.RANGE,
                 -1,
                 Collections.emptyMap(),
                 0,
@@ -499,6 +502,7 @@ public class BuilderTestsUtils {
                     true,
                     IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
                     DocValuesType.SORTED_NUMERIC,
+                    DocValuesSkipIndexType.RANGE,
                     -1,
                     Collections.emptyMap(),
                     0,
@@ -517,12 +521,12 @@ public class BuilderTestsUtils {
         SegmentInfo segmentInfo = new SegmentInfo(
             directory,
             Version.LATEST,
-            Version.LUCENE_9_11_0,
+            Version.LUCENE_10_1_0,
             "test_segment",
             numDocs,
             false,
             false,
-            new Lucene912Codec(),
+            new Lucene101Codec(),
             new HashMap<>(),
             writeState.segmentInfo.getId(),
             new HashMap<>(),
@@ -571,12 +575,12 @@ public class BuilderTestsUtils {
         SegmentInfo segmentInfo = new SegmentInfo(
             directory,
             Version.LATEST,
-            Version.LUCENE_9_11_0,
+            Version.LUCENE_10_1_0,
             "test_segment",
             numDocs,
             false,
             false,
-            new Lucene912Codec(),
+            new Lucene101Codec(),
             new HashMap<>(),
             id,
             new HashMap<>(),

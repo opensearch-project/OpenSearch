@@ -1,0 +1,21 @@
+---
+"Test total indexing buffer fields should have correct formats":
+  - skip:
+      version: " - 2.99.99"
+      reason: "this change is added in 3.0.0"
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.info:
+        human: true
+        filter_path: "nodes.*.total_indexing_buffer*"
+
+  - gte: { nodes.$node_id.total_indexing_buffer_in_bytes: 0 }
+
+  - match:
+      nodes.$node_id.total_indexing_buffer: /^\d+(\.\d+)?(b|kb|mb|gb|tb|pb)$/

@@ -1,0 +1,126 @@
+/*
+* SPDX-License-Identifier: Apache-2.0
+*
+* The OpenSearch Contributors require contributions made to
+* this file be licensed under the Apache-2.0 license or a
+* compatible open source license.
+*
+* Modifications Copyright OpenSearch Contributors. See
+* GitHub history for details.
+*/
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description = 'Pull-based ingestion plugin to consume from Kafka'
+  classname = 'org.opensearch.plugin.kafka.KafkaPlugin'
+}
+
+versions << [
+  'kafka': '3.8.1',
+  'docker': '3.3.6',
+  'testcontainers': '1.19.7',
+  'ducttape': '1.0.8',
+  'snappy': '1.1.10.7',
+]
+
+dependencies {
+  // kafka
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.kafka:kafka-clients:${versions.kafka}"
+
+  // dependencies of kafka-clients
+  runtimeOnly "org.xerial.snappy:snappy-java:${versions.snappy}"
+
+  // test
+  testImplementation "com.github.docker-java:docker-java-api:${versions.docker}"
+  testImplementation "com.github.docker-java:docker-java-transport:${versions.docker}"
+  testImplementation "com.github.docker-java:docker-java-transport-zerodep:${versions.docker}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testImplementation "org.testcontainers:testcontainers:${versions.testcontainers}"
+  testImplementation "org.testcontainers:kafka:${versions.testcontainers}"
+  testImplementation "org.rnorth.duct-tape:duct-tape:${versions.ducttape}"
+  testImplementation "org.apache.commons:commons-compress:${versions.commonscompress}"
+  testImplementation "commons-io:commons-io:${versions.commonsio}"
+  testImplementation 'org.awaitility:awaitility:4.2.0'
+}
+
+internalClusterTest{
+  environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
+  // TODO: Adding permission in plugin-security.policy doesn't seem to work.
+  systemProperty 'tests.security.manager', 'false'
+}
+
+thirdPartyAudit {
+  ignoreMissingClasses(
+    'com.fasterxml.jackson.databind.JsonNode',
+    'com.fasterxml.jackson.databind.ObjectMapper',
+    'com.fasterxml.jackson.databind.node.ArrayNode',
+    'com.fasterxml.jackson.databind.node.BooleanNode',
+    'com.fasterxml.jackson.databind.node.JsonNodeFactory',
+    'com.fasterxml.jackson.databind.node.JsonNodeType',
+    'com.fasterxml.jackson.databind.node.NullNode',
+    'com.fasterxml.jackson.databind.node.ObjectNode',
+    'net.jpountz.lz4.LZ4Compressor',
+    'net.jpountz.lz4.LZ4Factory',
+    'net.jpountz.lz4.LZ4SafeDecompressor',
+    'net.jpountz.util.SafeUtils',
+    'net.jpountz.xxhash.XXHash32',
+    'net.jpountz.xxhash.XXHashFactory',
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
+    'com.google.common.util.concurrent.ListenableFuture',
+    'io.grpc.BindableService',
+    'io.grpc.CallOptions',
+    'io.grpc.Channel',
+    'io.grpc.MethodDescriptor',
+    'io.grpc.MethodDescriptor$Builder',
+    'io.grpc.MethodDescriptor$MethodType',
+    'io.grpc.ServerServiceDefinition',
+    'io.grpc.ServerServiceDefinition$Builder',
+    'io.grpc.ServiceDescriptor',
+    'io.grpc.ServiceDescriptor$Builder',
+    'io.grpc.protobuf.ProtoFileDescriptorSupplier',
+    'io.grpc.protobuf.ProtoMethodDescriptorSupplier',
+    'io.grpc.protobuf.ProtoServiceDescriptorSupplier',
+    'io.grpc.protobuf.ProtoUtils',
+    'io.grpc.stub.AbstractAsyncStub',
+    'io.grpc.stub.AbstractBlockingStub',
+    'io.grpc.stub.AbstractFutureStub',
+    'io.grpc.stub.AbstractStub$StubFactory',
+    'io.grpc.stub.ClientCalls',
+    'io.grpc.stub.ServerCalls',
+    'io.grpc.stub.ServerCalls$BidiStreamingMethod',
+    'io.grpc.stub.ServerCalls$ClientStreamingMethod',
+    'io.grpc.stub.ServerCalls$ServerStreamingMethod',
+    'io.grpc.stub.ServerCalls$UnaryMethod',
+    'io.grpc.stub.StreamObserver',
+    'org.jose4j.http.Get',
+    'org.jose4j.jwa.AlgorithmConstraints',
+    'org.jose4j.jwk.HttpsJwks',
+    'org.jose4j.jwk.JsonWebKey',
+    'org.jose4j.jwk.JsonWebKeySet',
+    'org.jose4j.jwk.VerificationJwkSelector',
+    'org.jose4j.jws.JsonWebSignature',
+    'org.jose4j.jwt.JwtClaims',
+    'org.jose4j.jwt.NumericDate',
+    'org.jose4j.jwt.consumer.InvalidJwtException',
+    'org.jose4j.jwt.consumer.JwtConsumer',
+    'org.jose4j.jwt.consumer.JwtConsumerBuilder',
+    'org.jose4j.jwt.consumer.JwtContext',
+    'org.jose4j.jwx.Headers',
+    'org.jose4j.keys.resolvers.VerificationKeyResolver',
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+  )
+  ignoreViolations(
+    'org.apache.kafka.shaded.com.google.protobuf.MessageSchema',
+    'org.apache.kafka.shaded.com.google.protobuf.UnsafeUtil',
+    'org.apache.kafka.shaded.com.google.protobuf.UnsafeUtil$1',
+    'org.apache.kafka.shaded.com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'org.apache.kafka.shaded.com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.kafka.shaded.com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'org.apache.kafka.shaded.com.google.protobuf.UnsafeUtil$MemoryAccessor',
+  )
+}

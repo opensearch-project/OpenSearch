@@ -57,12 +57,6 @@ public class FeatureFlags {
     public static final String TIERED_REMOTE_INDEX = "opensearch.experimental.feature.tiered_remote_index.enabled";
 
     /**
-     * Gates the functionality of pluggable cache.
-     * Enables OpenSearch to use pluggable caches with respective store names via setting.
-     */
-    public static final String PLUGGABLE_CACHE = "opensearch.experimental.feature.pluggable.caching.enabled";
-
-    /**
      * Gates the functionality of background task execution.
      */
     public static final String BACKGROUND_TASK_EXECUTION_EXPERIMENTAL = "opensearch.experimental.feature.task.background.enabled";
@@ -86,8 +80,6 @@ public class FeatureFlags {
     );
 
     public static final Setting<Boolean> TIERED_REMOTE_INDEX_SETTING = Setting.boolSetting(TIERED_REMOTE_INDEX, false, Property.NodeScope);
-
-    public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
 
     public static final Setting<Boolean> READER_WRITER_SPLIT_EXPERIMENTAL_SETTING = Setting.boolSetting(
         READER_WRITER_SPLIT_EXPERIMENTAL,
@@ -128,17 +120,20 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    public static final String ARROW_STREAMS = "opensearch.experimental.feature.arrow.streams.enabled";
+    public static final Setting<Boolean> ARROW_STREAMS_SETTING = Setting.boolSetting(ARROW_STREAMS, false, Property.NodeScope);
+
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,
         TELEMETRY_SETTING,
         DATETIME_FORMATTER_CACHING_SETTING,
         TIERED_REMOTE_INDEX_SETTING,
-        PLUGGABLE_CACHE_SETTING,
         STAR_TREE_INDEX_SETTING,
         APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
         READER_WRITER_SPLIT_EXPERIMENTAL_SETTING,
-        TERM_VERSION_PRECOMMIT_ENABLE_SETTING
+        TERM_VERSION_PRECOMMIT_ENABLE_SETTING,
+        ARROW_STREAMS_SETTING
     );
 
     /**

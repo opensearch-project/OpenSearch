@@ -34,8 +34,8 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.script.Script;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Base builder class for bulk index by scrolls

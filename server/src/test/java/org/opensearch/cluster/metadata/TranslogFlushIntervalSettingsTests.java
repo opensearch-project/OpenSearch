@@ -31,6 +31,7 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
         Settings requestSettings = Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "50mb")
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .build();
 
         // This should not throw an exception
@@ -38,7 +39,10 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
     }
 
     public void testDefaultTranslogFlushSetting() {
-        Settings requestSettings = Settings.builder().put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true).build();
+        Settings requestSettings = Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .build();
 
         // This should not throw an exception
         IllegalArgumentException ex = expectThrows(
@@ -61,6 +65,7 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
         Settings requestSettings = Settings.builder()
             .putNull(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey())
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .build();
 
         // This should not throw an exception
@@ -75,6 +80,7 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
         Settings requestSettings = Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "150mb")
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .build();
 
         IllegalArgumentException ex = expectThrows(
@@ -88,6 +94,7 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
         Settings requestSettings = Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "100mb")
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .build();
 
         // This should not throw an exception
@@ -99,7 +106,10 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "100mb")
             .build();
 
-        Settings indexSettings = Settings.builder().put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true).build();
+        Settings indexSettings = Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .build();
 
         // This should not throw an exception
         assertTrue(
@@ -116,7 +126,10 @@ public class TranslogFlushIntervalSettingsTests extends OpenSearchTestCase {
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "131mb")
             .build();
 
-        Settings indexSettings = Settings.builder().put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true).build();
+        Settings indexSettings = Settings.builder()
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .build();
 
         Optional<String> err = MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex(
             requestSettings,

@@ -33,9 +33,9 @@
 package org.opensearch.repositories.azure;
 
 import com.azure.core.http.policy.HttpPipelinePolicy;
-import com.azure.identity.CredentialUnavailableException;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.common.policy.RequestRetryPolicy;
+import com.microsoft.aad.msal4j.MsalServiceException;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
@@ -61,6 +61,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.HttpResources;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -202,10 +203,9 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
                 final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
 
                 // Expect the client to use managed identity for authentication, and it should fail because managed identity environment is
-                // not
-                // setup in the test
-                final CredentialUnavailableException e = expectThrows(CredentialUnavailableException.class, () -> client1.getAccountInfo());
-                assertThat(e.getMessage(), is("Managed Identity authentication is not available."));
+                // not setup in the test
+                final MsalServiceException e = expectThrows(MsalServiceException.class, () -> client1.getAccountInfo());
+                assertThat(e.getMessage(), containsString("HttpStatusCode: 401"));
             }
         }
     }

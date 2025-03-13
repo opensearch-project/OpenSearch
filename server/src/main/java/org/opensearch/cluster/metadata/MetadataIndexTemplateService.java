@@ -38,8 +38,8 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
@@ -101,6 +101,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateIndexTotalPrimaryShardsPerNodeSetting;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
 import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
@@ -1642,6 +1643,9 @@ public class MetadataIndexTemplateService {
             validateRefreshIntervalSettings(settings, clusterService.getClusterSettings());
             validateTranslogFlushIntervalSettingsForCompositeIndex(settings, clusterService.getClusterSettings());
             validateTranslogDurabilitySettingsInTemplate(settings, clusterService.getClusterSettings());
+
+            // validate index total primary shards per node setting
+            validateIndexTotalPrimaryShardsPerNodeSetting(settings);
         }
 
         if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
@@ -1720,10 +1724,6 @@ public class MetadataIndexTemplateService {
 
         TimeValue clusterManagerTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
-        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
-        @Deprecated
-        TimeValue masterTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
-
         public PutRequest(String cause, String name) {
             this.cause = cause;
             this.name = name;
@@ -1764,12 +1764,6 @@ public class MetadataIndexTemplateService {
             return this;
         }
 
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerTimeout(TimeValue)} */
-        @Deprecated
-        public PutRequest masterTimeout(TimeValue masterTimeout) {
-            return clusterManagerTimeout(masterTimeout);
-        }
-
         public PutRequest version(Integer version) {
             this.version = version;
             return this;
@@ -1802,10 +1796,6 @@ public class MetadataIndexTemplateService {
         final String name;
         TimeValue clusterManagerTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
-        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
-        @Deprecated
-        TimeValue masterTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
-
         public RemoveRequest(String name) {
             this.name = name;
         }
@@ -1813,12 +1803,6 @@ public class MetadataIndexTemplateService {
         public RemoveRequest clusterManagerTimeout(TimeValue clusterManagerTimeout) {
             this.clusterManagerTimeout = clusterManagerTimeout;
             return this;
-        }
-
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
-        @Deprecated
-        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
-            return clusterManagerTimeout(masterTimeout);
         }
     }
 

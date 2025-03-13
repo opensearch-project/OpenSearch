@@ -37,10 +37,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.client.Client;
-import org.opensearch.client.FilterClient;
 import org.opensearch.cluster.routing.Preference;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.FilterClient;
 
 import java.util.Arrays;
 import java.util.EnumSet;

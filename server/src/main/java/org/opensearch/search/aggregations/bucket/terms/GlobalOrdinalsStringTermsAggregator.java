@@ -40,7 +40,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -52,6 +51,10 @@ import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.LongHash;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;
@@ -64,14 +67,20 @@ import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.StarTreeTraversalUtil;
+import org.opensearch.search.startree.filter.DimensionFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -79,26 +88,26 @@ import java.util.function.LongPredicate;
 import java.util.function.LongUnaryOperator;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_DOCS;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
  *
  * @opensearch.internal
  */
-public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
+public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator implements StarTreePreComputeCollector {
     protected final ResultStrategy<?, ?, ?> resultStrategy;
     protected final ValuesSource.Bytes.WithOrdinals valuesSource;
 
     private final LongPredicate acceptedGlobalOrdinals;
     private final long valueCount;
-    private final String fieldName;
+    protected final String fieldName;
     private Weight weight;
     protected final CollectionStrategy collectionStrategy;
     private final SetOnce<SortedSetDocValues> dvs = new SetOnce<>();
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
+    LongUnaryOperator globalOperator;
 
     /**
      * Lookup global ordinals
@@ -166,35 +175,32 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      @return A LeafBucketCollector implementation with collection termination, since collection is complete
      @throws IOException If an I/O error occurs during reading
      */
-    LeafBucketCollector termDocFreqCollector(
-        LeafReaderContext ctx,
-        SortedSetDocValues globalOrds,
-        BiConsumer<Long, Integer> ordCountConsumer
-    ) throws IOException {
+    boolean tryCollectFromTermFrequencies(LeafReaderContext ctx, SortedSetDocValues globalOrds, BiConsumer<Long, Integer> ordCountConsumer)
+        throws IOException {
         if (weight == null) {
             // Weight not assigned - cannot use this optimization
-            return null;
+            return false;
         } else {
             if (weight.count(ctx) == 0) {
                 // No documents matches top level query on this segment, we can skip the segment entirely
-                return LeafBucketCollector.NO_OP_COLLECTOR;
+                return true;
             } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
                 // weight.count(ctx) == ctx.reader().maxDoc() implies there are no deleted documents and
                 // top-level query matches all docs in the segment
-                return null;
+                return false;
             }
         }
 
         Terms segmentTerms = ctx.reader().terms(this.fieldName);
         if (segmentTerms == null) {
             // Field is not indexed.
-            return null;
+            return false;
         }
 
         NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
             // This segment has at least one document with the _doc_count field.
-            return null;
+            return false;
         }
 
         TermsEnum indexTermsEnum = segmentTerms.iterator();
@@ -218,31 +224,42 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 ordinalTerm = globalOrdinalTermsEnum.next();
             }
         }
-        return new LeafBucketCollector() {
-            @Override
-            public void collect(int doc, long owningBucketOrd) throws IOException {
-                throw new CollectionTerminatedException();
-            }
-        };
+        return true;
+    }
+
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
+        if (tryStarTreePrecompute(ctx) == true) {
+            return true;
+        }
+        if (collectionStrategy instanceof DenseGlobalOrds
+            && this.resultStrategy instanceof StandardTermsResults
+            && subAggregators.length == 0) {
+            return tryCollectFromTermFrequencies(
+                ctx,
+                globalOrds,
+                (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, ord), docCount)
+            );
+        }
+        return false;
+    }
+
+    protected boolean tryStarTreePrecompute(LeafReaderContext ctx) throws IOException {
+        CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            globalOperator = valuesSource.globalOrdinalsMapping(ctx);
+            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
+            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+            return true;
+        }
+        return false;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
         collectionStrategy.globalOrdsReady(globalOrds);
-
-        if (collectionStrategy instanceof DenseGlobalOrds
-            && this.resultStrategy instanceof StandardTermsResults
-            && sub == LeafBucketCollector.NO_OP_COLLECTOR) {
-            LeafBucketCollector termDocFreqCollector = termDocFreqCollector(
-                ctx,
-                globalOrds,
-                (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, ord), docCount)
-            );
-            if (termDocFreqCollector != null) {
-                return termDocFreqCollector;
-            }
-        }
 
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
         if (singleValues != null) {
@@ -289,7 +306,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == globalOrds.advanceExact(doc)) {
                         return;
                     }
-                    for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                    int count = globalOrds.docValueCount();
+                    long globalOrd;
+                    while ((count-- > 0) && (globalOrd = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
                 }
@@ -301,7 +320,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 if (false == globalOrds.advanceExact(doc)) {
                     return;
                 }
-                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                int count = globalOrds.docValueCount();
+                long globalOrd;
+                while ((count-- > 0) && (globalOrd = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                     if (false == acceptedGlobalOrdinals.test(globalOrd)) {
                         continue;
                     }
@@ -309,6 +330,56 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
             }
         });
+    }
+
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parent
+    ) throws IOException {
+        assert parent == null;
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        SortedSetStarTreeValuesIterator valuesIterator = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
+            fieldName
+        );
+        SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
+
+        return new StarTreeBucketCollector(
+            starTreeValues,
+            StarTreeTraversalUtil.getStarTreeResult(
+                starTreeValues,
+                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
+                    fieldName,
+                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
+                ),
+                context
+            )
+        ) {
+            @Override
+            public void setSubCollectors() throws IOException {
+                for (Aggregator aggregator : subAggregators) {
+                    this.subCollectors.add(((StarTreePreComputeCollector) aggregator).getStarTreeBucketCollector(ctx, starTree, this));
+                }
+            }
+
+            @Override
+            public void collectStarTreeEntry(int starTreeEntry, long owningBucketOrd) throws IOException {
+                if (valuesIterator.advanceExact(starTreeEntry) == false) {
+                    return;
+                }
+                for (int i = 0, count = valuesIterator.docValueCount(); i < count; i++) {
+                    long dimensionValue = valuesIterator.value();
+                    long ord = globalOperator.applyAsLong(dimensionValue);
+
+                    if (docCountsIterator.advanceExact(starTreeEntry)) {
+                        long metricValue = docCountsIterator.nextValue();
+                        long bucketOrd = collectionStrategy.globalOrdToBucketOrd(0, ord);
+                        collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
+                    }
+                }
+            }
+        };
     }
 
     @Override
@@ -434,6 +505,24 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
+        protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+            if (subAggregators.length == 0) {
+                if (mapping != null) {
+                    mapSegmentCountsToGlobalCounts(mapping);
+                }
+                final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
+                segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
+                mapping = valuesSource.globalOrdinalsMapping(ctx);
+                return tryCollectFromTermFrequencies(
+                    ctx,
+                    segmentOrds,
+                    (ord, docCount) -> incrementBucketDocCount(mapping.applyAsLong(ord), docCount)
+                );
+            }
+            return tryStarTreePrecompute(ctx);
+        }
+
+        @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
             if (mapping != null) {
                 mapSegmentCountsToGlobalCounts(mapping);
@@ -442,17 +531,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
             mapping = valuesSource.globalOrdinalsMapping(ctx);
-
-            if (this.resultStrategy instanceof StandardTermsResults) {
-                LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(
-                    ctx,
-                    segmentOrds,
-                    (ord, docCount) -> incrementBucketDocCount(mapping.applyAsLong(ord), docCount)
-                );
-                if (termDocFreqCollector != null) {
-                    return termDocFreqCollector;
-                }
-            }
 
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             if (singleValues != null) {
@@ -478,7 +556,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == segmentOrds.advanceExact(doc)) {
                         return;
                     }
-                    for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_ORDS; segmentOrd = segmentOrds.nextOrd()) {
+                    int count = segmentOrds.docValueCount();
+                    long segmentOrd;
+                    while ((count-- > 0) && (segmentOrd = segmentOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                         long docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(segmentOrd + 1, docCount);
                     }

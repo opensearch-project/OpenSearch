@@ -40,7 +40,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -144,8 +143,8 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
             for (BooleanClause clause : (BooleanQuery) rewrite) {
-                assertThat(clause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) clause.getQuery();
+                assertThat(clause.query(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) clause.query();
                 TermStates termStates = termQuery.getTermStates();
                 if (termQuery.getTerm().field().equals("unknown_field")) {
                     assertThat(termStates.docFreq(), equalTo(0));
@@ -155,7 +154,7 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
                     assertThat(termStates.totalTermFreq(), greaterThan(0L));
                 }
             }
-            assertThat(searcher.search(query, 10).totalHits.value, equalTo((long) iters + username.length));
+            assertThat(searcher.search(query, 10).totalHits.value(), equalTo((long) iters + username.length));
         }
         {
             // test with an unknown field and an unknown term
@@ -164,13 +163,13 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
             for (BooleanClause clause : (BooleanQuery) rewrite) {
-                assertThat(clause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) clause.getQuery();
+                assertThat(clause.query(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) clause.query();
                 TermStates termStates = termQuery.getTermStates();
                 assertThat(termStates.docFreq(), equalTo(0));
                 assertThat(termStates.totalTermFreq(), equalTo(0L));
             }
-            assertThat(searcher.search(query, 10).totalHits.value, equalTo(0L));
+            assertThat(searcher.search(query, 10).totalHits.value(), equalTo(0L));
         }
         {
             // test with an unknown field and a term that is present in only one field
@@ -179,8 +178,8 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
             Query rewrite = searcher.rewrite(query);
             assertThat(rewrite, instanceOf(BooleanQuery.class));
             for (BooleanClause clause : (BooleanQuery) rewrite) {
-                assertThat(clause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) clause.getQuery();
+                assertThat(clause.query(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) clause.query();
                 TermStates termStates = termQuery.getTermStates();
                 if (termQuery.getTerm().field().equals("username")) {
                     assertThat(termStates.docFreq(), equalTo(1));
@@ -190,7 +189,7 @@ public class BlendedTermQueryTests extends OpenSearchTestCase {
                     assertThat(termStates.totalTermFreq(), equalTo(0L));
                 }
             }
-            assertThat(searcher.search(query, 10).totalHits.value, equalTo(1L));
+            assertThat(searcher.search(query, 10).totalHits.value(), equalTo(1L));
         }
         reader.close();
         w.close();

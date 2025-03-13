@@ -34,7 +34,7 @@ public interface StreamManager extends AutoCloseable {
      * @return A StreamTicket that can be used to access the stream
      * @throws IllegalArgumentException if producer is null or parentTaskId is invalid
      */
-    StreamTicket registerStream(StreamProducer producer, TaskId parentTaskId);
+    <VectorRoot, Allocator> StreamTicket registerStream(StreamProducer<VectorRoot, Allocator> producer, TaskId parentTaskId);
 
     /**
      * Creates a stream reader for consuming Arrow data using a valid ticket.
@@ -46,7 +46,7 @@ public interface StreamManager extends AutoCloseable {
      * @throws IllegalArgumentException if the ticket is invalid
      * @throws IllegalStateException if the stream has been cancelled or closed
      */
-    StreamReader getStreamReader(StreamTicket ticket);
+    <VectorRoot> StreamReader<VectorRoot> getStreamReader(StreamTicket ticket);
 
     /**
      * Gets the StreamTicketFactory instance associated with this StreamManager.

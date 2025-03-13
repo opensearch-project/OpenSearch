@@ -48,7 +48,6 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.support.replication.TransportReplicationAction;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
@@ -89,6 +88,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -98,6 +98,7 @@ import org.opensearch.index.IndexingPressure;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineTestCase;
+import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -121,6 +122,7 @@ import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.TransportSettings;
+import org.opensearch.transport.client.Client;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -222,13 +224,6 @@ public final class InternalTestCluster extends TestCluster {
 
     public static final int DEFAULT_LOW_NUM_CLUSTER_MANAGER_NODES = 1;
     public static final int DEFAULT_HIGH_NUM_CLUSTER_MANAGER_NODES = 3;
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #DEFAULT_LOW_NUM_CLUSTER_MANAGER_NODES} */
-    @Deprecated
-    public static final int DEFAULT_LOW_NUM_MASTER_NODES = DEFAULT_LOW_NUM_CLUSTER_MANAGER_NODES;
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #DEFAULT_HIGH_NUM_CLUSTER_MANAGER_NODES} */
-    @Deprecated
-    public static final int DEFAULT_HIGH_NUM_MASTER_NODES = DEFAULT_HIGH_NUM_CLUSTER_MANAGER_NODES;
 
     static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
     static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;
@@ -900,25 +895,6 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a node client to the current cluster-manager node.
-     * Note: use this with care tests should not rely on a certain nodes client.
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerClient()}
-     */
-    @Deprecated
-    public Client masterClient() {
-        return clusterManagerClient();
-    }
-
-    /**
-     * Returns a node client to random node but not the cluster-manager. This method will fail if no non-cluster-manager client is available.
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #nonClusterManagerClient()}
-     */
-    @Deprecated
-    public Client nonMasterClient() {
-        return nonClusterManagerClient();
-    }
-
-    /**
      * Returns a client to a coordinating only node
      */
     public synchronized Client coordOnlyNodeClient() {
@@ -976,11 +952,6 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    public static final int REMOVED_MINIMUM_CLUSTER_MANAGER_NODES = Integer.MAX_VALUE;
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #REMOVED_MINIMUM_CLUSTER_MANAGER_NODES} */
-    @Deprecated
-    public static final int REMOVED_MINIMUM_MASTER_NODES = REMOVED_MINIMUM_CLUSTER_MANAGER_NODES;
-
     private final class NodeAndClient implements Closeable {
         private MockNode node;
         private final Settings originalNodeSettings;
@@ -1014,12 +985,6 @@ public final class InternalTestCluster extends TestCluster {
 
         public boolean isClusterManagerEligible() {
             return DiscoveryNode.isClusterManagerNode(node.settings());
-        }
-
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerEligible()} */
-        @Deprecated
-        public boolean isMasterEligible() {
-            return isClusterManagerEligible();
         }
 
         Client client() {
@@ -1414,7 +1379,9 @@ public final class InternalTestCluster extends TestCluster {
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
                         try {
-                            if (IndexShardTestCase.getEngine(indexShard) instanceof InternalEngine) {
+                            if (IndexShardTestCase.getEngine(indexShard) instanceof IngestionEngine) {
+                                // no-op, as IngestionEngine does not use translog.
+                            } else if (IndexShardTestCase.getEngine(indexShard) instanceof InternalEngine) {
                                 IndexShardTestCase.getTranslog(indexShard).getDeletionPolicy().assertNoOpenTranslogRefs();
                             }
                         } catch (AlreadyClosedException ok) {
@@ -1663,23 +1630,6 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, DATA_NODE_PREDICATE.or(CLUSTER_MANAGER_NODE_PREDICATE));
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getCurrentClusterManagerNodeInstance(Class)} */
-    @Deprecated
-    public synchronized <T> T getCurrentMasterNodeInstance(Class<T> clazz) {
-        return getCurrentClusterManagerNodeInstance(clazz);
-    }
-
-    /**
-     * Returns an Iterable to all instances for the given class &gt;T&lt; across all data and cluster-manager nodes
-     * in the cluster.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getDataOrClusterManagerNodeInstances(Class)}
-     */
-    @Deprecated
-    public <T> Iterable<T> getDataOrMasterNodeInstances(Class<T> clazz) {
-        return getDataOrClusterManagerNodeInstances(clazz);
-    }
-
     private <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
         Iterable<NodeAndClient> filteredNodes = nodes.values().stream().filter(predicate)::iterator;
         List<T> instances = new ArrayList<>();
@@ -1702,12 +1652,6 @@ public final class InternalTestCluster extends TestCluster {
 
     public <T> T getClusterManagerNodeInstance(Class<T> clazz) {
         return getInstance(clazz, CLUSTER_MANAGER_NODE_PREDICATE);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerNodeInstance(Class)} */
-    @Deprecated
-    public <T> T getMasterNodeInstance(Class<T> clazz) {
-        return getClusterManagerNodeInstance(clazz);
     }
 
     private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
@@ -1830,26 +1774,6 @@ public final class InternalTestCluster extends TestCluster {
             );
             stopNodesAndClient(nodeAndClient);
         }
-    }
-
-    /**
-     * Stops the current cluster-manager node forcefully.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #stopCurrentClusterManagerNode()}
-     */
-    @Deprecated
-    public synchronized void stopCurrentMasterNode() throws IOException {
-        stopCurrentClusterManagerNode();
-    }
-
-    /**
-     * Stops any of the current nodes but not the cluster-manager node.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #stopRandomNodeNotCurrentClusterManager()}
-     */
-    @Deprecated
-    public synchronized void stopRandomNodeNotCurrentMaster() throws IOException {
-        stopRandomNodeNotCurrentClusterManager();
     }
 
     /**
@@ -2166,34 +2090,12 @@ public final class InternalTestCluster extends TestCluster {
      * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
      */
     public String getClusterManagerName(@Nullable String viaNode) {
-        try {
-            Client client = viaNode != null ? client(viaNode) : client();
-            return client.admin().cluster().prepareState().get().getState().nodes().getClusterManagerNode().getName();
-        } catch (Exception e) {
-            logger.warn("Can't fetch cluster state", e);
-            throw new RuntimeException("Can't get cluster-manager node " + e.getMessage(), e);
+        Client client = viaNode != null ? client(viaNode) : client();
+        DiscoveryNode clusterManagerNode = client.admin().cluster().prepareState().get().getState().nodes().getClusterManagerNode();
+        if (clusterManagerNode == null) {
+            throw new ClusterManagerNotDiscoveredException("Cluster manager node not discovered");
         }
-    }
-
-    /**
-     * Returns the name of the current cluster-manager node in the cluster.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerName()}
-     */
-    @Deprecated
-    public String getMasterName() {
-        return getClusterManagerName();
-    }
-
-    /**
-     * Returns the name of the current cluster-manager node in the cluster and executes the request via the node specified
-     * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
-     *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerName(String)}
-     */
-    @Deprecated
-    public String getMasterName(@Nullable String viaNode) {
-        return getClusterManagerName(viaNode);
+        return clusterManagerNode.getName();
     }
 
     synchronized Set<String> allDataNodesButN(int count) {
@@ -2405,18 +2307,6 @@ public final class InternalTestCluster extends TestCluster {
         return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).build());
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #startClusterManagerOnlyNodes(int)} */
-    @Deprecated
-    public List<String> startMasterOnlyNodes(int numNodes) {
-        return startClusterManagerOnlyNodes(numNodes);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #startClusterManagerOnlyNodes(int, Settings)} */
-    @Deprecated
-    public List<String> startMasterOnlyNodes(int numNodes, Settings settings) {
-        return startClusterManagerOnlyNodes(numNodes, settings);
-    }
-
     public List<String> startDataAndSearchNodes(int numNodes) {
         return startDataAndSearchNodes(numNodes, Settings.EMPTY);
     }
@@ -2466,18 +2356,6 @@ public final class InternalTestCluster extends TestCluster {
         return startNode(settings1);
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #startClusterManagerOnlyNode()} */
-    @Deprecated
-    public String startMasterOnlyNode() {
-        return startClusterManagerOnlyNode();
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #startClusterManagerOnlyNode(Settings)} */
-    @Deprecated
-    public String startMasterOnlyNode(Settings settings) {
-        return startClusterManagerOnlyNode(settings);
-    }
-
     public String startDataOnlyNode() {
         return startDataOnlyNode(Settings.EMPTY);
     }
@@ -2519,12 +2397,6 @@ public final class InternalTestCluster extends TestCluster {
 
     public int numClusterManagerNodes() {
         return filterNodes(nodes, NodeAndClient::isClusterManagerEligible).size();
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #numClusterManagerNodes()} */
-    @Deprecated
-    public int numMasterNodes() {
-        return numClusterManagerNodes();
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {

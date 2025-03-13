@@ -33,6 +33,8 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
+import static org.opensearch.action.admin.indices.tiering.TieringUtils.isPartialIndex;
+
 /**
  * A {@link RemoteShardsBalancer} used by the {@link BalancedShardsAllocator} to perform allocation operations
  * for remote shards within the cluster.
@@ -247,11 +249,17 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
         final Map<String, Integer> nodePrimaryShardCount = calculateNodePrimaryShardCount(remoteRoutingNodes);
         int totalPrimaryShardCount = nodePrimaryShardCount.values().stream().reduce(0, Integer::sum);
 
-        totalPrimaryShardCount += routingNodes.unassigned().getNumPrimaries();
-        int avgPrimaryPerNode = (totalPrimaryShardCount + routingNodes.size() - 1) / routingNodes.size();
+        int unassignedRemotePrimaryShardCount = 0;
+        for (ShardRouting shard : routingNodes.unassigned()) {
+            if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation)) && shard.primary()) {
+                unassignedRemotePrimaryShardCount++;
+            }
+        }
+        totalPrimaryShardCount += unassignedRemotePrimaryShardCount;
+        final int avgPrimaryPerNode = (totalPrimaryShardCount + remoteRoutingNodes.size() - 1) / remoteRoutingNodes.size();
 
-        ArrayDeque<RoutingNode> sourceNodes = new ArrayDeque<>();
-        ArrayDeque<RoutingNode> targetNodes = new ArrayDeque<>();
+        final ArrayDeque<RoutingNode> sourceNodes = new ArrayDeque<>();
+        final ArrayDeque<RoutingNode> targetNodes = new ArrayDeque<>();
         for (RoutingNode node : remoteRoutingNodes) {
             if (nodePrimaryShardCount.get(node.nodeId()) > avgPrimaryPerNode) {
                 sourceNodes.add(node);
@@ -339,7 +347,8 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                 // Remote shards do not have an existing store to recover from and can be recovered from an empty source
                 // to re-fetch any shard blocks from the repository.
                 if (shard.primary()) {
-                    if (RecoverySource.Type.SNAPSHOT.equals(shard.recoverySource().getType()) == false) {
+                    if (RecoverySource.Type.SNAPSHOT.equals(shard.recoverySource().getType()) == false
+                        && isPartialIndex(allocation.metadata().getIndexSafe(shard.index())) == false) {
                         unassignedShard = shard.updateUnassigned(shard.unassignedInfo(), RecoverySource.EmptyStoreRecoverySource.INSTANCE);
                     }
                 }

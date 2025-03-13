@@ -205,7 +205,7 @@ public class SearchSliceIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             SliceBuilder sliceBuilder = new SliceBuilder(field, id, numSlice);
             SearchResponse searchResponse = request.slice(sliceBuilder).setFrom(0).get();
             totalResults += searchResponse.getHits().getHits().length;
-            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value;
+            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value();
             int numSliceResults = searchResponse.getHits().getHits().length;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 assertTrue(keys.add(hit.getId()));
@@ -231,7 +231,7 @@ public class SearchSliceIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         setupIndex(totalDocs, numShards);
         {
             SearchResponse sr = client().prepareSearch("test").setQuery(matchAllQuery()).setPreference("_shards:1,4").setSize(0).get();
-            int numDocs = (int) sr.getHits().getTotalHits().value;
+            int numDocs = (int) sr.getHits().getTotalHits().value();
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = client().prepareSearch("test")
@@ -244,7 +244,7 @@ public class SearchSliceIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         }
         {
             SearchResponse sr = client().prepareSearch("test").setQuery(matchAllQuery()).setRouting("foo", "bar").setSize(0).get();
-            int numDocs = (int) sr.getHits().getTotalHits().value;
+            int numDocs = (int) sr.getHits().getTotalHits().value();
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = client().prepareSearch("test")
@@ -266,7 +266,7 @@ public class SearchSliceIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                     .get()
             );
             SearchResponse sr = client().prepareSearch("alias1", "alias3").setQuery(matchAllQuery()).setSize(0).get();
-            int numDocs = (int) sr.getHits().getTotalHits().value;
+            int numDocs = (int) sr.getHits().getTotalHits().value();
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = client().prepareSearch("alias1", "alias3")
@@ -323,7 +323,7 @@ public class SearchSliceIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             SliceBuilder sliceBuilder = new SliceBuilder(field, id, numSlice);
             SearchResponse searchResponse = request.slice(sliceBuilder).get();
             totalResults += searchResponse.getHits().getHits().length;
-            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value;
+            int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value();
             int numSliceResults = searchResponse.getHits().getHits().length;
             String scrollId = searchResponse.getScrollId();
             for (SearchHit hit : searchResponse.getHits().getHits()) {

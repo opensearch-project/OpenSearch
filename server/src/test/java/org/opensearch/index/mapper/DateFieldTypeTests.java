@@ -75,6 +75,7 @@ import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.DateFieldMapper.Resolution;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
 import org.opensearch.index.mapper.ParseContext.Document;
+import org.opensearch.index.query.BaseQueryRewriteContext;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -99,7 +100,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     private static final long nowInMillis = 0;
 
     public void testIsFieldWithinRangeEmptyReader() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType("my_date");
         assertEquals(
@@ -136,7 +137,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, alternateFormat);
 
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
 
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType("my_date2");
@@ -148,7 +149,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader, DateTimeZone zone, DateMathParser alternateFormat)
         throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         assertEquals(
             Relation.INTERSECTS,
             ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", randomBoolean(), randomBoolean(), null, null, context)
@@ -595,10 +596,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         );
 
         TopDocs topDocs = searcher.search(rangeQuery, dates.size());
-        assertEquals("Number of non-null date documents", dates.size() - numNullDates, topDocs.totalHits.value);
+        assertEquals("Number of non-null date documents", dates.size() - numNullDates, topDocs.totalHits.value());
 
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-            org.apache.lucene.document.Document doc = reader.document(scoreDoc.doc);
+            org.apache.lucene.document.Document doc = reader.storedFields().document(scoreDoc.doc);
             IndexableField dateField = doc.getField(ft.name());
             if (dateField != null) {
                 long dateValue = dateField.numericValue().longValue();
@@ -622,7 +623,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         Query nullValueQuery = ftWithNullValue.termQuery("2020-01-01T00:00:00Z", context);
         topDocs = searcher.search(nullValueQuery, dates.size());
-        assertEquals("Documents matching the 2020-01-01 date", 1, topDocs.totalHits.value);
+        assertEquals("Documents matching the 2020-01-01 date", 1, topDocs.totalHits.value());
 
         IOUtils.close(reader, w, dir);
     }
@@ -672,9 +673,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         for (int i = 0; i < 100; i++) {
             TopDocs topDocs = searcher.search(queryBuilder.build(), nullDocs + datedDocs, sort);
-            assertEquals("Total hits should match total documents", nullDocs + datedDocs, topDocs.totalHits.value);
+            assertEquals("Total hits should match total documents", nullDocs + datedDocs, topDocs.totalHits.value());
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                org.apache.lucene.document.Document doc = reader.document(scoreDoc.doc);
+                org.apache.lucene.document.Document doc = reader.storedFields().document(scoreDoc.doc);
                 IndexableField dateField = doc.getField(ft.name());
                 if (dateField != null) {
                     long dateValue = dateField.numericValue().longValue();

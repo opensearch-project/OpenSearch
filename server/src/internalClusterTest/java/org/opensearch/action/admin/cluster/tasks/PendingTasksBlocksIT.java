@@ -91,11 +91,11 @@ public class PendingTasksBlocksIT extends OpenSearchIntegTestCase {
         }
 
         // restart the cluster but prevent it from performing state recovery
-        final int nodeCount = client().admin().cluster().prepareNodesInfo("data:true", "cluster_manager:true").get().getNodes().size();
+        final int dataNodesCount = client().admin().cluster().prepareNodesInfo("data:true").get().getNodes().size();
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
-                return Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), nodeCount + 1).build();
+                return Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), dataNodesCount + 1).build();
             }
 
             @Override

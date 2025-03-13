@@ -32,8 +32,6 @@
 
 package org.opensearch.painless;
 
-import org.apache.lucene.util.Constants;
-
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -257,8 +255,7 @@ public class StringTests extends ScriptTestCase {
         assertEquals(rando, exec("params.rando.encodeBase64().decodeBase64()", singletonMap("rando", rando), true));
     }
 
-    public void testJava9ConstantStringConcatBytecode() {
-        assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
+    public void testConstantStringConcatBytecode() {
         assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
         assertBytecodeExists(
             "String s = \"cat\"; return s + true + 'abc' + null;",
@@ -266,8 +263,7 @@ public class StringTests extends ScriptTestCase {
         );
     }
 
-    public void testJava9StringConcatBytecode() {
-        assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
+    public void testStringConcatBytecode() {
         assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
         assertBytecodeExists(
             "String s = \"cat\"; boolean t = true; Object u = null; return s + t + 'abc' + u;",
@@ -284,8 +280,7 @@ public class StringTests extends ScriptTestCase {
         assertEquals("" + null + 2, exec("null + '' + 2"));
     }
 
-    public void testJava9NullStringConcatBytecode() {
-        assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
+    public void testNullStringConcatBytecode() {
         assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
         assertEquals("" + null + null, exec("'' + null + null"));
     }
