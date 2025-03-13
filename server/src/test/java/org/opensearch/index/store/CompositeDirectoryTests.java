@@ -39,8 +39,16 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
     private FSDirectory localDirectory;
     private CompositeDirectory compositeDirectory;
 
-    private final static String[] LOCAL_FILES = new String[] { "_1.cfe", "_2.cfe", "_0.cfe_block_7", "_0.cfs_block_7", "temp_file.tmp" };
+    private final static String[] LOCAL_FILES = new String[] {
+        "_1.cfe",
+        "_1.cfe_block_0",
+        "_1.cfe_block_1",
+        "_2.cfe",
+        "_0.cfe_block_7",
+        "_0.cfs_block_7",
+        "temp_file.tmp" };
     private final static String FILE_PRESENT_LOCALLY = "_1.cfe";
+    private final static String BLOCK_FILE_PRESENT_LOCALLY = "_1.cfe_block_0";
     private final static String FILE_PRESENT_IN_REMOTE_ONLY = "_0.si";
     private final static String NON_EXISTENT_FILE = "non_existent_file";
     private final static String NEW_FILE = "new_file";
@@ -67,9 +75,11 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
 
     public void testDeleteFile() throws IOException {
         assertTrue(existsInCompositeDirectory(FILE_PRESENT_LOCALLY));
+        assertTrue(existsInLocalDirectory(BLOCK_FILE_PRESENT_LOCALLY));
         // Delete the file and assert that it no more is a part of the directory
         compositeDirectory.deleteFile(FILE_PRESENT_LOCALLY);
         assertFalse(existsInCompositeDirectory(FILE_PRESENT_LOCALLY));
+        assertFalse(existsInCompositeDirectory(BLOCK_FILE_PRESENT_LOCALLY));
         // Reading deleted file from directory should result in NoSuchFileException
         assertThrows(NoSuchFileException.class, () -> compositeDirectory.openInput(FILE_PRESENT_LOCALLY, IOContext.DEFAULT));
     }

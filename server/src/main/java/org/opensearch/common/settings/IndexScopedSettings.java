@@ -266,6 +266,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_POINTER_INIT_RESET_SETTING,
                 IndexMetadata.INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING,
                 IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING,
+                IndexMetadata.INGESTION_SOURCE_ERROR_STRATEGY_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

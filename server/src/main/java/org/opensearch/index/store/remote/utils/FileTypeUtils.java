@@ -18,12 +18,14 @@ import org.opensearch.common.annotation.ExperimentalApi;
 @ExperimentalApi
 public class FileTypeUtils {
 
+    public static String BLOCK_FILE_IDENTIFIER = "_block_";
+
     public static boolean isTempFile(String name) {
         return name.endsWith(".tmp");
     }
 
     public static boolean isBlockFile(String name) {
-        return name.contains("_block_");
+        return name.contains(BLOCK_FILE_IDENTIFIER);
     }
 
     public static boolean isExtraFSFile(String name) {

@@ -29,6 +29,8 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.indices.pollingingest.DefaultStreamPoller;
+import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
 
 import java.io.IOException;
@@ -98,12 +100,21 @@ public class IngestionEngine extends InternalEngine {
         }
 
         String resetValue = ingestionSource.getPointerInitReset().getValue();
-        streamPoller = new DefaultStreamPoller(startPointer, persistedPointers, ingestionShardConsumer, this, resetState, resetValue);
+        IngestionErrorStrategy ingestionErrorStrategy = IngestionErrorStrategy.create(
+            ingestionSource.getErrorStrategy(),
+            ingestionSource.getType()
+        );
 
-        // Poller is only started on the primary shard. Replica shards will rely on segment replication.
-        if (!engineConfig.isReadOnlyReplica()) {
-            streamPoller.start();
-        }
+        streamPoller = new DefaultStreamPoller(
+            startPointer,
+            persistedPointers,
+            ingestionShardConsumer,
+            this,
+            resetState,
+            resetValue,
+            ingestionErrorStrategy
+        );
+        streamPoller.start();
     }
 
     protected Set<IngestionShardPointer> fetchPersistedOffsets(DirectoryReader directoryReader, IngestionShardPointer batchStart)
@@ -287,5 +298,10 @@ public class IngestionEngine extends InternalEngine {
 
     protected Map<String, String> commitDataAsMap() {
         return commitDataAsMap(indexWriter);
+    }
+
+    @Override
+    public PollingIngestStats pollingIngestStats() {
+        return streamPoller.getStats();
     }
 }
