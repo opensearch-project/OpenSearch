@@ -32,10 +32,10 @@
 
 package org.opensearch.repositories.gcs;
 
-import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.util.SecurityUtils;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
@@ -46,10 +46,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.ssl.KeyStoreFactory;
+import org.opensearch.common.ssl.KeyStoreType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.Authenticator;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
@@ -185,9 +188,12 @@ public class GoogleCloudStorageService {
     private HttpTransport createHttpTransport(final GoogleCloudStorageClientSettings clientSettings) throws IOException {
         return SocketAccess.doPrivilegedIOException(() -> {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-            // requires java.lang.RuntimePermission "setFactory"
-            // Pin the TLS trust certificates.
-            builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
+            // use the BCFIPS trustStore format instead of PKCS#12 to ensure compatibility with BC-FIPS
+            var certTrustStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
+            InputStream keyStoreStream = getClass().getResourceAsStream("/google.bcfks");
+            SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
+
+            builder.trustCertificates(certTrustStore);
             final ProxySettings proxySettings = clientSettings.getProxySettings();
             if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
                 if (proxySettings.isAuthenticated()) {
