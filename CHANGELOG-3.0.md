@@ -54,6 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add optional enum set read / write functionality to stream input / output ([#17556](https://github.com/opensearch-project/OpenSearch/pull/17556))
 
 ### Deprecated
+- Add deprecation warning for `_cat/snapshots` in favor of `_cat/snapshots/<repository>` ([#9345](https://github.com/opensearch-project/OpenSearch/pull/9345))
 
 ### Removed
 - Remove deprecated code to add node name into log pattern of log4j property file ([#4568](https://github.com/opensearch-project/OpenSearch/pull/4568))
