@@ -145,7 +145,7 @@ public final class IndexModule {
     );
 
     /**
-     * Index setting which used to determine how the data is cached locally fully or partially
+     * Index setting which used to determine how the data is cached locally fully or partially.
      */
     public static final Setting<DataLocalityType> INDEX_STORE_LOCALITY_SETTING = new Setting<>(
         "index.store.data_locality",
@@ -154,6 +154,8 @@ public final class IndexModule {
         Property.IndexScope,
         Property.NodeScope
     );
+
+    public static final Setting<Boolean> IS_WARM_INDEX_SETTING = Setting.boolSetting("index.warm", false, Property.IndexScope);
 
     public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = new Setting<>(
         "index.recovery.type",
