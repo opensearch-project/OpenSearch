@@ -451,7 +451,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public TimeValue timeout() {
                 return request.clusterManagerNodeTimeout();
             }
-        }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+        }, "create_snapshot [" + snapshotName + ']', () -> repositoriesService.repository(request.repository()), listener::onFailure);
     }
 
     /**
@@ -640,7 +640,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return request.clusterManagerNodeTimeout();
             }
 
-        }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+        }, "create_snapshot [" + snapshotName + ']', () -> repositoriesService.repository(repositoryName), listener::onFailure);
     }
 
     private void cleanOrphanTimestamp(String repoName, RepositoryData repositoryData) {
@@ -1062,7 +1062,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public TimeValue timeout() {
                 return request.clusterManagerNodeTimeout();
             }
-        }, "clone_snapshot_v2 [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
+        },
+            "clone_snapshot_v2 [" + request.source() + "][" + snapshotName + ']',
+            () -> repositoriesService.repository(repositoryName),
+            listener::onFailure
+        );
     }
 
     // TODO: It is worth revisiting the design choice of creating a placeholder entry in snapshots-in-progress here once we have a cache
@@ -1148,14 +1152,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
                 logger.info("snapshot clone [{}] started", snapshot);
                 addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
-                startCloning(repository, newEntry);
+                startCloning(repository, repositoryName, newEntry);
             }
 
             @Override
             public TimeValue timeout() {
                 return request.clusterManagerNodeTimeout();
             }
-        }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
+        },
+            "clone_snapshot [" + request.source() + "][" + snapshotName + ']',
+            () -> repositoriesService.repository(repositoryName),
+            listener::onFailure
+        );
     }
 
     private static void ensureNoCleanupInProgress(ClusterState currentState, String repositoryName, String snapshotName) {
@@ -1189,7 +1197,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param repository     repository to run operation on
      * @param cloneEntry     clone operation in the cluster state
      */
-    private void startCloning(Repository repository, SnapshotsInProgress.Entry cloneEntry) {
+    private void startCloning(Repository repository, String repositoryName, SnapshotsInProgress.Entry cloneEntry) {
         final List<IndexId> indices = cloneEntry.indices();
         final SnapshotId sourceSnapshot = cloneEntry.source();
         final Snapshot targetSnapshot = cloneEntry.snapshot();
@@ -1310,7 +1318,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     logger.warn("Did not find expected entry [{}] in the cluster state", cloneEntry);
                 }
             }
-        }, "start snapshot clone", onFailure), onFailure);
+        }, "start snapshot clone", () -> repositoriesService.repository(repositoryName), onFailure), onFailure);
     }
 
     private final Set<RepositoryShardId> currentlyCloning = Collections.synchronizedSet(new HashSet<>());
@@ -2639,7 +2647,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public TimeValue timeout() {
                 return request.clusterManagerNodeTimeout();
             }
-        }, "delete snapshot", listener::onFailure);
+        }, "delete snapshot", () -> repositoriesService.repository(repoName), listener::onFailure);
     }
 
     private static List<SnapshotId> matchingSnapshotIds(

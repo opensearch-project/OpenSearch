@@ -65,6 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * An interface for interacting with a repository in snapshot and restore.
@@ -545,8 +546,18 @@ public interface Repository extends LifecycleComponent {
     void executeConsistentStateUpdate(
         Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
         String source,
+        Supplier<Repository> currentRepositeSupplier,
         Consumer<Exception> onFailure
     );
+
+    @Deprecated
+    default void executeConsistentStateUpdate(
+        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+        String source,
+        Consumer<Exception> onFailure
+    ) {
+        executeConsistentStateUpdate(createUpdateTask, source, () -> this, onFailure);
+    }
 
     /**
      * Clones a shard snapshot.
@@ -611,4 +622,7 @@ public interface Repository extends LifecycleComponent {
      * Validate the repository metadata
      */
     default void validateMetadata(RepositoryMetadata repositoryMetadata) {}
+
+    boolean isOpen();
+
 }
