@@ -72,7 +72,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
+            .put(Node.NODE_WARM_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
             .build();
     }
 
@@ -80,7 +80,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder().put(super.nodeSettings(0)).put(FeatureFlags.TIERED_REMOTE_INDEX, false).build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
-        internalTestCluster.startDataAndSearchNodes(1);
+        internalTestCluster.startDataAndWarmNodes(1);
 
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -105,7 +105,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     public void testWritableWarmBasic() throws Exception {
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode();
-        internalTestCluster.startDataAndSearchNodes(1);
+        internalTestCluster.startDataAndWarmNodes(1);
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)

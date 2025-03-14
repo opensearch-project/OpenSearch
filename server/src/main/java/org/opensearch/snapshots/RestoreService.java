@@ -131,7 +131,7 @@ import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
-import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
+import static org.opensearch.node.Node.NODE_WARM_CACHE_SIZE_SETTING;
 
 /**
  * Service responsible for restoring snapshots
@@ -919,7 +919,7 @@ public class RestoreService implements ClusterStateApplier {
                             throw new SnapshotRestoreException(
                                 snapshot,
                                 "Size of the indexes to be restored exceeds the file cache bounds. Increase the file cache capacity on the cluster nodes using "
-                                    + NODE_SEARCH_CACHE_SIZE_SETTING.getKey()
+                                    + NODE_WARM_CACHE_SIZE_SETTING.getKey()
                                     + " setting."
                             );
                         }

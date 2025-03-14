@@ -896,7 +896,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), clusterManagerRoleCount);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), ingestRoleCount);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), remoteClusterClientRoleCount);
-        expectedCounts.put(DiscoveryNodeRole.SEARCH_ROLE.roleName(), searchRoleCount);
+        expectedCounts.put(DiscoveryNodeRole.WARM_ROLE.roleName(), searchRoleCount);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, coordinatingOnlyCount);
         return expectedCounts;
     }
