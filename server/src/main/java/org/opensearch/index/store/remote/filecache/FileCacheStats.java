@@ -33,6 +33,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
     private final long evicted;
     private final long hits;
     private final long misses;
+    private final FullFileCacheStats fullFileCacheStats;
 
     public FileCacheStats(
         final long timestamp,
@@ -41,7 +42,8 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         final long used,
         final long evicted,
         final long hits,
-        final long misses
+        final long misses,
+        final FullFileCacheStats fullFileCacheStats
     ) {
         this.timestamp = timestamp;
         this.active = active;
@@ -50,6 +52,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.evicted = evicted;
         this.hits = hits;
         this.misses = misses;
+        this.fullFileCacheStats = fullFileCacheStats;
     }
 
     public FileCacheStats(final StreamInput in) throws IOException {
@@ -60,6 +63,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.evicted = in.readLong();
         this.hits = in.readLong();
         this.misses = in.readLong();
+        this.fullFileCacheStats = new FullFileCacheStats(in);
     }
 
     public static short calculatePercentage(long used, long max) {
@@ -75,6 +79,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         out.writeLong(evicted);
         out.writeLong(hits);
         out.writeLong(misses);
+        if (fullFileCacheStats != null) fullFileCacheStats.writeTo(out);
     }
 
     public long getTimestamp() {
@@ -113,6 +118,10 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         return misses;
     }
 
+    public FullFileCacheStats fullFileCacheStats() {
+        return fullFileCacheStats;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.FILE_CACHE);
@@ -125,6 +134,9 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         builder.field(Fields.USED_PERCENT, getUsedPercent());
         builder.field(Fields.HIT_COUNT, getCacheHits());
         builder.field(Fields.MISS_COUNT, getCacheMisses());
+        if (fullFileCacheStats != null) {
+            fullFileCacheStats.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }
