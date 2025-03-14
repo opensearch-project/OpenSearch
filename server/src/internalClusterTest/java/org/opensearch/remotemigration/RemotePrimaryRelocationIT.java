@@ -272,7 +272,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         failFinalize.set(false);
 
         client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
-        waitForRelocation();
+        waitForRelocation(TimeValue.timeValueSeconds(90));
 
         asyncIndexingService.stopIndexing();
         client().admin()
