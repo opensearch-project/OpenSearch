@@ -52,6 +52,13 @@ public interface StreamPoller extends Closeable {
 
     PollingIngestStats getStats();
 
+    IngestionErrorStrategy getErrorStrategy();
+
+    /**
+     * Update the error strategy for the poller.
+     */
+    void updateErrorStrategy(IngestionErrorStrategy errorStrategy);
+
     /**
      * a state to indicate the current state of the poller
      */

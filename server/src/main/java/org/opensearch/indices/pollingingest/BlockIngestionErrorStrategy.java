@@ -30,7 +30,7 @@ public class BlockIngestionErrorStrategy implements IngestionErrorStrategy {
     }
 
     @Override
-    public boolean shouldPauseIngestion(Throwable e, ErrorStage stage) {
-        return true;
+    public boolean shouldIgnoreError(Throwable e, ErrorStage stage) {
+        return false;
     }
 }

@@ -771,13 +771,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Final
     );
 
+    /**
+     * Defines the error strategy for pull-based ingestion.
+     */
     public static final String SETTING_INGESTION_SOURCE_ERROR_STRATEGY = "index.ingestion_source.error_strategy";
     public static final Setting<IngestionErrorStrategy.ErrorStrategy> INGESTION_SOURCE_ERROR_STRATEGY_SETTING = new Setting<>(
         SETTING_INGESTION_SOURCE_ERROR_STRATEGY,
         IngestionErrorStrategy.ErrorStrategy.DROP.name(),
         IngestionErrorStrategy.ErrorStrategy::parseFromString,
         (errorStrategy) -> {},
-        Property.IndexScope
+        Property.IndexScope,
+        Property.Dynamic
     );
 
     public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
