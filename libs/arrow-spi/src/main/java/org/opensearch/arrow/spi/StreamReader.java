@@ -8,6 +8,7 @@
 
 package org.opensearch.arrow.spi;
 
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
@@ -36,7 +37,7 @@ import java.io.Closeable;
  * @see StreamProducer
  */
 @ExperimentalApi
-public interface StreamReader<VectorRoot> extends Closeable {
+public interface StreamReader extends Closeable {
 
     /**
      * Blocking request to load next batch into root.
@@ -51,5 +52,5 @@ public interface StreamReader<VectorRoot> extends Closeable {
      *
      * @return the VectorSchemaRoot
      */
-    VectorRoot getRoot();
+    VectorSchemaRoot getRoot();
 }
