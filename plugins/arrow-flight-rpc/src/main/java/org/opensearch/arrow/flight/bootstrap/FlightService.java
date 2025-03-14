@@ -8,7 +8,6 @@
 
 package org.opensearch.arrow.flight.bootstrap;
 
-import org.apache.arrow.flight.NoOpFlightProducer;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.util.AutoCloseables;
@@ -17,6 +16,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.flight.bootstrap.tls.DefaultSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
+import org.opensearch.arrow.flight.impl.BaseFlightProducer;
+import org.opensearch.arrow.flight.impl.FlightStreamManager;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
@@ -104,7 +105,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
                 client
             );
             initializeStreamManager(clientManager);
-            serverComponents.setFlightProducer(new NoOpFlightProducer());
+            serverComponents.setFlightProducer(new BaseFlightProducer(clientManager, (FlightStreamManager) streamManager, allocator));
             serverComponents.start();
 
         } catch (Exception e) {
@@ -165,6 +166,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
     }
 
     private void initializeStreamManager(FlightClientManager clientManager) {
-        streamManager = null;
+        streamManager = new FlightStreamManager(() -> allocator);
+        ((FlightStreamManager) streamManager).setClientManager(clientManager);
     }
 }
