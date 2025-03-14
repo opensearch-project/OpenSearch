@@ -105,6 +105,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
@@ -148,6 +149,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.pollingingest.IngestionEngineFactory;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -365,6 +367,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
+    private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
     private volatile int maxSizeInRequestCache;
 
     @Override
@@ -404,7 +407,8 @@ public class IndicesService extends AbstractLifecycleComponent
         RemoteStoreSettings remoteStoreSettings,
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
-        Consumer<IndexShard> replicator
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -515,6 +519,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.compositeIndexSettings = compositeIndexSettings;
         this.fileCache = fileCache;
         this.replicator = replicator;
+        this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         this.maxSizeInRequestCache = INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING, this::setMaxSizeInRequestCache);
@@ -579,6 +584,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoverySettings,
             cacheService,
             remoteStoreSettings,
+            null,
             null,
             null,
             null
@@ -753,15 +759,18 @@ public class IndicesService extends AbstractLifecycleComponent
         CommitStats commitStats;
         SeqNoStats seqNoStats;
         RetentionLeaseStats retentionLeaseStats;
+        PollingIngestStats pollingIngestStats;
         try {
             commitStats = indexShard.commitStats();
             seqNoStats = indexShard.seqNoStats();
             retentionLeaseStats = indexShard.getRetentionLeaseStats();
+            pollingIngestStats = indexShard.pollingIngestStats();
         } catch (AlreadyClosedException e) {
             // shard is closed - no stats is fine
             commitStats = null;
             seqNoStats = null;
             retentionLeaseStats = null;
+            pollingIngestStats = null;
         }
 
         return new IndexShardStats(
@@ -773,7 +782,8 @@ public class IndicesService extends AbstractLifecycleComponent
                     new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
                     commitStats,
                     seqNoStats,
-                    retentionLeaseStats
+                    retentionLeaseStats,
+                    pollingIngestStats
                 ) }
         );
     }
@@ -998,7 +1008,8 @@ public class IndicesService extends AbstractLifecycleComponent
             this::getClusterDefaultRefreshInterval,
             this.recoverySettings,
             this.remoteStoreSettings,
-            replicator
+            replicator,
+            segmentReplicationStatsProvider
         );
     }
 

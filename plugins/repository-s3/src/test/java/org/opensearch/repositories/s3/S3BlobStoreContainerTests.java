@@ -1970,7 +1970,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, blobContainer::delete);
+        IOException e = expectThrows(IOException.class, blobContainer::delete);
         assertEquals("Future got interrupted", e.getMessage());
         assertTrue(Thread.interrupted()); // Clear interrupted state
     }
@@ -2026,7 +2026,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
         List<String> blobNames = Arrays.asList("test1", "test2");
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> blobContainer.deleteBlobsIgnoringIfNotExists(blobNames));
+        IOException e = expectThrows(IOException.class, () -> blobContainer.deleteBlobsIgnoringIfNotExists(blobNames));
         assertEquals("Future got interrupted", e.getMessage());
         assertTrue(Thread.interrupted()); // Clear interrupted state
     }

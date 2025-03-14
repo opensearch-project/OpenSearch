@@ -14,6 +14,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.Term;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -48,6 +49,8 @@ public class MessageProcessorRunnable implements Runnable {
 
     private final BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
     private final MessageProcessor messageProcessor;
+    private final CounterMetric stats = new CounterMetric();
+    private IngestionErrorStrategy errorStrategy;
 
     private static final String ID = "_id";
     private static final String OP_TYPE = "_op_type";
@@ -61,9 +64,10 @@ public class MessageProcessorRunnable implements Runnable {
      */
     public MessageProcessorRunnable(
         BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
-        IngestionEngine engine
+        IngestionEngine engine,
+        IngestionErrorStrategy errorStrategy
     ) {
-        this(blockingQueue, new MessageProcessor(engine));
+        this(blockingQueue, new MessageProcessor(engine), errorStrategy);
     }
 
     /**
@@ -73,10 +77,12 @@ public class MessageProcessorRunnable implements Runnable {
      */
     MessageProcessorRunnable(
         BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
-        MessageProcessor messageProcessor
+        MessageProcessor messageProcessor,
+        IngestionErrorStrategy errorStrategy
     ) {
         this.blockingQueue = Objects.requireNonNull(blockingQueue);
         this.messageProcessor = messageProcessor;
+        this.errorStrategy = errorStrategy;
     }
 
     static class MessageProcessor {
@@ -229,8 +235,20 @@ public class MessageProcessorRunnable implements Runnable {
                 Thread.currentThread().interrupt(); // Restore interrupt status
             }
             if (result != null) {
-                messageProcessor.process(result.getMessage(), result.getPointer());
+                try {
+                    stats.inc();
+                    messageProcessor.process(result.getMessage(), result.getPointer());
+                } catch (Exception e) {
+                    errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.PROCESSING);
+                    if (errorStrategy.shouldPauseIngestion(e, IngestionErrorStrategy.ErrorStage.PROCESSING)) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
             }
         }
+    }
+
+    public CounterMetric getStats() {
+        return stats;
     }
 }

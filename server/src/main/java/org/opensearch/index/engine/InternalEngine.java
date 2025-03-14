@@ -145,15 +145,27 @@ import java.util.stream.Stream;
 public class InternalEngine extends Engine {
 
     /**
+     * UUID value that is updated every time the engine is force merged.
+     */
+    @Nullable
+    protected volatile String forceMergeUUID;
+
+    /**
      * When we last pruned expired tombstones from versionMap.deletes:
      */
     private volatile long lastDeleteVersionPruneTimeMSec;
 
-    private final InternalTranslogManager translogManager;
+    protected final TranslogManager translogManager;
+    protected final IndexWriter indexWriter;
+    protected final LocalCheckpointTracker localCheckpointTracker;
+    protected final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
+    protected final SoftDeletesPolicy softDeletesPolicy;
+    protected final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
+
+    @Nullable
+    protected final String historyUUID;
+
     private final OpenSearchConcurrentMergeScheduler mergeScheduler;
-
-    private final IndexWriter indexWriter;
-
     private final ExternalReaderManager externalReaderManager;
     private final OpenSearchReaderManager internalReaderManager;
 
@@ -168,15 +180,12 @@ public class InternalEngine extends Engine {
 
     private final IndexThrottle throttle;
 
-    private final LocalCheckpointTracker localCheckpointTracker;
-
     private final CombinedDeletionPolicy combinedDeletionPolicy;
 
     // How many callers are currently requesting index throttling. Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow. When this is 0, there is no throttling, else we throttling
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
-    private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
     // max_seq_no_of_updates_or_deletes tracks the max seq_no of update or delete operations that have been processed in this engine.
     // An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
@@ -189,14 +198,12 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
     private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
-    private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
     private final CompletionStatsCache completionStatsCache;
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
-    private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
 
     /**
      * If multiple writes passed {@link InternalEngine#tryAcquireInFlightDocs(Operation, int)} but they haven't adjusted
@@ -209,15 +216,6 @@ public class InternalEngine extends Engine {
     private final AtomicLong inFlightDocCount = new AtomicLong();
 
     private final int maxDocs;
-
-    @Nullable
-    private final String historyUUID;
-
-    /**
-     * UUID value that is updated every time the engine is force merged.
-     */
-    @Nullable
-    private volatile String forceMergeUUID;
 
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER);
@@ -249,7 +247,7 @@ public class InternalEngine extends Engine {
         ExternalReaderManager externalReaderManager = null;
         OpenSearchReaderManager internalReaderManager = null;
         EngineMergeScheduler scheduler = null;
-        InternalTranslogManager translogManagerRef = null;
+        TranslogManager translogManagerRef = null;
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
@@ -280,20 +278,11 @@ public class InternalEngine extends Engine {
                         }
                     }
                 };
-                translogManagerRef = new InternalTranslogManager(
-                    engineConfig.getTranslogConfig(),
-                    engineConfig.getPrimaryTermSupplier(),
-                    engineConfig.getGlobalCheckpointSupplier(),
-                    translogDeletionPolicy,
-                    shardId,
-                    readLock,
-                    this::getLocalCheckpointTracker,
-                    translogUUID,
-                    new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener), shardId),
-                    this::ensureOpen,
-                    engineConfig.getTranslogFactory(),
-                    engineConfig.getStartedPrimarySupplier()
+                CompositeTranslogEventListener compositeTranslogEventListener = new CompositeTranslogEventListener(
+                    Arrays.asList(internalTranslogEventListener, translogEventListener),
+                    shardId
                 );
+                translogManagerRef = createTranslogManager(translogUUID, translogDeletionPolicy, compositeTranslogEventListener);
                 this.translogManager = translogManagerRef;
                 this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy = new CombinedDeletionPolicy(
@@ -360,6 +349,27 @@ public class InternalEngine extends Engine {
             }
         }
         logger.trace("created new InternalEngine");
+    }
+
+    protected TranslogManager createTranslogManager(
+        String translogUUID,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        CompositeTranslogEventListener translogEventListener
+    ) throws IOException {
+        return new InternalTranslogManager(
+            engineConfig.getTranslogConfig(),
+            engineConfig.getPrimaryTermSupplier(),
+            engineConfig.getGlobalCheckpointSupplier(),
+            translogDeletionPolicy,
+            shardId,
+            readLock,
+            this::getLocalCheckpointTracker,
+            translogUUID,
+            translogEventListener,
+            this::ensureOpen,
+            engineConfig.getTranslogFactory(),
+            engineConfig.getStartedPrimarySupplier()
+        );
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
@@ -2773,7 +2783,7 @@ public class InternalEngine extends Engine {
     /**
      * Gets the commit data from {@link IndexWriter} as a map.
      */
-    private static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
+    protected static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
         final Map<String, String> commitData = new HashMap<>(8);
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
             commitData.put(entry.getKey(), entry.getValue());

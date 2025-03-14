@@ -246,7 +246,7 @@ def encodedCredentials = {
 task createServiceAccountFile() {
   doLast {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(1024)
+    keyPairGenerator.initialize(2048)
     KeyPair keyPair = keyPairGenerator.generateKeyPair()
     String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 

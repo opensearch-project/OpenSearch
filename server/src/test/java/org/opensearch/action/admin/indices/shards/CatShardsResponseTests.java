@@ -152,7 +152,7 @@ public class CatShardsResponseTests extends OpenSearchTestCase {
                 Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(shardId));
                 ShardPath shardPath = new ShardPath(false, path, path, shId);
                 ShardRouting routing = createShardRouting(shId, (shardId == 0));
-                shards.add(new ShardStats(routing, shardPath, new CommonStats(), null, null, null));
+                shards.add(new ShardStats(routing, shardPath, new CommonStats(), null, null, null, null));
             }
         }
         return new IndicesStatsResponse(shards.toArray(new ShardStats[0]), 0, 0, 0, null);

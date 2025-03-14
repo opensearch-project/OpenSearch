@@ -25,6 +25,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Michael Froh             | [msfroh](https://github.com/msfroh)                     | Amazon      |
 | Nick Knize               | [nknize](https://github.com/nknize)                     | Lucenia     |
 | Owais Kazi               | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
+| Pan Guixin               | [bugmakerrrrrr](https://github.com/bugmakerrrrrr)       | ByteDance   |
 | Peter Nied               | [peternied](https://github.com/peternied)               | Amazon      |
 | Rishikesh Pasham         | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
 | Sachin Kale              | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |

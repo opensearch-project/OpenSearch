@@ -43,6 +43,15 @@ dependencies {
   api "software.amazon.awssdk:aws-core:${versions.aws}"
   api "software.amazon.awssdk:utils:${versions.aws}"
   api "software.amazon.awssdk:auth:${versions.aws}"
+  api "software.amazon.awssdk:identity-spi:${versions.aws}"
+  api "software.amazon.awssdk:checksums:${versions.aws}"
+  api "software.amazon.awssdk:checksums-spi:${versions.aws}"
+  api "software.amazon.awssdk.crt:aws-crt:${versions.awscrt}"
+  api "software.amazon.awssdk:http-auth:${versions.aws}"
+  api "software.amazon.awssdk:http-auth-aws:${versions.aws}"
+  api "software.amazon.awssdk:http-auth-spi:${versions.aws}"
+  api "software.amazon.awssdk:retries:${versions.aws}"
+  api "software.amazon.awssdk:retries-spi:${versions.aws}"
   api "software.amazon.awssdk:ec2:${versions.aws}"
   api "software.amazon.awssdk:http-client-spi:${versions.aws}"
   api "software.amazon.awssdk:apache-client:${versions.aws}"
@@ -158,6 +167,8 @@ tasks.named("thirdPartyAudit").configure {
     'org.slf4j.impl.StaticMarkerBinder',
     'software.amazon.eventstream.HeaderValue',
     'software.amazon.eventstream.Message',
-    'software.amazon.eventstream.MessageDecoder'
+    'software.amazon.eventstream.MessageDecoder',
+    'org.graalvm.nativeimage.hosted.Feature',
+    'org.graalvm.nativeimage.hosted.Feature$AfterImageWriteAccess'
   )
 }

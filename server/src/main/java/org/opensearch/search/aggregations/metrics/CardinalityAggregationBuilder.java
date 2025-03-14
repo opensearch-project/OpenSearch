@@ -116,7 +116,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_19_1)) {
             executionHint = in.readOptionalString();
         }
     }
@@ -133,7 +133,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (hasPrecisionThreshold) {
             out.writeLong(precisionThreshold);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_19_1)) {
             out.writeOptionalString(executionHint);
         }
     }
