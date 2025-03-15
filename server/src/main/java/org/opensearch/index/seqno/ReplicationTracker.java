@@ -1291,6 +1291,30 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
+     * In the scenario where segment replication is enabled, determine whether the primary shard has lagging replicas.
+     */
+    public synchronized boolean hasLaggingReplicas() {
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
+        assert primaryMode;
+        boolean hasLaggingReplicas = false;
+        for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
+            final String allocationId = entry.getKey();
+            if (allocationId.equals(this.shardAllocationId) == false) {
+                final CheckpointState cps = entry.getValue();
+                if (cps.inSync
+                    && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
+                    && shouldSkipReplicationTimer(allocationId) == false
+                    && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)
+                    && cps.checkpointTimers.get(latestReplicationCheckpoint).time() > indexSettings.getLagTimeBeforeResendCheckpoint()
+                        .millis()) {
+                    hasLaggingReplicas = true;
+                }
+            }
+        }
+        return hasLaggingReplicas;
+    }
+
+    /**
      * After a new checkpoint is published, start a timer per replica for the checkpoint.
      * @param checkpoint {@link ReplicationCheckpoint}
      */
@@ -1307,7 +1331,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
                     && shouldSkipReplicationTimer(e.getKey()) == false
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
-                    && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)) {
+                    && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)
+                    && cps.checkpointTimers.get(latestReplicationCheckpoint).startTime() == 0) {
                     cps.checkpointTimers.get(latestReplicationCheckpoint).start();
                 }
             });

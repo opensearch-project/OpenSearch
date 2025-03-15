@@ -175,6 +175,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncTranslogFSync fsyncTask;
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
     private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
+    private volatile AsyncPublishCheckpointTask publishCheckpointTask;
     private volatile AsyncReplicationTask asyncReplicationTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
@@ -317,6 +318,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
         if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
             this.asyncReplicationTask = new AsyncReplicationTask(this);
+        }
+        if (indexSettings.isSegRepEnabledOrRemoteNode()) {
+            this.publishCheckpointTask = new AsyncPublishCheckpointTask(this);
         }
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
@@ -514,7 +518,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     fsyncTask,
                     trimTranslogTask,
                     globalCheckpointTask,
-                    retentionLeaseSyncTask
+                    retentionLeaseSyncTask,
+                    publishCheckpointTask
                 );
             }
         }
@@ -1108,6 +1113,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
                 updateReplicationTask();
             }
+            if (indexSettings.isSegRepEnabledOrRemoteNode()) {
+                onPublishCheckpointIntervalChange();
+            }
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
@@ -1155,6 +1163,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         rescheduleRefreshTasks();
     }
 
+    public void onPublishCheckpointIntervalChange() {
+        if (publishCheckpointTask.getInterval().equals(indexSettings.getPublishCheckpointInterval())) {
+            return;
+        }
+        reschedulePublishCheckpointTasks();
+    }
+
     private void updateFsyncTaskIfNecessary() {
         if (indexSettings.getTranslogDurability() == Translog.Durability.REQUEST) {
             try {
@@ -1176,6 +1191,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             refreshTask.close();
         } finally {
             refreshTask = new AsyncRefreshTask(this);
+        }
+    }
+
+    private void reschedulePublishCheckpointTasks() {
+        try {
+            publishCheckpointTask.close();
+        } finally {
+            publishCheckpointTask = new AsyncPublishCheckpointTask(this);
         }
     }
 
@@ -1228,6 +1251,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             for (IndexShard shard : this.shards.values()) {
                 try {
                     shard.scheduledRefresh();
+                } catch (IndexShardClosedException | AlreadyClosedException ex) {
+                    // fine - continue;
+                }
+            }
+        }
+    }
+
+    private void maybePublishCheckpoint() {
+        if (indexSettings.isSegRepEnabledOrRemoteNode()) {
+            for (IndexShard shard : this.shards.values()) {
+                try {
+                    if (shard.isPrimaryMode()) {
+                        shard.scheduledPublishCheckpoint();
+                    }
                 } catch (IndexShardClosedException | AlreadyClosedException ex) {
                     // fine - continue;
                 }
@@ -1382,6 +1419,28 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         public String toString() {
             return "refresh";
+        }
+    }
+
+    final class AsyncPublishCheckpointTask extends BaseAsyncTask {
+
+        AsyncPublishCheckpointTask(IndexService indexService) {
+            super(indexService, indexSettings.getPublishCheckpointInterval());
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.maybePublishCheckpoint();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
+        }
+
+        @Override
+        public String toString() {
+            return "publishCheckpoint";
         }
     }
 

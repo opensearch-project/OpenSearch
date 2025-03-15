@@ -782,6 +782,22 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<TimeValue> INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING = Setting.timeSetting(
+        "index.publish_checkpoint_interval",
+        TimeValue.timeValueMinutes(10),
+        TimeValue.timeValueSeconds(1),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<TimeValue> INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING = Setting.timeSetting(
+        "index.lag_time_before_resend_checkpoint",
+        TimeValue.timeValueMinutes(10),
+        TimeValue.timeValueSeconds(1),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -830,6 +846,8 @@ public final class IndexSettings {
     private final RemoteStorePathStrategy remoteStorePathStrategy;
     private final boolean isTranslogMetadataEnabled;
     private volatile boolean allowDerivedField;
+    private volatile TimeValue publishCheckpointInterval;
+    private volatile TimeValue lagTimeBeforeResendCheckpoint;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -1063,6 +1081,8 @@ public final class IndexSettings {
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
+        publishCheckpointInterval = scopedSettings.get(INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING);
+        lagTimeBeforeResendCheckpoint = scopedSettings.get(INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
          * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
@@ -1200,6 +1220,8 @@ public final class IndexSettings {
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
             this::setRemoteStoreTranslogRepository
         );
+        scopedSettings.addSettingsUpdateConsumer(INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING, this::setPublishCheckpointInterval);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING, this::setLagTimeBeforeResendCheckpoint);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2033,5 +2055,21 @@ public final class IndexSettings {
 
     public void setRemoteStoreTranslogRepository(String remoteStoreTranslogRepository) {
         this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
+    }
+
+    public TimeValue getPublishCheckpointInterval() {
+        return publishCheckpointInterval;
+    }
+
+    public void setPublishCheckpointInterval(TimeValue publishCheckpointInterval) {
+        this.publishCheckpointInterval = publishCheckpointInterval;
+    }
+
+    public TimeValue getLagTimeBeforeResendCheckpoint() {
+        return lagTimeBeforeResendCheckpoint;
+    }
+
+    public void setLagTimeBeforeResendCheckpoint(TimeValue lagTimeBeforeResendCheckpoint) {
+        this.lagTimeBeforeResendCheckpoint = lagTimeBeforeResendCheckpoint;
     }
 }

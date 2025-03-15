@@ -4702,6 +4702,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return false;
     }
 
+    public void scheduledPublishCheckpoint() {
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
+        assert isPrimaryMode();
+        if (replicationTracker.hasLaggingReplicas()) {
+            logger.trace("publish checkpoint {} to replicas", getLatestReplicationCheckpoint());
+            checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
+        }
+    }
+
     /**
      * Returns true if this shards is search idle
      */
