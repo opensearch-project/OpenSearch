@@ -16,24 +16,8 @@ permissions:
   contents: read # to fetch code (actions/checkout)
 
 jobs:
-  check-files:
-    runs-on: ubuntu-latest
-    outputs:
-      RUN_GRADLE_CHECK: ${{ steps.changed-files-specific.outputs.any_changed }}
-    steps:
-    - uses: actions/checkout@v4
-    - name: Get changed files
-      id: changed-files-specific
-      uses: tj-actions/changed-files@v45
-      with:
-        files_ignore: |
-          release-notes/*.md
-          .github/**
-          *.md
-
   gradle-check:
-    needs: check-files
-    if: github.repository == 'opensearch-project/OpenSearch' && needs.check-files.outputs.RUN_GRADLE_CHECK == 'true'
+    if: github.repository == 'opensearch-project/OpenSearch'
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
@@ -164,10 +148,10 @@ jobs:
             Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
 
   check-result:
-    needs: [check-files, gradle-check]
+    needs: [gradle-check]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Fail if gradle-check fails
-        if: ${{ needs.check-files.outputs.RUN_GRADLE_CHECK && needs.gradle-check.result == 'failure' }}
+        if: ${{ needs.gradle-check.result == 'failure' }}
         run: exit 1
