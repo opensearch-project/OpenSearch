@@ -84,6 +84,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add HTTP/2 protocol support to HttpRequest.HttpVersion ([#17248](https://github.com/opensearch-project/OpenSearch/pull/17248))
 - Fix missing bucket in terms aggregation with missing value ([#17418](https://github.com/opensearch-project/OpenSearch/pull/17418))
 - Fix explain action on query rewrite ([#17286](https://github.com/opensearch-project/OpenSearch/pull/17286))
+- Fix bytes parameter on `_cat/recovery` ([#17598](https://github.com/opensearch-project/OpenSearch/pull/17598))
 
 ### Security
 
