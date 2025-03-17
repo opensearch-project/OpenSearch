@@ -1,7 +1,7 @@
-## 2025-02-27 Version 3.0.0-alpha1 Release Notes
+## 2025-03-17 Version 3.0.0-alpha1 Release Notes
 
-## [3.0.0-alpha1]
-### Breaking Changes in 3.0.0-alpha1
+## [3.0.0]
+### Breaking Changes
 - Upgrade to Lucene 10.1.0 - PR ([#16366](https://github.com/opensearch-project/OpenSearch/pull/16366))
 - JDK21 as minimum supported Java runtime ([#10745](https://github.com/opensearch-project/OpenSearch/issues/10745))
 - Remove deprecated terms from Java API ([#5214](https://github.com/opensearch-project/OpenSearch/issues/5214))
