@@ -117,10 +117,13 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
 
     /**
      * Port range on which servers bind.
+     */
+    protected PortsRange port;
+
+    /**
      * Port settings are set using the transport type, in this case GRPC_TRANSPORT_SETTING_KEY.
      * Child classes have distinct transport type keys and need to override these settings.
      */
-    protected PortsRange port;
     protected String portSettingKey = SETTING_GRPC_PORT.getKey();
 
     /**
