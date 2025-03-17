@@ -40,7 +40,7 @@ import java.util.Objects;
 public class FlightService extends NetworkPlugin.AuxTransport {
     private static final Logger logger = LogManager.getLogger(FlightService.class);
     private final ServerComponents serverComponents;
-    private StreamManager streamManager;
+    private FlightStreamManager streamManager;
     private Client client;
     private FlightClientManager clientManager;
     private SecureTransportSettingsProvider secureTransportSettingsProvider;
@@ -105,7 +105,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
                 client
             );
             initializeStreamManager(clientManager);
-            serverComponents.setFlightProducer(new BaseFlightProducer(clientManager, (FlightStreamManager) streamManager, allocator));
+            serverComponents.setFlightProducer(new BaseFlightProducer(clientManager, streamManager, allocator));
             serverComponents.start();
 
         } catch (Exception e) {
@@ -167,6 +167,6 @@ public class FlightService extends NetworkPlugin.AuxTransport {
 
     private void initializeStreamManager(FlightClientManager clientManager) {
         streamManager = new FlightStreamManager(() -> allocator);
-        ((FlightStreamManager) streamManager).setClientManager(clientManager);
+        streamManager.setClientManager(clientManager);
     }
 }

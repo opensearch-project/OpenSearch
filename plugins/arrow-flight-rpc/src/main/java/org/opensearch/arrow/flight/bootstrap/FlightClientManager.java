@@ -100,8 +100,8 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
      * @return An OpenSearchFlightClient instance for the specified node
      */
     public Optional<FlightClient> getFlightClient(String nodeId) {
-        ClientHolder clientHolder = flightClients.getOrDefault(nodeId, null);
-        return clientHolder == null ? Optional.empty() : Optional.ofNullable(clientHolder.flightClient);
+        ClientHolder clientHolder = flightClients.get(nodeId);
+        return clientHolder == null ? Optional.empty() : Optional.of(clientHolder.flightClient);
     }
 
     /**
@@ -110,9 +110,9 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
      * @param nodeId The ID of the node for which to retrieve the location
      * @return The Location of the Flight client for the specified node
      */
-    public Location getFlightClientLocation(String nodeId) {
-        ClientHolder clientHolder = flightClients.getOrDefault(nodeId, null);
-        return clientHolder != null ? clientHolder.location : null;
+    public Optional<Location> getFlightClientLocation(String nodeId) {
+        ClientHolder clientHolder = flightClients.get(nodeId);
+        return clientHolder == null ? Optional.empty() : Optional.of(clientHolder.location);
     }
 
     /**
@@ -129,10 +129,6 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
             throw new RuntimeException(throwable);
         });
         requestNodeLocation(nodeId, locationFuture);
-    }
-
-    Map<String, ClientHolder> getClients() {
-        return flightClients;
     }
 
     private void buildClientAndAddToPool(Location location, DiscoveryNode node) {
@@ -154,30 +150,34 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
 
     private void requestNodeLocation(String nodeId, CompletableFuture<Location> future) {
         NodesFlightInfoRequest request = new NodesFlightInfoRequest(nodeId);
-        client.execute(NodesFlightInfoAction.INSTANCE, request, new ActionListener<>() {
-            @Override
-            public void onResponse(NodesFlightInfoResponse response) {
-                NodeFlightInfo nodeInfo = response.getNodesMap().get(nodeId);
-                if (nodeInfo != null) {
-                    TransportAddress publishAddress = nodeInfo.getBoundAddress().publishAddress();
-                    String address = publishAddress.getAddress();
-                    int flightPort = publishAddress.address().getPort();
-                    Location location = clientConfig.sslContextProvider != null
-                        ? Location.forGrpcTls(address, flightPort)
-                        : Location.forGrpcInsecure(address, flightPort);
+        try {
+            client.execute(NodesFlightInfoAction.INSTANCE, request, new ActionListener<>() {
+                @Override
+                public void onResponse(NodesFlightInfoResponse response) {
+                    NodeFlightInfo nodeInfo = response.getNodesMap().get(nodeId);
+                    if (nodeInfo != null) {
+                        TransportAddress publishAddress = nodeInfo.getBoundAddress().publishAddress();
+                        String address = publishAddress.getAddress();
+                        int flightPort = publishAddress.address().getPort();
+                        Location location = clientConfig.sslContextProvider != null
+                            ? Location.forGrpcTls(address, flightPort)
+                            : Location.forGrpcInsecure(address, flightPort);
 
-                    future.complete(location);
-                } else {
-                    future.completeExceptionally(new IllegalStateException("No Flight info received for node: [" + nodeId + "]"));
+                        future.complete(location);
+                    } else {
+                        future.completeExceptionally(new IllegalStateException("No Flight info received for node: [" + nodeId + "]"));
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                future.completeExceptionally(e);
-                logger.error("Failed to get Flight server info for node: [{}] {}", nodeId, e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    future.completeExceptionally(e);
+                    logger.error("Failed to get Flight server info for node: [{}] {}", nodeId, e);
+                }
+            });
+        } catch (final Exception ex) {
+            future.completeExceptionally(ex);
+        }
     }
 
     private FlightClient buildClient(Location location) {
@@ -200,6 +200,9 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
      */
     @Override
     public void close() throws Exception {
+        if (closed) {
+            return;
+        }
         closed = true;
         for (ClientHolder clientHolder : flightClients.values()) {
             clientHolder.flightClient.close();

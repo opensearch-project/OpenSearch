@@ -107,7 +107,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE);
         clientManager.clusterChanged(event);
         assertBusy(() -> {
-            assertEquals("Flight client isn't built in time limit", 2, clientManager.getClients().size());
+            assertEquals("Flight client isn't built in time limit", 2, clientManager.getFlightClients().size());
             assertTrue("local_node should exist", clientManager.getFlightClient("local_node").isPresent());
             assertNotNull("local_node should exist", clientManager.getFlightClient("local_node").get());
             assertTrue("remote_node should exist", clientManager.getFlightClient("remote_node").isPresent());

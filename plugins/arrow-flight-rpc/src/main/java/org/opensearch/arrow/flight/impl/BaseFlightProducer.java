@@ -158,12 +158,12 @@ public class BaseFlightProducer extends NoOpFlightProducer {
             if (streamProducerHolder.isEmpty()) {
                 throw CallStatus.NOT_FOUND.withDescription("FlightInfo not found").toRuntimeException();
             }
-            Location location = flightClientManager.getFlightClientLocation(streamTicket.getNodeId());
-            if (location == null) {
+            Optional<Location> location = flightClientManager.getFlightClientLocation(streamTicket.getNodeId());
+            if (location.isEmpty()) {
                 throw CallStatus.UNAVAILABLE.withDescription("Internal error while determining location information from ticket.")
                     .toRuntimeException();
             }
-            FlightEndpoint endpoint = new FlightEndpoint(new Ticket(descriptor.getCommand()), location);
+            FlightEndpoint endpoint = new FlightEndpoint(new Ticket(descriptor.getCommand()), location.get());
             FlightInfo.Builder infoBuilder;
             try {
                 infoBuilder = FlightInfo.builder(
