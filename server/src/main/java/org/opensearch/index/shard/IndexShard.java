@@ -5142,7 +5142,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
-            if (indexSettings.isStoreLocalityPartial() == false) {
+            if (indexSettings.isWarmIndex() == false) {
                 copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);
             }
 
@@ -5160,7 +5160,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
                 assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    || indexSettings.isStoreLocalityPartial() : "There should not be any segments file in the dir";
+                    || indexSettings.isWarmIndex() : "There should not be any segments file in the dir";
                 store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             }
             syncSegmentSuccess = true;
