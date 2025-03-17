@@ -277,7 +277,7 @@ import static org.opensearch.action.support.ActionTestUtils.assertNoFailureListe
 import static org.opensearch.env.Environment.PATH_HOME_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
-import static org.opensearch.node.Node.NODE_WARM_CACHE_SIZE_SETTING;
+import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
@@ -520,7 +520,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     throwable.getMessage()
                         .contains(
                             "Size of the indexes to be restored exceeds the file cache bounds. Increase the file cache capacity on the cluster nodes using "
-                                + NODE_WARM_CACHE_SIZE_SETTING.getKey()
+                                + NODE_SEARCH_CACHE_SIZE_SETTING.getKey()
                                 + " setting."
                         )
                 );

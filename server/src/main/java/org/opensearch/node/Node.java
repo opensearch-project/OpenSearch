@@ -399,7 +399,7 @@ public class Node implements Closeable {
 
     private static final String ZERO = "0";
 
-    public static final Setting<String> NODE_WARM_CACHE_SIZE_SETTING = new Setting<>(
+    public static final Setting<String> NODE_SEARCH_CACHE_SIZE_SETTING = new Setting<>(
         "node.search.cache.size",
         s -> (DiscoveryNode.isDedicatedWarmNode(s)) ? "80%" : ZERO,
         Node::validateFileCacheSize,
@@ -2165,7 +2165,7 @@ public class Node implements Closeable {
 
     /**
      * Initializes the warm cache with a defined capacity.
-     * The capacity of the cache is based on user configuration for {@link Node#NODE_WARM_CACHE_SIZE_SETTING}.
+     * The capacity of the cache is based on user configuration for {@link Node#NODE_SEARCH_CACHE_SIZE_SETTING}.
      * If the user doesn't configure the cache size, it fails if the node is a data + warm node.
      * Else it configures the size to 80% of total capacity for a dedicated warm node, if not explicitly defined.
      */
@@ -2174,7 +2174,7 @@ public class Node implements Closeable {
             return;
         }
 
-        String capacityRaw = NODE_WARM_CACHE_SIZE_SETTING.get(settings);
+        String capacityRaw = NODE_SEARCH_CACHE_SIZE_SETTING.get(settings);
         logger.info("cache size [{}]", capacityRaw);
         if (capacityRaw.equals(ZERO)) {
             throw new SettingsException(
@@ -2183,7 +2183,7 @@ public class Node implements Closeable {
                     + "-"
                     + DiscoveryNodeRole.DATA_ROLE.roleName()
                     + " node: Missing value for configuration "
-                    + NODE_WARM_CACHE_SIZE_SETTING.getKey()
+                    + NODE_SEARCH_CACHE_SIZE_SETTING.getKey()
             );
         }
 
@@ -2206,7 +2206,7 @@ public class Node implements Closeable {
             return Math.round(totalSpace * ratioValue.getAsRatio());
         } catch (OpenSearchParseException e) {
             try {
-                return ByteSizeValue.parseBytesSizeValue(capacityRaw, NODE_WARM_CACHE_SIZE_SETTING.getKey()).getBytes();
+                return ByteSizeValue.parseBytesSizeValue(capacityRaw, NODE_SEARCH_CACHE_SIZE_SETTING.getKey()).getBytes();
             } catch (OpenSearchParseException ex) {
                 ex.addSuppressed(e);
                 throw ex;

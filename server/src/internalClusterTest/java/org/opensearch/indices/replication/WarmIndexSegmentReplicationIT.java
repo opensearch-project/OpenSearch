@@ -143,7 +143,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath))
-            .put(Node.NODE_WARM_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
             .build();
     }
 

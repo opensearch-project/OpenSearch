@@ -698,7 +698,7 @@ public final class InternalTestCluster extends TestCluster {
             Set<DiscoveryNodeRole> warmAndDataRoles = Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.WARM_ROLE);
             Settings settings = Settings.builder()
                 .put(
-                    Node.NODE_WARM_CACHE_SIZE_SETTING.getKey(),
+                    Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(),
                     randomBoolean() ? DEFAULT_WARM_CACHE_SIZE_PERCENT : DEFAULT_WARM_CACHE_SIZE_BYTES
                 )
                 .build();

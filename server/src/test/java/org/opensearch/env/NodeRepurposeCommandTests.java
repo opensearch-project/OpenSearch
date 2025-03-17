@@ -66,7 +66,7 @@ import static org.opensearch.env.NodeRepurposeCommand.NO_CLEANUP;
 import static org.opensearch.env.NodeRepurposeCommand.NO_DATA_TO_CLEAN_UP_FOUND;
 import static org.opensearch.env.NodeRepurposeCommand.NO_FILE_CACHE_DATA_TO_CLEAN_UP_FOUND;
 import static org.opensearch.env.NodeRepurposeCommand.NO_SHARD_DATA_TO_CLEAN_UP_FOUND;
-import static org.opensearch.node.Node.NODE_WARM_CACHE_SIZE_SETTING;
+import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
 import static org.opensearch.test.NodeRoles.addRoles;
 import static org.opensearch.test.NodeRoles.clusterManagerNode;
 import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
@@ -95,7 +95,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         dataClusterManagerSettings = buildEnvSettings(Settings.EMPTY);
         Settings defaultWarmSettings = Settings.builder()
             .put(dataClusterManagerSettings)
-            .put(NODE_WARM_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(16, ByteSizeUnit.GB).toString())
+            .put(NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(16, ByteSizeUnit.GB).toString())
             .build();
 
         warmNoDataNoClusterManagerSettings = onlyRole(dataClusterManagerSettings, DiscoveryNodeRole.WARM_ROLE);

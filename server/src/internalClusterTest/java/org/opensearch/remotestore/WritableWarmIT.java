@@ -72,7 +72,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(Node.NODE_WARM_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
             .build();
     }
 

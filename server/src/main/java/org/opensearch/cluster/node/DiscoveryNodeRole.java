@@ -298,7 +298,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     };
 
     /**
-     * Represents the role for a warm node, which is dedicated to provide searchable snapshots.
+     * Represents the role for a warm node, which is dedicated to hold warm indices.
      */
     public static final DiscoveryNodeRole WARM_ROLE = new DiscoveryNodeRole("warm", "w", true) {
 

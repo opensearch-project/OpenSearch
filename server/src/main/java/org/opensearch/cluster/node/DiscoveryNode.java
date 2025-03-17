@@ -480,7 +480,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     }
 
     /**
-     * Returns whether the node is dedicated to provide searchable snapshot.
+     * Returns whether the node is dedicated to hold warm indices.
      *
      * @return true if the node contains warm role, false otherwise
      */

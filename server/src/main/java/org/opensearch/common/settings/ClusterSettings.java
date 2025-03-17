@@ -709,7 +709,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING,
 
                 // Settings related to Searchable Snapshots
-                Node.NODE_WARM_CACHE_SIZE_SETTING,
+                Node.NODE_SEARCH_CACHE_SIZE_SETTING,
                 FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
