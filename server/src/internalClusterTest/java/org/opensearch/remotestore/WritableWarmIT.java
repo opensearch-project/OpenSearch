@@ -63,7 +63,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     @Override
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
-        featureSettings.put(FeatureFlags.TIERED_REMOTE_INDEX, true);
+        featureSettings.put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true);
         return featureSettings.build();
     }
 
@@ -77,7 +77,11 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     }
 
     public void testWritableWarmFeatureFlagDisabled() {
-        Settings clusterSettings = Settings.builder().put(super.nodeSettings(0)).put(FeatureFlags.TIERED_REMOTE_INDEX, false).build();
+        Settings clusterSettings = Settings.builder()
+            .put(super.nodeSettings(0))
+            .put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, false)
+            .build();
+
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
         internalTestCluster.startDataAndSearchNodes(1);
@@ -85,7 +89,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name())
+            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false)
             .build();
 
         try {
@@ -94,7 +98,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         } catch (SettingsException ex) {
             assertEquals(
                 "unknown setting ["
-                    + IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()
+                    + IndexModule.IS_WARM_INDEX_SETTING.getKey()
                     + "] please check that any required plugins are installed, or check the "
                     + "breaking changes documentation for removed settings",
                 ex.getMessage()
@@ -109,7 +113,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name())
+            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
             .build();
         assertAcked(client().admin().indices().prepareCreate(INDEX_NAME).setSettings(settings).get());
 
@@ -119,7 +123,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
             .getIndex(new GetIndexRequest().indices(INDEX_NAME).includeDefaults(true))
             .get();
         Settings indexSettings = getIndexResponse.settings().get(INDEX_NAME);
-        assertEquals(IndexModule.DataLocalityType.PARTIAL.name(), indexSettings.get(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()));
+        assertTrue(indexSettings.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false));
 
         // Ingesting some docs
         indexBulk(INDEX_NAME, NUM_DOCS_IN_BULK);
