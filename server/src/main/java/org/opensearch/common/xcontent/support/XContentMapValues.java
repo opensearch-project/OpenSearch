@@ -621,4 +621,95 @@ public class XContentMapValues {
             return Strings.splitStringByCommaToArray(node.toString());
         }
     }
+
+    /**
+     * Performs a depth first traversal of a map and applies a transformation for each field matched along the way. For
+     * duplicated paths with transformers (i.e. "test.nested" and "test.nested.field"), only the transformer for
+     * the shorter path is applied.
+     *
+     * @param source Source map to perform transformation on
+     * @param transformers Map from path to transformer to apply to each path. Each transformer is a function that takes
+     *                    the current value and returns a transformed value
+     * @return Copy of the source map with the transformations applied
+     */
+    public static Map<String, Object> transform(Map<String, Object> source, Map<String, Function<Object, Object>> transformers) {
+        // Create a trie structure for the transformers, where the keys in the structure are components of the path and
+        // the leaf value is the transformer. Non-leaves point to sub tries
+        Map<String, Object> transformerTrie = new HashMap<>();
+        for (Map.Entry<String, Function<Object, Object>> entry : transformers.entrySet()) {
+            if (entry.getKey() == null || entry.getKey().isEmpty()) {
+                continue;
+            }
+            String[] pathElements = entry.getKey().split("\\.");
+            addToTransformerTrie(transformerTrie, pathElements, 0, entry.getValue());
+        }
+        Map<String, Object> copy = new HashMap<>(source);
+        transformRecursive(copy, transformerTrie);
+        return copy;
+    }
+
+    private static void addToTransformerTrie(
+        Map<String, Object> trie,
+        String[] pathElements,
+        int index,
+        Function<Object, Object> transformer
+    ) {
+        if (index == pathElements.length) {
+            trie.put("$transformer", transformer);
+            return;
+        }
+
+        String key = pathElements[index];
+        @SuppressWarnings("unchecked")
+        Map<String, Object> subTrie = (Map<String, Object>) trie.computeIfAbsent(key, k -> new HashMap<>());
+        addToTransformerTrie(subTrie, pathElements, index + 1, transformer);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void transformRecursive(Object current, Map<String, Object> transformerTrie) {
+        if (current instanceof Map) {
+            // For maps, we loop through the keys and check if any transformers apply. Additionally, we recurse down
+            // if necessary
+            Map<String, Object> map = nodeMapValue(current, "transform");
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+                Map<String, Object> subTrie = (Map<String, Object>) transformerTrie.get(key);
+                if (subTrie == null) {
+                    continue;
+                }
+
+                // If the subTrie is present, we apply. Further, we do not recurse on top of this value.
+                Function<Object, Object> transformer = (Function<Object, Object>) subTrie.get("$transformer");
+                if (transformer != null) {
+                    entry.setValue(transformer.apply(value));
+                    continue;
+                }
+
+                // Create copies before recursion so that we guarantee mutability
+                if (value instanceof Map) {
+                    value = new HashMap<>(nodeMapValue(value, "transform"));
+                    transformRecursive(value, subTrie);
+                    entry.setValue(value);
+                } else if (value instanceof Iterable<?> iterable) {
+                    List<Object> copy = new ArrayList<>();
+                    iterable.forEach(copy::add);
+                    transformRecursive(copy, subTrie);
+                    entry.setValue(copy);
+                }
+            }
+        } else if (current instanceof List) {
+            // For iterables, we need to process each element with the same transformer trie. We are only interested in
+            // cases were the individual items are maps, as is the case in nested docs.
+            List<Object> list = (List<Object>) current;
+            for (int i = 0; i < list.size(); i++) {
+                Object value = list.get(i);
+                if (value instanceof Map) {
+                    value = new HashMap<>(nodeMapValue(value, "transform"));
+                    transformRecursive(value, transformerTrie);
+                    list.set(i, value);
+                }
+            }
+        }
+    }
 }
