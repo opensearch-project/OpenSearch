@@ -65,27 +65,24 @@ public class FakeIngestionSource {
         @Override
         public List<ReadResult<FakeIngestionShardPointer, FakeIngestionMessage>> readNext(
             FakeIngestionShardPointer pointer,
+            boolean includeStart,
             long maxMessages,
             int timeoutMillis
         ) throws TimeoutException {
-            lastFetchedOffset = pointer.offset - 1;
+            if (includeStart) {
+                lastFetchedOffset = pointer.offset - 1;
+            } else {
+                lastFetchedOffset = pointer.offset;
+            }
+
             int numToFetch = Math.min(messages.size() - (int) pointer.offset, (int) maxMessages);
             List<ReadResult<FakeIngestionShardPointer, FakeIngestionMessage>> result = new ArrayList<>();
-            for (long i = pointer.offset; i < pointer.offset + numToFetch; i++) {
+            long startOffset = includeStart ? pointer.offset : pointer.offset + 1;
+            for (long i = startOffset; i < pointer.offset + numToFetch; i++) {
                 result.add(new ReadResult<>(new FakeIngestionShardPointer(i), new FakeIngestionMessage(messages.get((int) i))));
                 lastFetchedOffset = i;
             }
             return result;
-        }
-
-        @Override
-        public FakeIngestionShardPointer nextPointer() {
-            return new FakeIngestionShardPointer(lastFetchedOffset + 1);
-        }
-
-        @Override
-        public FakeIngestionShardPointer nextPointer(FakeIngestionShardPointer startPointer) {
-            return new FakeIngestionShardPointer(startPointer.offset + 1);
         }
 
         @Override
