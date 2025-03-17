@@ -48,6 +48,18 @@ import java.io.IOException;
 public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
 
     /**
+     * This function combines a filter with a query builder. If the query builder itself has
+     * a filter we will combine the filter and return the query builder itself.
+     * If not we will use a bool query builder to combine the query builder and
+     * the filter and then return the bool query builder.
+     * If the filter is null we simply return the query builder without any operation.
+     *
+     * @param filter The null filter to be added to the existing filter.
+     * @return A QueryBuilder with the filter added to the existing filter.
+     */
+    QueryBuilder filter(QueryBuilder filter);
+
+    /**
      * Converts this QueryBuilder to a lucene {@link Query}.
      * Returns {@code null} if this query should be ignored in the context of
      * parent queries.

@@ -1060,7 +1060,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
 
     @SuppressForbidden(reason = "feature flag overrides")
     public void testPartialIndexPrimaryDefault() throws Exception {
-        System.setProperty(FeatureFlags.TIERED_REMOTE_INDEX, "true");
+        System.setProperty(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, "true");
         final int numIndices = 1;
         final int numShards = 2;
         final int numReplicas = 2;
@@ -1116,7 +1116,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         } finally {
             IOUtils.close(clusterService);
             terminate(threadPool);
-            System.setProperty(FeatureFlags.TIERED_REMOTE_INDEX, "false");
+            System.setProperty(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, "false");
         }
     }
 

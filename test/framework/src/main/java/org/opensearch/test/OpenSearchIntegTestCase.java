@@ -399,11 +399,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     protected static final String REMOTE_BACKED_STORAGE_REPOSITORY_NAME = "test-remote-store-repo";
 
-    private static Boolean prefixModeVerificationEnable;
+    protected static Boolean prefixModeVerificationEnable;
 
-    private static Boolean translogPathFixedPrefix;
+    protected static Boolean translogPathFixedPrefix;
 
-    private static Boolean segmentsPathFixedPrefix;
+    protected static Boolean segmentsPathFixedPrefix;
 
     protected static Boolean snapshotShardPathFixedPrefix;
 
