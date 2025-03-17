@@ -78,6 +78,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -91,6 +92,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.objectToUnsignedLong;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
@@ -146,7 +148,14 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             new DimensionFieldData("long_field", () -> random().nextInt(50), DimensionTypes.LONG),
             new DimensionFieldData("half_float_field", () -> random().nextFloat(50), DimensionTypes.HALF_FLOAT),
             new DimensionFieldData("float_field", () -> random().nextFloat(50), DimensionTypes.FLOAT),
-            new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE)
+            new DimensionFieldData("double_field", () -> random().nextDouble(50), DimensionTypes.DOUBLE),
+            new DimensionFieldData("unsigned_long_field", () -> {
+                long queryValue = randomBoolean()
+                    ? 9223372036854775807L - random().nextInt(100000)
+                    : -9223372036854775808L + random().nextInt(100000);
+
+                return objectToUnsignedLong(asUnsignedDecimalString(queryValue), false);
+            }, DimensionTypes.UNSIGNED_LONG)
         );
         for (Supplier<Integer> maxLeafDocsSupplier : MAX_LEAF_DOC_VARIATIONS) {
             testStarTreeDocValuesInternal(
@@ -624,6 +633,17 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             public Dimension getDimension(String fieldName) {
                 return new OrdinalDimension(fieldName);
             }
+        }),
+        UNSIGNED_LONG(new NumericDimensionFieldDataSupplier() {
+            @Override
+            NumberFieldMapper.NumberType numberType() {
+                return NumberFieldMapper.NumberType.UNSIGNED_LONG;
+            }
+
+            @Override
+            public IndexableField getField(String fieldName, Supplier<Object> valueSupplier) {
+                return new BigIntegerField(fieldName, (BigInteger) valueSupplier.get(), Field.Store.YES);
+            }
         });
 
         private final DimensionFieldDataSupplier dimensionFieldDataSupplier;
@@ -636,6 +656,14 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             return dimensionFieldDataSupplier;
         }
 
+    }
+
+    private String asUnsignedDecimalString(long l) {
+        BigInteger b = BigInteger.valueOf(l);
+        if (b.signum() < 0) {
+            b = b.add(BigInteger.ONE.shiftLeft(64));
+        }
+        return b.toString();
     }
 
 }
