@@ -43,7 +43,7 @@ public class FlightStreamManager implements StreamManager {
 
     private FlightStreamTicketFactory ticketFactory;
     private FlightClientManager clientManager;
-    private final Supplier<BufferAllocator> allocatorSupplier;
+    private Supplier<BufferAllocator> allocatorSupplier;
     private final Cache<String, StreamProducerHolder> streamProducers;
     // TODO read from setting
     private static final TimeValue DEFAULT_CACHE_EXPIRE = TimeValue.timeValueMinutes(10);
@@ -79,16 +79,21 @@ public class FlightStreamManager implements StreamManager {
 
     /**
      * Constructs a new FlightStreamManager.
-     * @param allocatorSupplier The supplier for BufferAllocator instances used for memory management.
-     *                          This parameter is required to be non-null.
-
      */
-    public FlightStreamManager(Supplier<BufferAllocator> allocatorSupplier) {
-        this.allocatorSupplier = allocatorSupplier;
+    public FlightStreamManager() {
         this.streamProducers = CacheBuilder.<String, StreamProducerHolder>builder()
             .setExpireAfterWrite(DEFAULT_CACHE_EXPIRE)
             .setMaximumWeight(MAX_WEIGHT)
             .build();
+    }
+
+    /**
+     * Sets the allocator supplier for this FlightStreamManager.
+     * @param allocatorSupplier The supplier for BufferAllocator instances used for memory management.
+     *                          This parameter is required to be non-null.
+     */
+    public void setAllocatorSupplier(Supplier<BufferAllocator> allocatorSupplier) {
+        this.allocatorSupplier = allocatorSupplier;
     }
 
     /**

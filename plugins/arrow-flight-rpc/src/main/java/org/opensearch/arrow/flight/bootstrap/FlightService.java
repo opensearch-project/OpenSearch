@@ -59,6 +59,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
             throw new RuntimeException("Failed to initialize Arrow Flight server", e);
         }
         this.serverComponents = new ServerComponents(settings);
+        this.streamManager = new FlightStreamManager();
     }
 
     void setClusterService(ClusterService clusterService) {
@@ -166,7 +167,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
     }
 
     private void initializeStreamManager(FlightClientManager clientManager) {
-        streamManager = new FlightStreamManager(() -> allocator);
+        streamManager.setAllocatorSupplier(() -> allocator);
         streamManager.setClientManager(clientManager);
     }
 }
