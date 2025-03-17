@@ -12,6 +12,8 @@ import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v1CertificateBuilder;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.opensearch.common.ssl.KeyStoreFactory;
+import org.opensearch.common.ssl.KeyStoreType;
 
 import javax.security.auth.x500.X500Principal;
 import javax.security.auth.x500.X500PrivateCredential;
@@ -29,7 +31,7 @@ public class KeyStoreUtils {
 
     public static KeyStore createServerKeyStore() throws Exception {
         var serverCred = createCredential();
-        var keyStore = KeyStore.getInstance("JKS");
+        var keyStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
         keyStore.load(null, null);
         keyStore.setKeyEntry(
             serverCred.getAlias(),

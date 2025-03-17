@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -72,8 +73,13 @@ public class SslDiagnosticsTests extends OpenSearchTestCase {
 
     public void testTrustEmptyStore() {
         var fileName = "cert-all/empty.jks";
-        var exception = assertThrows(CertificateException.class, () -> loadCertificate(fileName));
-        assertThat(exception.getMessage(), Matchers.equalTo("No certificate data found"));
+        var exception = assertThrows(SslConfigException.class, () -> loadCertificate(fileName));
+        assertThat(
+            exception.getMessage(),
+            Matchers.equalTo(
+                String.format(Locale.ROOT, "Failed to parse any certificate from [%s]", getDataPath("/certs/" + fileName).toAbsolutePath())
+            )
+        );
     }
 
     public void testDiagnosticMessageWhenServerProvidesAFullCertChainThatIsTrusted() throws Exception {
