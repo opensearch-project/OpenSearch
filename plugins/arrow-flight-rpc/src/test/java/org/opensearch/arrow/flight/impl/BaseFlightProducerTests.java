@@ -500,7 +500,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
         when(streamProducer.createRoot(any(BufferAllocator.class))).thenReturn(root);
 
         Location location = Location.forGrpcInsecure(LOCAL_NODE_ID, 8815);
-        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(location);
+        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(Optional.of(location));
         when(streamProducer.estimatedRowCount()).thenReturn(100);
         FlightDescriptor descriptor = FlightDescriptor.command(ticket.getBytes());
         FlightInfo flightInfo = baseFlightProducer.getFlightInfo(null, descriptor);
@@ -512,7 +512,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
     }
 
     public void testGetFlightInfo_NotFound() {
-        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(null);
+        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(Optional.empty());
 
         FlightDescriptor descriptor = FlightDescriptor.command(ticket.getBytes());
         FlightRuntimeException exception = expectThrows(
@@ -533,7 +533,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
         when(streamProducer.createJob(any(BufferAllocator.class))).thenReturn(batchedJob);
         when(streamProducer.createRoot(any(BufferAllocator.class))).thenReturn(root);
 
-        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(null);
+        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(Optional.empty());
 
         FlightDescriptor descriptor = FlightDescriptor.command(ticket.getBytes());
         FlightRuntimeException exception = expectThrows(
@@ -549,7 +549,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
             Optional.of(FlightStreamManager.StreamProducerHolder.create(streamProducer, allocator))
         );
         Location location = Location.forGrpcInsecure("localhost", 8815);
-        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(location);
+        when(flightClientManager.getFlightClientLocation(LOCAL_NODE_ID)).thenReturn(Optional.of(location));
         when(streamProducer.estimatedRowCount()).thenThrow(new RuntimeException("Schema error"));
 
         FlightDescriptor descriptor = FlightDescriptor.command(ticket.getBytes());
