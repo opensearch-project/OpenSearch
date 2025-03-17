@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `software.amazon.awssdk` from 2.20.86 to 2.30.31 ([17396](https://github.com/opensearch-project/OpenSearch/pull/17396))
 - Bump `org.jruby.jcodings:jcodings` from 1.0.61 to 1.0.63 ([#17560](https://github.com/opensearch-project/OpenSearch/pull/17560))
 - Bump `com.azure:azure-storage-blob` from 12.28.1 to 12.29.1 ([#17562](https://github.com/opensearch-project/OpenSearch/pull/17562))
+- Bump `ch.qos.logback:logback-core` from 1.5.16 to 1.5.17 ([#17609](https://github.com/opensearch-project/OpenSearch/pull/17609))
 
 ### Changed
 - Convert transport-reactor-netty4 to use gradle version catalog [#17233](https://github.com/opensearch-project/OpenSearch/pull/17233)
