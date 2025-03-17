@@ -22,6 +22,8 @@ import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.WlmStats;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rest.action.cat.RestTable;
+import org.opensearch.action.pagination.WlmPaginationStrategy;
+import org.opensearch.action.pagination.PageToken;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,6 +66,15 @@ public class RestWlmStatsAction extends BaseRestHandler {
         Boolean breach = request.hasParam("breach") ? Boolean.parseBoolean(request.param("boolean")) : null;
         WlmStatsRequest wlmStatsRequest = new WlmStatsRequest(nodesIds, workloadGroupIds, breach);
 
+        int pageSize = request.paramAsInt("size", 10);  // Default to 10 results per page
+        String nextToken = request.param("next_token");
+        String sortBy = request.param("sort", "node_id"); // Default: sort by node_id
+        String sortOrder = request.param("order", "asc"); // Default: ascending order
+
+        if (!sortOrder.equals("asc") && !sortOrder.equals("desc")) {
+            throw new IllegalArgumentException("Invalid value for 'order'. Allowed: 'asc', 'desc'.");
+        }
+
         boolean isTabular = request.rawPath().contains("_list/wlm_stats");
 
         if (isTabular) {
@@ -71,9 +82,17 @@ public class RestWlmStatsAction extends BaseRestHandler {
                 new RestResponseListener<WlmStatsResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(WlmStatsResponse response) throws Exception {
-                        Table table = buildTable(response);
+                        WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
+                        List<WlmStats> paginatedStats = paginationStrategy.getPaginatedStats(response);
+                        Table paginatedTable = buildTable(paginatedStats, paginationStrategy);
+                        PageToken nextPageToken = paginationStrategy.getNextToken();
+
+                        if (nextPageToken != null) {
+                            paginatedTable.setPageToken(nextPageToken);
+                        }
+
                         request.params().put("v", "true");
-                        return RestTable.buildResponse(table, channel);
+                        return RestTable.buildResponse(paginatedTable, channel);
                     }
                 }
             );
@@ -85,7 +104,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
     /**
      * Builds a tabular response with '|' column separators.
      */
-    private Table buildTable(WlmStatsResponse response) {
+    private Table buildTable(List<WlmStats> paginatedStats, WlmPaginationStrategy paginationStrategy) {
         Table table = new Table();
         table.startHeaders();
         table.addCell("NODE_ID", "desc:Node ID");
@@ -100,18 +119,10 @@ public class RestWlmStatsAction extends BaseRestHandler {
         table.addCell("|");
         table.addCell("CPU_USAGE", "desc:CPU Usage");
         table.addCell("|");
-        table.addCell("CPU_CANCELLATIONS", "desc:CPU Canceled");
-        table.addCell("|");
-        table.addCell("CPU_REJECTIONS", "desc:CPU Rejected");
-        table.addCell("|");
         table.addCell("MEMORY_USAGE", "desc:Memory Usage");
-        table.addCell("|");
-        table.addCell("MEMORY_CANCELLATIONS", "desc:Memory Canceled");
-        table.addCell("|");
-        table.addCell("MEMORY_REJECTIONS", "desc:Memory Rejected");
         table.endHeaders();
 
-        for (WlmStats wlmStats : response.getNodes()) {
+        for (WlmStats wlmStats : paginatedStats) {
             String nodeId = wlmStats.getNode().getId();
             QueryGroupStats queryGroupStats = wlmStats.getWorkloadGroupStats();
 
@@ -120,7 +131,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
                 QueryGroupStats.QueryGroupStatsHolder statsHolder = entry.getValue();
 
                 table.startRow();
-                table.addCell(nodeId);
+                table.addCell(wlmStats.getNode().getId());
                 table.addCell("|");
                 table.addCell(queryGroupId);
                 table.addCell("|");
@@ -136,17 +147,18 @@ public class RestWlmStatsAction extends BaseRestHandler {
 
                 table.addCell(cpuStats != null ? cpuStats.getCurrentUsage() : 0);
                 table.addCell("|");
-                table.addCell(cpuStats != null ? cpuStats.getCancellations() : 0);
-                table.addCell("|");
-                table.addCell(cpuStats != null ? cpuStats.getRejections() : 0);
-                table.addCell("|");
                 table.addCell(memoryStats != null ? memoryStats.getCurrentUsage() : 0);
-                table.addCell("|");
-                table.addCell(memoryStats != null ? memoryStats.getCancellations() : 0);
-                table.addCell("|");
-                table.addCell(memoryStats != null ? memoryStats.getRejections() : 0);
                 table.endRow();
             }
+        }
+
+        if (paginationStrategy.getNextToken() == null) {
+            table.startRow();
+            table.addCell("No more pages available");
+            for (int i = 1; i < 13; i++) {
+                table.addCell("-");
+            }
+            table.endRow();
         }
 
         return table;

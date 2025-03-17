@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm.stats;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.wlm.ResourceType;
 

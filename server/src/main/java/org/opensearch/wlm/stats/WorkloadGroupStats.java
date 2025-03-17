@@ -223,6 +223,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
     /**
      * point in time resource level stats holder
      */
+    @ExperimentalApi
     public static class ResourceStats implements ToXContentObject, Writeable {
         public static final String CURRENT_USAGE = "current_usage";
         public static final String CANCELLATIONS = "cancellations";
