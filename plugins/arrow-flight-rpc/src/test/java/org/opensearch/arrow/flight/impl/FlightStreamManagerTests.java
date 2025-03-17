@@ -44,7 +44,8 @@ public class FlightStreamManagerTests extends OpenSearchTestCase {
         when(clientManager.getLocalNodeId()).thenReturn(NODE_ID);
         when(clientManager.getFlightClient(NODE_ID)).thenReturn(Optional.of(flightClient));
         BufferAllocator allocator = mock(BufferAllocator.class);
-        flightStreamManager = new FlightStreamManager(() -> allocator);
+        flightStreamManager = new FlightStreamManager();
+        flightStreamManager.setAllocatorSupplier(() -> allocator);
         flightStreamManager.setClientManager(clientManager);
     }
 
