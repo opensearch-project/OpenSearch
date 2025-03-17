@@ -1,13 +1,11 @@
 name: Link Checker
 on:
   schedule:
-    - cron:  '0 0 * * *'
-permissions:
-  contents: read # to fetch code (actions/checkout)
+    - cron: "00 8 * * 5"
+
 jobs:
   linkchecker:
-    if: github.repository == 'opensearch-project/OpenSearch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v6
@@ -15,7 +13,8 @@ jobs:
         id: lychee
         uses: lycheeverse/lychee-action@v2.7.0
         with:
-          args: --accept=200,403,429 --exclude-mail **/*.html **/*.md **/*.txt **/*.json --exclude-file .lychee.excludes
-          fail: true
+          args: --accept=200,403,429  "./**/*.md" "./**/*.txt" --exclude-all-private --insecure --exclude "https://www.gnu.org/licenses"
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      - name: Fail if there were link errors
+        run: exit ${{ steps.lychee.outputs.exit_code }}
