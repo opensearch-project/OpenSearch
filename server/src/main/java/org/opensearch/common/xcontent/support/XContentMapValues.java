@@ -43,9 +43,11 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -59,6 +61,8 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public class XContentMapValues {
+
+    private static final String TRANSFORMER_TRIE_LEAF_KEY = "$transformer";
 
     /**
      * Extracts raw values (string, int, and so on) based on the path provided returning all of them
@@ -633,19 +637,37 @@ public class XContentMapValues {
      * @return Copy of the source map with the transformations applied
      */
     public static Map<String, Object> transform(Map<String, Object> source, Map<String, Function<Object, Object>> transformers) {
-        // Create a trie structure for the transformers, where the keys in the structure are components of the path and
-        // the leaf value is the transformer. Non-leaves point to sub tries
-        Map<String, Object> transformerTrie = new HashMap<>();
+        return transform(transformers).apply(source);
+    }
+
+    /**
+     * Returns function that performs a depth first traversal of a map and applies a transformation for each field
+     * matched along the way. For duplicated paths with transformers (i.e. "test.nested" and "test.nested.field"), only
+     * the transformer for the shorter path is applied.
+     *
+     * @param transformers Map from path to transformer to apply to each path. Each transformer is a function that takes
+     *                     the current value and returns a transformed value
+     * @return Function that takes a map and returns a transformed copy of the map
+     */
+    public static Function<Map<String, Object>, Map<String, Object>> transform(Map<String, Function<Object, Object>> transformers) {
+        Map<String, Object> transformerTrie = buildTransformerTrie(transformers);
+        return source -> {
+            Deque<TransformContext> stack = new ArrayDeque<>();
+            Map<String, Object> result = new HashMap<>(source);
+            stack.push(new TransformContext(result, transformerTrie));
+
+            processStack(stack);
+            return result;
+        };
+    }
+
+    private static Map<String, Object> buildTransformerTrie(Map<String, Function<Object, Object>> transformers) {
+        Map<String, Object> trie = new HashMap<>();
         for (Map.Entry<String, Function<Object, Object>> entry : transformers.entrySet()) {
-            if (entry.getKey() == null || entry.getKey().isEmpty()) {
-                continue;
-            }
             String[] pathElements = entry.getKey().split("\\.");
-            addToTransformerTrie(transformerTrie, pathElements, 0, entry.getValue());
+            addToTransformerTrie(trie, pathElements, 0, entry.getValue());
         }
-        Map<String, Object> copy = new HashMap<>(source);
-        transformRecursive(copy, transformerTrie);
-        return copy;
+        return trie;
     }
 
     private static void addToTransformerTrie(
@@ -655,7 +677,7 @@ public class XContentMapValues {
         Function<Object, Object> transformer
     ) {
         if (index == pathElements.length) {
-            trie.put("$transformer", transformer);
+            trie.put(TRANSFORMER_TRIE_LEAF_KEY, transformer);
             return;
         }
 
@@ -665,51 +687,66 @@ public class XContentMapValues {
         addToTransformerTrie(subTrie, pathElements, index + 1, transformer);
     }
 
-    @SuppressWarnings("unchecked")
-    private static void transformRecursive(Object current, Map<String, Object> transformerTrie) {
-        if (current instanceof Map) {
-            // For maps, we loop through the keys and check if any transformers apply. Additionally, we recurse down
-            // if necessary
-            Map<String, Object> map = nodeMapValue(current, "transform");
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                String key = entry.getKey();
-                Object value = entry.getValue();
-                Map<String, Object> subTrie = (Map<String, Object>) transformerTrie.get(key);
-                if (subTrie == null) {
-                    continue;
-                }
+    private static void processStack(Deque<TransformContext> stack) {
+        while (!stack.isEmpty()) {
+            TransformContext ctx = stack.pop();
+            processMap(ctx.map, ctx.trie, stack);
+        }
+    }
 
-                // If the subTrie is present, we apply. Further, we do not recurse on top of this value.
-                Function<Object, Object> transformer = (Function<Object, Object>) subTrie.get("$transformer");
-                if (transformer != null) {
-                    entry.setValue(transformer.apply(value));
-                    continue;
-                }
+    private static void processMap(Map<String, Object> currentMap, Map<String, Object> currentTrie, Deque<TransformContext> stack) {
+        for (Map.Entry<String, Object> entry : currentMap.entrySet()) {
+            processEntry(entry, currentTrie, stack);
+        }
+    }
 
-                // Create copies before recursion so that we guarantee mutability
-                if (value instanceof Map) {
-                    value = new HashMap<>(nodeMapValue(value, "transform"));
-                    transformRecursive(value, subTrie);
-                    entry.setValue(value);
-                } else if (value instanceof Iterable<?> iterable) {
-                    List<Object> copy = new ArrayList<>();
-                    iterable.forEach(copy::add);
-                    transformRecursive(copy, subTrie);
-                    entry.setValue(copy);
-                }
+    private static void processEntry(Map.Entry<String, Object> entry, Map<String, Object> currentTrie, Deque<TransformContext> stack) {
+        String key = entry.getKey();
+        Object value = entry.getValue();
+
+        Object subTrieObj = currentTrie.get(key);
+        if (subTrieObj instanceof Map == false) {
+            return;
+        }
+        Map<String, Object> subTrie = nodeMapValue(subTrieObj, "transform");
+
+        // Apply transformation if available
+        Function<Object, Object> transformer = (Function<Object, Object>) subTrie.get(TRANSFORMER_TRIE_LEAF_KEY);
+        if (transformer != null) {
+            entry.setValue(transformer.apply(value));
+            return;
+        }
+
+        // Process nested structures
+        if (value instanceof Map) {
+            Map<String, Object> copy = new HashMap<>(nodeMapValue(value, "transform"));
+            stack.push(new TransformContext(copy, subTrie));
+            entry.setValue(copy);
+        } else if (value instanceof List<?> list) {
+            List<Object> copy = new ArrayList<>(list);
+            processList(copy, subTrie, stack);
+            entry.setValue(copy);
+        }
+    }
+
+    private static void processList(List<Object> list, Map<String, Object> transformerTrie, Deque<TransformContext> stack) {
+        for (int i = list.size() - 1; i >= 0; i--) {
+            Object value = list.get(i);
+            if (value instanceof Map) {
+                Map<String, Object> copy = new HashMap<>(nodeMapValue(value, "transform"));
+                stack.push(new TransformContext(copy, transformerTrie));
+                list.set(i, copy);
             }
-        } else if (current instanceof List) {
-            // For iterables, we need to process each element with the same transformer trie. We are only interested in
-            // cases were the individual items are maps, as is the case in nested docs.
-            List<Object> list = (List<Object>) current;
-            for (int i = 0; i < list.size(); i++) {
-                Object value = list.get(i);
-                if (value instanceof Map) {
-                    value = new HashMap<>(nodeMapValue(value, "transform"));
-                    transformRecursive(value, transformerTrie);
-                    list.set(i, value);
-                }
-            }
+        }
+    }
+
+    private static class TransformContext {
+        Map<String, Object> map;
+        Map<String, Object> trie;
+
+        TransformContext(Map<String, Object> map, Map<String, Object> trie) {
+            this.map = map;
+            this.trie = trie;
         }
     }
 }
