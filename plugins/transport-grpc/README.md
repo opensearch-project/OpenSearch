@@ -13,8 +13,8 @@ setting 'aux.transport.experimental-transport-grpc.port',   '9400-9500' //option
 For the secure transport:
 
 ```
-setting 'aux.transport.types',                              '[experimental-transport-grpc]'
-setting 'aux.transport.experimental-transport-grpc.port',   '9400-9500' //optional
+setting 'aux.transport.types',                                      '[experimental-secure-transport-grpc]'
+setting 'aux.transport.experimental-secure-transport-grpc.port',    '9400-9500' //optional
 ```
 
 Other settings are agnostic as to the gRPC transport type:
