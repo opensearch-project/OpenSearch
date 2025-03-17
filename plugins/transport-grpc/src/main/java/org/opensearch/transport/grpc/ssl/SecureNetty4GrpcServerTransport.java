@@ -26,7 +26,14 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
  * Security settings injected through a SecureAuxTransportSettingsProvider.
  */
 public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
+    /**
+     * Type key to select secure transport.
+     */
     public static final String GRPC_SECURE_TRANSPORT_SETTING_KEY = "experimental-secure-transport-grpc";
+
+    /**
+     * Distinct port setting required as it depends on transport type key.
+     */
     public static final Setting<PortsRange> SETTING_GRPC_SECURE_PORT = AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(
         GRPC_SECURE_TRANSPORT_SETTING_KEY
     );
