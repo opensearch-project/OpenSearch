@@ -26,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Star Tree] [Search] Resolving keyword & numeric bucket aggregation with metric aggregation using star-tree ([#17165](https://github.com/opensearch-project/OpenSearch/pull/17165))
 - Added error handling support for the pull-based ingestion ([#17427](https://github.com/opensearch-project/OpenSearch/pull/17427))
 - A Java Agent for intercepting socket operation and enforcing a security policy to it.
+- Added Warm index setting and Updated nomenclature to differentiate between hot and warm tiering implementation ([#17490](https://github.com/opensearch-project/OpenSearch/pull/17490))
+
 
 ### Dependencies
 - Update Apache Lucene to 10.1.0 ([#16366](https://github.com/opensearch-project/OpenSearch/pull/16366))
@@ -51,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Use Lucene `BM25Similarity` as default since the `LegacyBM25Similarity` is marked as deprecated ([#17306](https://github.com/opensearch-project/OpenSearch/pull/17306))
 - Wildcard field index only 3gram of the input data [#17349](https://github.com/opensearch-project/OpenSearch/pull/17349)
 - Use BC libraries to parse PEM files, increase key length, allow general use of known cryptographic binary extensions, remove unused BC dependencies ([#3420](https://github.com/opensearch-project/OpenSearch/pull/14912))
+- Add optional enum set read / write functionality to stream input / output ([#17556](https://github.com/opensearch-project/OpenSearch/pull/17556))
 
 ### Deprecated
 

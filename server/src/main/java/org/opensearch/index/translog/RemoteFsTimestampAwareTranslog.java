@@ -146,7 +146,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
         // This is to fail fast and avoid listing md files un-necessarily.
         if (indexDeleted == false && RemoteStoreUtils.isPinnedTimestampStateStale()) {
-            logger.warn("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");
+            logger.debug("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");
             return;
         }
 
@@ -179,7 +179,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
                     // Check last fetch status of pinned timestamps. If stale, return.
                     if (indexDeleted == false && RemoteStoreUtils.isPinnedTimestampStateStale()) {
-                        logger.warn("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");
+                        logger.debug("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");
                         remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
                         return;
                     }
