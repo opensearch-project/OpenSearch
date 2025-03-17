@@ -15,6 +15,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,6 +23,7 @@ import java.util.Objects;
 /**
  * This class contains the stats for Workload Management
  */
+@ExperimentalApi
 public class WlmStats extends BaseNodeResponse implements ToXContentObject, Writeable {
     private final WorkloadGroupStats workloadGroupStats;
 
