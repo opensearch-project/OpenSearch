@@ -31,6 +31,8 @@ import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GR
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_HOST;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT;
 import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT;
+import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
+import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT;
 
 /**
  * Main class for the gRPC plugin.
@@ -68,7 +70,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin {
         Tracer tracer
     ) {
         return Collections.singletonMap(
-            GRPC_TRANSPORT_SETTING_KEY,
+            GRPC_SECURE_TRANSPORT_SETTING_KEY,
             () -> new SecureNetty4GrpcServerTransport(settings, Collections.emptyList(), networkService, secureAuxTransportSettingsProvider)
         );
     }
@@ -77,6 +79,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin {
     public List<Setting<?>> getSettings() {
         return List.of(
             SETTING_GRPC_PORT,
+            SETTING_GRPC_SECURE_PORT,
             SETTING_GRPC_HOST,
             SETTING_GRPC_PUBLISH_HOST,
             SETTING_GRPC_BIND_HOST,
