@@ -249,8 +249,8 @@ final class DefaultSearchContext extends SearchContext {
             lowLevelCancellation,
             concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_AUTO)
                 || concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL) ? executor : null,
-            this,
-            clusterService
+            this
+
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;

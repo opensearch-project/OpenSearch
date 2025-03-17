@@ -14,19 +14,20 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.stream.Collectors;
 
 /**
  * @opensearch.internal
- * @opensearch.experimental
- * This class is experimental and may be changed or removed completely
- * in a future release without warning
+ *
+ * Compute leaf slices based on leaf document count. The BalancedDocsSliceSupplier performs greedy assignment of leaves.
+ * The slice with the lowest total document count is prioritized as new leaves are read.
+ * This is a different mechanism to @ref MaxTargetSliceSupplier, but
+ * experiments TODO add link to PR that showed it was better for the vector workload in terms of recall.
+ *
  */
 final class BalancedDocsSliceSupplier {
 
@@ -39,129 +40,7 @@ final class BalancedDocsSliceSupplier {
      * @param targetMaxSlice Maximum number of desired slices
      * @return Array of LeafSlice containing balanced distribution of readers
      */
-     static IndexSearcher.LeafSlice[] getSlicesv0(List<LeafReaderContext> leaves, int targetMaxSlice) {
-        if (leaves == null || leaves.isEmpty()) {
-            return new IndexSearcher.LeafSlice[0];
-        }
-
-        if (targetMaxSlice <= 1 || leaves.size() == 1) {
-            return new IndexSearcher.LeafSlice[]{new IndexSearcher.LeafSlice(leaves)};
-        }
-
-        // Calculate sizes for each leaf
-        Map<Integer, Long> leafSizes = new HashMap<>();
-        long totalDocs = 0;
-        for (int i = 0; i < leaves.size(); i++) {
-            long size = leaves.get(i).reader().maxDoc();
-            leafSizes.put(i, size);
-            totalDocs += size;
-        }
-
-        // Calculate actual number of slices (min of target and leaf count)
-        int actualSlices = Math.min(targetMaxSlice, leaves.size());
-        long targetDocsPerSlice = totalDocs / actualSlices;
-
-        // Create slices
-        List<List<LeafReaderContext>> groupedLeaves = new ArrayList<>();
-        List<LeafReaderContext> currentSlice = new ArrayList<>();
-        long currentSliceSize = 0;
-
-        // Sort leaves by size for better distribution
-        List<Map.Entry<Integer, Long>> sortedLeaves = new ArrayList<>(leafSizes.entrySet());
-        sortedLeaves.sort(Map.Entry.<Integer, Long>comparingByValue().reversed());
-
-        for (Map.Entry<Integer, Long> entry : sortedLeaves) {
-            int leafIndex = entry.getKey();
-            long leafSize = entry.getValue();
-
-            // If adding this leaf would exceed target size and we haven't reached last slice,
-            // start a new slice
-            if (currentSliceSize > 0 &&
-                currentSliceSize + leafSize > targetDocsPerSlice &&
-                groupedLeaves.size() < actualSlices - 1) {
-                groupedLeaves.add(currentSlice);
-                currentSlice = new ArrayList<>();
-                currentSliceSize = 0;
-            }
-
-            currentSlice.add(leaves.get(leafIndex));
-            currentSliceSize += leafSize;
-        }
-
-        // Add the last slice if it's not empty
-        if (!currentSlice.isEmpty()) {
-            groupedLeaves.add(currentSlice);
-        }
-
-        return groupedLeaves.stream().map(IndexSearcher.LeafSlice::new).toArray(IndexSearcher.LeafSlice[]::new);
-    }
-
-    static IndexSearcher.LeafSlice[] getSlicesV1(List<LeafReaderContext> leaves, int targetMaxSlice) {
-        if (leaves == null || leaves.isEmpty()) {
-            return new IndexSearcher.LeafSlice[0];
-        }
-
-        if (targetMaxSlice <= 1 || leaves.size() == 1) {
-            return new IndexSearcher.LeafSlice[]{new IndexSearcher.LeafSlice(leaves)};
-        }
-
-        // Calculate sizes
-        long[] sizes = new long[leaves.size()];
-        long totalDocs = 0;
-        for (int i = 0; i < leaves.size(); i++) {
-            sizes[i] = leaves.get(i).reader().maxDoc();
-            totalDocs += sizes[i];
-        }
-
-        int actualSlices = Math.min(targetMaxSlice, leaves.size());
-        long targetDocsPerSlice = totalDocs / actualSlices;
-
-        // Initialize slices
-        List<List<LeafReaderContext>> groupedLeaves = new ArrayList<>();
-        for (int i = 0; i < actualSlices; i++) {
-            groupedLeaves.add(new ArrayList<>());
-        }
-
-        // Create pairs of (index, size) and sort by size
-        Integer[] indices = new Integer[leaves.size()];
-        for (int i = 0; i < leaves.size(); i++) {
-            indices[i] = i;
-        }
-        Arrays.sort(indices, (a, b) -> Long.compare(sizes[b], sizes[a]));
-
-        // Distribute leaves using a greedy approach
-        for (int i = 0; i < indices.length; i++) {
-            int leafIndex = indices[i];
-
-            // Find the slice with the smallest current total that can fit this leaf
-            int bestSlice = 0;
-            long minTotal = getSliceTotal(groupedLeaves.get(0), leaves);
-
-            for (int j = 1; j < groupedLeaves.size(); j++) {
-                long sliceTotal = getSliceTotal(groupedLeaves.get(j), leaves);
-                if (sliceTotal < minTotal) {
-                    minTotal = sliceTotal;
-                    bestSlice = j;
-                }
-            }
-
-            groupedLeaves.get(bestSlice).add(leaves.get(leafIndex));
-        }
-
-        // Remove empty slices and convert to array
-        groupedLeaves.removeIf(List::isEmpty);
-        return groupedLeaves.stream()
-            .map(IndexSearcher.LeafSlice::new)
-            .toArray(IndexSearcher.LeafSlice[]::new);
-    }
-
-    private static long getSliceTotal(List<LeafReaderContext> slice, List<LeafReaderContext> allLeaves) {
-        return slice.stream()
-            .mapToLong(leaf -> leaf.reader().maxDoc())
-            .sum();
-    }
-
-    public static IndexSearcher.LeafSlice[] getSlicesV2(List<LeafReaderContext> leaves, int targetMaxSlice) {
+    public static IndexSearcher.LeafSlice[] getSlices(List<LeafReaderContext> leaves, int targetMaxSlice) {
         if (targetMaxSlice <= 0) {
             throw new IllegalArgumentException("Target max slice must be > 0 but got: " + targetMaxSlice);
         }
@@ -196,10 +75,19 @@ final class BalancedDocsSliceSupplier {
 
         // Convert the SliceGroups to an array of LeafSlice objects.
         List<IndexSearcher.LeafSlice> slices = new ArrayList<>();
-        for (SliceGroup group : queue) {
-            slices.add(new IndexSearcher.LeafSlice(group.groupLeaves));
+        while (!queue.isEmpty()) {
+            SliceGroup group = queue.poll();
+            List<IndexSearcher.LeafReaderContextPartition> partitions = group.groupLeaves.stream().map(
+                IndexSearcher.LeafReaderContextPartition::createForEntireSegment
+            ).collect(Collectors.toList());
+            slices.add(new IndexSearcher.LeafSlice(partitions));
         }
+        // reverse the slices so the largest slices are first to preserve compatibility with ContextIndexSearcherTests.
+        // if k = number of segments then we'll perform O(klogk) + O(k) work to keep preexisting unit tests.
+        // back of napkin math: With around 10M 768 fp32 vectors we see 35GB total data size, assuming ~0.5GB target
+        // size per segment we'd get around 70 segments.
+        Collections.reverse(slices);
 
-        return slices.toArray(new IndexSearcher.LeafSlice[0]);
+        return slices.toArray(IndexSearcher.LeafSlice[]::new);
     }
 }

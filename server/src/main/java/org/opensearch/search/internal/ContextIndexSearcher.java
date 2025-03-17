@@ -602,8 +602,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             logger.debug("Slice count using lucene default [{}]", leafSlices.length);
         } else {
             // use the custom slice calculation based on targetMaxSlice
-            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
-            logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
+            // possible TODO is to see if there are any performance regressions on the current method; if so, change based on the SearchContext value.
+//            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+            leafSlices = BalancedDocsSliceSupplier.getSlices(leaves, targetMaxSlice);
+            logger.debug("Slice count using balanced docs slice supplier [{}]", leafSlices.length);
         }
         return leafSlices;
     }

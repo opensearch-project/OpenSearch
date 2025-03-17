@@ -52,4 +52,29 @@ public class IndexReaderUtils {
             }
         }
     }
+
+    public static List<LeafReaderContext> getLeavesWithDocCounts(int[] docCounts) throws Exception {
+        try (
+            final Directory directory = newDirectory();
+            final IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int i = 0; i < docCounts.length; ++i) {
+                final String fieldValue = "value" + i;
+                for (int j = 0; j < docCounts[i]; j++) {
+                    Document document = new Document();
+                    document.add(new StringField("field1:" +j , fieldValue, Field.Store.NO));
+                    document.add(new StringField("field2:" + j, fieldValue, Field.Store.NO));
+                    iw.addDocument(document);
+                }
+                iw.commit();
+            }
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = directoryReader.leaves();
+                return leaves;
+            }
+        }
+    }
 }
