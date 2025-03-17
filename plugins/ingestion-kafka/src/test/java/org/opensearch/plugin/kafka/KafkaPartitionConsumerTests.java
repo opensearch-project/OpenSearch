@@ -65,7 +65,6 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
 
         assertEquals(1, result.size());
         assertEquals("message", new String(result.get(0).getMessage().getPayload(), StandardCharsets.UTF_8));
-        assertEquals(1, consumer.nextPointer().getOffset());
         assertEquals(0, consumer.getShardId());
         assertEquals("client1", consumer.getClientId());
     }

@@ -125,23 +125,15 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         long maxMessages,
         int timeoutMillis
     ) throws TimeoutException {
-        List<ReadResult<KafkaOffset, KafkaMessage>> records =
-            AccessController.doPrivileged((PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(offset.getOffset(),
+        List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
+            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(
+                offset.getOffset(),
                 includeStart,
                 maxMessages,
                 timeoutMillis
-            ));
+            )
+        );
         return records;
-    }
-
-    @Override
-    public KafkaOffset nextPointer() {
-        return new KafkaOffset(lastFetchedOffset + 1);
-    }
-
-    @Override
-    public KafkaOffset nextPointer(KafkaOffset pointer) {
-        return new KafkaOffset(pointer.getOffset() + 1);
     }
 
     @Override
