@@ -43,7 +43,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -68,7 +68,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public static final ClusterInfo EMPTY = new ClusterInfo();
     final Map<ShardRouting, String> routingToDataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
-    final Map<String, FileCacheStats> nodeFileCacheStats;
+    final Map<String, AggregateFileCacheStats> nodeFileCacheStats;
     private long avgTotalBytes;
     private long avgFreeByte;
 
@@ -92,7 +92,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         final Map<String, Long> shardSizes,
         final Map<ShardRouting, String> routingToDataPath,
         final Map<NodeAndPath, ReservedSpace> reservedSpace,
-        final Map<String, FileCacheStats> nodeFileCacheStats
+        final Map<String, AggregateFileCacheStats> nodeFileCacheStats
     ) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
@@ -117,7 +117,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.routingToDataPath = Collections.unmodifiableMap(routingMap);
         this.reservedSpace = Collections.unmodifiableMap(reservedSpaceMap);
         if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
-            this.nodeFileCacheStats = in.readMap(StreamInput::readString, FileCacheStats::new);
+            this.nodeFileCacheStats = in.readMap(StreamInput::readString, AggregateFileCacheStats::new);
         } else {
             this.nodeFileCacheStats = Map.of();
         }
@@ -242,7 +242,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Returns a node id to file cache stats mapping for the nodes that have search roles assigned to it.
      */
-    public Map<String, FileCacheStats> getNodeFileCacheStats() {
+    public Map<String, AggregateFileCacheStats> getNodeFileCacheStats() {
         return Collections.unmodifiableMap(this.nodeFileCacheStats);
     }
 
