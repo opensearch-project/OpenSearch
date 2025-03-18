@@ -208,20 +208,20 @@ public class NodeRoles {
         return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
     }
 
-    public static Settings searchNode() {
-        return searchNode(Settings.EMPTY);
+    public static Settings warmNode() {
+        return warmNode(Settings.EMPTY);
     }
 
-    public static Settings searchNode(final Settings settings) {
-        return addRoles(settings, Collections.singleton(DiscoveryNodeRole.SEARCH_ROLE));
+    public static Settings warmNode(final Settings settings) {
+        return addRoles(settings, Collections.singleton(DiscoveryNodeRole.WARM_ROLE));
     }
 
-    public static Settings nonSearchNode() {
-        return nonSearchNode(Settings.EMPTY);
+    public static Settings nonWarmNode() {
+        return nonWarmNode(Settings.EMPTY);
     }
 
-    public static Settings nonSearchNode(final Settings settings) {
-        return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.SEARCH_ROLE));
+    public static Settings nonWarmNode(final Settings settings) {
+        return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.WARM_ROLE));
     }
 
 }
