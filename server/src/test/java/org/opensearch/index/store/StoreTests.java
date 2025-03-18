@@ -72,7 +72,6 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.LuceneTests;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
@@ -90,7 +89,6 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
@@ -113,6 +111,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.test.VersionUtils.randomVersion;
@@ -1282,6 +1281,7 @@ public class StoreTests extends OpenSearchTestCase {
         assertTrue(diff.identical.isEmpty());
     }
 
+    @LockFeatureFlag(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
     public void testReadSegmentsFromOldIndices() throws Exception {
         int expectedIndexCreatedVersionMajor = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION.luceneVersion.major;
@@ -1291,7 +1291,6 @@ public class StoreTests extends OpenSearchTestCase {
         Store store = null;
 
         try {
-            FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
                 "index",
                 Settings.builder()

@@ -11,7 +11,6 @@ package org.opensearch.cluster.applicationtemplates;
 import org.opensearch.cluster.service.applicationtemplates.TestSystemTemplatesRepositoryPlugin;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -23,12 +22,14 @@ import java.util.List;
 import org.mockito.Mockito;
 
 import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+import static org.opensearch.common.util.FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES;
 import static org.mockito.Mockito.when;
 
 public class SystemTemplatesServiceTests extends OpenSearchTestCase {
 
     private SystemTemplatesService systemTemplatesService;
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testSystemTemplatesLoaded() throws IOException {
         setupService(true);
 
@@ -43,6 +44,7 @@ public class SystemTemplatesServiceTests extends OpenSearchTestCase {
         }
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testSystemTemplatesVerifyAndLoad() throws IOException {
         setupService(false);
 
@@ -61,6 +63,7 @@ public class SystemTemplatesServiceTests extends OpenSearchTestCase {
         assertEquals(stats.getFailedLoadingRepositories(), 0L);
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testSystemTemplatesVerifyWithFailingRepository() throws IOException {
         setupService(true);
 
@@ -77,8 +80,6 @@ public class SystemTemplatesServiceTests extends OpenSearchTestCase {
     }
 
     private void setupService(boolean errorFromMockPlugin) throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
-
         ThreadPool mockPool = Mockito.mock(ThreadPool.class);
         when(mockPool.generic()).thenReturn(OpenSearchExecutors.newDirectExecutorService());
 

@@ -156,6 +156,7 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.getInde
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.common.util.FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_MERGE_POLICY;
@@ -247,8 +248,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        // clear any FeatureFlags needed for individual tests
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
         clusterSettings = null;
     }
 
@@ -1600,9 +1599,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         }));
     }
 
+    @LockFeatureFlag(REMOTE_STORE_MIGRATION_EXPERIMENTAL)
     public void testNewIndexIsRemoteStoreBackedForRemoteStoreDirectionAndMixedMode() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build());
-
         // non-remote cluster manager node
         DiscoveryNode nonRemoteClusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -2314,40 +2312,41 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testCreateIndexWithContextDisabled() throws Exception {
         // Explicitly disable the FF
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, false).build());
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
-        withTemporaryClusterService((clusterService, threadPool) -> {
-            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
-                Settings.EMPTY,
-                clusterService,
-                indicesServices,
-                null,
-                null,
-                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
-                mock(Environment.class),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                threadPool,
-                null,
-                new SystemIndices(Collections.emptyMap()),
-                false,
-                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                DefaultRemoteStoreSettings.INSTANCE,
-                repositoriesServiceSupplier
-            );
-            CountDownLatch counter = new CountDownLatch(1);
-            InvalidIndexContextException exception = expectThrows(
-                InvalidIndexContextException.class,
-                () -> checkerService.validateContext(request)
-            );
-            assertTrue(
-                "Invalid exception message." + exception.getMessage(),
-                exception.getMessage().contains("index specifies a context which cannot be used without enabling")
-            );
+        FeatureFlags.TestUtils.with(APPLICATION_BASED_CONFIGURATION_TEMPLATES, false, () -> {
+            request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
+            withTemporaryClusterService((clusterService, threadPool) -> {
+                MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                    Settings.EMPTY,
+                    clusterService,
+                    indicesServices,
+                    null,
+                    null,
+                    createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                    mock(Environment.class),
+                    IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                    threadPool,
+                    null,
+                    new SystemIndices(Collections.emptyMap()),
+                    false,
+                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    repositoriesServiceSupplier
+                );
+                CountDownLatch counter = new CountDownLatch(1);
+                InvalidIndexContextException exception = expectThrows(
+                    InvalidIndexContextException.class,
+                    () -> checkerService.validateContext(request)
+                );
+                assertTrue(
+                    "Invalid exception message." + exception.getMessage(),
+                    exception.getMessage().contains("index specifies a context which cannot be used without enabling")
+                );
+            });
         });
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testCreateIndexWithContextAbsent() throws Exception {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
         withTemporaryClusterService((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
@@ -2379,8 +2378,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         });
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testApplyContext() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
 
         final Map<String, Object> mappings = new HashMap<>();
@@ -2476,8 +2475,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         });
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testApplyContextWithSettingsOverlap() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test").context(new Context(randomAlphaOfLength(5)));
         Settings.Builder settingsBuilder = Settings.builder().put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), "30s");
         String templateContent = "{\n"
