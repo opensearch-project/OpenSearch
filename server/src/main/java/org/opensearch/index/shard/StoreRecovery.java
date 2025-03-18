@@ -793,13 +793,14 @@ final class StoreRecovery {
             if (indexShouldExist) {
                 SegmentInfos segmentInfos = readSegmentInfosFromStore(store);
                 if (segmentInfos != null) {
-                    handleExistingIndex(indexShard, recoveryState, segmentInfos, store);
+                    recoverLocalFiles(recoveryState, segmentInfos, store);
                 } else {
-                    // If we couldn't read segment infos
+                    // During a node-left scenario where the search shard was unassigned
+                    // and is now recovering on a new node.
+                    // The node lacks SegmentsInfo for that shard, it falls back to Empty Store recovery.
                     recoverEmptyStore(indexShard, store);
                 }
             } else {
-                // recovery source is EMPTY_STORE
                 recoverEmptyStore(indexShard, store);
             }
             completeRecovery(indexShard, store);
@@ -811,11 +812,11 @@ final class StoreRecovery {
     }
 
     private SegmentInfos readSegmentInfosFromStore(Store store) throws IndexShardRecoveryException {
-        SegmentInfos si = null;
+        SegmentInfos segmentInfos = null;
         try {
             store.failIfCorrupted();
             try {
-                si = store.readLastCommittedSegmentsInfo();
+                segmentInfos = store.readLastCommittedSegmentsInfo();
             } catch (Exception ignored) {
                 // Ignore the exception
                 logger.error("Failed to readLastCommittedSegmentsInfo");
@@ -823,17 +824,7 @@ final class StoreRecovery {
         } catch (Exception e) {
             throw new IndexShardRecoveryException(shardId, "failed to fetch index version", e);
         }
-        return si;
-    }
-
-    private void handleExistingIndex(IndexShard indexShard, RecoveryState recoveryState, SegmentInfos segmentInfos, Store store)
-        throws IOException {
-        if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
-            store.bootstrapNewHistory();
-            writeEmptyRetentionLeasesFile(indexShard);
-        }
-
-        recoverLocalFiles(recoveryState, segmentInfos, store);
+        return segmentInfos;
     }
 
     private void completeRecovery(IndexShard indexShard, Store store) throws IOException {
@@ -862,15 +853,9 @@ final class StoreRecovery {
         indexShard.recoveryState().getIndex().setFileDetailsComplete();
     }
 
-    private void recoverLocalFiles(RecoveryState recoveryState, SegmentInfos si, Store store) {
+    private void recoverLocalFiles(RecoveryState recoveryState, SegmentInfos segmentInfos, Store store) throws IOException {
         final ReplicationLuceneIndex index = recoveryState.getIndex();
-        try {
-            if (si != null) {
-                addRecoveredFileDetails(si, store, index);
-            }
-        } catch (IOException e) {
-            logger.debug("failed to list file details", e);
-        }
+        addRecoveredFileDetails(segmentInfos, store, index);
         index.setFileDetailsComplete();
     }
 
