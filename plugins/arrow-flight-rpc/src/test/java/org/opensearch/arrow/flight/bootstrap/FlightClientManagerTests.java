@@ -24,6 +24,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -63,6 +64,7 @@ import static org.mockito.Mockito.when;
 
 @SuppressWarnings("unchecked")
 public class FlightClientManagerTests extends OpenSearchTestCase {
+    private static FeatureFlags.TestUtils.FlagLock ffLock = null;
 
     private static BufferAllocator allocator;
     private static EventLoopGroup elg;
@@ -77,13 +79,13 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
     @BeforeClass
     public static void setupClass() throws Exception {
+        ffLock = new FeatureFlags.TestUtils.FlagLock(ARROW_STREAMS);
         ServerConfig.init(Settings.EMPTY);
         allocator = new RootAllocator();
         elg = ServerConfig.createELG("test-grpc-worker-elg", NettyRuntime.availableProcessors() * 2);
         executorService = ServerConfig.createELG("test-grpc-worker", NettyRuntime.availableProcessors() * 2);
     }
 
-    @LockFeatureFlag(ARROW_STREAMS)
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -175,6 +177,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
     @AfterClass
     public static void tearClass() {
         allocator.close();
+        ffLock.close();
     }
 
     public void testGetFlightClientForExistingNode() {
