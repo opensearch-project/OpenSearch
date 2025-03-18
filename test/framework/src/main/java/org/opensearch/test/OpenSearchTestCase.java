@@ -247,11 +247,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      * Enables and locks a feature flag for the duration of the test case.
      * This annotation guarantees the feature flag will be enabled for the duration of
      * the test case. Feature flag is returned to previous value on test exit.
-     * Usage:
-     * @LockFeatureFlag("example.featureflag.setting.key.enabled")
-     * public void testFeatureFlagExample() {
-     *     // Test flag dependant feature
-     * }
+     * Usage: LockFeatureFlag("example.featureflag.setting.key.enabled")
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ ElementType.METHOD })

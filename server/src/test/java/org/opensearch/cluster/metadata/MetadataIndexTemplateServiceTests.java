@@ -972,10 +972,12 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testPutGlobalV2TemplateWhichProvidesContextWithSpecificVersion() throws Exception {
         verifyTemplateCreationUsingContext("1");
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testPutGlobalV2TemplateWhichProvidesContextWithLatestVersion() throws Exception {
         verifyTemplateCreationUsingContext("_latest");
     }
@@ -1014,6 +1016,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testResolveSettingsWithContextVersion() throws Exception {
         ClusterService clusterService = node().injector().getInstance(ClusterService.class);
         final String indexTemplateName = verifyTemplateCreationUsingContext("1");
@@ -1022,6 +1025,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         assertThat(settings.get("index.codec"), equalTo(CodecService.BEST_COMPRESSION_CODEC));
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testResolveSettingsWithContextLatest() throws Exception {
         ClusterService clusterService = node().injector().getInstance(ClusterService.class);
         final String indexTemplateName = verifyTemplateCreationUsingContext(Context.LATEST_VERSION);
