@@ -30,8 +30,8 @@ public class DropIngestionErrorStrategy implements IngestionErrorStrategy {
     }
 
     @Override
-    public boolean shouldPauseIngestion(Throwable e, ErrorStage stage) {
-        return false;
+    public boolean shouldIgnoreError(Throwable e, ErrorStage stage) {
+        return true;
     }
 
 }
