@@ -751,17 +751,7 @@ final class StoreRecovery {
                 writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
             }
-            if (indexShard.routingEntry().isSearchOnly() == false) {
-                indexShard.openEngineAndRecoverFromTranslog();
-            } else {
-                // Opens the engine for pull based replica copies that are
-                // not primary eligible. This will skip any checkpoint tracking and ensure
-                // that the shards are sync'd with remote store before opening.
-                //
-                // first bootstrap new history / translog so that the TranslogUUID matches the UUID from the latest commit.
-                bootstrapForSnapshot(indexShard, store);
-                indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
-            }
+            indexShard.openEngineAndRecoverFromTranslog();
             if (indexShard.shouldSeedRemoteStore()) {
                 indexShard.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(() -> {
                     logger.info("Attempting to seed Remote Store via local recovery for {}", indexShard.shardId());
