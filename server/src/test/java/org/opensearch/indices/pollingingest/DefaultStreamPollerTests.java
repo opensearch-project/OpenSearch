@@ -54,7 +54,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         messages = new ArrayList<>();
-        ;
         messages.add("{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
         messages.add("{\"_id\":\"2\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
         fakeConsumer = new FakeIngestionSource.FakeIngestionConsumer(messages, 0);
@@ -345,5 +344,13 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // poller will continue to poll if an error is encountered during message processing but will be blocked by
         // the write to blockingQueue
         assertEquals(DefaultStreamPoller.State.POLLING, poller.getState());
+    }
+
+    public void testUpdateErrorStrategy() {
+        assertTrue(poller.getErrorStrategy() instanceof DropIngestionErrorStrategy);
+        assertTrue(processorRunnable.getErrorStrategy() instanceof DropIngestionErrorStrategy);
+        poller.updateErrorStrategy(new BlockIngestionErrorStrategy("ingestion_source"));
+        assertTrue(poller.getErrorStrategy() instanceof BlockIngestionErrorStrategy);
+        assertTrue(processorRunnable.getErrorStrategy() instanceof BlockIngestionErrorStrategy);
     }
 }
