@@ -38,7 +38,7 @@ import static org.opensearch.plugin.kinesis.SequenceNumber.NON_EXISTING_SEQUENCE
 import static software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create;
 
 /**
- * Kafka consumer to read messages from a Kafka partition
+ * Kinesis consumer to read messages from a Kinesis shard
  */
 @SuppressWarnings("removal")
 public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumber, KinesisMessage> {
@@ -68,7 +68,7 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
     /**
      * Constructor, visible for testing
      * @param clientId the client id
-     * @param config the Kafka source config
+     * @param config the Kinesis source config
      * @param shardId the shard id
      * @param kinesisClient the created kinesis client
      */
@@ -93,10 +93,10 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
     }
 
     /**
-     * Create a Kafka consumer. visible for testing
+     * Create a Kinesis consumer. visible for testing
      * @param clientId the client id
-     * @param config the Kafka source config
-     * @return the Kafka consumer
+     * @param config the Kinesis source config
+     * @return the Kinesis consumer
      */
     protected static KinesisClient createClient(String clientId, KinesisSourceConfig config) {
 

@@ -11,7 +11,7 @@ package org.opensearch.plugin.kinesis;
 import org.opensearch.index.Message;
 
 /**
- * Kafka message
+ * Kinesis message
  */
 public class KinesisMessage implements Message<byte[]> {
     private final byte[] payload;
