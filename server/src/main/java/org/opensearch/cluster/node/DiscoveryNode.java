@@ -77,7 +77,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
 
-    static final String SEARCH_ONLY = "searchonly";
+    static final String SEARCH_ONLY = "search_only";
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);

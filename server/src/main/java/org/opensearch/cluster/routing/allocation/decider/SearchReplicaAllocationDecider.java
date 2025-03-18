@@ -35,14 +35,18 @@ public class SearchReplicaAllocationDecider extends AllocationDecider {
     private Decision canAllocate(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
         boolean isSearchReplica = shardRouting.isSearchOnly();
 
-        if (node.isSearchDedicatedDataNode() && isSearchReplica) {
-            return allocation.decision(Decision.YES, NAME, "node is search dedicated data node and shard is search replica");
-        } else if (!node.isSearchDedicatedDataNode() && !isSearchReplica) {
-            return allocation.decision(Decision.YES, NAME, "node is not search dedicated data node and shard is replica");
-        } else if (node.isSearchDedicatedDataNode() && !isSearchReplica) {
-            return allocation.decision(Decision.NO, NAME, "Node is a search dedicated data node but shard is not a search replica");
+        if (node.isSearchDedicatedDataNode()) {
+            if (isSearchReplica) {
+                return allocation.decision(Decision.YES, NAME, "node is search dedicated data node and shard is search replica");
+            } else {
+                return allocation.decision(Decision.NO, NAME, "Node is a search dedicated data node but shard is not a search replica");
+            }
         } else {
-            return allocation.decision(Decision.NO, NAME, "Node is not a search dedicated data node but shard is a search replica");
+            if (isSearchReplica) {
+                return allocation.decision(Decision.NO, NAME, "Node is not a search dedicated data node but shard is a search replica");
+            } else {
+                return allocation.decision(Decision.YES, NAME, "node is not search dedicated data node and shard is not a search replica");
+            }
         }
     }
 }
