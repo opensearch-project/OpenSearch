@@ -15,4 +15,4 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
       - uses: dangoslen/changelog-enforcer@v3
         with:
-        skipLabels: "autocut, skip-changelog"
+          skipLabels: "autocut, skip-changelog"
