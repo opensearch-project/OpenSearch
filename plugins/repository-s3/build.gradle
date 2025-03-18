@@ -141,6 +141,7 @@ test {
   // this is tested explicitly in separate test tasks
   exclude '**/RepositoryCredentialsTests.class'
   exclude '**/S3RepositoryThirdPartyTests.class'
+  exclude '**/S3RemoteStoreIT.class'
 }
 
 boolean useFixture = false
@@ -252,6 +253,7 @@ processYamlRestTestResources {
 internalClusterTest {
   // this is tested explicitly in a separate test task
   exclude '**/S3RepositoryThirdPartyTests.class'
+  exclude '**/S3RemoteStoreIT.class'
 }
 
 yamlRestTest {
@@ -408,6 +410,7 @@ TaskProvider s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/S3RepositoryThirdPartyTests.class'
+  include '**/S3RemoteStoreIT.class'
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket

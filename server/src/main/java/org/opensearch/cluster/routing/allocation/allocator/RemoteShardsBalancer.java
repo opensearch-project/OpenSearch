@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
-import static org.opensearch.action.admin.indices.tiering.TieringUtils.isPartialIndex;
+import static org.opensearch.action.admin.indices.tiering.TieringUtils.isWarmIndex;
 
 /**
  * A {@link RemoteShardsBalancer} used by the {@link BalancedShardsAllocator} to perform allocation operations
@@ -348,7 +348,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                 // to re-fetch any shard blocks from the repository.
                 if (shard.primary()) {
                     if (RecoverySource.Type.SNAPSHOT.equals(shard.recoverySource().getType()) == false
-                        && isPartialIndex(allocation.metadata().getIndexSafe(shard.index())) == false) {
+                        && isWarmIndex(allocation.metadata().getIndexSafe(shard.index())) == false) {
                         unassignedShard = shard.updateUnassigned(shard.unassignedInfo(), RecoverySource.EmptyStoreRecoverySource.INSTANCE);
                     }
                 }
