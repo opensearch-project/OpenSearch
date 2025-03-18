@@ -90,7 +90,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     public void testNodeCounts() {
         int total = 1;
         internalCluster().startNode();
-        Map<String, Integer> expectedCounts = getExpectedCounts(1, 1, 1, 1, 1, 0, 0);
+        Map<String, Integer> expectedCounts = getExpectedCounts(1, 1, 1, 1, 1, 0, 0, 0);
         int numNodes = randomIntBetween(1, 5);
 
         ClusterStatsResponse response = client().admin()
@@ -159,7 +159,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNode(settings);
         waitForNodes(total);
 
-        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 0, 0, 0);
+        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 0, 0, 0, 0);
 
         Client client = client();
         ClusterStatsResponse response = client.admin()
@@ -484,7 +484,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(legacyMasterSettings);
         waitForNodes(total);
 
-        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0);
+        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0, 0);
 
         Client client = client();
         ClusterStatsResponse clusterStatsResponse = client.admin()
@@ -518,7 +518,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(clusterManagerNodeRoleSettings);
         waitForNodes(total);
 
-        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0);
+        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0, 0);
 
         Client client = client();
         ClusterStatsResponse clusterStatsResponse = client.admin()
@@ -546,7 +546,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(legacySeedDataNodeSettings);
         waitForNodes(total);
 
-        Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0);
+        Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0, 0);
 
         Client client = client();
         ClusterStatsResponse clusterStatsResponse = client.admin()
@@ -577,7 +577,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(legacyDataNodeSettings);
         waitForNodes(total);
 
-        Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0);
+        Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0, 0);
 
         Client client = client();
         ClusterStatsResponse clusterStatsResponse = client.admin()
@@ -887,6 +887,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         int clusterManagerRoleCount,
         int ingestRoleCount,
         int remoteClusterClientRoleCount,
+        int warmRoleCount,
         int searchRoleCount,
         int coordinatingOnlyCount
     ) {
@@ -896,7 +897,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), clusterManagerRoleCount);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), ingestRoleCount);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), remoteClusterClientRoleCount);
-        expectedCounts.put(DiscoveryNodeRole.WARM_ROLE.roleName(), searchRoleCount);
+        expectedCounts.put(DiscoveryNodeRole.WARM_ROLE.roleName(), warmRoleCount);
+        expectedCounts.put(DiscoveryNodeRole.SEARCH_ROLE.roleName(), warmRoleCount);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, coordinatingOnlyCount);
         return expectedCounts;
     }
