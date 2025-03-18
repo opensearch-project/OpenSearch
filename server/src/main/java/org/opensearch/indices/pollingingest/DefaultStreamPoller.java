@@ -42,6 +42,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile boolean started;
     private volatile boolean closed;
     private volatile boolean paused;
+    private volatile IngestionErrorStrategy errorStrategy;
 
     private IngestionShardConsumer consumer;
 
@@ -66,8 +67,6 @@ public class DefaultStreamPoller implements StreamPoller {
     // A pointer to the max persisted pointer for optimizing the check
     @Nullable
     private IngestionShardPointer maxPersistedPointer;
-
-    private IngestionErrorStrategy errorStrategy;
 
     public DefaultStreamPoller(
         IngestionShardPointer startPointer,
@@ -231,14 +230,14 @@ public class DefaultStreamPoller implements StreamPoller {
                 logger.error("Error in polling the shard {}: {}", consumer.getShardId(), e);
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
 
-                if (errorStrategy.shouldPauseIngestion(e, IngestionErrorStrategy.ErrorStage.POLLING)) {
-                    // Blocking error encountered. Pause poller to stop processing remaining updates.
-                    pause();
-                } else {
+                if (errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.POLLING)) {
                     // Advance the batch start pointer to ignore the error and continue from next record
                     batchStartPointer = lastSuccessfulPointer == null
                         ? consumer.nextPointer(batchStartPointer)
                         : consumer.nextPointer(lastSuccessfulPointer);
+                } else {
+                    // Blocking error encountered. Pause poller to stop processing remaining updates.
+                    pause();
                 }
             }
         }
@@ -331,5 +330,16 @@ public class DefaultStreamPoller implements StreamPoller {
 
     public State getState() {
         return state;
+    }
+
+    @Override
+    public IngestionErrorStrategy getErrorStrategy() {
+        return this.errorStrategy;
+    }
+
+    @Override
+    public void updateErrorStrategy(IngestionErrorStrategy errorStrategy) {
+        this.errorStrategy = errorStrategy;
+        processorRunnable.setErrorStrategy(errorStrategy);
     }
 }

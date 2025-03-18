@@ -13,7 +13,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.util.FeatureFlags;
 
-import static org.opensearch.action.admin.indices.tiering.TieringUtils.isPartialIndex;
+import static org.opensearch.action.admin.indices.tiering.TieringUtils.isWarmIndex;
 
 /**
  *  {@link RoutingPool} defines the different node types based on the assigned capabilities. The methods
@@ -62,6 +62,9 @@ public enum RoutingPool {
      */
     public static RoutingPool getIndexPool(IndexMetadata indexMetadata) {
         return indexMetadata.isRemoteSnapshot()
-            || (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX) && isPartialIndex(indexMetadata)) ? REMOTE_CAPABLE : LOCAL_ONLY;
+            || (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG) && isWarmIndex(indexMetadata))
+                ? REMOTE_CAPABLE
+                : LOCAL_ONLY;
+
     }
 }

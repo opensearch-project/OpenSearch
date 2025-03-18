@@ -44,7 +44,7 @@ public class TransportHotToWarmTieringActionTests extends OpenSearchIntegTestCas
     @Override
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
-        featureSettings.put(FeatureFlags.TIERED_REMOTE_INDEX, true);
+        featureSettings.put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true);
         return featureSettings.build();
     }
 
