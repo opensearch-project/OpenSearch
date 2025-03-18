@@ -323,6 +323,9 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             b.startObject("size");
             b.field("type", "float");
             b.endObject();
+            b.startObject("rank");
+            b.field("type", "integer");
+            b.endObject();
             b.startObject("geoip");
             b.startObject("properties");
             b.startObject("country_name");
