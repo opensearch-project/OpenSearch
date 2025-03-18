@@ -311,10 +311,38 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     };
 
     /**
+     * Represents the role for a search node, which is dedicated to host search replicas.
+     */
+    public static final DiscoveryNodeRole SEARCH_ROLE = new DiscoveryNodeRole("search", "s", true) {
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // warm role is added in 3.0 so doesn't need to configure legacy setting
+            return null;
+        }
+
+        @Override
+        public void validateRole(List<DiscoveryNodeRole> roles) {
+            for (DiscoveryNodeRole role : roles) {
+                if (!role.equals(DiscoveryNodeRole.SEARCH_ROLE)) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "%s role cannot be combined with any other role on a node.",
+                            DiscoveryNodeRole.SEARCH_ROLE.roleName()
+                        )
+                    );
+                }
+            }
+        }
+
+    };
+
+    /**
      * The built-in node roles.
      */
     public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(
-        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, CLUSTER_MANAGER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE, WARM_ROLE))
+        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, CLUSTER_MANAGER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE, WARM_ROLE, SEARCH_ROLE))
     );
 
     /**

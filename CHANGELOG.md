@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased 2.x]
 ### Added
 - Renaming the node role search to warm ([#17573](https://github.com/opensearch-project/OpenSearch/pull/17573))
+- Introduce a new search node role ([]())
+
 ### Dependencies
 - Bump `ch.qos.logback:logback-core` from 1.5.16 to 1.5.17 ([#17609](https://github.com/opensearch-project/OpenSearch/pull/17609))
 

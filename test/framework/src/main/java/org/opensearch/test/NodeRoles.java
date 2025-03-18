@@ -224,4 +224,19 @@ public class NodeRoles {
         return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.WARM_ROLE));
     }
 
+    public static Settings searchOnlyNode() {
+        return searchOnlyNode(Settings.EMPTY);
+    }
+
+    public static Settings searchOnlyNode(final Settings settings) {
+        return onlyRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    public static Settings nonSearchNode() {
+        return nonSearchNode(Settings.EMPTY);
+    }
+
+    public static Settings nonSearchNode(final Settings settings) {
+        return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.SEARCH_ROLE));
+    }
 }
