@@ -42,6 +42,11 @@ public class FeatureFlags {
      */
     public static final String SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY = FEATURE_FLAG_PREFIX
         + "searchable_snapshot.extended_compatibility.enabled";
+    public static final Setting<Boolean> SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_SETTING = Setting.boolSetting(
+        SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY,
+        false,
+        Property.NodeScope
+    );
 
     /**
      * Gates the functionality of extensions.
@@ -162,6 +167,10 @@ public class FeatureFlags {
                 put(READER_WRITER_SPLIT_EXPERIMENTAL_SETTING, READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
                 put(TERM_VERSION_PRECOMMIT_ENABLE_SETTING, TERM_VERSION_PRECOMMIT_ENABLE_SETTING.getDefault(Settings.EMPTY));
                 put(ARROW_STREAMS_SETTING, ARROW_STREAMS_SETTING.getDefault(Settings.EMPTY));
+                put(
+                    SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_SETTING,
+                    SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_SETTING.getDefault(Settings.EMPTY)
+                );
             }
         };
 
