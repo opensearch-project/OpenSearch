@@ -401,7 +401,7 @@ public class Node implements Closeable {
 
     public static final Setting<String> NODE_SEARCH_CACHE_SIZE_SETTING = new Setting<>(
         "node.search.cache.size",
-        s -> (DiscoveryNode.isDedicatedSearchNode(s)) ? "80%" : ZERO,
+        s -> (DiscoveryNode.isDedicatedWarmNode(s)) ? "80%" : ZERO,
         Node::validateFileCacheSize,
         Property.NodeScope
     );
@@ -556,8 +556,8 @@ public class Node implements Closeable {
                 .map(IndexStorePlugin::getIndexStoreListener)
                 .filter(Optional::isPresent)
                 .map(Optional::get);
-            // FileCache is only initialized on search nodes, so we only create FileCacheCleaner on search nodes as well
-            if (DiscoveryNode.isSearchNode(settings) == false) {
+            // FileCache is only initialized on warm nodes, so we only create FileCacheCleaner on warm nodes as well
+            if (DiscoveryNode.isWarmNode(settings) == false) {
                 nodeEnvironment = new NodeEnvironment(
                     settings,
                     environment,
@@ -2164,13 +2164,13 @@ public class Node implements Closeable {
     }
 
     /**
-     * Initializes the search cache with a defined capacity.
+     * Initializes the warm cache with a defined capacity.
      * The capacity of the cache is based on user configuration for {@link Node#NODE_SEARCH_CACHE_SIZE_SETTING}.
-     * If the user doesn't configure the cache size, it fails if the node is a data + search node.
-     * Else it configures the size to 80% of total capacity for a dedicated search node, if not explicitly defined.
+     * If the user doesn't configure the cache size, it fails if the node is a data + warm node.
+     * Else it configures the size to 80% of total capacity for a dedicated warm node, if not explicitly defined.
      */
     private void initializeFileCache(Settings settings, CircuitBreaker circuitBreaker) throws IOException {
-        if (DiscoveryNode.isSearchNode(settings) == false) {
+        if (DiscoveryNode.isWarmNode(settings) == false) {
             return;
         }
 
@@ -2179,7 +2179,7 @@ public class Node implements Closeable {
         if (capacityRaw.equals(ZERO)) {
             throw new SettingsException(
                 "Unable to initialize the "
-                    + DiscoveryNodeRole.SEARCH_ROLE.roleName()
+                    + DiscoveryNodeRole.WARM_ROLE.roleName()
                     + "-"
                     + DiscoveryNodeRole.DATA_ROLE.roleName()
                     + " node: Missing value for configuration "
@@ -2220,7 +2220,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Returns the {@link FileCache} instance for remote search node
+     * Returns the {@link FileCache} instance for remote warm node
      * Note: Visible for testing
      */
     public FileCache fileCache() {
