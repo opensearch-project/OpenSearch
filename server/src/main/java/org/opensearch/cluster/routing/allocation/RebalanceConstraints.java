@@ -46,4 +46,8 @@ public class RebalanceConstraints {
         Constraint.ConstraintParams params = new Constraint.ConstraintParams(balancer, node, index, primaryConstraintThreshold);
         return params.weight(constraints);
     }
+
+    public Constraint getConstraint(String constraint) {
+        return this.constraints.get(constraint);
+    }
 }

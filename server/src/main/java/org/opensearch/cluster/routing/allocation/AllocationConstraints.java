@@ -43,4 +43,8 @@ public class AllocationConstraints {
         Constraint.ConstraintParams params = new Constraint.ConstraintParams(balancer, node, index, primaryThresholdWeight);
         return params.weight(constraints);
     }
+
+    public Constraint getConstraint(String constraint) {
+        return this.constraints.get(constraint);
+    }
 }
