@@ -145,6 +145,25 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         assertActiveSearchShards(1);
     }
 
+    public void testFailoverWithSearchReplicaWhenSearchNodeRestarts() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createIndex(TEST_INDEX);
+        indexSingleDoc(TEST_INDEX, true);
+        ensureYellow(TEST_INDEX);
+        // add another node for the search replica
+        String searchNode = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        ensureGreen(TEST_INDEX);
+        // Restart Search Node
+        internalCluster().restartNode(searchNode);
+        // Ensure search shard is unassigned
+        ensureYellowAndNoInitializingShards(TEST_INDEX);
+        assertActiveSearchShards(0);
+        // Ensure search shard is recovered
+        ensureGreen(TEST_INDEX);
+        assertActiveSearchShards(1);
+    }
+
     public void testSearchReplicaScaling() {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
