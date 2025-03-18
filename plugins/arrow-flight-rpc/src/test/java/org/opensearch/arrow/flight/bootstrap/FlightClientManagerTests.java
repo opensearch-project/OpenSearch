@@ -24,11 +24,9 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -55,6 +53,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.util.NettyRuntime;
 
 import static org.opensearch.arrow.flight.bootstrap.FlightClientManager.LOCATION_TIMEOUT_MS;
+import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -84,12 +83,12 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         executorService = ServerConfig.createELG("test-grpc-worker", NettyRuntime.availableProcessors() * 2);
     }
 
+    @LockFeatureFlag(ARROW_STREAMS)
     @Override
     public void setUp() throws Exception {
         super.setUp();
         locationUpdaterExecutor = Executors.newScheduledThreadPool(1);
 
-        FeatureFlagSetter.set(FeatureFlags.ARROW_STREAMS_SETTING.getKey());
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
         state = getDefaultState();
