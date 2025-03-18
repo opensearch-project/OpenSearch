@@ -699,23 +699,17 @@ final class StoreRecovery {
                         files += " (failure=" + ExceptionsHelper.detailedMessage(inner) + ")";
                     }
                     if (indexShouldExists) {
-                        // If RecoverySource.Type is EXISTING_STORE but SegmentsInfo (si) is null,
-                        // it indicates a node-left scenario where the search shard was unassigned
-                        // and is now recovering on a new node that lacks SegmentsInfo.
-                        // In this case, fallback to empty store recovery.
-                        if (!indexShard.shardRouting.isSearchOnly()) {
-                            throw new IndexShardRecoveryException(
-                                shardId,
-                                "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files,
-                                e
-                            );
-                        }
+                        throw new IndexShardRecoveryException(
+                            shardId,
+                            "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files,
+                            e
+                        );
                     }
                 }
-                // We should cover this scenario otherwise unwanted files will be in the index
                 if (si != null && indexShouldExists == false) {
                     // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
                     // its a "new index create" API, we have to do something, so better to clean it than use same data
+                    logger.trace("cleaning existing shard, shouldn't exists");
                     Lucene.cleanLuceneIndex(store.directory());
                     si = null;
                 }
@@ -727,20 +721,31 @@ final class StoreRecovery {
                 bootstrap(indexShard, store);
                 writeEmptyRetentionLeasesFile(indexShard);
             } else if (indexShouldExists) {
-                if (si != null) {
-                    if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
-                        store.bootstrapNewHistory();
-                        writeEmptyRetentionLeasesFile(indexShard);
-                    }
-                    // since we recover from local, just fill the files and size
-                    recoverLocalFiles(recoveryState, si, store);
-                } else {
-                    // fallback to empty store recovery if local SegmentsInfo is null
-                    recoverEmptyStore(indexShard, store);
+                if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
+                    store.bootstrapNewHistory();
+                    writeEmptyRetentionLeasesFile(indexShard);
                 }
+                // since we recover from local, just fill the files and size
+                final ReplicationLuceneIndex index = recoveryState.getIndex();
+                try {
+                    if (si != null) {
+                        addRecoveredFileDetails(si, store, index);
+                    }
+                } catch (IOException e) {
+                    logger.debug("failed to list file details", e);
+                }
+                index.setFileDetailsComplete();
             } else {
-                // shard recovery source is EMPTY_STORE
-                recoverEmptyStore(indexShard, store);
+                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+                final String translogUUID = Translog.createEmptyTranslog(
+                    indexShard.shardPath().resolveTranslog(),
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    shardId,
+                    indexShard.getPendingPrimaryTerm()
+                );
+                store.associateIndexWithNewTranslog(translogUUID);
+                writeEmptyRetentionLeasesFile(indexShard);
+                indexShard.recoveryState().getIndex().setFileDetailsComplete();
             }
             if (indexShard.routingEntry().isSearchOnly() == false) {
                 indexShard.openEngineAndRecoverFromTranslog();
@@ -769,31 +774,6 @@ final class StoreRecovery {
         } finally {
             store.decRef();
         }
-    }
-
-    private void recoverEmptyStore(IndexShard indexShard, Store store) throws IOException {
-        store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
-        final String translogUUID = Translog.createEmptyTranslog(
-            indexShard.shardPath().resolveTranslog(),
-            SequenceNumbers.NO_OPS_PERFORMED,
-            shardId,
-            indexShard.getPendingPrimaryTerm()
-        );
-        store.associateIndexWithNewTranslog(translogUUID);
-        writeEmptyRetentionLeasesFile(indexShard);
-        indexShard.recoveryState().getIndex().setFileDetailsComplete();
-    }
-
-    private void recoverLocalFiles(RecoveryState recoveryState, SegmentInfos si, Store store) {
-        final ReplicationLuceneIndex index = recoveryState.getIndex();
-        try {
-            if (si != null) {
-                addRecoveredFileDetails(si, store, index);
-            }
-        } catch (IOException e) {
-            logger.debug("failed to list file details", e);
-        }
-        index.setFileDetailsComplete();
     }
 
     private static void writeEmptyRetentionLeasesFile(IndexShard indexShard) throws IOException {
