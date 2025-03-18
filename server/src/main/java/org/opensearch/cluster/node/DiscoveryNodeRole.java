@@ -317,14 +317,14 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            // warm role is added in 3.0 so doesn't need to configure legacy setting
+            // search role is added in 2.4 so doesn't need to configure legacy setting
             return null;
         }
 
         @Override
         public void validateRole(List<DiscoveryNodeRole> roles) {
             for (DiscoveryNodeRole role : roles) {
-                if (!role.equals(DiscoveryNodeRole.SEARCH_ROLE)) {
+                if (role.equals(DiscoveryNodeRole.SEARCH_ROLE) == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,

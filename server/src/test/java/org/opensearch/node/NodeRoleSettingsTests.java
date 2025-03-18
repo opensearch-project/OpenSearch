@@ -48,7 +48,6 @@ public class NodeRoleSettingsTests extends OpenSearchTestCase {
      * Validate search role cannot coexist with any other role on a node.
      */
     public void testSearchRoleCannotCoExistWithAnyOtherRole() {
-        DiscoveryNode.setDeprecatedMasterRole();
         Settings roleSettings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "search, test_role").build();
         Exception exception = expectThrows(IllegalArgumentException.class, () -> NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings));
         assertThat(exception.getMessage(), containsString("search role cannot be combined with any other role on a node."));
