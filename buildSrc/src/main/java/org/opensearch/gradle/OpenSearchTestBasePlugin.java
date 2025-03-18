@@ -151,7 +151,7 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                     put("tests.gradle", "true");
                     put("tests.artifact", project.getName());
                     put("tests.task", test.getPath());
-                    put("tests.security.manager", "true");
+                    put("tests.security.manager", "false");
                     put("jna.nosys", "true");
                 }
             };
