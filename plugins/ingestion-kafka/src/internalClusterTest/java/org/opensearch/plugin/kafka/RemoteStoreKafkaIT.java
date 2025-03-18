@@ -48,7 +48,6 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         internalCluster().startClusterManagerOnlyNode();
         final String nodeA = internalCluster().startDataOnlyNode();
         createIndexWithDefaultSettings(1, 1);
-
         ensureYellowAndNoInitializingShards(indexName);
         final String nodeB = internalCluster().startDataOnlyNode();
         ensureGreen(indexName);
