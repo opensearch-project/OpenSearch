@@ -3084,7 +3084,7 @@ public class IndexShardTests extends IndexShardTestCase {
             false,
             true,
             ShardRoutingState.INITIALIZING,
-            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+            RecoverySource.PeerRecoverySource.INSTANCE
         );
         IndexShard replica = newShard(searchReplicaShardRouting, settings, new NRTReplicationEngineFactory());
 

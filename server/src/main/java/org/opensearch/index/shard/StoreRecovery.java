@@ -123,7 +123,7 @@ final class StoreRecovery {
             ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from store ...");
                 if (indexShard.shardRouting.isSearchOnly()) {
-                    internalRecoverFromStoreSearchReplica(indexShard);
+                    internalRecoverFromStoreForSearchReplica(indexShard);
                 } else {
                     internalRecoverFromStore(indexShard);
                 }
@@ -780,17 +780,20 @@ final class StoreRecovery {
         }
     }
 
-    private void internalRecoverFromStoreSearchReplica(IndexShard indexShard) throws IndexShardRecoveryException {
+    private void internalRecoverFromStoreForSearchReplica(IndexShard indexShard) throws IndexShardRecoveryException {
         indexShard.preRecovery();
         final RecoveryState recoveryState = indexShard.recoveryState();
-        final boolean indexShouldExist = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
-        indexShard.prepareForIndexRecovery();
 
+        assert recoveryState.getRecoverySource().getType().equals(RecoverySource.Type.EMPTY_STORE)
+            || recoveryState.getRecoverySource().getType().equals(RecoverySource.Type.EXISTING_STORE)
+            : "unsupported recovery source for search replica: " + recoveryState.getRecoverySource().getType();
+
+        indexShard.prepareForIndexRecovery();
         final Store store = indexShard.store();
         store.incRef();
 
         try {
-            if (indexShouldExist) {
+            if (recoveryState.getRecoverySource().getType().equals(RecoverySource.Type.EXISTING_STORE)) {
                 SegmentInfos segmentInfos = readSegmentInfosFromStore(store);
                 if (segmentInfos != null) {
                     recoverLocalFiles(recoveryState, segmentInfos, store);
