@@ -14,40 +14,40 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class SearchOnlyRequestTests extends OpenSearchTestCase {
+public class ScaleIndexRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
-        SearchOnlyRequest request = new SearchOnlyRequest("test_index", true);
+        ScaleIndexRequest request = new ScaleIndexRequest("test_index", true);
 
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        SearchOnlyRequest deserializedRequest = new SearchOnlyRequest(in);
+        ScaleIndexRequest deserializedRequest = new ScaleIndexRequest(in);
 
         assertEquals(request.getIndex(), deserializedRequest.getIndex());
         assertEquals(request.isScaleDown(), deserializedRequest.isScaleDown());
     }
 
     public void testValidation() {
-        SearchOnlyRequest request = new SearchOnlyRequest(null, true);
+        ScaleIndexRequest request = new ScaleIndexRequest(null, true);
         assertNotNull(request.validate());
 
-        request = new SearchOnlyRequest("", true);
+        request = new ScaleIndexRequest("", true);
         assertNotNull(request.validate());
 
-        request = new SearchOnlyRequest("  ", true);
+        request = new ScaleIndexRequest("  ", true);
         assertNotNull(request.validate());
 
-        request = new SearchOnlyRequest("test_index", true);
+        request = new ScaleIndexRequest("test_index", true);
         assertNull(request.validate());
     }
 
     public void testEquals() {
-        SearchOnlyRequest request1 = new SearchOnlyRequest("test_index", true);
-        SearchOnlyRequest request2 = new SearchOnlyRequest("test_index", true);
-        SearchOnlyRequest request3 = new SearchOnlyRequest("other_index", true);
-        SearchOnlyRequest request4 = new SearchOnlyRequest("test_index", false);
+        ScaleIndexRequest request1 = new ScaleIndexRequest("test_index", true);
+        ScaleIndexRequest request2 = new ScaleIndexRequest("test_index", true);
+        ScaleIndexRequest request3 = new ScaleIndexRequest("other_index", true);
+        ScaleIndexRequest request4 = new ScaleIndexRequest("test_index", false);
 
         assertEquals(request1, request2);
         assertNotEquals(request1, request3);

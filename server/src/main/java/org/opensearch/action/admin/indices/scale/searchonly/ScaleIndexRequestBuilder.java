@@ -14,7 +14,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.transport.client.OpenSearchClient;
 
 /**
- * A builder for constructing {@link SearchOnlyRequest} objects to perform search-only scale operations.
+ * A builder for constructing {@link ScaleIndexRequest} objects to perform search-only scale operations.
  * <p>
  * This builder simplifies the creation of requests to scale indices up or down for search-only mode.
  * It provides methods to configure the scaling direction and follows the builder pattern to allow
@@ -23,7 +23,7 @@ import org.opensearch.transport.client.OpenSearchClient;
  * The builder is part of the public API since OpenSearch 3.0.0.
  */
 @PublicApi(since = "3.0.0")
-public class SearchOnlyRequestBuilder extends ActionRequestBuilder<SearchOnlyRequest, AcknowledgedResponse> {
+public class ScaleIndexRequestBuilder extends ActionRequestBuilder<ScaleIndexRequest, AcknowledgedResponse> {
 
     /**
      * Constructs a new builder for scaling an index.
@@ -33,7 +33,7 @@ public class SearchOnlyRequestBuilder extends ActionRequestBuilder<SearchOnlyReq
      * @param client the client to use for executing the request
      * @param index  the name of the index to scale
      */
-    public SearchOnlyRequestBuilder(OpenSearchClient client, String index) {
+    public ScaleIndexRequestBuilder(OpenSearchClient client, String index) {
         this(client, false, index);
     }
 
@@ -44,8 +44,8 @@ public class SearchOnlyRequestBuilder extends ActionRequestBuilder<SearchOnlyReq
      * @param scaleDown true for scaling down to search-only mode, false for scaling up to normal mode
      * @param index     the name of the index to scale
      */
-    public SearchOnlyRequestBuilder(OpenSearchClient client, boolean scaleDown, String index) {
-        super(client, SearchOnlyScaleAction.INSTANCE, new SearchOnlyRequest(index, scaleDown));
+    public ScaleIndexRequestBuilder(OpenSearchClient client, boolean scaleDown, String index) {
+        super(client, ScaleIndexAction.INSTANCE, new ScaleIndexRequest(index, scaleDown));
     }
 
     /**
@@ -60,7 +60,7 @@ public class SearchOnlyRequestBuilder extends ActionRequestBuilder<SearchOnlyReq
      * @param searchOnly true if scaling down to search-only mode, false if scaling up to normal operation
      * @return this builder (for method chaining)
      */
-    public SearchOnlyRequestBuilder setSearchOnly(boolean searchOnly) {
+    public ScaleIndexRequestBuilder setSearchOnly(boolean searchOnly) {
         request.scaleDown(searchOnly);
         return this;
     }

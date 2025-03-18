@@ -75,25 +75,25 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
+public class TransportScaleIndexActionTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private ClusterService clusterService;
     private AllocationService allocationService;
     private IndicesService indicesService;
     private ThreadPool threadPool;
-    private TransportSearchOnlyAction action;
+    private TransportScaleIndexAction action;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool("SearchOnlyActionTests");
+        threadPool = new TestThreadPool("ScaleIndexActionTests");
         transportService = mock(TransportService.class);
         clusterService = mock(ClusterService.class);
         allocationService = mock(AllocationService.class);
         indicesService = mock(IndicesService.class);
 
-        action = new TransportSearchOnlyAction(
+        action = new TransportScaleIndexAction(
             transportService,
             clusterService,
             threadPool,
@@ -117,7 +117,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
     public void testScaleDownValidation() {
         String indexName = "test_index";
-        SearchOnlyRequest request = new SearchOnlyRequest(indexName, true);
+        ScaleIndexRequest request = new ScaleIndexRequest(indexName, true);
 
         // Test validation when index doesn't exist
         ClusterState state = createClusterStateWithoutIndex(indexName);
@@ -141,7 +141,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
     public void testScaleDownWithSearchOnlyAlreadyEnabled() {
         String indexName = "test_index";
-        SearchOnlyRequest request = new SearchOnlyRequest(indexName, true);
+        ScaleIndexRequest request = new ScaleIndexRequest(indexName, true);
 
         // Create cluster state with search-only already enabled
         ClusterState state = createClusterStateWithSearchOnlyEnabled(indexName);
@@ -165,7 +165,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
     public void testScaleUpValidation() {
         String indexName = "test_index";
-        SearchOnlyRequest request = new SearchOnlyRequest(indexName, false);
+        ScaleIndexRequest request = new ScaleIndexRequest(indexName, false);
 
         // Test validation when index is not in search-only mode
         ClusterState state = createClusterStateWithoutSearchOnly(indexName);
@@ -223,7 +223,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
     public void testAddBlockClusterStateUpdateTask() {
         String indexName = "test_index";
-        SearchOnlyRequest request = new SearchOnlyRequest(indexName, true);
+        ScaleIndexRequest request = new ScaleIndexRequest(indexName, true);
 
         // Create initial cluster state with necessary index metadata
         Settings indexSettings = Settings.builder()
@@ -265,7 +265,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
     public void testFinalizeScaleDownTaskSimple() throws Exception {
         String indexName = "test_index";
-        SearchOnlyRequest request = new SearchOnlyRequest(indexName, true);
+        ScaleIndexRequest request = new ScaleIndexRequest(indexName, true);
 
         // Create minimal index metadata that meets scale-down prerequisites.
         Settings indexSettings = Settings.builder()
@@ -302,14 +302,14 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
         // Stub transportService.sendRequest so that any shard sync request immediately succeeds.
         doAnswer(invocation -> {
-            TransportResponseHandler<NodeSearchOnlyResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(new NodeSearchOnlyResponse(node, Collections.emptyList()));
+            TransportResponseHandler<ScaleIndexNodeResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ScaleIndexNodeResponse(node, Collections.emptyList()));
             return null;
         }).when(transportService)
             .sendRequest(
                 any(DiscoveryNode.class),
-                eq(TransportSearchOnlyAction.NAME),
-                any(NodeSearchOnlyRequest.class),
+                eq(TransportScaleIndexAction.NAME),
+                any(ScaleIndexNodeRequest.class),
                 any(TransportResponseHandler.class)
             );
 
@@ -347,7 +347,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
     public void testScaleUpClusterStateUpdateTask() throws Exception {
         String indexName = "test_index";
-        SearchOnlyRequest request = new SearchOnlyRequest(indexName, false);
+        ScaleIndexRequest request = new ScaleIndexRequest(indexName, false);
 
         // Create index metadata with search-only mode enabled.
         Settings indexSettings = Settings.builder()
@@ -410,7 +410,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
     public void testScaleDownWithMissingIndex() {
         String indexName = "non_existent_index";
-        SearchOnlyRequest request = new SearchOnlyRequest(indexName, true);
+        ScaleIndexRequest request = new ScaleIndexRequest(indexName, true);
 
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().build()).build();
 
@@ -432,7 +432,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
     public void testScaleUpWithSearchOnlyNotEnabled() {
         String indexName = "test_index";
-        SearchOnlyRequest request = new SearchOnlyRequest(indexName, false);
+        ScaleIndexRequest request = new ScaleIndexRequest(indexName, false);
 
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -471,53 +471,53 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
         IndicesService indicesService = mock(IndicesService.class);
         TransportChannel channel = mock(TransportChannel.class);
 
-        // Create test data
-        String indexName = "test_index";
-        Index index = new Index(indexName, "_na_");
-        ShardId shardId = new ShardId(index, 0);
-        List<ShardId> shardIds = Collections.singletonList(shardId);
-        NodeSearchOnlyRequest request = new NodeSearchOnlyRequest(indexName, shardIds);
+        // Use a real ThreadPool but with a controlled executor
+        ThreadPool threadPool = new TestThreadPool("testHandleShardSyncRequest");
 
-        // Mock cluster state
-        ClusterState clusterState = mock(ClusterState.class);
-        Metadata metadata = mock(Metadata.class);
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.index(indexName)).thenReturn(indexMetadata);
-        when(indexMetadata.getIndex()).thenReturn(index);
+        try {
+            // Create test data
+            String indexName = "test_index";
+            Index index = new Index(indexName, "_na_");
+            ShardId shardId = new ShardId(index, 0);
+            List<ShardId> shardIds = Collections.singletonList(shardId);
+            ScaleIndexNodeRequest request = new ScaleIndexNodeRequest(indexName, shardIds);
 
-        // Mock index service and shard
-        IndexService indexService = mock(IndexService.class);
-        IndexShard indexShard = mock(IndexShard.class);
-        when(indicesService.indexService(any(Index.class))).thenReturn(indexService);
-        when(indexService.getShardOrNull(anyInt())).thenReturn(indexShard);
-        when(indexShard.shardId()).thenReturn(shardId);
-        when(indexShard.translogStats()).thenReturn(mock(TranslogStats.class));
+            // Mock cluster state
+            ClusterState clusterState = mock(ClusterState.class);
+            Metadata metadata = mock(Metadata.class);
+            IndexMetadata indexMetadata = mock(IndexMetadata.class);
+            when(clusterService.state()).thenReturn(clusterState);
+            when(clusterState.metadata()).thenReturn(metadata);
+            when(metadata.index(indexName)).thenReturn(indexMetadata);
+            when(indexMetadata.getIndex()).thenReturn(index);
 
-        // Create action instance
-        TransportSearchOnlyAction action = new TransportSearchOnlyAction(
-            transportService,
-            clusterService,
-            threadPool,
-            new ActionFilters(Collections.emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            allocationService,
-            indicesService
-        );
+            // Mock index service and shard
+            IndexService indexService = mock(IndexService.class);
+            IndexShard indexShard = mock(IndexShard.class);
+            when(indicesService.indexService(any(Index.class))).thenReturn(indexService);
+            when(indexService.getShardOrNull(anyInt())).thenReturn(indexShard);
+            when(indexShard.shardId()).thenReturn(shardId);
+            when(indexShard.translogStats()).thenReturn(mock(TranslogStats.class));
 
-        // Test successful sync
-        action.handleShardSyncRequest(request, channel);
-        verify(channel).sendResponse(any(NodeSearchOnlyResponse.class));
+            // Create action instance with the real ThreadPool
+            TransportScaleIndexAction action = new TransportScaleIndexAction(
+                transportService,
+                clusterService,
+                threadPool,
+                new ActionFilters(Collections.emptySet()),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                allocationService,
+                indicesService
+            );
 
-        // Test missing index metadata
-        when(metadata.index(indexName)).thenReturn(null);
-        assertThrows(IllegalStateException.class, () -> action.handleShardSyncRequest(request, channel));
+            // Call handleShardSyncRequest which should delegate to the thread pool
+            action.handleShardSyncRequest(request, channel);
 
-        // Test missing index service
-        when(metadata.index(indexName)).thenReturn(indexMetadata);
-        when(indicesService.indexService(any(Index.class))).thenReturn(null);
-        assertThrows(IllegalStateException.class, () -> action.handleShardSyncRequest(request, channel));
+            // Wait a short time for the async task to execute
+            assertBusy(() -> { verify(channel).sendResponse(any(ScaleIndexNodeResponse.class)); }, 2, TimeUnit.SECONDS);
+        } finally {
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        }
     }
 
     public void testSyncSingleShard() throws Exception {
@@ -529,7 +529,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
         when(shard.shardId()).thenReturn(shardId);
         when(shard.translogStats()).thenReturn(translogStats);
 
-        TransportSearchOnlyAction action = new TransportSearchOnlyAction(
+        TransportScaleIndexAction action = new TransportScaleIndexAction(
             transportService,
             clusterService,
             threadPool,
@@ -543,7 +543,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
         when(translogStats.getUncommittedOperations()).thenReturn(0);
         when(shard.isSyncNeeded()).thenReturn(false);
 
-        ShardSearchOnlyResponse response = action.syncSingleShard(shard);
+        ScaleIndexShardResponse response = action.syncSingleShard(shard);
         assertFalse(response.needsSync());
         assertFalse(response.hasUncommittedOperations());
 
@@ -568,7 +568,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
     public void testCheckBlock() {
         // Mock dependencies
-        TransportSearchOnlyAction action = new TransportSearchOnlyAction(
+        TransportScaleIndexAction action = new TransportScaleIndexAction(
             transportService,
             clusterService,
             threadPool,
@@ -580,7 +580,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
 
         // Create test data
         String indexName = "test_index";
-        SearchOnlyRequest request = new SearchOnlyRequest(indexName, true);
+        ScaleIndexRequest request = new ScaleIndexRequest(indexName, true);
 
         // Create index metadata
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
@@ -644,7 +644,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
             .build();
 
         // Create action and task
-        TransportSearchOnlyAction action = new TransportSearchOnlyAction(
+        TransportScaleIndexAction action = new TransportScaleIndexAction(
             transportService,
             clusterService,
             threadPool,
@@ -654,7 +654,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
             indicesService
         );
 
-        TransportSearchOnlyAction.AddBlockClusterStateUpdateTask task = action.new AddBlockClusterStateUpdateTask(
+        TransportScaleIndexAction.AddBlockClusterStateUpdateTask task = action.new AddBlockClusterStateUpdateTask(
             indexName, blockedIndices, listener
         );
 
@@ -686,7 +686,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
         String indexName = "test_index";
         ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
 
-        TransportSearchOnlyAction action = new TransportSearchOnlyAction(
+        TransportScaleIndexAction action = new TransportScaleIndexAction(
             transportService,
             clusterService,
             threadPool,
@@ -696,7 +696,7 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
             indicesService
         );
 
-        TransportSearchOnlyAction.FinalizeScaleDownTask task = action.new FinalizeScaleDownTask(indexName, listener);
+        TransportScaleIndexAction.FinalizeScaleDownTask task = action.new FinalizeScaleDownTask(indexName, listener);
 
         // Test onFailure
         Exception testException = new Exception("Test failure");
@@ -708,4 +708,22 @@ public class TransportSearchOnlyActionTests extends OpenSearchTestCase {
         task.clusterStateProcessed("test", state, state);
         verify(listener).onResponse(any(AcknowledgedResponse.class));
     }
+
+    public void testThreadPoolConstantValidity() {
+        ThreadPool threadPool = new TestThreadPool("testThreadPoolConstantValidity");
+        try {
+            // Verify that our constant points to a valid thread pool
+            assertNotNull("Thread pool executor should exist", threadPool.executor(TransportScaleIndexAction.SHARD_SYNC_EXECUTOR));
+
+            // Verify SHARD_SYNC_EXECUTOR is using the MANAGEMENT pool as expected
+            assertEquals(
+                "SHARD_SYNC_EXECUTOR should be set to MANAGEMENT",
+                ThreadPool.Names.MANAGEMENT,
+                TransportScaleIndexAction.SHARD_SYNC_EXECUTOR
+            );
+        } finally {
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        }
+    }
+
 }

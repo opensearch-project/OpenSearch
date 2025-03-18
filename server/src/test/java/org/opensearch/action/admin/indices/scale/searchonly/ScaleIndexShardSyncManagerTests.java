@@ -44,11 +44,11 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
+public class ScaleIndexShardSyncManagerTests extends OpenSearchTestCase {
 
     private ClusterService clusterService;
     private TransportService transportService;
-    private SearchOnlyShardSyncManager syncManager;
+    private ScaleIndexShardSyncManager syncManager;
     private final String transportActionName = "dummyAction";
 
     @Override
@@ -56,13 +56,13 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
         super.setUp();
         clusterService = mock(ClusterService.class);
         transportService = mock(TransportService.class);
-        syncManager = new SearchOnlyShardSyncManager(clusterService, transportService, transportActionName);
+        syncManager = new ScaleIndexShardSyncManager(clusterService, transportService, transportActionName);
     }
 
     public void testSendShardSyncRequests_emptyPrimaryShards() {
-        ActionListener<Collection<NodeSearchOnlyResponse>> listener = new ActionListener<>() {
+        ActionListener<Collection<ScaleIndexNodeResponse>> listener = new ActionListener<>() {
             @Override
-            public void onResponse(Collection<NodeSearchOnlyResponse> responses) {
+            public void onResponse(Collection<ScaleIndexNodeResponse> responses) {
                 fail("Expected failure when primary shards map is empty");
             }
 
@@ -85,9 +85,9 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         when(clusterService.state()).thenReturn(clusterState);
 
-        ActionListener<Collection<NodeSearchOnlyResponse>> listener = new ActionListener<>() {
+        ActionListener<Collection<ScaleIndexNodeResponse>> listener = new ActionListener<>() {
             @Override
-            public void onResponse(Collection<NodeSearchOnlyResponse> responses) {
+            public void onResponse(Collection<ScaleIndexNodeResponse> responses) {
                 fail("Expected failure due to missing node");
             }
 
@@ -113,24 +113,24 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
 
         // Stub transportService.sendRequest to return a dummy response.
         doAnswer(invocation -> {
-            TransportResponseHandler<NodeSearchOnlyResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(new NodeSearchOnlyResponse(node, Collections.emptyList()));
+            TransportResponseHandler<ScaleIndexNodeResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ScaleIndexNodeResponse(node, Collections.emptyList()));
             return null;
         }).when(transportService)
             .sendRequest(
                 any(DiscoveryNode.class),
                 eq(transportActionName),
-                any(NodeSearchOnlyRequest.class),
+                any(ScaleIndexNodeRequest.class),
                 any(TransportResponseHandler.class)
             );
 
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Collection<NodeSearchOnlyResponse>> responseRef = new AtomicReference<>();
+        AtomicReference<Collection<ScaleIndexNodeResponse>> responseRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
-        ActionListener<Collection<NodeSearchOnlyResponse>> listener = new ActionListener<>() {
+        ActionListener<Collection<ScaleIndexNodeResponse>> listener = new ActionListener<>() {
             @Override
-            public void onResponse(Collection<NodeSearchOnlyResponse> responses) {
+            public void onResponse(Collection<ScaleIndexNodeResponse> responses) {
                 responseRef.set(responses);
                 latch.countDown();
             }
@@ -145,7 +145,7 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
         syncManager.sendShardSyncRequests("test_index", primaryShardsNodes, listener);
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNull(exceptionRef.get());
-        Collection<NodeSearchOnlyResponse> responses = responseRef.get();
+        Collection<ScaleIndexNodeResponse> responses = responseRef.get();
         assertNotNull(responses);
         // We expect one response since there's one node.
         assertEquals(1, responses.size());
@@ -157,11 +157,11 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
         List<ShardId> shards = Collections.singletonList(new ShardId(new Index("test_index", "uuid"), 0));
 
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<NodeSearchOnlyResponse> responseRef = new AtomicReference<>();
+        AtomicReference<ScaleIndexNodeResponse> responseRef = new AtomicReference<>();
 
-        ActionListener<NodeSearchOnlyResponse> listener = new ActionListener<>() {
+        ActionListener<ScaleIndexNodeResponse> listener = new ActionListener<>() {
             @Override
-            public void onResponse(NodeSearchOnlyResponse response) {
+            public void onResponse(ScaleIndexNodeResponse response) {
                 responseRef.set(response);
                 latch.countDown();
             }
@@ -173,11 +173,11 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
         };
 
         doAnswer(invocation -> {
-            TransportResponseHandler<NodeSearchOnlyResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(new NodeSearchOnlyResponse(node, Collections.emptyList()));
+            TransportResponseHandler<ScaleIndexNodeResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ScaleIndexNodeResponse(node, Collections.emptyList()));
             return null;
         }).when(transportService)
-            .sendRequest(eq(node), eq(transportActionName), any(NodeSearchOnlyRequest.class), any(TransportResponseHandler.class));
+            .sendRequest(eq(node), eq(transportActionName), any(ScaleIndexNodeRequest.class), any(TransportResponseHandler.class));
 
         syncManager.sendNodeRequest(node, index, shards, listener);
         assertTrue(latch.await(5, TimeUnit.SECONDS));
@@ -192,9 +192,9 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
-        ActionListener<NodeSearchOnlyResponse> listener = new ActionListener<>() {
+        ActionListener<ScaleIndexNodeResponse> listener = new ActionListener<>() {
             @Override
-            public void onResponse(NodeSearchOnlyResponse response) {
+            public void onResponse(ScaleIndexNodeResponse response) {
                 fail("Expected failure");
             }
 
@@ -207,11 +207,11 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
 
         // Use a dummy Throwable as the cause instead of passing the node.
         doAnswer(invocation -> {
-            TransportResponseHandler<NodeSearchOnlyResponse> handler = invocation.getArgument(3);
+            TransportResponseHandler<ScaleIndexNodeResponse> handler = invocation.getArgument(3);
             handler.handleException(new TransportException("Test exception", new Exception("dummy cause")));
             return null;
         }).when(transportService)
-            .sendRequest(eq(node), eq(transportActionName), any(NodeSearchOnlyRequest.class), any(TransportResponseHandler.class));
+            .sendRequest(eq(node), eq(transportActionName), any(ScaleIndexNodeRequest.class), any(TransportResponseHandler.class));
 
         syncManager.sendNodeRequest(node, index, shards, listener);
         assertTrue(latch.await(5, TimeUnit.SECONDS));
@@ -222,19 +222,19 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
     public void testValidateNodeResponses_success() {
         // Create a shard response with no failures.
         ShardId shardId = new ShardId(new Index("test_index", "uuid"), 0);
-        ShardSearchOnlyResponse shardResponse = new ShardSearchOnlyResponse(shardId, false, 0);
-        NodeSearchOnlyResponse nodeResponse = new NodeSearchOnlyResponse(
+        ScaleIndexShardResponse shardResponse = new ScaleIndexShardResponse(shardId, false, 0);
+        ScaleIndexNodeResponse nodeResponse = new ScaleIndexNodeResponse(
             new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
             Collections.singletonList(shardResponse)
         );
 
-        List<NodeSearchOnlyResponse> responses = Collections.singletonList(nodeResponse);
-        AtomicReference<SearchOnlyResponse> responseRef = new AtomicReference<>();
+        List<ScaleIndexNodeResponse> responses = Collections.singletonList(nodeResponse);
+        AtomicReference<ScaleIndexResponse> responseRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
-        syncManager.validateNodeResponses(responses, new ActionListener<SearchOnlyResponse>() {
+        syncManager.validateNodeResponses(responses, new ActionListener<ScaleIndexResponse>() {
             @Override
-            public void onResponse(SearchOnlyResponse response) {
+            public void onResponse(ScaleIndexResponse response) {
                 responseRef.set(response);
             }
 
@@ -251,18 +251,18 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
     public void testValidateNodeResponses_failure_uncommitted() {
         // Create a shard response indicating uncommitted operations.
         ShardId shardId = new ShardId(new Index("test_index", "uuid"), 0);
-        ShardSearchOnlyResponse shardResponse = new ShardSearchOnlyResponse(shardId, false, 5);
-        NodeSearchOnlyResponse nodeResponse = new NodeSearchOnlyResponse(
+        ScaleIndexShardResponse shardResponse = new ScaleIndexShardResponse(shardId, false, 5);
+        ScaleIndexNodeResponse nodeResponse = new ScaleIndexNodeResponse(
             new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
             Collections.singletonList(shardResponse)
         );
 
-        List<NodeSearchOnlyResponse> responses = Collections.singletonList(nodeResponse);
+        List<ScaleIndexNodeResponse> responses = Collections.singletonList(nodeResponse);
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
-        syncManager.validateNodeResponses(responses, new ActionListener<SearchOnlyResponse>() {
+        syncManager.validateNodeResponses(responses, new ActionListener<ScaleIndexResponse>() {
             @Override
-            public void onResponse(SearchOnlyResponse response) {
+            public void onResponse(ScaleIndexResponse response) {
                 fail("Expected failure due to uncommitted operations");
             }
 
@@ -279,18 +279,18 @@ public class SearchOnlyShardSyncManagerTests extends OpenSearchTestCase {
     public void testValidateNodeResponses_failure_needsSync() {
         // Create a shard response indicating that a shard needs sync.
         ShardId shardId = new ShardId(new Index("test_index", "uuid"), 0);
-        ShardSearchOnlyResponse shardResponse = new ShardSearchOnlyResponse(shardId, true, 0);
-        NodeSearchOnlyResponse nodeResponse = new NodeSearchOnlyResponse(
+        ScaleIndexShardResponse shardResponse = new ScaleIndexShardResponse(shardId, true, 0);
+        ScaleIndexNodeResponse nodeResponse = new ScaleIndexNodeResponse(
             new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
             Collections.singletonList(shardResponse)
         );
 
-        List<NodeSearchOnlyResponse> responses = Collections.singletonList(nodeResponse);
+        List<ScaleIndexNodeResponse> responses = Collections.singletonList(nodeResponse);
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
-        syncManager.validateNodeResponses(responses, new ActionListener<SearchOnlyResponse>() {
+        syncManager.validateNodeResponses(responses, new ActionListener<ScaleIndexResponse>() {
             @Override
-            public void onResponse(SearchOnlyResponse response) {
+            public void onResponse(ScaleIndexResponse response) {
                 fail("Expected failure due to sync needed");
             }
 

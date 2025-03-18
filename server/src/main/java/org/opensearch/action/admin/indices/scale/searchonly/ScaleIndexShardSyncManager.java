@@ -8,8 +8,6 @@
 
 package org.opensearch.action.admin.indices.scale.searchonly;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -50,8 +48,7 @@ import java.util.stream.Collectors;
  * The synchronization process is a critical safety mechanism that prevents data loss
  * during transitions between normal and search-only modes.
  */
-class SearchOnlyShardSyncManager {
-    private static final Logger logger = LogManager.getLogger(SearchOnlyShardSyncManager.class);
+class ScaleIndexShardSyncManager {
 
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -64,7 +61,7 @@ class SearchOnlyShardSyncManager {
      * @param transportService   the transport service for sending requests to other nodes
      * @param transportActionName the transport action name for shard sync requests
      */
-    SearchOnlyShardSyncManager(ClusterService clusterService, TransportService transportService, String transportActionName) {
+    ScaleIndexShardSyncManager(ClusterService clusterService, TransportService transportService, String transportActionName) {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportActionName = transportActionName;
@@ -89,7 +86,7 @@ class SearchOnlyShardSyncManager {
     void sendShardSyncRequests(
         String index,
         Map<ShardId, String> primaryShardsNodes,
-        ActionListener<Collection<NodeSearchOnlyResponse>> listener
+        ActionListener<Collection<ScaleIndexNodeResponse>> listener
     ) {
         if (primaryShardsNodes.isEmpty()) {
             listener.onFailure(new IllegalStateException("No primary shards found for index " + index));
@@ -100,7 +97,7 @@ class SearchOnlyShardSyncManager {
             .stream()
             .collect(Collectors.groupingBy(Map.Entry::getValue, Collectors.mapping(Map.Entry::getKey, Collectors.toList())));
 
-        final GroupedActionListener<NodeSearchOnlyResponse> groupedListener = new GroupedActionListener<>(listener, nodeShardGroups.size());
+        final GroupedActionListener<ScaleIndexNodeResponse> groupedListener = new GroupedActionListener<>(listener, nodeShardGroups.size());
 
         for (Map.Entry<String, List<ShardId>> entry : nodeShardGroups.entrySet()) {
             final String nodeId = entry.getKey();
@@ -127,19 +124,19 @@ class SearchOnlyShardSyncManager {
      * @param shards     the list of shards to synchronize on the target node
      * @param listener   the listener to notify with the response
      */
-    void sendNodeRequest(DiscoveryNode targetNode, String index, List<ShardId> shards, ActionListener<NodeSearchOnlyResponse> listener) {
+    void sendNodeRequest(DiscoveryNode targetNode, String index, List<ShardId> shards, ActionListener<ScaleIndexNodeResponse> listener) {
         transportService.sendRequest(
             targetNode,
             transportActionName,
-            new NodeSearchOnlyRequest(index, shards),
-            new TransportResponseHandler<NodeSearchOnlyResponse>() {
+            new ScaleIndexNodeRequest(index, shards),
+            new TransportResponseHandler<ScaleIndexNodeResponse>() {
                 @Override
-                public NodeSearchOnlyResponse read(StreamInput in) throws IOException {
-                    return new NodeSearchOnlyResponse(in);
+                public ScaleIndexNodeResponse read(StreamInput in) throws IOException {
+                    return new ScaleIndexNodeResponse(in);
                 }
 
                 @Override
-                public void handleResponse(NodeSearchOnlyResponse response) {
+                public void handleResponse(ScaleIndexNodeResponse response) {
                     listener.onResponse(response);
                 }
 
@@ -166,13 +163,13 @@ class SearchOnlyShardSyncManager {
      * @param responses the collection of responses from all nodes
      * @param listener  the listener to notify with the aggregated result
      */
-    void validateNodeResponses(Collection<NodeSearchOnlyResponse> responses, ActionListener<SearchOnlyResponse> listener) {
+    void validateNodeResponses(Collection<ScaleIndexNodeResponse> responses, ActionListener<ScaleIndexResponse> listener) {
         boolean hasUncommittedOps = false;
         boolean needsSync = false;
         List<String> failedShards = new ArrayList<>();
 
-        for (NodeSearchOnlyResponse nodeResponse : responses) {
-            for (ShardSearchOnlyResponse shardResponse : nodeResponse.getShardResponses()) {
+        for (ScaleIndexNodeResponse nodeResponse : responses) {
+            for (ScaleIndexShardResponse shardResponse : nodeResponse.getShardResponses()) {
                 if (shardResponse.hasUncommittedOperations()) {
                     hasUncommittedOps = true;
                     failedShards.add(shardResponse.getShardId().toString());
@@ -191,7 +188,7 @@ class SearchOnlyShardSyncManager {
                 + (needsSync ? " - sync needed" : "");
             listener.onFailure(new IllegalStateException(errorDetails));
         } else {
-            listener.onResponse(new SearchOnlyResponse(responses));
+            listener.onResponse(new ScaleIndexResponse(responses));
         }
     }
 

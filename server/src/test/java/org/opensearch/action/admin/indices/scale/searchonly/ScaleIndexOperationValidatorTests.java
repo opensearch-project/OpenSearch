@@ -23,15 +23,15 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-public class SearchOnlyOperationValidatorTests extends OpenSearchTestCase {
+public class ScaleIndexOperationValidatorTests extends OpenSearchTestCase {
 
-    private SearchOnlyOperationValidator validator;
+    private ScaleIndexOperationValidator validator;
     private ActionListener<AcknowledgedResponse> listener;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        validator = new SearchOnlyOperationValidator();
+        validator = new ScaleIndexOperationValidator();
         // Create a mock listener so we can verify onFailure is called with the expected exception.
         listener = Mockito.mock(ActionListener.class);
     }

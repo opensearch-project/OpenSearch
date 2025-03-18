@@ -27,7 +27,7 @@ import java.util.List;
  * ensuring all operations are committed and the remote store is synced. This is a crucial step in
  * the scale-down process to ensure no data loss occurs when the index transitions to search-only mode.
  */
-class NodeSearchOnlyRequest extends TransportRequest {
+class ScaleIndexNodeRequest extends TransportRequest {
     private final String index;
     private final List<ShardId> shardIds;
 
@@ -37,7 +37,7 @@ class NodeSearchOnlyRequest extends TransportRequest {
      * @param index    the name of the index being scaled
      * @param shardIds the list of shard IDs to be synchronized on the target node
      */
-    NodeSearchOnlyRequest(String index, List<ShardId> shardIds) {
+    ScaleIndexNodeRequest(String index, List<ShardId> shardIds) {
         this.index = index;
         this.shardIds = shardIds;
     }
@@ -48,7 +48,7 @@ class NodeSearchOnlyRequest extends TransportRequest {
      * @param in the stream input to read from
      * @throws IOException if there is an I/O error during deserialization
      */
-    NodeSearchOnlyRequest(StreamInput in) throws IOException {
+    ScaleIndexNodeRequest(StreamInput in) throws IOException {
         super(in);
         this.index = in.readString();
         this.shardIds = in.readList(ShardId::new);

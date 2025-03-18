@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** Index Rollover transport handlers. */
+/** Index Scaling transport handlers for managing search-only mode. */
 package org.opensearch.action.admin.indices.scale.searchonly;

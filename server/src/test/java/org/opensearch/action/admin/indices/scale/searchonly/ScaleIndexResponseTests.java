@@ -26,7 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-public class SearchOnlyResponseTests extends OpenSearchTestCase {
+public class ScaleIndexResponseTests extends OpenSearchTestCase {
 
     private DiscoveryNode createTestNode() throws Exception {
         return new DiscoveryNode(
@@ -42,20 +42,20 @@ public class SearchOnlyResponseTests extends OpenSearchTestCase {
     public void testSuccessfulResponse() throws Exception {
         // Create test node and responses with no failures
         DiscoveryNode node = createTestNode();
-        List<ShardSearchOnlyResponse> shardResponses = new ArrayList<>();
+        List<ScaleIndexShardResponse> shardResponses = new ArrayList<>();
 
         // Add successful shard responses
         shardResponses.add(
-            new ShardSearchOnlyResponse(
+            new ScaleIndexShardResponse(
                 new ShardId(new Index("test_index", "test_uuid"), 0),
                 false,  // doesn't need sync
                 0      // no uncommitted operations
             )
         );
 
-        List<NodeSearchOnlyResponse> nodeResponses = Collections.singletonList(new NodeSearchOnlyResponse(node, shardResponses));
+        List<ScaleIndexNodeResponse> nodeResponses = Collections.singletonList(new ScaleIndexNodeResponse(node, shardResponses));
 
-        SearchOnlyResponse response = new SearchOnlyResponse(nodeResponses);
+        ScaleIndexResponse response = new ScaleIndexResponse(nodeResponses);
 
         // Verify response state
         assertFalse("Response should not have failures", response.hasFailures());
@@ -64,7 +64,7 @@ public class SearchOnlyResponseTests extends OpenSearchTestCase {
 
     public void testResponseWithFailures() throws Exception {
         DiscoveryNode node = createTestNode();
-        List<ShardSearchOnlyResponse> shardResponses = new ArrayList<>();
+        List<ScaleIndexShardResponse> shardResponses = new ArrayList<>();
 
         // Create an Index instance
         Index index = new Index("test_index", "test_uuid");
@@ -72,7 +72,7 @@ public class SearchOnlyResponseTests extends OpenSearchTestCase {
         // Add a failed shard response (needs sync)
         ShardId shardId0 = new ShardId(index, 0);
         shardResponses.add(
-            new ShardSearchOnlyResponse(
+            new ScaleIndexShardResponse(
                 shardId0,
                 true,   // needs sync
                 0       // no uncommitted operations
@@ -82,16 +82,16 @@ public class SearchOnlyResponseTests extends OpenSearchTestCase {
         // Add another failed shard response (has uncommitted operations)
         ShardId shardId1 = new ShardId(index, 1);
         shardResponses.add(
-            new ShardSearchOnlyResponse(
+            new ScaleIndexShardResponse(
                 shardId1,
                 false,  // doesn't need sync
                 5       // has uncommitted operations
             )
         );
 
-        List<NodeSearchOnlyResponse> nodeResponses = Collections.singletonList(new NodeSearchOnlyResponse(node, shardResponses));
+        List<ScaleIndexNodeResponse> nodeResponses = Collections.singletonList(new ScaleIndexNodeResponse(node, shardResponses));
 
-        SearchOnlyResponse response = new SearchOnlyResponse(nodeResponses);
+        ScaleIndexResponse response = new ScaleIndexResponse(nodeResponses);
 
         // Verify response state
         assertTrue("Response should have failures", response.hasFailures());
@@ -107,27 +107,27 @@ public class SearchOnlyResponseTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         DiscoveryNode node = createTestNode();
-        List<ShardSearchOnlyResponse> shardResponses = new ArrayList<>();
+        List<ScaleIndexShardResponse> shardResponses = new ArrayList<>();
 
         // Add mixed success/failure responses
         shardResponses.add(
-            new ShardSearchOnlyResponse(
+            new ScaleIndexShardResponse(
                 new ShardId(new Index("test_index", "test_uuid"), 0),
                 false,  // doesn't need sync
                 0       // no uncommitted operations
             )
         );
         shardResponses.add(
-            new ShardSearchOnlyResponse(
+            new ScaleIndexShardResponse(
                 new ShardId(new Index("test_index", "test_uuid"), 1),
                 true,   // needs sync
                 3       // has uncommitted operations
             )
         );
 
-        List<NodeSearchOnlyResponse> nodeResponses = Collections.singletonList(new NodeSearchOnlyResponse(node, shardResponses));
+        List<ScaleIndexNodeResponse> nodeResponses = Collections.singletonList(new ScaleIndexNodeResponse(node, shardResponses));
 
-        SearchOnlyResponse originalResponse = new SearchOnlyResponse(nodeResponses);
+        ScaleIndexResponse originalResponse = new ScaleIndexResponse(nodeResponses);
 
         // Serialize
         BytesStreamOutput output = new BytesStreamOutput();
@@ -135,8 +135,8 @@ public class SearchOnlyResponseTests extends OpenSearchTestCase {
 
         // Deserialize - first read the node responses
         StreamInput input = output.bytes().streamInput();
-        List<NodeSearchOnlyResponse> deserializedNodeResponses = input.readList(NodeSearchOnlyResponse::new);
-        SearchOnlyResponse deserializedResponse = new SearchOnlyResponse(deserializedNodeResponses);
+        List<ScaleIndexNodeResponse> deserializedNodeResponses = input.readList(ScaleIndexNodeResponse::new);
+        ScaleIndexResponse deserializedResponse = new ScaleIndexResponse(deserializedNodeResponses);
 
         // Verify serialization preserved state
         assertEquals("Failure state should match after serialization", originalResponse.hasFailures(), deserializedResponse.hasFailures());
@@ -149,20 +149,20 @@ public class SearchOnlyResponseTests extends OpenSearchTestCase {
 
     public void testToXContent() throws Exception {
         DiscoveryNode node = createTestNode();
-        List<ShardSearchOnlyResponse> shardResponses = new ArrayList<>();
+        List<ScaleIndexShardResponse> shardResponses = new ArrayList<>();
 
         // Add a failed shard response
         shardResponses.add(
-            new ShardSearchOnlyResponse(
+            new ScaleIndexShardResponse(
                 new ShardId(new Index("test_index", "test_uuid"), 0),
                 true,   // needs sync
                 2       // has uncommitted operations
             )
         );
 
-        List<NodeSearchOnlyResponse> nodeResponses = Collections.singletonList(new NodeSearchOnlyResponse(node, shardResponses));
+        List<ScaleIndexNodeResponse> nodeResponses = Collections.singletonList(new ScaleIndexNodeResponse(node, shardResponses));
 
-        SearchOnlyResponse response = new SearchOnlyResponse(nodeResponses);
+        ScaleIndexResponse response = new ScaleIndexResponse(nodeResponses);
 
         // Convert to XContent
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -178,7 +178,7 @@ public class SearchOnlyResponseTests extends OpenSearchTestCase {
 
     public void testEmptyResponse() throws Exception {
         // Create response with empty node responses
-        SearchOnlyResponse response = new SearchOnlyResponse(Collections.emptyList());
+        ScaleIndexResponse response = new ScaleIndexResponse(Collections.emptyList());
 
         // Verify empty response state
         assertFalse("Empty response should not have failures", response.hasFailures());
@@ -186,7 +186,7 @@ public class SearchOnlyResponseTests extends OpenSearchTestCase {
     }
 
     public void testMultiNodeResponse() throws Exception {
-        List<NodeSearchOnlyResponse> nodeResponses = new ArrayList<>();
+        List<ScaleIndexNodeResponse> nodeResponses = new ArrayList<>();
 
         // Create two nodes
         DiscoveryNode node1 = createTestNode();
@@ -205,26 +205,26 @@ public class SearchOnlyResponseTests extends OpenSearchTestCase {
         ShardId shardId1 = new ShardId(index, 1);
 
         // Add responses from both nodes
-        List<ShardSearchOnlyResponse> shardResponses1 = Collections.singletonList(
-            new ShardSearchOnlyResponse(
+        List<ScaleIndexShardResponse> shardResponses1 = Collections.singletonList(
+            new ScaleIndexShardResponse(
                 shardId0,
                 false,  // doesn't need sync
                 0       // no uncommitted operations
             )
         );
 
-        List<ShardSearchOnlyResponse> shardResponses2 = Collections.singletonList(
-            new ShardSearchOnlyResponse(
+        List<ScaleIndexShardResponse> shardResponses2 = Collections.singletonList(
+            new ScaleIndexShardResponse(
                 shardId1,
                 true,   // needs sync
                 0       // no uncommitted operations
             )
         );
 
-        nodeResponses.add(new NodeSearchOnlyResponse(node1, shardResponses1));
-        nodeResponses.add(new NodeSearchOnlyResponse(node2, shardResponses2));
+        nodeResponses.add(new ScaleIndexNodeResponse(node1, shardResponses1));
+        nodeResponses.add(new ScaleIndexNodeResponse(node2, shardResponses2));
 
-        SearchOnlyResponse response = new SearchOnlyResponse(nodeResponses);
+        ScaleIndexResponse response = new ScaleIndexResponse(nodeResponses);
 
         // Verify multi-node response
         assertTrue("Response should have failures due to node2", response.hasFailures());

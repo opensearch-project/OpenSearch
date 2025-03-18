@@ -18,13 +18,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class NodeSearchOnlyRequestTests extends OpenSearchTestCase {
+public class ScaleIndexNodeRequestTests extends OpenSearchTestCase {
 
     public void testConstructorAndGetters() {
         String indexName = "test_index";
         List<ShardId> shardIds = createTestShardIds(indexName, 3);
 
-        NodeSearchOnlyRequest request = new NodeSearchOnlyRequest(indexName, shardIds);
+        ScaleIndexNodeRequest request = new ScaleIndexNodeRequest(indexName, shardIds);
 
         assertEquals("Index name should match", indexName, request.getIndex());
         assertEquals("Shard IDs should match", shardIds, request.getShardIds());
@@ -34,13 +34,13 @@ public class NodeSearchOnlyRequestTests extends OpenSearchTestCase {
         String indexName = "test_index";
         List<ShardId> shardIds = createTestShardIds(indexName, 3);
 
-        NodeSearchOnlyRequest originalRequest = new NodeSearchOnlyRequest(indexName, shardIds);
+        ScaleIndexNodeRequest originalRequest = new ScaleIndexNodeRequest(indexName, shardIds);
 
         BytesStreamOutput output = new BytesStreamOutput();
         originalRequest.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
-        NodeSearchOnlyRequest deserializedRequest = new NodeSearchOnlyRequest(input);
+        ScaleIndexNodeRequest deserializedRequest = new ScaleIndexNodeRequest(input);
 
         assertEquals("Index name should survive serialization", originalRequest.getIndex(), deserializedRequest.getIndex());
         assertEquals("Shard IDs should survive serialization", originalRequest.getShardIds(), deserializedRequest.getShardIds());
@@ -50,13 +50,13 @@ public class NodeSearchOnlyRequestTests extends OpenSearchTestCase {
         String indexName = "test_index";
         List<ShardId> emptyShardIds = new ArrayList<>();
 
-        NodeSearchOnlyRequest originalRequest = new NodeSearchOnlyRequest(indexName, emptyShardIds);
+        ScaleIndexNodeRequest originalRequest = new ScaleIndexNodeRequest(indexName, emptyShardIds);
 
         BytesStreamOutput output = new BytesStreamOutput();
         originalRequest.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
-        NodeSearchOnlyRequest deserializedRequest = new NodeSearchOnlyRequest(input);
+        ScaleIndexNodeRequest deserializedRequest = new ScaleIndexNodeRequest(input);
 
         assertEquals("Index name should survive serialization", originalRequest.getIndex(), deserializedRequest.getIndex());
         assertTrue("Empty shard list should survive serialization", deserializedRequest.getShardIds().isEmpty());
@@ -66,13 +66,13 @@ public class NodeSearchOnlyRequestTests extends OpenSearchTestCase {
         String indexName = "test_index";
         List<ShardId> shardIds = createTestShardIds(indexName, 5);
 
-        NodeSearchOnlyRequest originalRequest = new NodeSearchOnlyRequest(indexName, shardIds);
+        ScaleIndexNodeRequest originalRequest = new ScaleIndexNodeRequest(indexName, shardIds);
 
         BytesStreamOutput output = new BytesStreamOutput();
         originalRequest.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
-        NodeSearchOnlyRequest deserializedRequest = new NodeSearchOnlyRequest(input);
+        ScaleIndexNodeRequest deserializedRequest = new ScaleIndexNodeRequest(input);
 
         assertEquals(
             "Should have correct number of shards after deserialization",

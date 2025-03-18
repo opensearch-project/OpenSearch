@@ -66,19 +66,21 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLO
  * The scale operation is implemented as a series of cluster state update tasks to ensure
  * atomicity and consistency throughout the transition.
  */
-public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction<SearchOnlyRequest, AcknowledgedResponse> {
+public class TransportScaleIndexAction extends TransportClusterManagerNodeAction<ScaleIndexRequest, AcknowledgedResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportSearchOnlyAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportScaleIndexAction.class);
     /** Transport action name for shard sync requests */
-    public static final String NAME = SearchOnlyScaleAction.NAME + "[s]";
+    public static final String NAME = ScaleIndexAction.NAME + "[s]";
+
+    public static final String SHARD_SYNC_EXECUTOR = ThreadPool.Names.MANAGEMENT;
 
     private final AllocationService allocationService;
     private final IndicesService indicesService;
-    private final TransportService transportService;
+    private final ThreadPool threadPool;
 
-    private final SearchOnlyOperationValidator validator;
-    private final SearchOnlyClusterStateBuilder searchOnlyClusterStateBuilder;
-    private final SearchOnlyShardSyncManager searchOnlyShardSyncManager;
+    private final ScaleIndexOperationValidator validator;
+    private final ScaleIndexClusterStateBuilder scaleIndexClusterStateBuilder;
+    private final ScaleIndexShardSyncManager scaleIndexShardSyncManager;
 
     /**
      * Constructs a new TransportSearchOnlyAction.
@@ -92,7 +94,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
      * @param indicesService            service for accessing index shards
      */
     @Inject
-    public TransportSearchOnlyAction(
+    public TransportScaleIndexAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -102,25 +104,25 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         IndicesService indicesService
     ) {
         super(
-            SearchOnlyScaleAction.NAME,
+            ScaleIndexAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            SearchOnlyRequest::new,
+            ScaleIndexRequest::new,
             indexNameExpressionResolver
         );
         this.allocationService = allocationService;
         this.indicesService = indicesService;
-        this.transportService = transportService;
-        this.validator = new SearchOnlyOperationValidator();
-        this.searchOnlyClusterStateBuilder = new SearchOnlyClusterStateBuilder();
-        this.searchOnlyShardSyncManager = new SearchOnlyShardSyncManager(clusterService, transportService, NAME);
+        this.threadPool = threadPool;
+        this.validator = new ScaleIndexOperationValidator();
+        this.scaleIndexClusterStateBuilder = new ScaleIndexClusterStateBuilder();
+        this.scaleIndexShardSyncManager = new ScaleIndexShardSyncManager(clusterService, transportService, NAME);
 
         transportService.registerRequestHandler(
             NAME,
             ThreadPool.Names.SAME,
-            NodeSearchOnlyRequest::new,
+            ScaleIndexNodeRequest::new,
             (request, channel, task) -> handleShardSyncRequest(request, channel)
         );
     }
@@ -158,7 +160,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
      * @param listener the listener to notify with the operation result
      */
     @Override
-    protected void clusterManagerOperation(SearchOnlyRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+    protected void clusterManagerOperation(ScaleIndexRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         try {
             String index = request.getIndex();
             if (request.isScaleDown()) {
@@ -192,7 +194,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         Map<ShardId, String> primaryShardsNodes,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        searchOnlyShardSyncManager.sendShardSyncRequests(
+        scaleIndexShardSyncManager.sendShardSyncRequests(
             index,
             primaryShardsNodes,
             ActionListener.wrap(responses -> handleShardSyncResponses(responses, index, listener), listener::onFailure)
@@ -200,11 +202,11 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
     }
 
     private void handleShardSyncResponses(
-        Collection<NodeSearchOnlyResponse> responses,
+        Collection<ScaleIndexNodeResponse> responses,
         String index,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        searchOnlyShardSyncManager.validateNodeResponses(
+        scaleIndexShardSyncManager.validateNodeResponses(
             responses,
             ActionListener.wrap(searchOnlyResponse -> finalizeScaleDown(index, listener), listener::onFailure)
         );
@@ -221,8 +223,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
     /**
      * Handles an incoming shard sync request from another node.
      */
-    void handleShardSyncRequest(NodeSearchOnlyRequest request, TransportChannel channel) throws Exception {
-        logger.info("Handling shard sync request for index [{}]", request.getIndex());
+    void handleShardSyncRequest(ScaleIndexNodeRequest request, TransportChannel channel) {
         ClusterState state = clusterService.state();
 
         IndexMetadata indexMetadata = state.metadata().index(request.getIndex());
@@ -231,9 +232,20 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         }
 
         IndexService indexService = getIndexService(indexMetadata);
-        List<ShardSearchOnlyResponse> shardResponses = syncShards(indexService, request.getShardIds());
 
-        channel.sendResponse(new NodeSearchOnlyResponse(clusterService.localNode(), shardResponses));
+        threadPool.executor(SHARD_SYNC_EXECUTOR).execute(() -> {
+            try {
+                List<ScaleIndexShardResponse> shardResponses = syncShards(indexService, request.getShardIds());
+                channel.sendResponse(new ScaleIndexNodeResponse(clusterService.localNode(), shardResponses));
+            } catch (Exception e) {
+                try {
+                    channel.sendResponse(e);
+                } catch (Exception ex) {
+                    logger.error("Failed to send error response for shard sync request", ex);
+                }
+            }
+        });
+
     }
 
     private IndexService getIndexService(IndexMetadata indexMetadata) {
@@ -244,8 +256,8 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         return indexService;
     }
 
-    private List<ShardSearchOnlyResponse> syncShards(IndexService indexService, List<ShardId> shardIds) throws Exception {
-        List<ShardSearchOnlyResponse> shardResponses = new ArrayList<>();
+    private List<ScaleIndexShardResponse> syncShards(IndexService indexService, List<ShardId> shardIds) throws Exception {
+        List<ScaleIndexShardResponse> shardResponses = new ArrayList<>();
 
         for (ShardId shardId : shardIds) {
             IndexShard shard = indexService.getShardOrNull(shardId.id());
@@ -259,7 +271,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         return shardResponses;
     }
 
-    ShardSearchOnlyResponse syncSingleShard(IndexShard shard) throws Exception {
+    ScaleIndexShardResponse syncSingleShard(IndexShard shard) throws Exception {
         logger.info("Performing final sync and flush for shard {}", shard.shardId());
         shard.sync();
         shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
@@ -275,7 +287,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
         }
 
         shard.waitForRemoteStoreSync();
-        return new ShardSearchOnlyResponse(shard.shardId(), shard.isSyncNeeded(), shard.translogStats().getUncommittedOperations());
+        return new ScaleIndexShardResponse(shard.shardId(), shard.isSyncNeeded(), shard.translogStats().getUncommittedOperations());
     }
 
     /**
@@ -295,7 +307,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(SearchOnlyRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(ScaleIndexRequest request, ClusterState state) {
         return state.blocks()
             .indicesBlockedException(
                 ClusterBlockLevel.METADATA_WRITE,
@@ -334,7 +346,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
             IndexMetadata indexMetadata = currentState.metadata().index(index);
             try {
                 validator.validateScalePrerequisites(indexMetadata, index, listener, true);
-                return searchOnlyClusterStateBuilder.buildScaleDownState(currentState, index, blockedIndices);
+                return scaleIndexClusterStateBuilder.buildScaleDownState(currentState, index, blockedIndices);
             } catch (Exception e) {
                 return currentState;
             }
@@ -349,7 +361,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
 
             IndexMetadata indexMetadata = newState.metadata().index(index);
             if (indexMetadata != null) {
-                Map<ShardId, String> primaryShardsNodes = searchOnlyShardSyncManager.getPrimaryShardAssignments(indexMetadata, newState);
+                Map<ShardId, String> primaryShardsNodes = scaleIndexShardSyncManager.getPrimaryShardAssignments(indexMetadata, newState);
                 proceedWithScaleDown(index, primaryShardsNodes, listener);
             }
         }
@@ -384,7 +396,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            return searchOnlyClusterStateBuilder.buildFinalScaleDownState(currentState, index);
+            return scaleIndexClusterStateBuilder.buildFinalScaleDownState(currentState, index);
         }
 
         @Override
@@ -421,7 +433,7 @@ public class TransportSearchOnlyAction extends TransportClusterManagerNodeAction
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            RoutingTable newRoutingTable = searchOnlyClusterStateBuilder.buildScaleUpRoutingTable(currentState, index);
+            RoutingTable newRoutingTable = scaleIndexClusterStateBuilder.buildScaleUpRoutingTable(currentState, index);
             ClusterState tempState = ClusterState.builder(currentState).routingTable(newRoutingTable).build();
 
             ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(tempState.blocks());

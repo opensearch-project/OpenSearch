@@ -19,14 +19,14 @@ import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
  * used for transport actions and request routing. The action produces an
  * {@link AcknowledgedResponse} to indicate success or failure.
  * <p>
- * The action is registered with the name "indices:admin/scale/search-only" in the
+ * The action is registered with the name "indices:admin/scale/search_only" in the
  * transport action registry.
  */
-public class SearchOnlyScaleAction extends ActionType<AcknowledgedResponse> {
+public class ScaleIndexAction extends ActionType<AcknowledgedResponse> {
     /**
      * Singleton instance of the SearchOnlyScaleAction.
      */
-    public static final SearchOnlyScaleAction INSTANCE = new SearchOnlyScaleAction();
+    public static final ScaleIndexAction INSTANCE = new ScaleIndexAction();
 
     /**
      * The name of this action, used for transport action registration and routing.
@@ -34,14 +34,14 @@ public class SearchOnlyScaleAction extends ActionType<AcknowledgedResponse> {
      * This action name follows the OpenSearch convention of prefixing administrative
      * index actions with "indices:admin/".
      */
-    public static final String NAME = "indices:admin/scale/search-only";
+    public static final String NAME = "indices:admin/scale/search_only";
 
     /**
      * Private constructor to enforce singleton pattern.
      * <p>
      * Initializes the action with the appropriate name and response reader.
      */
-    private SearchOnlyScaleAction() {
+    private ScaleIndexAction() {
         super(NAME, AcknowledgedResponse::new);
     }
 }

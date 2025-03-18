@@ -31,8 +31,8 @@ import java.util.Collection;
  * The response is used by the cluster manager to determine whether a scale operation
  * can be finalized or needs to be retried after more time is allowed for synchronization.
  */
-class SearchOnlyResponse extends ActionResponse implements ToXContent {
-    private final Collection<NodeSearchOnlyResponse> nodeResponses;
+class ScaleIndexResponse extends ActionResponse implements ToXContent {
+    private final Collection<ScaleIndexNodeResponse> nodeResponses;
     private final String failureReason;
     private final boolean hasFailures;
 
@@ -45,7 +45,7 @@ class SearchOnlyResponse extends ActionResponse implements ToXContent {
      *
      * @param responses the collection of node responses containing shard status information
      */
-    SearchOnlyResponse(Collection<NodeSearchOnlyResponse> responses) {
+    ScaleIndexResponse(Collection<ScaleIndexNodeResponse> responses) {
         this.nodeResponses = responses;
         this.hasFailures = responses.stream()
             .anyMatch(r -> r.getShardResponses().stream().anyMatch(s -> s.hasUncommittedOperations() || s.needsSync()));
@@ -89,8 +89,8 @@ class SearchOnlyResponse extends ActionResponse implements ToXContent {
             return null;
         }
         StringBuilder reason = new StringBuilder();
-        for (NodeSearchOnlyResponse nodeResponse : nodeResponses) {
-            for (ShardSearchOnlyResponse shardResponse : nodeResponse.getShardResponses()) {
+        for (ScaleIndexNodeResponse nodeResponse : nodeResponses) {
+            for (ScaleIndexShardResponse shardResponse : nodeResponse.getShardResponses()) {
                 if (shardResponse.hasUncommittedOperations() || shardResponse.needsSync()) {
                     reason.append("Shard ")
                         .append(shardResponse.getShardId())

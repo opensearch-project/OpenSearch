@@ -22,14 +22,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
-public class RestScaleSearchOnlyActionTests extends OpenSearchTestCase {
+public class RestScaleIndexActionTests extends OpenSearchTestCase {
 
-    private RestScaleSearchOnlyAction action;
+    private RestScaleIndexAction action;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        action = new RestScaleSearchOnlyAction();
+        action = new RestScaleIndexAction();
     }
 
     public void testMissingIndexParam() {

@@ -16,14 +16,14 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class ShardSearchOnlyResponseTests extends OpenSearchTestCase {
+public class ScaleIndexShardResponseTests extends OpenSearchTestCase {
 
     public void testConstructorAndGetters() {
         ShardId shardId = createTestShardId();
         boolean needsSync = randomBoolean();
         int uncommittedOps = randomIntBetween(0, 100);
 
-        ShardSearchOnlyResponse response = new ShardSearchOnlyResponse(shardId, needsSync, uncommittedOps);
+        ScaleIndexShardResponse response = new ScaleIndexShardResponse(shardId, needsSync, uncommittedOps);
 
         assertEquals("Shard ID should match", shardId, response.getShardId());
         assertEquals("Needs sync flag should match", needsSync, response.needsSync());
@@ -35,13 +35,13 @@ public class ShardSearchOnlyResponseTests extends OpenSearchTestCase {
         boolean needsSync = randomBoolean();
         int uncommittedOps = randomIntBetween(0, 100);
 
-        ShardSearchOnlyResponse originalResponse = new ShardSearchOnlyResponse(shardId, needsSync, uncommittedOps);
+        ScaleIndexShardResponse originalResponse = new ScaleIndexShardResponse(shardId, needsSync, uncommittedOps);
 
         BytesStreamOutput output = new BytesStreamOutput();
         originalResponse.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
-        ShardSearchOnlyResponse deserializedResponse = new ShardSearchOnlyResponse(input);
+        ScaleIndexShardResponse deserializedResponse = new ScaleIndexShardResponse(input);
 
         assertEquals("Shard ID should survive serialization", originalResponse.getShardId(), deserializedResponse.getShardId());
         assertEquals("Needs sync flag should survive serialization", originalResponse.needsSync(), deserializedResponse.needsSync());
@@ -54,7 +54,7 @@ public class ShardSearchOnlyResponseTests extends OpenSearchTestCase {
 
     public void testZeroUncommittedOperations() {
         ShardId shardId = createTestShardId();
-        ShardSearchOnlyResponse response = new ShardSearchOnlyResponse(shardId, randomBoolean(), 0);
+        ScaleIndexShardResponse response = new ScaleIndexShardResponse(shardId, randomBoolean(), 0);
 
         assertFalse("Should report no uncommitted operations when count is 0", response.hasUncommittedOperations());
     }
@@ -62,7 +62,7 @@ public class ShardSearchOnlyResponseTests extends OpenSearchTestCase {
     public void testNonZeroUncommittedOperations() {
         ShardId shardId = createTestShardId();
         int uncommittedOps = randomIntBetween(1, 100);
-        ShardSearchOnlyResponse response = new ShardSearchOnlyResponse(shardId, randomBoolean(), uncommittedOps);
+        ScaleIndexShardResponse response = new ScaleIndexShardResponse(shardId, randomBoolean(), uncommittedOps);
 
         assertTrue("Should report uncommitted operations when count is > 0", response.hasUncommittedOperations());
     }
@@ -71,13 +71,13 @@ public class ShardSearchOnlyResponseTests extends OpenSearchTestCase {
         ShardId shardId = createTestShardId();
 
         // Test with Integer.MAX_VALUE uncommitted operations
-        ShardSearchOnlyResponse originalResponse = new ShardSearchOnlyResponse(shardId, true, Integer.MAX_VALUE);
+        ScaleIndexShardResponse originalResponse = new ScaleIndexShardResponse(shardId, true, Integer.MAX_VALUE);
 
         BytesStreamOutput output = new BytesStreamOutput();
         originalResponse.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
-        ShardSearchOnlyResponse deserializedResponse = new ShardSearchOnlyResponse(input);
+        ScaleIndexShardResponse deserializedResponse = new ScaleIndexShardResponse(input);
 
         assertTrue("Max value should be preserved and indicate uncommitted operations", deserializedResponse.hasUncommittedOperations());
     }
@@ -86,13 +86,13 @@ public class ShardSearchOnlyResponseTests extends OpenSearchTestCase {
         // Test with different shard numbers
         for (int shardNum : new int[] { 0, 1, 100, Integer.MAX_VALUE }) {
             ShardId shardId = new ShardId(new Index("test_index", "uuid"), shardNum);
-            ShardSearchOnlyResponse originalResponse = new ShardSearchOnlyResponse(shardId, randomBoolean(), randomIntBetween(0, 100));
+            ScaleIndexShardResponse originalResponse = new ScaleIndexShardResponse(shardId, randomBoolean(), randomIntBetween(0, 100));
 
             BytesStreamOutput output = new BytesStreamOutput();
             originalResponse.writeTo(output);
 
             StreamInput input = output.bytes().streamInput();
-            ShardSearchOnlyResponse deserializedResponse = new ShardSearchOnlyResponse(input);
+            ScaleIndexShardResponse deserializedResponse = new ScaleIndexShardResponse(input);
 
             assertEquals("Shard number should survive serialization", shardId.id(), deserializedResponse.getShardId().id());
         }

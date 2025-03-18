@@ -21,7 +21,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
  * index state compatibility, and configuration prerequisites such as remote store
  * and segment replication settings.
  */
-class SearchOnlyOperationValidator {
+class ScaleIndexOperationValidator {
 
     /**
      * Validates that the given index meets the prerequisites for the scale operation.

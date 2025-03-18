@@ -37,7 +37,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class ScaleSearchOnlyIT extends RemoteStoreBaseIntegTestCase {
+public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String TEST_INDEX = "test_scale_index";
 

@@ -48,7 +48,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLO
  * The cluster state modifications ensure proper synchronization of operations and maintain
  * data integrity throughout the scaling process.
  */
-class SearchOnlyClusterStateBuilder {
+class ScaleIndexClusterStateBuilder {
 
     /**
      * Builds the new cluster state by adding a temporary scale-down block on the target index.

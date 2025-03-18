@@ -40,9 +40,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 
-public class SearchOnlyClusterStateBuilderTests extends OpenSearchTestCase {
+public class ScaleIndexClusterStateBuilderTests extends OpenSearchTestCase {
 
-    private SearchOnlyClusterStateBuilder builder;
+    private ScaleIndexClusterStateBuilder builder;
     private ClusterState initialState;
     private String testIndex;
     private IndexMetadata indexMetadata;
@@ -50,7 +50,7 @@ public class SearchOnlyClusterStateBuilderTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        builder = new SearchOnlyClusterStateBuilder();
+        builder = new ScaleIndexClusterStateBuilder();
         testIndex = "test_index";
 
         // Create basic index metadata with segment replication enabled

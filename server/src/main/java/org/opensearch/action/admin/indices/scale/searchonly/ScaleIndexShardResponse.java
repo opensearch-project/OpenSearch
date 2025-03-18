@@ -28,7 +28,7 @@ import java.io.IOException;
  * The cluster manager uses this information from all primary shards to decide
  * whether it's safe to finalize a scale-down operation.
  */
-class ShardSearchOnlyResponse implements Writeable {
+class ScaleIndexShardResponse implements Writeable {
     private final ShardId shardId;
     private final boolean needsSync;
     private final int uncommittedOperations;
@@ -40,7 +40,7 @@ class ShardSearchOnlyResponse implements Writeable {
      * @param needsSync             whether the shard still needs additional synchronization
      * @param uncommittedOperations the number of operations not yet committed to the transaction log
      */
-    ShardSearchOnlyResponse(ShardId shardId, boolean needsSync, int uncommittedOperations) {
+    ScaleIndexShardResponse(ShardId shardId, boolean needsSync, int uncommittedOperations) {
         this.shardId = shardId;
         this.needsSync = needsSync;
         this.uncommittedOperations = uncommittedOperations;
@@ -52,7 +52,7 @@ class ShardSearchOnlyResponse implements Writeable {
      * @param in the stream input to read from
      * @throws IOException if there is an I/O error during deserialization
      */
-    ShardSearchOnlyResponse(StreamInput in) throws IOException {
+    ScaleIndexShardResponse(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
         this.needsSync = in.readBoolean();
         this.uncommittedOperations = in.readVInt();

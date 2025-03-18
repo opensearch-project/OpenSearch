@@ -26,7 +26,7 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  *
  * @opensearch.internal
  */
-public class RestScaleSearchOnlyAction extends BaseRestHandler {
+public class RestScaleIndexAction extends BaseRestHandler {
 
     private static final String SEARCH_ONLY_FIELD = "search_only";
 

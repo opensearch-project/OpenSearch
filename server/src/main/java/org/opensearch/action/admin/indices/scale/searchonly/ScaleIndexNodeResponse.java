@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Response sent from nodes after processing a {@link NodeSearchOnlyRequest} during search-only scaling operations.
+ * Response sent from nodes after processing a {@link ScaleIndexNodeRequest} during search-only scaling operations.
  * <p>
  * This response contains information about the node that processed the request and the results of
  * synchronization attempts for each requested shard. The cluster manager uses these responses to
@@ -27,9 +27,9 @@ import java.util.List;
  * additional synchronization, which would indicate the scale operation should be delayed until
  * the cluster reaches a stable state.
  */
-class NodeSearchOnlyResponse extends TransportResponse {
+class ScaleIndexNodeResponse extends TransportResponse {
     private final DiscoveryNode node;
-    private final List<ShardSearchOnlyResponse> shardResponses;
+    private final List<ScaleIndexShardResponse> shardResponses;
 
     /**
      * Constructs a new NodeSearchOnlyResponse.
@@ -37,7 +37,7 @@ class NodeSearchOnlyResponse extends TransportResponse {
      * @param node           the node that processed the synchronization request
      * @param shardResponses the list of responses from individual shard synchronization attempts
      */
-    NodeSearchOnlyResponse(DiscoveryNode node, List<ShardSearchOnlyResponse> shardResponses) {
+    ScaleIndexNodeResponse(DiscoveryNode node, List<ScaleIndexShardResponse> shardResponses) {
         this.node = node;
         this.shardResponses = shardResponses;
     }
@@ -48,9 +48,9 @@ class NodeSearchOnlyResponse extends TransportResponse {
      * @param in the stream input to read from
      * @throws IOException if there is an I/O error during deserialization
      */
-    NodeSearchOnlyResponse(StreamInput in) throws IOException {
+    ScaleIndexNodeResponse(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
-        shardResponses = in.readList(ShardSearchOnlyResponse::new);
+        shardResponses = in.readList(ScaleIndexShardResponse::new);
     }
 
     /**
@@ -83,7 +83,7 @@ class NodeSearchOnlyResponse extends TransportResponse {
      *
      * @return the list of shard responses
      */
-    public List<ShardSearchOnlyResponse> getShardResponses() {
+    public List<ScaleIndexShardResponse> getShardResponses() {
         return shardResponses;
     }
 }

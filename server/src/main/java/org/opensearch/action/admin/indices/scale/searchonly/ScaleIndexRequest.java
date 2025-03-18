@@ -31,7 +31,7 @@ import java.util.Objects;
  * cluster state changes, shard synchronization, and recovery operations needed to transition
  * an index between normal and search-only states.
  */
-class SearchOnlyRequest extends AcknowledgedRequest<SearchOnlyRequest> {
+class ScaleIndexRequest extends AcknowledgedRequest<ScaleIndexRequest> {
     private final String index;
     private boolean scaleDown;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
@@ -42,7 +42,7 @@ class SearchOnlyRequest extends AcknowledgedRequest<SearchOnlyRequest> {
      * @param index     the name of the index to scale
      * @param scaleDown true to scale down to search-only mode, false to scale up to normal operation
      */
-    SearchOnlyRequest(String index, boolean scaleDown) {
+    ScaleIndexRequest(String index, boolean scaleDown) {
         super();
         this.index = index;
         this.scaleDown = scaleDown;
@@ -54,7 +54,7 @@ class SearchOnlyRequest extends AcknowledgedRequest<SearchOnlyRequest> {
      * @param in the stream input to read from
      * @throws IOException if there is an I/O error during deserialization
      */
-    SearchOnlyRequest(StreamInput in) throws IOException {
+    ScaleIndexRequest(StreamInput in) throws IOException {
         super(in);
         this.index = in.readString();
         this.scaleDown = in.readBoolean();
@@ -101,7 +101,7 @@ class SearchOnlyRequest extends AcknowledgedRequest<SearchOnlyRequest> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SearchOnlyRequest that = (SearchOnlyRequest) o;
+        ScaleIndexRequest that = (ScaleIndexRequest) o;
         return scaleDown == that.scaleDown && Objects.equals(index, that.index) && Objects.equals(indicesOptions, that.indicesOptions);
     }
 
@@ -148,7 +148,7 @@ class SearchOnlyRequest extends AcknowledgedRequest<SearchOnlyRequest> {
      * @param indicesOptions the indices options to use
      * @return this request (for method chaining)
      */
-    public SearchOnlyRequest indicesOptions(IndicesOptions indicesOptions) {
+    public ScaleIndexRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }
@@ -159,7 +159,7 @@ class SearchOnlyRequest extends AcknowledgedRequest<SearchOnlyRequest> {
      * @param scaleDown true if scaling down, false if scaling up
      * @return this request (for method chaining)
      */
-    public SearchOnlyRequest scaleDown(boolean scaleDown) {
+    public ScaleIndexRequest scaleDown(boolean scaleDown) {
         this.scaleDown = scaleDown;
         return this;
     }
