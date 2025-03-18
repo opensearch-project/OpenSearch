@@ -661,30 +661,18 @@ public class XContentMapValues {
         };
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> buildTransformerTrie(Map<String, Function<Object, Object>> transformers) {
         Map<String, Object> trie = new HashMap<>();
         for (Map.Entry<String, Function<Object, Object>> entry : transformers.entrySet()) {
             String[] pathElements = entry.getKey().split("\\.");
-            addToTransformerTrie(trie, pathElements, 0, entry.getValue());
+            Map<String, Object> subTrie = trie;
+            for (String pathElement : pathElements) {
+                subTrie = (Map<String, Object>) subTrie.computeIfAbsent(pathElement, k -> new HashMap<>());
+            }
+            subTrie.put(TRANSFORMER_TRIE_LEAF_KEY, entry.getValue());
         }
         return trie;
-    }
-
-    private static void addToTransformerTrie(
-        Map<String, Object> trie,
-        String[] pathElements,
-        int index,
-        Function<Object, Object> transformer
-    ) {
-        if (index == pathElements.length) {
-            trie.put(TRANSFORMER_TRIE_LEAF_KEY, transformer);
-            return;
-        }
-
-        String key = pathElements[index];
-        @SuppressWarnings("unchecked")
-        Map<String, Object> subTrie = (Map<String, Object>) trie.computeIfAbsent(key, k -> new HashMap<>());
-        addToTransformerTrie(subTrie, pathElements, index + 1, transformer);
     }
 
     private static void processStack(Deque<TransformContext> stack) {
