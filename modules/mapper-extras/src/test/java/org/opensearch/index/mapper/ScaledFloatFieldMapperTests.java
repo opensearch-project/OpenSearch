@@ -36,15 +36,12 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.plugins.Plugin;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -98,16 +95,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
-    @BeforeClass
-    public static void createMapper() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(STAR_TREE_INDEX, "true").build());
-    }
-
-    @AfterClass
-    public static void clearMapper() {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
-    }
-
+    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testScaledFloatWithStarTree() throws Exception {
 
         double scalingFactorField1 = randomDouble() * 100;
