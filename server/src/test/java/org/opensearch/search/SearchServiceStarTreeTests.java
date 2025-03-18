@@ -727,6 +727,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         );
         String KEYWORD_FIELD = "clientip";
         String NUMERIC_FIELD = "size";
+        String NUMERIC_FIELD_NOT_ORDERED_DIMENSION = "rank";
 
         MaxAggregationBuilder maxAggNoSub = max("max").field(FIELD_NAME);
         SumAggregationBuilder sumAggSub = sum("sum").field(FIELD_NAME).subAggregation(maxAggNoSub);
@@ -792,6 +793,12 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         // Case 4: Unsupported aggregations within range aggregation, should not use star tree
         rangeAggregationBuilder = range("range").field(NUMERIC_FIELD).addRange(0, 100).subAggregation(medianAgg);
         sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(rangeAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 5: Range Aggregation on field not in ordered dimensions, should not use star tree
+        rangeAggregationBuilder = range("range").field(NUMERIC_FIELD_NOT_ORDERED_DIMENSION).addRange(0, 100).subAggregation(medianAgg);
+        baseQuery = new MatchAllQueryBuilder();
+        sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(rangeAggregationBuilder);
         assertStarTreeContext(request, sourceBuilder, null, -1);
 
         setStarTreeIndexSetting(null);

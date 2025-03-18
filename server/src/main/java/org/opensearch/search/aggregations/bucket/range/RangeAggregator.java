@@ -547,6 +547,9 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
                 }
             }
 
+            assert startLo == lowBound || value >= maxTo[startLo - 1];
+            assert endHi == ranges.length - 1 || value < ranges[endHi + 1].from;
+
             this.startLo = startLo;
             this.endHi = endHi;
         }
