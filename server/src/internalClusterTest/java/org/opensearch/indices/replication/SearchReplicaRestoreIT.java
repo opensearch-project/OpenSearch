@@ -73,7 +73,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         );
         ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
 
-        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        internalCluster().startSearchOnlyNode();
 
         ensureGreen(RESTORED_INDEX_NAME);
         assertEquals(1, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
@@ -118,7 +118,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
 
     private void bootstrapIndexWithSearchReplicas() {
         internalCluster().startNodes(2);
-        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        internalCluster().startSearchOnlyNode();
 
         Settings settings = Settings.builder()
             .put(super.indexSettings())

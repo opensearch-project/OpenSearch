@@ -72,7 +72,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         ensureYellow(TEST_INDEX);
         // add 2 nodes for the replicas
         internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        internalCluster().startSearchOnlyNode();
 
         ensureGreen(TEST_INDEX);
 
@@ -107,18 +107,18 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         ensureYellow(TEST_INDEX);
         client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         // start a node for our search replica
-        final String replica = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        final String searchNode = internalCluster().startSearchOnlyNode();
 
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(numSearchReplicas);
-        assertHitCount(client(replica).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1);
+        assertHitCount(client(searchNode).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1);
 
         // stop the primary and ensure search shard is not promoted:
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName));
         ensureRed(TEST_INDEX);
         assertActiveSearchShards(numSearchReplicas);
         // while red our search shard is still searchable
-        assertHitCount(client(replica).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1);
+        assertHitCount(client(searchNode).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1);
     }
 
     public void testFailoverWithSearchReplicaWhenNodeLeavesCluster() throws IOException {
@@ -128,7 +128,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         indexSingleDoc(TEST_INDEX, true);
         ensureYellow(TEST_INDEX);
         // add another node for the search replica
-        String searchNode = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        String searchNode = internalCluster().startSearchOnlyNode();
         ensureGreen(TEST_INDEX);
 
         // Stop Node which hosts the search replica
@@ -138,7 +138,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         assertActiveSearchShards(0);
 
         // Add a node and ensure search shard will get assigned
-        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        internalCluster().startSearchOnlyNode();
 
         // Ensure search shard is recovered
         ensureGreen(TEST_INDEX);
@@ -152,7 +152,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         indexSingleDoc(TEST_INDEX, true);
         ensureYellow(TEST_INDEX);
         // add another node for the search replica
-        String searchNode = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        String searchNode = internalCluster().startSearchOnlyNode();
         ensureGreen(TEST_INDEX);
         // Restart Search Node
         internalCluster().restartNode(searchNode);
@@ -166,7 +166,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
 
     public void testSearchReplicaScaling() {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        internalCluster().startSearchOnlyNode();
         internalCluster().startDataOnlyNode();
 
         createIndex(TEST_INDEX);
@@ -180,7 +180,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         assertActiveSearchShards(1);
 
         // Add another search node and search replica
-        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        internalCluster().startSearchOnlyNode();
 
         client().admin()
             .indices()
@@ -218,7 +218,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         // add 2 nodes for the replicas
         internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        internalCluster().startSearchOnlyNode();
 
         ensureGreen(TEST_INDEX);
 
@@ -260,7 +260,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         int numWriterReplicas = 1;
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNodes(2, Settings.builder().put("node.attr.searchonly", "true").build());
+        internalCluster().startSearchOnlyNode();
 
         createIndex(
             TEST_INDEX,

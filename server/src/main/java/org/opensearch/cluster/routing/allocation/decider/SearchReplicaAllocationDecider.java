@@ -14,7 +14,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 
 /**
- * A search replica can be allocated to only nodes with attribute searchonly:true,
+ * A search replica can be allocated to only nodes with a search role
  * other shard types will not be allocated to these nodes.
  * @opensearch.internal
  */
@@ -35,14 +35,24 @@ public class SearchReplicaAllocationDecider extends AllocationDecider {
     private Decision canAllocate(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
         boolean isSearchReplica = shardRouting.isSearchOnly();
 
-        if (node.isSearchDedicatedDataNode() && isSearchReplica) {
-            return allocation.decision(Decision.YES, NAME, "node is search dedicated data node and shard is search replica");
-        } else if (!node.isSearchDedicatedDataNode() && !isSearchReplica) {
-            return allocation.decision(Decision.YES, NAME, "node is not search dedicated data node and shard is replica");
-        } else if (node.isSearchDedicatedDataNode() && !isSearchReplica) {
-            return allocation.decision(Decision.NO, NAME, "Node is a search dedicated data node but shard is not a search replica");
+        if ((node.isSearchNode() && isSearchReplica) || (!node.isSearchNode() && !isSearchReplica)) {
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "node and shard are compatible. node: [%s], is search node: [%s], shard: [%s]",
+                node.getId(),
+                node.isSearchNode(),
+                shardRouting.shortSummary()
+            );
         } else {
-            return allocation.decision(Decision.NO, NAME, "Node is not a search dedicated data node but shard is a search replica");
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "node and shard are compatible. node: [%s], is search node: [%s], shard: [%s]",
+                node.getId(),
+                node.isSearchNode(),
+                shardRouting.shortSummary()
+            );
         }
     }
 }

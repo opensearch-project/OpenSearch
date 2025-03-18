@@ -57,7 +57,6 @@ import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_UUID;
@@ -356,7 +355,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
             .routingTable(routingTable)
             .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2", Map.of("searchonly", "true"))))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newSearchNode("node2")))
             .build();
         return service.reroute(clusterState, "reroute");
     }

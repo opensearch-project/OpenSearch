@@ -95,7 +95,7 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
         );
 
-        // Tests for canRemain
+        // Tests for canAllocate
         // Can allocate searchReplica on search node
         Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
             searchReplica,
@@ -125,22 +125,22 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
         assertEquals(decision.toString(), Decision.Type.NO, decision.type());
 
         // Tests for canRemain
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(searchReplica, state.getRoutingNodes().node("node2"), allocation);
+        decision = (Decision.Single) filterAllocationDecider.canRemain(searchReplica, state.getRoutingNodes().node("node2"), allocation);
         assertEquals(decision.toString(), Decision.Type.YES, decision.type());
 
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(searchReplica, state.getRoutingNodes().node("node1"), allocation);
+        decision = (Decision.Single) filterAllocationDecider.canRemain(searchReplica, state.getRoutingNodes().node("node1"), allocation);
         assertEquals(decision.toString(), Decision.Type.NO, decision.type());
 
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(regularReplica, state.getRoutingNodes().node("node2"), allocation);
+        decision = (Decision.Single) filterAllocationDecider.canRemain(regularReplica, state.getRoutingNodes().node("node2"), allocation);
         assertEquals(decision.toString(), Decision.Type.NO, decision.type());
 
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(regularReplica, state.getRoutingNodes().node("node1"), allocation);
+        decision = (Decision.Single) filterAllocationDecider.canRemain(regularReplica, state.getRoutingNodes().node("node1"), allocation);
         assertEquals(decision.toString(), Decision.Type.YES, decision.type());
 
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(primary, state.getRoutingNodes().node("node1"), allocation);
+        decision = (Decision.Single) filterAllocationDecider.canRemain(primary, state.getRoutingNodes().node("node1"), allocation);
         assertEquals(decision.toString(), Decision.Type.YES, decision.type());
 
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(primary, state.getRoutingNodes().node("node2"), allocation);
+        decision = (Decision.Single) filterAllocationDecider.canRemain(primary, state.getRoutingNodes().node("node2"), allocation);
         assertEquals(decision.toString(), Decision.Type.NO, decision.type());
     }
 

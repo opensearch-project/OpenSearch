@@ -33,7 +33,7 @@ public class SearchReplicaAllocationIT extends RemoteStoreBaseIntegTestCase {
     public void testSearchReplicaAllocatedToDedicatedSearchNode() {
         internalCluster().startClusterManagerOnlyNode();
         String primaryNode = internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        internalCluster().startSearchOnlyNode();
 
         assertEquals(3, cluster().size());
 
@@ -54,7 +54,7 @@ public class SearchReplicaAllocationIT extends RemoteStoreBaseIntegTestCase {
 
     public void testSearchReplicaDedicatedIncludes_DoNotAssignToOtherNodes() {
         internalCluster().startNodes(2);
-        final String node_1 = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        final String node_1 = internalCluster().startSearchOnlyNode();
         assertEquals(3, cluster().size());
 
         logger.info("--> creating an index with no replicas");
@@ -97,7 +97,7 @@ public class SearchReplicaAllocationIT extends RemoteStoreBaseIntegTestCase {
         assertNull(routingTable.searchOnlyReplicas().get(0).currentNodeId());
 
         // Add a search node
-        final String searchNode = internalCluster().startDataOnlyNode(Settings.builder().put("node.attr.searchonly", "true").build());
+        final String searchNode = internalCluster().startSearchOnlyNode();
 
         ensureGreen("test");
         assertEquals(searchNode, getNodeName(getRoutingTable().searchOnlyReplicas().get(0).currentNodeId()));
