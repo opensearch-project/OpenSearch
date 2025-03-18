@@ -37,8 +37,8 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.remotestore.mocks.MockFsMetadataSupportedRepositoryPlugin;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
-import org.opensearch.remotestore.translogmetadata.mocks.MockFsMetadataSupportedRepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
@@ -69,6 +69,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
     protected static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
+    protected static final String REPOSITORY_3_NAME = "test-remote-store-repo-3";
     protected static final String REMOTE_ROUTING_TABLE_REPO = "remote-routing-table-repo";
     protected static final int SHARD_COUNT = 1;
     protected static int REPLICA_COUNT = 1;
@@ -159,28 +160,26 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         if (clusterSettingsSuppliedByTest) {
             return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
         } else {
-            if (asyncUploadMockFsRepo) {
-                String repoType = metadataSupportedType ? MockFsMetadataSupportedRepositoryPlugin.TYPE_MD : MockFsRepositoryPlugin.TYPE;
-                return Settings.builder()
-                    .put(super.nodeSettings(nodeOrdinal))
-                    .put(
-                        remoteStoreClusterSettings(
-                            REPOSITORY_NAME,
-                            segmentRepoPath,
-                            repoType,
-                            REPOSITORY_2_NAME,
-                            translogRepoPath,
-                            repoType
-                        )
-                    )
-                    .build();
-            } else {
-                return Settings.builder()
-                    .put(super.nodeSettings(nodeOrdinal))
-                    .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
-                    .build();
-            }
+            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(remoteStoreRepoSettings()).build();
         }
+    }
+
+    protected Settings remoteStoreRepoSettings() {
+        Settings remoteStoreRepoSettings;
+        if (asyncUploadMockFsRepo) {
+            String repoType = metadataSupportedType ? MockFsMetadataSupportedRepositoryPlugin.TYPE_MD : MockFsRepositoryPlugin.TYPE;
+            remoteStoreRepoSettings = remoteStoreClusterSettings(
+                REPOSITORY_NAME,
+                segmentRepoPath,
+                repoType,
+                REPOSITORY_2_NAME,
+                translogRepoPath,
+                repoType
+            );
+        } else {
+            remoteStoreRepoSettings = remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath);
+        }
+        return remoteStoreRepoSettings;
     }
 
     protected void setFailRate(String repoName, int value) throws ExecutionException, InterruptedException {

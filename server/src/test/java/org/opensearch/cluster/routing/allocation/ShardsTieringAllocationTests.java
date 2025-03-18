@@ -29,7 +29,7 @@ public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase 
 
     @Before
     public void setup() {
-        FeatureFlagSetter.set(FeatureFlags.TIERED_REMOTE_INDEX);
+        FeatureFlagSetter.set(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG);
     }
 
     public void testShardsInLocalPool() {
@@ -107,7 +107,10 @@ public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase 
     public void testShardPoolForPartialIndices() {
         String index = "test-index";
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(settings(Version.CURRENT).put(INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name()))
+            .settings(
+                settings(Version.CURRENT).put(INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name())
+                    .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
+            )
             .numberOfShards(PRIMARIES)
             .numberOfReplicas(REPLICAS)
             .build();
