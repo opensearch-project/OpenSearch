@@ -166,6 +166,7 @@ import static org.opensearch.test.NodeRoles.noRoles;
 import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.NodeRoles.onlyRoles;
 import static org.opensearch.test.NodeRoles.removeRoles;
+import static org.opensearch.test.NodeRoles.searchOnlyNode;
 import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
@@ -2316,6 +2317,22 @@ public final class InternalTestCluster extends TestCluster {
         warmAndDataRoles.add(DiscoveryNodeRole.DATA_ROLE);
         warmAndDataRoles.add(DiscoveryNodeRole.WARM_ROLE);
         return startNodes(numNodes, Settings.builder().put(onlyRoles(settings, warmAndDataRoles)).build());
+    }
+
+    public List<String> startSearchOnlyNodes(int numNodes) {
+        return startSearchOnlyNodes(numNodes, Settings.EMPTY);
+    }
+
+    public List<String> startSearchOnlyNodes(int numNodes, Settings settings) {
+        return startNodes(numNodes, Settings.builder().put(searchOnlyNode(settings)).build());
+    }
+
+    public String startSearchOnlyNode() {
+        return startSearchOnlyNode(Settings.EMPTY);
+    }
+
+    public String startSearchOnlyNode(Settings settings) {
+        return startNode(Settings.builder().put(settings).put(searchOnlyNode(settings)).build());
     }
 
     public List<String> startDataOnlyNodes(int numNodes) {
