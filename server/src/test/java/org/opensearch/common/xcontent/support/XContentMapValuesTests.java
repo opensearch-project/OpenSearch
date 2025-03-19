@@ -738,6 +738,22 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertEquals(expected, transformedMapped);
     }
 
+    public void testTransformSharedPaths() {
+        Map<String, Object> mapToTransform = MapBuilder.<String, Object>newMapBuilder()
+            .put("test", "value_before")
+            .put("test.nested", "nested_value_before")
+            .map();
+        Map<String, Function<Object, Object>> transformers = Map.of("test", v -> "value_after", "test.nested", v -> "nested_value_after");
+
+        Map<String, Object> expected = MapBuilder.<String, Object>newMapBuilder()
+            .put("test", "value_after")
+            .put("test.nested", "nested_value_before")
+            .immutableMap();
+
+        Map<String, Object> transformedMap = XContentMapValues.transform(mapToTransform, transformers, true);
+        assertEquals(expected, transformedMap);
+    }
+
     private static Map<String, Object> toMap(Builder test, XContentType xContentType, boolean humanReadable) throws IOException {
         ToXContentObject toXContent = (builder, params) -> test.apply(builder);
         return convertToMap(toXContent(toXContent, xContentType, humanReadable), true, xContentType).v2();
