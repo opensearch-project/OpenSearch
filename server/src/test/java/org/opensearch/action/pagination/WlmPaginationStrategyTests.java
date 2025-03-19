@@ -7,155 +7,203 @@
  */
 
 
-//package org.opensearch.action.pagination;
-//
-//import org.junit.jupiter.api.Test;
-//import org.opensearch.test.OpenSearchTestCase;
-//import org.opensearch.wlm.stats.QueryGroupStats;
-//import org.opensearch.wlm.stats.QueryGroupStats.QueryGroupStatsHolder;
-//import org.opensearch.wlm.stats.WlmStats;
-//
-//import java.util.ArrayList;
-//import java.util.Collections;
-//import java.util.HashMap;
-//import java.util.List;
-//import java.util.Map;
-//
-//import static org.junit.jupiter.api.Assertions.*;
-//
-///**
-// * Unit tests for {@link WlmPaginationStrategy} with mocked data.
-// */
-//public class WlmPaginationStrategyTests extends OpenSearchTestCase {
-//
-//    /**
-//     * Tests sorting by node ID in ascending order.
-//     */
-//    @Test
-//    public void testSortingByNodeIdAsc() {
-//        List<Map<String, Object>> mockData = createMockWlmStatsData();
-//        WlmPaginationStrategy strategy = new WlmPaginationStrategy(10, null, "node_id", "asc", mockData);
-//
-//        List<WlmStats> paginatedStats = strategy.getRequestedEntities();
-//        assertNotNull(paginatedStats);
-//        assertFalse(paginatedStats.isEmpty());
-//
-//        String previousNodeId = "";
-//        for (Map<String, Object> stat : paginatedStats) {
-//            String currentNodeId = (String) stat.get("node_id");
-//            assertTrue(currentNodeId.compareTo(previousNodeId) >= 0);
-//            previousNodeId = currentNodeId;
-//        }
-//    }
-//
-//    /**
-//     * Tests sorting by query group in ascending order.
-//     */
-//    @Test
-//    public void testSortingByQueryGroupAsc() {
-//        List<Map<String, Object>> mockData = createMockWlmStatsData();
-//        WlmPaginationStrategy strategy = new WlmPaginationStrategy(10, null, "query_group", "asc", mockData);
-//
-//        List<WlmStats> paginatedStats = strategy.getRequestedEntities();
-//        assertNotNull(paginatedStats);
-//        assertFalse(paginatedStats.isEmpty());
-//
-//        String previousQueryGroup = "";
-//        for (Map<String, Object> stat : paginatedStats) {
-//            String currentQueryGroup = ((Map<String, QueryGroupStatsHolder>) stat.get("query_groups")).keySet().iterator().next();
-//            assertTrue(currentQueryGroup.compareTo(previousQueryGroup) >= 0);
-//            previousQueryGroup = currentQueryGroup;
-//        }
-//    }
-//
-//    /**
-//     * Tests pagination with next token functionality.
-//     */
-//    @Test
-//    public void testPaginationWithNextToken() {
-//        List<Map<String, Object>> mockData = createMockWlmStatsData();
-//        WlmPaginationStrategy strategy = new WlmPaginationStrategy(2, null, "node_id", "asc", mockData);
-//
-//        List<WlmStats> firstPage = strategy.getRequestedEntities();
-//        assertEquals(2, firstPage.size());
-//
-//        PageToken nextToken = strategy.getResponseToken();
-//        assertNotNull(nextToken);
-//        assertNotNull(nextToken.getNextToken());
-//
-//        WlmPaginationStrategy nextPageStrategy = new WlmPaginationStrategy(2, nextToken.getNextToken(), "node_id", "asc", mockData);
-//        List<WlmStats> secondPage = nextPageStrategy.getRequestedEntities();
-//        assertEquals(2, secondPage.size());
-//
-//        assertNotEquals(firstPage, secondPage);
-//    }
-//
-//    /**
-//     * Tests that an empty response does not break pagination.
-//     */
-//    @Test
-//    public void testEmptyWlmStatsResponse() {
-//        List<Map<String, Object>> emptyResponse = new ArrayList<>();
-//        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "node_id", "asc", emptyResponse);
-//
-//        List<WlmStats> paginatedStats = strategy.getRequestedEntities();
-//        assertNotNull(paginatedStats);
-//        assertTrue(paginatedStats.isEmpty());
-//        assertNull(strategy.getResponseToken());
-//    }
-//
-//    /**
-//     * Creates mock WLM stats data in JSON-like format.
-//     */
-//    private Map<String, Object> createMockWlmStatsData() {
-//        Map<String, Object> mockData = new LinkedHashMap<>();
-//
-//        // Add metadata fields
-//        Map<String, Object> nodesMeta = new LinkedHashMap<>();
-//        nodesMeta.put("total", 1);
-//        nodesMeta.put("successful", 1);
-//        nodesMeta.put("failed", 0);
-//        mockData.put("_nodes", nodesMeta);
-//        mockData.put("cluster_name", "XXXXXXYYYYYYYY");
-//
-//        // Create a mock node ID
-//        String nodeId = "A3L9EfBIQf2anrrUhh_goA";
-//        Map<String, Object> nodeData = new LinkedHashMap<>();
-//
-//        // Query groups inside the node
-//        Map<String, Object> queryGroups = new LinkedHashMap<>();
-//        queryGroups.put("16YGxFlPRdqIO7K4EACJlw", createMockQueryGroup(33570, 0.03319935314357281, 0.002306486276211217));
-//        queryGroups.put("DEFAULT_QUERY_GROUP", createMockQueryGroup(42572, 0.0, 0.0));
-//
-//        nodeData.put("query_groups", queryGroups);
-//        mockData.put(nodeId, nodeData);
-//
-//        return mockData;
-//    }
-//
-//    /**
-//     * Helper function to create a mock query group entry.
-//     */
-//    private Map<String, Object> createMockQueryGroup(int completions, double cpuUsage, double memoryUsage) {
-//        Map<String, Object> queryGroup = new LinkedHashMap<>();
-//        queryGroup.put("total_completions", completions);
-//        queryGroup.put("total_rejections", 0);
-//        queryGroup.put("total_cancellations", 0);
-//
-//        // CPU usage
-//        Map<String, Object> cpuStats = new LinkedHashMap<>();
-//        cpuStats.put("current_usage", cpuUsage);
-//        cpuStats.put("cancellations", 0);
-//        cpuStats.put("rejections", 0);
-//        queryGroup.put("cpu", cpuStats);
-//
-//        // Memory usage
-//        Map<String, Object> memoryStats = new LinkedHashMap<>();
-//        memoryStats.put("current_usage", memoryUsage);
-//        memoryStats.put("cancellations", 0);
-//        memoryStats.put("rejections", 0);
-//        queryGroup.put("memory", memoryStats);
-//
-//        return queryGroup;
-//    }
-//}
+package org.opensearch.action.pagination;
+
+import org.junit.Test;
+import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.wlm.stats.WlmStats;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.wlm.stats.QueryGroupStats;
+
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+public class WlmPaginationStrategyTests {
+
+    private WlmStatsResponse mockResponse(int count) {
+        List<WlmStats> stats = generateRandomWlmStats(count);
+        return new WlmStatsResponse(ClusterName.DEFAULT, stats, Collections.emptyList());
+    }
+
+    public List<WlmStats> generateRandomWlmStats(int count) {
+        List<WlmStats> statsList = new ArrayList<>();
+
+        for (int i = 1; i <= count; i++) {
+            DiscoveryNode mockNode = DiscoveryNodeMock.createDummyNode(i);
+
+            QueryGroupStats.QueryGroupStatsHolder statsHolder = new QueryGroupStats.QueryGroupStatsHolder();
+            Map<String, QueryGroupStats.QueryGroupStatsHolder> queryStats = new HashMap<>();
+            queryStats.put("query-group-" + i, statsHolder);
+
+            WlmStats wlmStats = new WlmStats(mockNode, new QueryGroupStats(queryStats));
+            statsList.add(wlmStats);
+        }
+        return statsList;
+    }
+
+    @Test
+    public void testSortingByNodeId() {
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "node_id", "asc", mockResponse(10));
+        List<WlmStats> stats = strategy.getPaginatedStats();
+
+        assertNotNull(stats);
+        assertFalse(stats.isEmpty());
+        assertTrue("Sorting should be in ascending order by node_id",
+            stats.get(0).getNode().getId().compareTo(stats.get(1).getNode().getId()) <= 0);
+    }
+
+    @Test
+    public void testSortingByQueryGroup() {
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "query_group", "asc", mockResponse(10));
+        List<WlmStats> stats = strategy.getPaginatedStats();
+
+        assertNotNull(stats);
+        assertFalse(stats.isEmpty());
+        assertTrue("Sorting should be in ascending order by query_group",
+            stats.get(0).getQueryGroupStats().getStats().keySet().iterator().next()
+                .compareTo(stats.get(1).getQueryGroupStats().getStats().keySet().iterator().next()) <= 0);
+    }
+
+    @Test
+    public void testPaginationWithFullPageSize() {
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "node_id", "asc", mockResponse(10));
+        List<WlmStats> page1 = strategy.getPaginatedStats();
+        assertEquals(5, page1.size());
+
+        PageToken nextToken = strategy.getNextToken();
+        assertNotNull("Next token should be present for the next page", nextToken);
+    }
+
+    @Test
+    public void testPaginationWithLessThanFullPageSize() {
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "node_id", "asc", mockResponse(3));
+        List<WlmStats> page1 = strategy.getPaginatedStats();
+        assertEquals(3, page1.size());
+
+        PageToken nextToken = strategy.getNextToken();
+        assertNull("Next token should be null since there is no next page", nextToken);
+    }
+
+    @Test
+    public void testPaginationWithEmptyList() {
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "node_id", "asc", mockResponse(0));
+        List<WlmStats> page1 = strategy.getPaginatedStats();
+        assertTrue(page1.isEmpty());
+
+        PageToken nextToken = strategy.getNextToken();
+        assertNull("Next token should be null since there is no data", nextToken);
+    }
+
+    @Test(expected = OpenSearchParseException.class)
+    public void testInvalidTokenHandling() {
+        new WlmPaginationStrategy(5, "invalid-token", "node_id", "asc", mockResponse(10));
+    }
+
+    @Test
+    public void testInvalidSortByDefaultsToNodeId() {
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "invalid_sort", "asc", mockResponse(10));
+        assertNotNull(strategy.getPaginatedStats());
+    }
+
+    @Test
+    public void testNullSortOrderDefaultsToAscending() {
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "node_id", null, mockResponse(10));
+        List<WlmStats> stats = strategy.getPaginatedStats();
+
+        assertTrue("Sorting should default to ascending order",
+            stats.get(0).getNode().getId().compareTo(stats.get(1).getNode().getId()) <= 0);
+    }
+
+    @Test
+    public void testSortingByNodeIdDescending() {
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "node_id", "desc", mockResponse(10));
+        List<WlmStats> stats = strategy.getPaginatedStats();
+
+        assertNotNull(stats);
+        assertFalse(stats.isEmpty());
+        assertTrue("Sorting should be in descending order by node_id",
+            stats.get(0).getNode().getId().compareTo(stats.get(1).getNode().getId()) >= 0);
+    }
+
+    @Test
+    public void testSortingByQueryGroupDescending() {
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "query_group", "desc", mockResponse(10));
+        List<WlmStats> stats = strategy.getPaginatedStats();
+
+        assertNotNull(stats);
+        assertFalse(stats.isEmpty());
+        assertTrue("Sorting should be in descending order by query_group",
+            stats.get(0).getQueryGroupStats().getStats().keySet().iterator().next()
+                .compareTo(stats.get(1).getQueryGroupStats().getStats().keySet().iterator().next()) >= 0);
+    }
+
+
+    @Test
+    public void testTokenAtLastEntryReturnsEmptyResults() {
+        List<WlmStats> stats = generateRandomWlmStats(5);
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(
+            5,
+            WlmPaginationStrategy.WlmStrategyToken.generateEncryptedToken(
+                stats.get(4).getQueryGroupStats().getStats().keySet().iterator().next()
+            ),
+            "node_id",
+            "asc",
+            new WlmStatsResponse(ClusterName.DEFAULT, stats, Collections.emptyList())
+        );
+
+        assertTrue(strategy.getPaginatedStats().isEmpty());
+        assertNull(strategy.getNextToken());
+    }
+
+    @Test
+    public void testPaginationWithNextToken() {
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "node_id", "asc", mockResponse(10));
+        List<WlmStats> firstPage = strategy.getPaginatedStats();
+        PageToken nextToken = strategy.getNextToken();
+
+        assertNotNull("Next token should be present", nextToken);
+        assertEquals(5, firstPage.size());
+
+        WlmPaginationStrategy secondStrategy = new WlmPaginationStrategy(5, nextToken.getNextToken(), "node_id", "asc", mockResponse(10));
+        List<WlmStats> secondPage = secondStrategy.getPaginatedStats();
+
+        assertNotNull(secondPage);
+        assertEquals(5, secondPage.size());
+    }
+
+    @Test(expected = OpenSearchParseException.class)
+    public void testOutdatedNextToken() {
+        List<WlmStats> stats = generateRandomWlmStats(5);
+        String outdatedToken = WlmPaginationStrategy.WlmStrategyToken.generateEncryptedToken("non-existent-query-group");
+
+        new WlmPaginationStrategy(5, outdatedToken, "node_id", "asc", new WlmStatsResponse(ClusterName.DEFAULT, stats, Collections.emptyList()));
+    }
+
+    @Test
+    public void testSortingWithEmptyQueryGroups() {
+        List<WlmStats> stats = generateRandomWlmStats(5);
+
+        for (int i = 0; i < stats.size(); i += 2) {
+            stats.get(i).getQueryGroupStats().getStats().clear();
+        }
+
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(5, null, "query_group", "asc",
+            new WlmStatsResponse(ClusterName.DEFAULT, stats, Collections.emptyList()));
+
+        List<WlmStats> sortedStats = strategy.getPaginatedStats();
+        assertNotNull(sortedStats);
+        assertFalse(sortedStats.isEmpty());
+    }
+}

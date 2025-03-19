@@ -9,11 +9,15 @@
 
 package org.opensearch.action.pagination;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.wlm.stats.WlmStats;
-import org.opensearch.wlm.stats.QueryGroupStats;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.stream.Collectors;
 
 /**
@@ -36,8 +40,13 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         this.sortBy = sortBy;
         this.sortOrder = sortOrder;
 
+        // Validate the token before processing
+        WlmStrategyToken requestedToken = (nextToken == null || nextToken.isEmpty())
+            ? null
+            : new WlmStrategyToken(nextToken);
+
         List<WlmStats> sortedStats = sortStats(response.getNodes(), sortBy, sortOrder);
-        this.paginatedStats = applyPagination(sortedStats, nextToken);
+        this.paginatedStats = applyPagination(sortedStats, requestedToken);
     }
 
     /**
@@ -49,7 +58,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         switch (sortBy) {
             case "query_group":
                 comparator = Comparator.comparing(
-                    (WlmStats wlmStats)-> wlmStats.getQueryGroupStats().getStats().isEmpty()
+                    (WlmStats wlmStats) -> wlmStats.getQueryGroupStats().getStats().isEmpty()
                         ? ""
                         : wlmStats.getQueryGroupStats().getStats().keySet().iterator().next()
                 ).thenComparing(wlmStats -> wlmStats.getNode().getId());
@@ -77,37 +86,27 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
     /**
      * Applies pagination on already sorted WlmStats.
      */
-    private List<WlmStats> applyPagination(List<WlmStats> sortedStats, String nextToken) {
+    private List<WlmStats> applyPagination(List<WlmStats> sortedStats, WlmStrategyToken requestedToken) {
         if (sortedStats.isEmpty()) {
-            this.responseToken = new PageToken(null, DEFAULT_PAGINATED_ENTITY);
+            this.responseToken = null;
             return Collections.emptyList();
         }
 
-        List<WlmStats> allQueryGroups = new ArrayList<>();
-        for (WlmStats stat : sortedStats) {
-            Map<String, QueryGroupStats.QueryGroupStatsHolder> queryGroups = stat.getQueryGroupStats().getStats();
-            for (Map.Entry<String, QueryGroupStats.QueryGroupStatsHolder> entry : queryGroups.entrySet()) {
-                String queryGroupId = entry.getKey();
-                QueryGroupStats singleQueryGroupStats = new QueryGroupStats(Map.of(queryGroupId, entry.getValue()));
-                allQueryGroups.add(new WlmStats(stat.getNode(), singleQueryGroupStats));
-            }
-        }
-
-        allQueryGroups = sortStats(allQueryGroups, sortBy, sortOrder);
-
         int startIndex = 0;
-        if (nextToken != null) {
-            String lastQueryGroup = PaginationStrategy.decryptStringToken(nextToken);
-            OptionalInt foundIndex = findIndex(allQueryGroups, lastQueryGroup);
-            startIndex = foundIndex.orElse(0);
+        if (requestedToken != null) {
+            OptionalInt foundIndex = findIndex(sortedStats, requestedToken.lastQueryGroupId);
+            if (foundIndex.isEmpty()) {
+                throw new OpenSearchParseException("Invalid or outdated token: " + nextToken);
+            }
+            startIndex = foundIndex.getAsInt();
         }
 
-        int endIndex = Math.min(startIndex + pageSize, allQueryGroups.size());
-        List<WlmStats> page = allQueryGroups.subList(startIndex, endIndex);
+        int endIndex = Math.min(startIndex + pageSize, sortedStats.size());
+        List<WlmStats> page = sortedStats.subList(startIndex, endIndex);
 
-        if (endIndex < allQueryGroups.size()) {
-            String lastQueryGroup = allQueryGroups.get(endIndex - 1).getQueryGroupStats().getStats().keySet().iterator().next();
-            this.responseToken = new PageToken(PaginationStrategy.encryptStringToken(lastQueryGroup), DEFAULT_PAGINATED_ENTITY);
+        if (endIndex < sortedStats.size()) {
+            String lastQueryGroup = sortedStats.get(endIndex - 1).getQueryGroupStats().getStats().keySet().iterator().next();
+            this.responseToken = new PageToken(WlmStrategyToken.generateEncryptedToken(lastQueryGroup), DEFAULT_PAGINATED_ENTITY);
         } else {
             this.responseToken = null;
         }
@@ -137,11 +136,44 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         return paginatedStats;
     }
 
-    public List<WlmStats> getPaginatedStats(WlmStatsResponse response) {
-        return this.paginatedStats;
+    /**
+     * Retrieves paginated stats.
+     */
+    public List<WlmStats> getPaginatedStats() {
+        return paginatedStats;
     }
 
+    /**
+     * Retrieves the next pagination token.
+     */
     public PageToken getNextToken() {
         return responseToken;
+    }
+
+    public static class WlmStrategyToken {
+        private static final String JOIN_DELIMITER = "|";
+        private static final String SPLIT_REGEX = "\\|";
+
+        private final String lastQueryGroupId;
+
+        public WlmStrategyToken(String requestedTokenString) {
+            validateToken(requestedTokenString);
+            String decryptedToken = PaginationStrategy.decryptStringToken(requestedTokenString);
+            final String[] decryptedTokenElements = decryptedToken.split(SPLIT_REGEX);
+            this.lastQueryGroupId = decryptedTokenElements[0];
+        }
+
+        public static String generateEncryptedToken(String lastQueryGroupId) {
+            return PaginationStrategy.encryptStringToken(lastQueryGroupId);
+        }
+
+        private static void validateToken(String token) {
+            Objects.requireNonNull(token, "Token cannot be null");
+            String decryptedToken = PaginationStrategy.decryptStringToken(token);
+            final String[] elements = decryptedToken.split(SPLIT_REGEX);
+            if (elements.length != 1 || elements[0].isEmpty()) {
+                throw new OpenSearchParseException("Invalid token format");
+            }
+        }
     }
 }
