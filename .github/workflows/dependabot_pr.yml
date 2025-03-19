@@ -56,7 +56,7 @@ jobs:
           commit_options: '--signoff'
 
       - name: Update the changelog
-        uses: dangoslen/dependabot-changelog-helper@v3
+        uses: dangoslen/dependabot-changelog-helper@v4
         with:
           version: 'Unreleased 2.x'
 
