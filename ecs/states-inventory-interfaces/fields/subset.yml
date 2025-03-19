@@ -1,0 +1,46 @@
+---
+name: wazuh-states-inventory-interfaces
+fields:
+  base:
+    fields:
+      tags: []
+      "@timestamp": {}
+  agent:
+    fields:
+      id: {}
+      name: {}
+      version: {}
+      host:
+        fields:
+          ip: {}
+          architecture: {}
+  host:
+    fields:
+      mac: {}
+      network:
+        fields:
+          egress:
+            fields:
+              bytes: {}
+              drops: {}
+              errors: {}
+              packets: {}
+          ingress:
+            fields:
+              bytes: {}
+              drops: {}
+              errors: {}
+              packets: {}
+  observer:
+    fields:
+      ingress:
+        fields:
+          interface:
+            fields:
+              alias: {}
+              mtu: {}
+              name: {}
+              state: {}
+              type: {}
+  wazuh:
+    fields: "*"

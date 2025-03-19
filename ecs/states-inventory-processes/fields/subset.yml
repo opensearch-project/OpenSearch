@@ -1,0 +1,30 @@
+---
+name: wazuh-states-inventory-processes
+fields:
+  base:
+    fields:
+      "@timestamp": {}
+      tags: []
+  agent:
+    fields:
+      id: {}
+      name: {}
+      version: {}
+      host:
+        fields:
+          architecture: {}
+          ip: {}
+  process:
+    fields:
+      args: {}
+      command_line: {}
+      name: {}
+      parent:
+        fields:
+          pid: {}
+      pid: {}
+      state: {}
+      stime: {}
+      utime: {}
+  wazuh:
+    fields: "*"

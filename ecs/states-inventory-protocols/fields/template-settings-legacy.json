@@ -1,0 +1,16 @@
+{
+  "index_patterns": ["wazuh-states-inventory-protocols*"],
+  "order": 1,
+  "settings": {
+    "index": {
+      "number_of_shards": "1",
+      "number_of_replicas": "0",
+      "refresh_interval": "5s",
+      "query.default_field": [
+          "agent.id",
+          "agent.host.ip",
+          "observer.ingress.interface.name"
+      ]
+    }
+  }
+}

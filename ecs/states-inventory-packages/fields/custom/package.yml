@@ -1,0 +1,13 @@
+---
+- name: package
+  fields:
+    - name: category
+      description: >
+        Package category or group
+      type: keyword
+      level: custom
+    - name: vendor
+      description: >
+        Vendor or maintainer of the package
+      type: keyword
+      level: custom

@@ -1,0 +1,17 @@
+---
+- name: host
+  reusable:
+    top_level: true
+    expected:
+      - { at: agent, as: host }
+  fields:
+    - name: network.ingress.queue
+      type: long
+      level: custom
+      description: >
+        Receive queue length.
+    - name: network.egress.queue
+      type: long
+      level: custom
+      description: >
+        Transmit queue length.---

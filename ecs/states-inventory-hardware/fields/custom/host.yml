@@ -1,0 +1,47 @@
+---
+- name: host
+  reusable:
+    top_level: true
+    expected:
+      - { at: agent, as: host }
+  fields:
+    - name: memory
+      description: >
+        Memory related data
+      type: object
+      level: custom
+    - name: memory.total
+      description: >
+        Total memory in MB
+      type: long
+      level: custom
+    - name: memory.free
+      description: >
+        Free memory in MB
+      type: long
+      level: custom
+    - name: memory.used
+      description: >
+        Used memory related data
+      type: long
+      level: custom
+    - name: cpu
+      description: >
+        CPU related data
+      type: object
+      level: custom
+    - name: cpu.name
+      description: >
+        CPU Model name
+      type: keyword
+      level: custom
+    - name: cpu.cores
+      description: >
+        Number of CPU cores
+      type: long
+      level: custom
+    - name: cpu.speed
+      description: >
+        CPU clock speed
+      type: long
+      level: custom

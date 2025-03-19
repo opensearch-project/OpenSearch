@@ -1,0 +1,17 @@
+---
+- name: interface
+  reusable:
+    top_level: true
+    expected:
+      - { at: host, as: interface }
+  title: Interface
+  type: group
+  group: 2
+  description: >
+    Network interface related data.
+  fields:
+    - name: state
+      type: keyword
+      level: custom
+      description: >
+        State of the network interface.

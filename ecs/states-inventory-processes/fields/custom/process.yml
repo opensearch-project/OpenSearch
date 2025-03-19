@@ -1,0 +1,22 @@
+---
+- name: process
+  reusable:
+    top_level: true
+    expected:
+      - { at: agent, as: process }
+  fields:
+    - name: state
+      description: >
+        Current process state
+      type: keyword
+      level: custom
+    - name: stime
+      description: >
+        System mode CPU time used
+      type: long
+      level: custom
+    - name: utime
+      description: >
+        User mode CPU time used
+      type: long
+      level: custom

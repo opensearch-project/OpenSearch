@@ -1,0 +1,19 @@
+---
+- name: package
+  title: Package
+  type: group
+  group: 2
+  description: >
+    Package related data.
+  fields:
+    - name: hotfix
+      type: object
+      level: custom
+      group: 2
+      description: >
+        Hotfix related data.
+    - name: hotfix.name
+      type: keyword
+      level: custom
+      description: >
+        Name of the Hotfix.

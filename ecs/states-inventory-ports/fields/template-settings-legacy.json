@@ -1,0 +1,17 @@
+{
+  "index_patterns": ["wazuh-states-inventory-ports*"],
+  "order": 1,
+  "settings": {
+    "index": {
+      "number_of_shards": "1",
+      "number_of_replicas": "0",
+      "refresh_interval": "5s",
+      "query.default_field": [
+        "agent.id",
+        "process.name",
+        "source.ip",
+        "destination.ip"
+      ]
+    }
+  }
+}

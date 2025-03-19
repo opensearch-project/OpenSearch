@@ -1,0 +1,27 @@
+---
+name: wazuh-states-inventory-networks
+fields:
+  base:
+    fields:
+      tags: []
+      "@timestamp": {}
+  agent:
+    fields:
+      id: {}
+      name: {}
+      version: {}
+      host:
+        fields:
+          architecture: {}
+          ip: {}
+  network:
+    fields:
+      broadcast: {}
+      dhcp: {}
+      ip: {}
+      metric: {}
+      name: {}
+      netmask: {}
+      protocol: {}
+  wazuh:
+    fields: "*"

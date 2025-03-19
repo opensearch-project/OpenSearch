@@ -1,0 +1,33 @@
+---
+- name: network
+  title: Network
+  type: group
+  group: 2
+  description: >
+    Network related data.
+  fields:
+    - name: broadcast
+      type: ip
+      level: custom
+      description: >
+        Broadcast address
+    - name: dhcp
+      type: boolean
+      level: custom
+      description: >
+        DHCP enabled
+    - name: ip
+      type: ip
+      level: custom
+      description: >
+        IP address
+    - name: metric
+      type: long
+      level: custom
+      description: >
+        Metric of the network protocol
+    - name: netmask
+      type: ip
+      level: custom
+      description: >
+        Network mask

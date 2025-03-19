@@ -1,0 +1,31 @@
+---
+name: wazuh-states-inventory-protocols
+fields:
+  base:
+    fields:
+      tags: []
+      "@timestamp": {}
+  agent:
+    fields:
+      id: {}
+      name: {}
+      version: {}
+      host:
+        fields:
+          architecture: {}
+          ip: {}
+  network:
+    fields:
+      dhcp: {}
+      gateway: {}
+      metric: {}
+      type: {}
+  observer:
+    fields:
+      ingress:
+        fields:
+          interface:
+            fields:
+              name: {}
+  wazuh:
+    fields: "*"

@@ -1,0 +1,36 @@
+{
+  "index_patterns": ["wazuh-states-fim-registries*"],
+  "order": 1,
+  "settings": {
+    "index": {
+      "number_of_shards": "1",
+      "number_of_replicas": "0",
+      "refresh_interval": "5s",
+      "query.default_field": [
+        "agent.host.architecture",
+        "agent.host.ip",
+        "agent.id",
+        "agent.name",
+        "agent.version",
+        "data_stream.type",
+        "event.category",
+        "event.type",
+        "registry.data.type",
+        "registry.gid",
+        "registry.group",
+        "registry.data.hash.md5",
+        "registry.data.hash.sha1",
+        "registry.data.hash.sha256",
+        "registry.hive",
+        "registry.inode",
+        "registry.key",
+        "registry.mtime",
+        "registry.owner",
+        "registry.path",
+        "registry.size",
+        "registry.uid",
+        "registry.value"
+      ]
+    }
+  }
+}

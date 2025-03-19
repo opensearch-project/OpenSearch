@@ -1,0 +1,52 @@
+---
+- name: os
+  reusable:
+    top_level: true
+    expected:
+      - { at: host, as: os }
+  fields:
+    - name: build
+      description: >
+        Build number of the OS
+      type: keyword
+      level: custom
+    - name: codename
+      description: >
+        OS codename
+      type: keyword
+      level: custom
+    - name: major
+      description: >
+        Major version number
+      type: keyword
+      level: custom
+    - name: minor
+      description: >
+        Minor version number
+      type: keyword
+      level: custom
+    - name: patch
+      description: >
+        Patch level of the OS
+      type: keyword
+      level: custom
+    - name: kernel.name
+      description: >
+        System kernel name
+      type: keyword
+      level: custom
+    - name: kernel.release
+      description: >
+        Kernel release version
+      type: keyword
+      level: custom
+    - name: kernel.version
+      description: >
+        Kernel version
+      type: keyword
+      level: custom
+    - name: distribution.release
+      description: >
+        Distribution-specific release information
+      type: keyword
+      level: custom

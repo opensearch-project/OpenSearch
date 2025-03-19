@@ -1,0 +1,23 @@
+---
+name: wazuh-states-inventory-hotfixes
+fields:
+  base:
+    fields:
+      tags: []
+      "@timestamp": {}
+  agent:
+    fields:
+      host:
+        fields:
+          architecture: {}
+          ip: {}
+      id: {}
+      name: {}
+      version: {}
+  package:
+    fields:
+      hotfix:
+        fields:
+          name: {}
+  wazuh:
+    fields: "*"

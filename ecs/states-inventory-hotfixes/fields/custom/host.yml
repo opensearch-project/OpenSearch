@@ -1,0 +1,5 @@
+- name: host
+  reusable:
+    top_level: true
+    expected:
+      - { at: agent, as: host }

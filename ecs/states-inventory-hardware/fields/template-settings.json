@@ -1,0 +1,18 @@
+{
+  "index_patterns": [
+    "wazuh-states-inventory-hardware*"
+  ],
+  "priority": 1,
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_shards": "1",
+        "number_of_replicas": "0",
+        "refresh_interval": "5s",
+        "query.default_field": [
+          "observer.board_serial"
+        ]
+      }
+    }
+  }
+}

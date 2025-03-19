@@ -1,0 +1,23 @@
+---
+- name: network
+  title: Network
+  type: group
+  group: 2
+  description: >
+    Network related data.
+  fields:
+    - name: dhcp
+      type: boolean
+      level: custom
+      description: >
+        DHCP enabled
+    - name: gateway
+      type: ip
+      level: custom
+      description: >
+        Gateway address
+    - name: metric
+      type: long
+      level: custom
+      description: >
+        Metric of the network protocol
