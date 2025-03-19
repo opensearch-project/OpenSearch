@@ -11,7 +11,9 @@ package org.opensearch.javaagent;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.lang.instrument.Instrumentation;
+import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.file.Files;
 import java.util.Map;
 
 import net.bytebuddy.ByteBuddy;
@@ -55,10 +57,30 @@ public class Agent {
 
     private static AgentBuilder createAgentBuilder(Instrumentation inst) throws Exception {
         final Junction<TypeDescription> systemType = ElementMatchers.isSubTypeOf(SocketChannel.class);
+        final Junction<TypeDescription> pathType = ElementMatchers.isSubTypeOf(Files.class);
+        final Junction<TypeDescription> fileChannelType = ElementMatchers.isSubTypeOf(FileChannel.class);
 
-        final AgentBuilder.Transformer transformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
+        final AgentBuilder.Transformer socketTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
             Advice.to(SocketChannelInterceptor.class)
                 .on(ElementMatchers.named("connect").and(ElementMatchers.not(ElementMatchers.isAbstract())))
+        );
+
+        final AgentBuilder.Transformer fileTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
+            Advice.to(FileInterceptor.class)
+                .on(
+                    ElementMatchers.named("delete")
+                        .or(ElementMatchers.named("deleteIfExists"))
+                        .or(ElementMatchers.named("createFile"))
+                        .or(ElementMatchers.named("createDirectories"))
+                        .or(ElementMatchers.named("createLink"))
+                        .or(ElementMatchers.named("move"))
+                        .or(ElementMatchers.named("copy"))
+                        .or(ElementMatchers.named("newByteChannel"))
+                        .or(ElementMatchers.named("open"))
+                        .or(ElementMatchers.named("write"))
+                        .or(ElementMatchers.named("read"))
+                        .or(ElementMatchers.isConstructor())
+                )
         );
 
         ClassInjector.UsingUnsafe.ofBootLoader()
@@ -72,15 +94,15 @@ public class Agent {
             );
 
         final ByteBuddy byteBuddy = new ByteBuddy().with(Implementation.Context.Disabled.Factory.INSTANCE);
-        final AgentBuilder agentBuilder = new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
+        return new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
             .with(AgentBuilder.RedefinitionStrategy.REDEFINITION)
             .with(AgentBuilder.RedefinitionStrategy.Listener.StreamWriting.toSystemError())
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
             .ignore(ElementMatchers.none())
             .type(systemType)
-            .transform(transformer);
-
-        return agentBuilder;
+            .transform(socketTransformer)
+            .type(pathType.or(fileChannelType))
+            .transform(fileTransformer);
     }
 
     private static void initAgent(Instrumentation instrumentation) throws Exception {
