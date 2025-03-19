@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Renaming the node role search to warm ([#17573](https://github.com/opensearch-project/OpenSearch/pull/17573))
 - Introduce a new search node role to hold search only shards ([#17620](https://github.com/opensearch-project/OpenSearch/pull/17620))
 
+### Changed
+- Migrate BC libs to their FIPS counterparts ([#3420](https://github.com/opensearch-project/OpenSearch/pull/14912))
+
 ### Dependencies
 - Bump `ch.qos.logback:logback-core` from 1.5.16 to 1.5.17 ([#17609](https://github.com/opensearch-project/OpenSearch/pull/17609))
 - Bump `org.jruby.joni:joni` from 2.2.3 to 2.2.5 ([#17608](https://github.com/opensearch-project/OpenSearch/pull/17608))

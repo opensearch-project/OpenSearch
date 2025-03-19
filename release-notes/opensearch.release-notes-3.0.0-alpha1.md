@@ -96,7 +96,6 @@
 - Convert transport-reactor-netty4 to use gradle version catalog [#17233](https://github.com/opensearch-project/OpenSearch/pull/17233)
 - Increase force merge threads to 1/8th of cores [#17255](https://github.com/opensearch-project/OpenSearch/pull/17255)
 - TieredSpilloverCache took-time threshold now guards heap tier as well as disk tier [#17190](https://github.com/opensearch-project/OpenSearch/pull/17190)
-- Migrate BC libs to their FIPS counterparts ([#3420](https://github.com/opensearch-project/OpenSearch/pull/14912))
 
 ### Deprecated
 

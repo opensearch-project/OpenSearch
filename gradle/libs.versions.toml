@@ -93,9 +93,6 @@ arrow                 = "18.1.0"
 flatbuffers           = "2.0.0"
 
 [libraries]
-bcjce = { group = "org.bouncycastle", name = "bc-fips", version.ref = "bouncycastle_jce" }
-bctls = { group = "org.bouncycastle", name = "bctls-fips", version.ref = "bouncycastle_tls" }
-bcutil = { group = "org.bouncycastle", name = "bcutil-fips", version.ref = "bouncycastle_util" }
 hdrhistogram = { group = "org.hdrhistogram", name = "HdrHistogram", version.ref = "hdrhistogram" }
 jakartaannotation = { group = "jakarta.annotation", name = "jakarta.annotation-api", version.ref = "jakarta_annotation" }
 jodatime = { group = "joda-time", name = "joda-time", version.ref = "joda" }
