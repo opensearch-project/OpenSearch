@@ -104,6 +104,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
@@ -195,6 +196,8 @@ public class ClusterStateChanges {
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);
         Transport transport = mock(Transport.class); // it's not used
+
+        MappingTransformerRegistry mappingTransformerRegistry = new MappingTransformerRegistry(List.of(), xContentRegistry);
 
         // mocks
         clusterService = mock(ClusterService.class);
@@ -372,7 +375,8 @@ public class ClusterStateChanges {
             threadPool,
             createIndexService,
             actionFilters,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            mappingTransformerRegistry
         );
 
         repositoriesService = new RepositoriesService(

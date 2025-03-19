@@ -1754,6 +1754,10 @@ public class MetadataIndexTemplateService {
             return this;
         }
 
+        public String getMappings() {
+            return mappings;
+        }
+
         public PutRequest aliases(Set<Alias> aliases) {
             this.aliases.addAll(aliases);
             return this;
