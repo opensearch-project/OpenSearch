@@ -21,6 +21,10 @@ import java.util.Map;
  * @opensearch.experimental
  */
 public class AutoTaggingRegistry {
+    /**
+     * featureTypesRegistryMap should be concurrently readable but not concurrently writable.
+     * The registration of FeatureType should only be done during boot-up.
+     */
     public static final Map<String, FeatureType> featureTypesRegistryMap = new HashMap<>();
     public static final int MAX_FEATURE_TYPE_NAME_LENGTH = 30;
 

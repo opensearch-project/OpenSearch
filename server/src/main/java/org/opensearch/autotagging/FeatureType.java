@@ -33,6 +33,10 @@ public interface FeatureType extends Writeable {
 
     String getName();
 
+    /**
+     * Returns the registry of allowed attributes for this feature type.
+     * Implementations must ensure that access to this registry is thread-safe.
+     */
     Map<String, Attribute> getAllowedAttributesRegistry();
 
     default int getMaxNumberOfValuesPerAttribute() {
@@ -49,6 +53,11 @@ public interface FeatureType extends Writeable {
         return getAllowedAttributesRegistry().containsValue(attribute);
     }
 
+    /**
+     * Retrieves an attribute by its name from the allowed attributes' registry.
+     * Implementations must ensure that this method is thread-safe.
+     * @param name The name of the attribute.
+     */
     default Attribute getAttributeFromName(String name) {
         return getAllowedAttributesRegistry().get(name);
     }

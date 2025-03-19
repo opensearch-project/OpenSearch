@@ -111,4 +111,10 @@ public class RuleValidatorTests extends OpenSearchTestCase {
         assertThrows(IllegalArgumentException.class, () -> validateRule(null, FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, DESCRIPTION));
         assertThrows(IllegalArgumentException.class, () -> validateRule("", FEATURE_TYPE, ATTRIBUTE_MAP, UPDATED_AT, DESCRIPTION));
     }
+
+    public void testEqualRuleValidators() {
+        RuleValidator validator = new RuleValidator(DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
+        RuleValidator otherValidator = new RuleValidator(DESCRIPTION, ATTRIBUTE_MAP, FEATURE_VALUE, UPDATED_AT, FEATURE_TYPE);
+        assertEquals(validator, otherValidator);
+    }
 }

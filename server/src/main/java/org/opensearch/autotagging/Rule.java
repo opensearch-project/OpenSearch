@@ -43,6 +43,7 @@ public class Rule implements Writeable, ToXContentObject {
     private final Map<Attribute, Set<String>> attributeMap;
     private final String featureValue;
     private final String updatedAt;
+    private final RuleValidator ruleValidator;
     public static final String _ID_STRING = "_id";
     public static final String DESCRIPTION_STRING = "description";
     public static final String UPDATED_AT_STRING = "updated_at";
@@ -59,7 +60,8 @@ public class Rule implements Writeable, ToXContentObject {
         this.attributeMap = attributeMap;
         this.featureValue = featureValue;
         this.updatedAt = updatedAt;
-        validateRule();
+        this.ruleValidator = new RuleValidator(description, attributeMap, featureValue, updatedAt, featureType);
+        this.ruleValidator.validate();
     }
 
     public Rule(StreamInput in) throws IOException {
@@ -68,12 +70,8 @@ public class Rule implements Writeable, ToXContentObject {
         attributeMap = in.readMap(i -> Attribute.from(i, featureType), i -> new HashSet<>(i.readStringList()));
         featureValue = in.readString();
         updatedAt = in.readString();
-        validateRule();
-    }
-
-    private void validateRule() {
-        RuleValidator validator = new RuleValidator(description, attributeMap, featureValue, updatedAt, featureType);
-        validator.validate();
+        this.ruleValidator = new RuleValidator(description, attributeMap, featureValue, updatedAt, featureType);
+        this.ruleValidator.validate();
     }
 
     @Override
@@ -135,6 +133,7 @@ public class Rule implements Writeable, ToXContentObject {
             && Objects.equals(featureValue, that.featureValue)
             && Objects.equals(featureType, that.featureType)
             && Objects.equals(attributeMap, that.attributeMap)
+            && Objects.equals(ruleValidator, that.ruleValidator)
             && Objects.equals(updatedAt, that.updatedAt);
     }
 
