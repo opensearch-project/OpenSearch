@@ -634,10 +634,15 @@ public class XContentMapValues {
      * @param source Source map to perform transformation on
      * @param transformers Map from path to transformer to apply to each path. Each transformer is a function that takes
      *                    the current value and returns a transformed value
-     * @return Copy of the source map with the transformations applied
+     * @param inPlace If true, modify the source map directly; if false, create a copy
+     * @return Map with transformations applied
      */
-    public static Map<String, Object> transform(Map<String, Object> source, Map<String, Function<Object, Object>> transformers) {
-        return transform(transformers).apply(source);
+    public static Map<String, Object> transform(
+        Map<String, Object> source,
+        Map<String, Function<Object, Object>> transformers,
+        boolean inPlace
+    ) {
+        return transform(transformers, inPlace).apply(source);
     }
 
     /**
@@ -647,16 +652,20 @@ public class XContentMapValues {
      *
      * @param transformers Map from path to transformer to apply to each path. Each transformer is a function that takes
      *                     the current value and returns a transformed value
-     * @return Function that takes a map and returns a transformed copy of the map
+     * @param inPlace If true, modify the source map directly; if false, create a copy
+     * @return Function that takes a map and returns a transformed version of the map
      */
-    public static Function<Map<String, Object>, Map<String, Object>> transform(Map<String, Function<Object, Object>> transformers) {
+    public static Function<Map<String, Object>, Map<String, Object>> transform(
+        Map<String, Function<Object, Object>> transformers,
+        boolean inPlace
+    ) {
         Map<String, Object> transformerTrie = buildTransformerTrie(transformers);
         return source -> {
             Deque<TransformContext> stack = new ArrayDeque<>();
-            Map<String, Object> result = new HashMap<>(source);
+            Map<String, Object> result = inPlace ? source : new HashMap<>(source);
             stack.push(new TransformContext(result, transformerTrie));
 
-            processStack(stack);
+            processStack(stack, inPlace);
             return result;
         };
     }
@@ -675,20 +684,30 @@ public class XContentMapValues {
         return trie;
     }
 
-    private static void processStack(Deque<TransformContext> stack) {
+    private static void processStack(Deque<TransformContext> stack, boolean inPlace) {
         while (!stack.isEmpty()) {
             TransformContext ctx = stack.pop();
-            processMap(ctx.map, ctx.trie, stack);
+            processMap(ctx.map, ctx.trie, stack, inPlace);
         }
     }
 
-    private static void processMap(Map<String, Object> currentMap, Map<String, Object> currentTrie, Deque<TransformContext> stack) {
+    private static void processMap(
+        Map<String, Object> currentMap,
+        Map<String, Object> currentTrie,
+        Deque<TransformContext> stack,
+        boolean inPlace
+    ) {
         for (Map.Entry<String, Object> entry : currentMap.entrySet()) {
-            processEntry(entry, currentTrie, stack);
+            processEntry(entry, currentTrie, stack, inPlace);
         }
     }
 
-    private static void processEntry(Map.Entry<String, Object> entry, Map<String, Object> currentTrie, Deque<TransformContext> stack) {
+    private static void processEntry(
+        Map.Entry<String, Object> entry,
+        Map<String, Object> currentTrie,
+        Deque<TransformContext> stack,
+        boolean inPlace
+    ) {
         String key = entry.getKey();
         Object value = entry.getValue();
 
@@ -707,23 +726,37 @@ public class XContentMapValues {
 
         // Process nested structures
         if (value instanceof Map) {
-            Map<String, Object> copy = new HashMap<>(nodeMapValue(value, "transform"));
-            stack.push(new TransformContext(copy, subTrie));
-            entry.setValue(copy);
+            Map<String, Object> subMap = nodeMapValue(value, "transform");
+            if (inPlace == false) {
+                subMap = new HashMap<>(subMap);
+                entry.setValue(subMap);
+            }
+            stack.push(new TransformContext(subMap, subTrie));
         } else if (value instanceof List<?> list) {
-            List<Object> copy = new ArrayList<>(list);
-            processList(copy, subTrie, stack);
-            entry.setValue(copy);
+            List<Object> subList = (List<Object>) list;
+            if (inPlace == false) {
+                subList = new ArrayList<>(list);
+                entry.setValue(subList);
+            }
+            processList(subList, subTrie, stack, inPlace);
         }
     }
 
-    private static void processList(List<Object> list, Map<String, Object> transformerTrie, Deque<TransformContext> stack) {
+    private static void processList(
+        List<Object> list,
+        Map<String, Object> transformerTrie,
+        Deque<TransformContext> stack,
+        boolean inPlace
+    ) {
         for (int i = list.size() - 1; i >= 0; i--) {
             Object value = list.get(i);
             if (value instanceof Map) {
-                Map<String, Object> copy = new HashMap<>(nodeMapValue(value, "transform"));
-                stack.push(new TransformContext(copy, transformerTrie));
-                list.set(i, copy);
+                Map<String, Object> subMap = nodeMapValue(value, "transform");
+                if (inPlace == false) {
+                    subMap = new HashMap<>(subMap);
+                    list.set(i, subMap);
+                }
+                stack.push(new TransformContext(subMap, transformerTrie));
             }
         }
     }

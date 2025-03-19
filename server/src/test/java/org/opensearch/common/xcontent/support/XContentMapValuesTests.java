@@ -645,7 +645,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         Map<String, Object> expected = Map.of("test1", "value_after", "test2", "value_after");
 
-        Map<String, Object> transformedMapped = XContentMapValues.transform(mapToTransform, transformers);
+        Map<String, Object> transformedMapped = XContentMapValues.transform(mapToTransform, transformers, false);
         assertEquals(expected, transformedMapped);
     }
 
@@ -725,7 +725,16 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             .put("test6", null)
             .immutableMap();
 
-        Map<String, Object> transformedMapped = XContentMapValues.transform(mapToTransform, transformers);
+        Map<String, Object> transformedMapped = XContentMapValues.transform(mapToTransform, transformers, false);
+        assertEquals(expected, transformedMapped);
+    }
+
+    public void testTransformInPlace() {
+        Map<String, Object> mapToTransform = MapBuilder.<String, Object>newMapBuilder().put("test1", "value_before").map();
+        Map<String, Function<Object, Object>> transformers = Map.of("test1", v -> "value_after");
+        Map<String, Object> expected = MapBuilder.<String, Object>newMapBuilder().put("test1", "value_after").immutableMap();
+
+        Map<String, Object> transformedMapped = XContentMapValues.transform(mapToTransform, transformers, true);
         assertEquals(expected, transformedMapped);
     }
 
