@@ -1500,11 +1500,16 @@ public class MetadataCreateIndexService {
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
                 DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
             );
+            int searchReplicaCount = settings.getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
-            Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
-            if (error.isPresent()) {
-                validationErrors.add(error.get());
-            }
+
+            Optional<String> replicaValidationError = awarenessReplicaBalance.validateReplicas(replicaCount, autoExpandReplica);
+            replicaValidationError.ifPresent(validationErrors::add);
+            Optional<String> searchReplicaValidationError = awarenessReplicaBalance.validateSearchReplicas(
+                searchReplicaCount,
+                autoExpandReplica
+            );
+            searchReplicaValidationError.ifPresent(validationErrors::add);
         }
         return validationErrors;
     }

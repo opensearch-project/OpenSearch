@@ -54,6 +54,7 @@ import java.util.Map;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.test.NodeRoles.searchOnlyNode;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -253,5 +254,67 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
         assertThat(counts.get(B_2), equalTo(2));
         assertThat(counts.get(B_3), equalTo(3));
         assertThat(counts.get(noZoneNode), equalTo(2));
+    }
+
+    public void testAwarenessBalanceWithForcedAwarenessCreateIndex() {
+        Settings settings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.balance", "true")
+            .build();
+
+        logger.info("--> starting 3 nodes on zones a,b,c");
+        internalCluster().startNodes(
+            Settings.builder().put(settings).put("node.attr.zone", "a").build(),
+            Settings.builder().put(settings).put("node.attr.zone", "b").build(),
+            Settings.builder().put(settings).put("node.attr.zone", "c").build()
+        );
+
+        // Create index with 2 replicas and 2 search replicas
+        assertThrows(IllegalArgumentException.class, () -> {
+            createIndex(
+                "test-idx",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 2)
+                    .build()
+            );
+        });
+    }
+
+    public void testAwarenessBalanceWithForcedAwarenessUpdateIndex() {
+        Settings settings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.balance", "true")
+            .build();
+
+        logger.info("--> starting 3 nodes on zones a,b,c");
+        internalCluster().startNodes(
+            Settings.builder().put(settings).put("node.attr.zone", "a").build(),
+            Settings.builder().put(settings).put("node.attr.zone", "b").build(),
+            Settings.builder().put(settings).put("node.attr.zone", "c").build()
+        );
+
+        // Create index with 2 replicas and 3 search replicas
+        createIndex(
+            "test-idx",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 3)
+                .build()
+        );
+
+        // Update the number of search replicas to 4
+        assertThrows(IllegalArgumentException.class, () -> {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings("test-idx")
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 4).build())
+            );
+        });
     }
 }
