@@ -144,7 +144,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected BytesRef indexedValueForSearch(Object value) {
+        public BytesRef indexedValueForSearch(Object value) {
             if (value == null) {
                 return null;
             }

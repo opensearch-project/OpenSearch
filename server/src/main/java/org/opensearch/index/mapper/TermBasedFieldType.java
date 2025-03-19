@@ -69,7 +69,7 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     /** Returns the indexed value used to construct search "values".
      *  This method is used for the default implementations of most
      *  query factory methods such as {@link #termQuery}. */
-    protected BytesRef indexedValueForSearch(Object value) {
+    public BytesRef indexedValueForSearch(Object value) {
         return BytesRefs.toBytesRef(value);
     }
 
