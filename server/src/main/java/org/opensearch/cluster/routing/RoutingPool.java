@@ -37,7 +37,7 @@ public enum RoutingPool {
      * Helps to determine the appropriate {@link RoutingPool} for a given node from the {@link DiscoveryNode}
      */
     public static RoutingPool getNodePool(DiscoveryNode node) {
-        if (node.isSearchNode()) {
+        if (node.isWarmNode()) {
             return REMOTE_CAPABLE;
         }
         return LOCAL_ONLY;

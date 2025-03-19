@@ -10,6 +10,7 @@ package org.opensearch.plugin.kafka;
 
 import org.opensearch.core.util.ConfigurationUtils;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -18,21 +19,27 @@ import java.util.Map;
 public class KafkaSourceConfig {
     private final String PROP_TOPIC = "topic";
     private final String PROP_BOOTSTRAP_SERVERS = "bootstrap_servers";
-    // TODO: support pass any generic kafka configs
     private final String PROP_AUTO_OFFSET_RESET = "auto.offset.reset";
 
     private final String topic;
     private final String bootstrapServers;
     private final String autoOffsetResetConfig;
 
+    private final Map<String, Object> consumerConfigsMap;
+
     /**
-     * Constructor
+     * Extracts and look for required and optional kafka consumer configurations.
      * @param params the configuration parameters
      */
     public KafkaSourceConfig(Map<String, Object> params) {
         this.topic = ConfigurationUtils.readStringProperty(params, PROP_TOPIC);
         this.bootstrapServers = ConfigurationUtils.readStringProperty(params, PROP_BOOTSTRAP_SERVERS);
         this.autoOffsetResetConfig = ConfigurationUtils.readOptionalStringProperty(params, PROP_AUTO_OFFSET_RESET);
+        this.consumerConfigsMap = new HashMap<>(params);
+
+        // remove above configurations
+        consumerConfigsMap.remove(PROP_TOPIC);
+        consumerConfigsMap.remove(PROP_BOOTSTRAP_SERVERS);
     }
 
     /**
@@ -59,5 +66,9 @@ public class KafkaSourceConfig {
      */
     public String getAutoOffsetResetConfig() {
         return autoOffsetResetConfig;
+    }
+
+    public Map<String, Object> getConsumerConfigurations() {
+        return consumerConfigsMap;
     }
 }

@@ -177,7 +177,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17526")
     public void testRestartPrimary_NoReplicas() throws Exception {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
         ensureYellow(INDEX_NAME);
 
@@ -197,10 +197,10 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
@@ -229,7 +229,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
 
         // start another node, index another doc and replicate.
-        String nodeC = internalCluster().startDataAndSearchNodes(1).get(0);
+        String nodeC = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
         client().prepareIndex(INDEX_NAME).setId("4").setSource("baz", "baz").get();
         refresh(INDEX_NAME);
@@ -239,10 +239,10 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testRestartPrimary() throws Exception {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         assertEquals(getNodeContainingPrimaryShard().getName(), primary);
@@ -266,10 +266,10 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
 
     public void testCancelPrimaryAllocation() throws Exception {
         // this test cancels allocation on the primary - promoting the new replica and recreating the former primary as a replica.
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         final int initialDocCount = 1;
@@ -296,8 +296,8 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testReplicationAfterPrimaryRefreshAndFlush() throws Exception {
-        final String nodeA = internalCluster().startDataAndSearchNodes(1).get(0);
-        final String nodeB = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String nodeA = internalCluster().startDataAndWarmNodes(1).get(0);
+        final String nodeB = internalCluster().startDataAndWarmNodes(1).get(0);
         final Settings settings = Settings.builder()
             .put(indexSettings())
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomFrom(new ArrayList<>(CODECS) {
@@ -340,8 +340,8 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testIndexReopenClose() throws Exception {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -374,7 +374,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17526")
     public void testStartReplicaAfterPrimaryIndexesDocs() throws Exception {
-        final String primaryNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primaryNode = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen(INDEX_NAME);
 
@@ -397,7 +397,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
                 .prepareUpdateSettings(INDEX_NAME)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
-        final String replicaNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replicaNode = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
@@ -420,9 +420,9 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17527")
     public void testReplicationPostDeleteAndForceMerge() throws Exception {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
         final int initialDocCount = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < initialDocCount; i++) {
@@ -480,8 +480,8 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testScrollWithConcurrentIndexAndSearch() throws Exception {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
@@ -539,8 +539,8 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
-        final String nodeA = internalCluster().startDataAndSearchNodes(1).get(0);
-        final String nodeB = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String nodeA = internalCluster().startDataAndWarmNodes(1).get(0);
+        final String nodeB = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME, indexSettings);
         ensureGreen(INDEX_NAME);
 
@@ -585,8 +585,8 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     private void performReplicationAfterForceMerge(boolean primaryOnly, int expectedSuccessfulShards) throws Exception {
-        final String nodeA = internalCluster().startDataAndSearchNodes(1).get(0);
-        final String nodeB = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String nodeA = internalCluster().startDataAndWarmNodes(1).get(0);
+        final String nodeB = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
@@ -638,11 +638,11 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     public void testClosedIndices() {
         List<String> nodes = new ArrayList<>();
         // start 1st node so that it contains the primary
-        nodes.add(internalCluster().startDataAndSearchNodes(1).get(0));
+        nodes.add(internalCluster().startDataAndWarmNodes(1).get(0));
         createIndex(INDEX_NAME, super.indexSettings());
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         // start 2nd node so that it contains the replica
-        nodes.add(internalCluster().startDataAndSearchNodes(1).get(0));
+        nodes.add(internalCluster().startDataAndWarmNodes(1).get(0));
         ensureGreen(INDEX_NAME);
 
         logger.info("--> Close index");
@@ -657,7 +657,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
      * @throws Exception when issue is encountered
      */
     public void testNodeDropWithOngoingReplication() throws Exception {
-        final String primaryNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primaryNode = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(
             INDEX_NAME,
             Settings.builder()
@@ -668,7 +668,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
                 .build()
         );
         ensureYellow(INDEX_NAME);
-        final String replicaNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replicaNode = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         // Get replica allocation id
@@ -724,11 +724,11 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testCancellation() throws Exception {
-        final String primaryNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primaryNode = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
         ensureYellow(INDEX_NAME);
 
-        final String replicaNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replicaNode = internalCluster().startDataAndWarmNodes(1).get(0);
 
         final SegmentReplicationSourceService segmentReplicationSourceService = internalCluster().getInstance(
             SegmentReplicationSourceService.class,
@@ -776,8 +776,8 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
 
     @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.indices.replication:TRACE")
     public void testDeleteOperations() throws Exception {
-        final String nodeA = internalCluster().startDataAndSearchNodes(1).get(0);
-        final String nodeB = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String nodeA = internalCluster().startDataAndWarmNodes(1).get(0);
+        final String nodeB = internalCluster().startDataAndWarmNodes(1).get(0);
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -818,10 +818,10 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testUpdateOperations() throws Exception {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
         ensureYellow(INDEX_NAME);
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         final int initialDocCount = scaledRandomIntBetween(1, 5);
@@ -870,9 +870,9 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replica_count)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
-        final String primaryNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primaryNode = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME, settings);
-        final List<String> dataNodes = internalCluster().startDataAndSearchNodes(6);
+        final List<String> dataNodes = internalCluster().startDataAndWarmNodes(6);
         ensureGreen(INDEX_NAME);
 
         int initialDocCount = scaledRandomIntBetween(5, 10);
@@ -896,7 +896,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             ensureYellow(INDEX_NAME);
 
             // start another replica.
-            dataNodes.add(internalCluster().startDataAndSearchNodes(1).get(0));
+            dataNodes.add(internalCluster().startDataAndWarmNodes(1).get(0));
             ensureGreen(INDEX_NAME);
             waitForSearchableDocs(initialDocCount, dataNodes);
 
@@ -913,10 +913,10 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
 
     @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.indices.replication:TRACE")
     public void testReplicaHasDiffFilesThanPrimary() throws Exception {
-        final String primaryNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primaryNode = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
         ensureYellow(INDEX_NAME);
-        final String replicaNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replicaNode = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         final IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
@@ -970,10 +970,10 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17527")
     public void testPressureServiceStats() throws Exception {
-        final String primaryNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primaryNode = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
         ensureYellow(INDEX_NAME);
-        final String replicaNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replicaNode = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         int initialDocCount = scaledRandomIntBetween(10, 20);
@@ -1036,7 +1036,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             assertTrue(replicaStats.isEmpty());
 
             // start another replica.
-            String replicaNode_2 = internalCluster().startDataAndSearchNodes(1).get(0);
+            String replicaNode_2 = internalCluster().startDataAndWarmNodes(1).get(0);
             ensureGreen(INDEX_NAME);
             final IndexShard secondReplicaShard = getIndexShard(replicaNode_2, INDEX_NAME);
             final String second_replica_aid = secondReplicaShard.routingEntry().allocationId().getId();
@@ -1078,7 +1078,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
      */
     public void testScrollCreatedOnReplica() throws Exception {
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         prepareCreate(
             INDEX_NAME,
             Settings.builder()
@@ -1087,7 +1087,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
                 .put("index.refresh_interval", -1)
         ).get();
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         client().prepareIndex(INDEX_NAME)
@@ -1182,13 +1182,13 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
      */
     public void testPrimaryReceivesDocsDuringReplicaRecovery() throws Exception {
         final List<String> nodes = new ArrayList<>();
-        final String primaryNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primaryNode = internalCluster().startDataAndWarmNodes(1).get(0);
         nodes.add(primaryNode);
         final Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
         createIndex(INDEX_NAME, settings);
         ensureGreen(INDEX_NAME);
         // start a replica node, initially will be empty with no shard assignment.
-        final String replicaNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replicaNode = internalCluster().startDataAndWarmNodes(1).get(0);
         nodes.add(replicaNode);
 
         // index a doc.
@@ -1215,7 +1215,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testIndexWhileRecoveringReplica() throws Exception {
-        final String primaryNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primaryNode = internalCluster().startDataAndWarmNodes(1).get(0);
         assertAcked(
             prepareCreate(INDEX_NAME).setMapping(
                 jsonBuilder().startObject()
@@ -1239,7 +1239,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             )
         );
         ensureYellow(INDEX_NAME);
-        final String replicaNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replicaNode = internalCluster().startDataAndWarmNodes(1).get(0);
 
         client().prepareIndex(INDEX_NAME)
             .setId("1")
@@ -1290,13 +1290,13 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
      * Tests whether segment replication supports realtime get requests and reads and parses source from the translog to serve strong reads.
      */
     public void testRealtimeGetRequestsSuccessful() {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime get
         assertAcked(
             prepareCreate(INDEX_NAME).setSettings(Settings.builder().put("index.refresh_interval", -1).put(indexSettings()))
                 .addAlias(new Alias("alias"))
         );
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         final String id = routingKeyForShard(INDEX_NAME, 0);
@@ -1328,13 +1328,13 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testRealtimeGetRequestsUnsuccessful() {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         assertAcked(
             prepareCreate(INDEX_NAME).setSettings(
                 Settings.builder().put("index.refresh_interval", -1).put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             ).addAlias(new Alias("alias"))
         );
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         final String id = routingKeyForShard(INDEX_NAME, 0);
@@ -1362,14 +1362,14 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
      * Tests whether segment replication supports realtime MultiGet requests and reads and parses source from the translog to serve strong reads.
      */
     public void testRealtimeMultiGetRequestsSuccessful() {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime multi get
         assertAcked(
             prepareCreate(INDEX_NAME).setSettings(
                 Settings.builder().put("index.refresh_interval", -1).put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             ).addAlias(new Alias("alias"))
         );
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         final String id = routingKeyForShard(INDEX_NAME, 0);
@@ -1414,13 +1414,13 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testRealtimeMultiGetRequestsUnsuccessful() {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         assertAcked(
             prepareCreate(INDEX_NAME).setSettings(
                 Settings.builder().put("index.refresh_interval", -1).put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             ).addAlias(new Alias("alias"))
         );
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
 
         final String id = routingKeyForShard(INDEX_NAME, 0);
@@ -1460,7 +1460,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
      * Tests whether segment replication supports realtime termvector requests and reads and parses source from the translog to serve strong reads.
      */
     public void testRealtimeTermVectorRequestsSuccessful() throws IOException {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         XContentBuilder mapping = jsonBuilder().startObject()
             .startObject("properties")
             .startObject("field")
@@ -1482,7 +1482,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
                         .putList("index.analysis.analyzer.tv_test.filter", "lowercase")
                 )
         );
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
         final String id = routingKeyForShard(INDEX_NAME, 0);
 
@@ -1537,7 +1537,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testRealtimeTermVectorRequestsUnSuccessful() throws IOException {
-        final String primary = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         XContentBuilder mapping = jsonBuilder().startObject()
             .startObject("properties")
             .startObject("field")
@@ -1561,7 +1561,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 )
         );
-        final String replica = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replica = internalCluster().startDataAndWarmNodes(1).get(0);
         ensureGreen(INDEX_NAME);
         final String id = routingKeyForShard(INDEX_NAME, 0);
         final String routingOtherShard = routingKeyForShard(INDEX_NAME, 1);
@@ -1607,15 +1607,15 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
 
     public void testReplicaAlreadyAtCheckpoint() throws Exception {
         final List<String> nodes = new ArrayList<>();
-        final String primaryNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String primaryNode = internalCluster().startDataAndWarmNodes(1).get(0);
         nodes.add(primaryNode);
         final Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
         createIndex(INDEX_NAME, settings);
         ensureGreen(INDEX_NAME);
         // start a replica node, initially will be empty with no shard assignment.
-        final String replicaNode = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replicaNode = internalCluster().startDataAndWarmNodes(1).get(0);
         nodes.add(replicaNode);
-        final String replicaNode2 = internalCluster().startDataAndSearchNodes(1).get(0);
+        final String replicaNode2 = internalCluster().startDataAndWarmNodes(1).get(0);
         assertAcked(
             client().admin()
                 .indices()
