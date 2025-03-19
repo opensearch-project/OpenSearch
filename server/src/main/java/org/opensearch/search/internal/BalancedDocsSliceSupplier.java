@@ -13,11 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.PriorityQueue;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -54,7 +50,7 @@ final class BalancedDocsSliceSupplier {
 
         // Helper class to hold a group of leaves and their cumulative document count.
         class SliceGroup {
-            final List<LeafReaderContext> groupLeaves = new ArrayList<>();
+            final List<IndexSearcher.LeafReaderContextPartition> groupLeaves = new ArrayList<>();
             long totalDocs = 0;
         }
 
@@ -68,26 +64,18 @@ final class BalancedDocsSliceSupplier {
         for (LeafReaderContext leaf : sortedLeaves) {
             SliceGroup currentGroup = queue.poll();  // get the slice with the smallest totalDocs
             assert currentGroup != null;
-            currentGroup.groupLeaves.add(leaf);
+            currentGroup.groupLeaves.add(IndexSearcher.LeafReaderContextPartition.createForEntireSegment(leaf));
             currentGroup.totalDocs += leaf.reader().maxDoc();
             queue.add(currentGroup); // reinsert after updating the totalDocs
         }
 
         // Convert the SliceGroups to an array of LeafSlice objects.
-        List<IndexSearcher.LeafSlice> slices = new ArrayList<>();
-        while (!queue.isEmpty()) {
-            SliceGroup group = queue.poll();
-            List<IndexSearcher.LeafReaderContextPartition> partitions = group.groupLeaves.stream().map(
-                IndexSearcher.LeafReaderContextPartition::createForEntireSegment
-            ).collect(Collectors.toList());
-            slices.add(new IndexSearcher.LeafSlice(partitions));
-        }
-        // reverse the slices so the largest slices are first to preserve compatibility with ContextIndexSearcherTests.
-        // if k = number of segments then we'll perform O(klogk) + O(k) work to keep preexisting unit tests.
-        // back of napkin math: With around 10M 768 fp32 vectors we see 35GB total data size, assuming ~0.5GB target
-        // size per segment we'd get around 70 segments.
-        Collections.reverse(slices);
 
-        return slices.toArray(IndexSearcher.LeafSlice[]::new);
+        IndexSearcher.LeafSlice[] slices = new IndexSearcher.LeafSlice[queue.size()];
+        int idx = 0;
+        for (SliceGroup group : queue) {
+            slices[idx++] = new IndexSearcher.LeafSlice(group.groupLeaves);
+        }
+        return slices;
     }
 }

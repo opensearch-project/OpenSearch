@@ -354,15 +354,20 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 expectedSliceCount = 4;
                 slices = searcher.slicesInternal(leaves, expectedSliceCount);
 
-                // 4 slices will be created with 3 leaves in first 2 slices and 2 leaves in other slices
+                // 4 slices will be created with 3 leaves in 2 slices and 2 leaves in other slices
+                // BalancedDocSliceSupplier uses a PQ to assign segments to slices, so the slice assignment is different
+                // than round-robin approach.
+                int num_slices_with_length_2 = 0;
+                int num_slices_with_length_3 = 0;
                 assertEquals(expectedSliceCount, slices.length);
                 for (int i = 0; i < expectedSliceCount; ++i) {
-                    if (i < 2) {
-                        assertEquals(3, slices[i].partitions.length);
-                    } else {
-                        assertEquals(2, slices[i].partitions.length);
-                    }
+                    if (slices[i].partitions.length == 2)
+                        num_slices_with_length_2++;
+                    else if (slices[i].partitions.length == 3)
+                        num_slices_with_length_3++;
                 }
+                assertEquals(2, num_slices_with_length_2);
+                assertEquals(2, num_slices_with_length_3);
             }
         }
     }
@@ -414,15 +419,20 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 int expectedSliceCount = 4;
                 IndexSearcher.LeafSlice[] slices = searcher.slices(leaves);
 
-                // 4 slices will be created with 3 leaves in first 2 slices and 2 leaves in other slices
+                // 4 slices will be created with 3 leaves in 2 slices and 2 leaves in other slices
+                // BalancedDocSliceSupplier uses a PQ to assign segments to slices, so the slice assignment is different
+                // than round-robin approach.
+                int num_slices_with_length_2 = 0;
+                int num_slices_with_length_3 = 0;
                 assertEquals(expectedSliceCount, slices.length);
                 for (int i = 0; i < expectedSliceCount; ++i) {
-                    if (i < 2) {
-                        assertEquals(3, slices[i].partitions.length);
-                    } else {
-                        assertEquals(2, slices[i].partitions.length);
-                    }
+                    if (slices[i].partitions.length == 2)
+                        num_slices_with_length_2++;
+                    else if (slices[i].partitions.length == 3)
+                        num_slices_with_length_3++;
                 }
+                assertEquals(2, num_slices_with_length_2);
+                assertEquals(2, num_slices_with_length_3);
             }
         }
     }
