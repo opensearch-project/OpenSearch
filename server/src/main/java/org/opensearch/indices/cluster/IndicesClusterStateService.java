@@ -718,6 +718,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexShardRoutingTable,
                 nodes
             );
+            updateShardIngestionState(shard, indexMetadata, shardRouting);
+
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
             return;
@@ -749,6 +751,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     clusterState
                 );
             }
+        }
+    }
+
+    private void updateShardIngestionState(Shard shard, IndexMetadata indexMetadata, ShardRouting shardRouting) {
+        try {
+            if (indexMetadata.useIngestionSource() && shardRouting.primary()) {
+                shard.updateShardIngestionState(indexMetadata);
+            }
+        } catch (Exception e) {
+            // log error, do not fail since ingestion state updates can be retried by the user in case of transient errors
+            logger.error("Failed to update shard ingestion state", e);
         }
     }
 
@@ -927,6 +940,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             IndexShardRoutingTable routingTable,
             DiscoveryNodes discoveryNodes
         ) throws IOException;
+
+        default void updateShardIngestionState(IndexMetadata indexMetadata) {};
     }
 
     /**

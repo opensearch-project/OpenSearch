@@ -9,6 +9,9 @@
 package org.opensearch.plugin.kafka;
 
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
@@ -152,6 +155,56 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             .get();
         waitForState(() -> "drop".equalsIgnoreCase(getSettings(indexName, "index.ingestion_source.error_strategy")));
         waitForSearchableDocs(2, Arrays.asList(node));
+    }
+
+    public void testPauseAndResumeIngestion() throws Exception {
+        // setup nodes and index
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        createIndexWithDefaultSettings(1, 1);
+        ensureGreen(indexName);
+        waitForSearchableDocs(2, Arrays.asList(nodeA, nodeB));
+
+        // pause ingestion
+        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
+        assertTrue(pauseResponse.isAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return Arrays.stream(ingestionState.getShardStates()).allMatch(state -> state.getPollerState().equalsIgnoreCase("paused"));
+        });
+
+        // verify ingestion state is persisted
+        produceData("3", "name3", "30");
+        produceData("4", "name4", "31");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+        ensureYellowAndNoInitializingShards(indexName);
+        assertTrue(nodeB.equals(primaryNodeName(indexName)));
+
+        final String nodeC = internalCluster().startDataOnlyNode();
+        client().admin().cluster().prepareReroute().add(new AllocateReplicaAllocationCommand(indexName, 0, nodeC)).get();
+        ensureGreen(indexName);
+        assertTrue(nodeC.equals(replicaNodeName(indexName)));
+        assertEquals(2, getSearchableDocCount(nodeB));
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return Arrays.stream(ingestionState.getShardStates()).allMatch(state -> state.getPollerState().equalsIgnoreCase("paused"));
+        });
+
+        // resume ingestion
+        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
+        assertTrue(resumeResponse.isAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return Arrays.stream(ingestionState.getShardStates())
+                .allMatch(
+                    state -> state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing")
+                );
+        });
+        waitForSearchableDocs(4, Arrays.asList(nodeB, nodeC));
     }
 
     private void verifyRemoteStoreEnabled(String node) {
