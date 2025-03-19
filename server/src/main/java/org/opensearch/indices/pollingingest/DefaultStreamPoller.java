@@ -149,9 +149,6 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         logger.info("Starting poller for shard {}", consumer.getShardId());
 
-        // track the last record successfully written to the blocking queue
-        IngestionShardPointer lastSuccessfulPointer = null;
-
         while (true) {
             try {
                 if (closed) {
@@ -204,7 +201,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 if (includeBatchStartPointer) {
                     results = consumer.readNext(batchStartPointer, true, MAX_POLL_SIZE, POLL_TIMEOUT);
                 } else {
-                    results = consumer.readNext(lastSuccessfulPointer, false, MAX_POLL_SIZE, POLL_TIMEOUT);
+                    results = consumer.readNext(MAX_POLL_SIZE, POLL_TIMEOUT);
                 }
 
                 if (results.isEmpty()) {
@@ -221,7 +218,6 @@ public class DefaultStreamPoller implements StreamPoller {
                         batchStartPointer = result.getPointer();
                         firstInBatch = false;
                     }
-                    lastSuccessfulPointer = result.getPointer();
 
                     // check if the message is already processed
                     if (isProcessed(result.getPointer())) {

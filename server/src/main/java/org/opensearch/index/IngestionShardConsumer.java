@@ -70,6 +70,16 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
         throws java.util.concurrent.TimeoutException;
 
     /**
+     * Read the next set of messages from the source using the previous pointer. An exception is thrown if no previous pointer is available.
+     * This method is used as an optimization for consecutive reads.
+     * @param maxMessages the maximum number of messages to read, or -1 for no limit
+     * @param timeoutMillis the maximum time to wait for messages
+     * @return a list of messages read from the source
+     * @throws java.util.concurrent.TimeoutException
+     */
+    List<ReadResult<T, M>> readNext(long maxMessages, int timeoutMillis) throws java.util.concurrent.TimeoutException;
+
+    /**
      * @return the earliest pointer in the shard
      */
     IngestionShardPointer earliestPointer();

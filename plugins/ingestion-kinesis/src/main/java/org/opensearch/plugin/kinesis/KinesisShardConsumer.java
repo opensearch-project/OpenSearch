@@ -49,7 +49,7 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
      */
     ;
     private KinesisClient kinesisClient;
-    private String lastFetchedSequenceNumber = "";
+    private String lastShardIterator;
     final String clientId;
     final String kinesisShardId;
     final int shardId;
@@ -124,12 +124,21 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
         int timeoutMillis
     ) throws TimeoutException {
         List<ReadResult<SequenceNumber, KinesisMessage>> records = fetch(
+            null,
             sequenceNumber.getSequenceNumber(),
             includeStart,
             maxMessages,
             timeoutMillis
         );
         return records;
+    }
+
+    @Override
+    public List<ReadResult<SequenceNumber, KinesisMessage>> readNext(long maxMessages, int timeoutMillis) throws TimeoutException {
+        if (lastShardIterator == null) {
+            throw new IllegalStateException("No shard iterator available");
+        }
+        return fetch(lastShardIterator, null, false, maxMessages, timeoutMillis);
     }
 
     @Override
@@ -142,40 +151,50 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
         return getSequenceNumber(ShardIteratorType.LATEST, null, 0);
     }
 
-    private List<Record> fetchRecords(ShardIteratorType shardIteratorType, String startingSequenceNumber, long timestampMillis, int limit) {
-        // Get a shard iterator AFTER the given sequence number
-        GetShardIteratorRequest.Builder builder = GetShardIteratorRequest.builder()
-            .streamName(config.getStream())
-            .shardId(kinesisShardId)
-            .shardIteratorType(shardIteratorType);
-
-        if (startingSequenceNumber != null) {
-            builder = builder.startingSequenceNumber(startingSequenceNumber);
-        }
-
-        if (timestampMillis != 0) {
-            builder = builder.timestamp(Instant.ofEpochMilli(timestampMillis));
-        }
-
-        GetShardIteratorRequest shardIteratorRequest = builder.build();
-
-        GetShardIteratorResponse shardIteratorResponse = kinesisClient.getShardIterator(shardIteratorRequest);
-        String shardIterator = shardIteratorResponse.shardIterator();
+    private List<Record> fetchRecords(
+        String shardIterator,
+        ShardIteratorType shardIteratorType,
+        String startingSequenceNumber,
+        long timestampMillis,
+        int limit
+    ) {
+        String shardIteratorToUse = shardIterator;
 
         if (shardIterator == null) {
+            // fetch the shard iterator
+            GetShardIteratorRequest.Builder builder = GetShardIteratorRequest.builder()
+                .streamName(config.getStream())
+                .shardId(kinesisShardId)
+                .shardIteratorType(shardIteratorType);
+
+            if (startingSequenceNumber != null) {
+                builder = builder.startingSequenceNumber(startingSequenceNumber);
+            }
+
+            if (timestampMillis != 0) {
+                builder = builder.timestamp(Instant.ofEpochMilli(timestampMillis));
+            }
+
+            GetShardIteratorRequest shardIteratorRequest = builder.build();
+
+            GetShardIteratorResponse shardIteratorResponse = kinesisClient.getShardIterator(shardIteratorRequest);
+            shardIteratorToUse = shardIteratorResponse.shardIterator();
+        }
+
+        if (shardIteratorToUse == null) {
             return new ArrayList<>();
         }
 
         // Fetch the next records
-        GetRecordsRequest recordsRequest = GetRecordsRequest.builder().shardIterator(shardIterator).limit(limit).build();
-
+        GetRecordsRequest recordsRequest = GetRecordsRequest.builder().shardIterator(shardIteratorToUse).limit(limit).build();
         GetRecordsResponse recordsResponse = kinesisClient.getRecords(recordsRequest);
+        lastShardIterator = recordsResponse.nextShardIterator();
         List<Record> records = recordsResponse.records();
         return records;
     }
 
     private SequenceNumber getSequenceNumber(ShardIteratorType shardIteratorType, String startingSequenceNumber, long timestampMillis) {
-        List<Record> records = fetchRecords(shardIteratorType, startingSequenceNumber, timestampMillis, 1);
+        List<Record> records = fetchRecords(null, shardIteratorType, startingSequenceNumber, timestampMillis, 1);
 
         if (!records.isEmpty()) {
             Record nextRecord = records.get(0);
@@ -197,6 +216,7 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
     }
 
     private synchronized List<ReadResult<SequenceNumber, KinesisMessage>> fetch(
+        String shardIterator,
         String sequenceNumber,
         boolean includeStart,
         long maxMessages,
@@ -208,7 +228,7 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
 
         ShardIteratorType iteratorType = includeStart ? ShardIteratorType.AT_SEQUENCE_NUMBER : ShardIteratorType.AFTER_SEQUENCE_NUMBER;
 
-        List<Record> records = fetchRecords(iteratorType, sequenceNumber, 0, (int) limit);
+        List<Record> records = fetchRecords(shardIterator, iteratorType, sequenceNumber, 0, (int) limit);
 
         List<ReadResult<SequenceNumber, KinesisMessage>> results = new ArrayList<>();
 

@@ -91,6 +91,7 @@ public class KinesisIngestionBaseIT extends OpenSearchIntegTestCase {
 
         if (localstack != null) {
             localstack.stop();
+            localstack = null;
         }
     }
 

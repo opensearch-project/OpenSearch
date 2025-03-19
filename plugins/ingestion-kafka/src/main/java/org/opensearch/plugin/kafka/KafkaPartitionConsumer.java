@@ -137,6 +137,19 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
+    public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(long maxMessages, int timeoutMillis) throws TimeoutException {
+        List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
+            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(
+                lastFetchedOffset,
+                false,
+                maxMessages,
+                timeoutMillis
+            )
+        );
+        return records;
+    }
+
+    @Override
     public IngestionShardPointer earliestPointer() {
         long startOffset = AccessController.doPrivileged(
             (PrivilegedAction<Long>) () -> consumer.beginningOffsets(Collections.singletonList(topicPartition))
