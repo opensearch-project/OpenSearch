@@ -8,7 +8,6 @@
 
 package org.opensearch.wlm.stats;
 
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.wlm.ResourceType;
 
@@ -18,7 +17,6 @@ import java.util.Map;
 /**
  * This class will keep the point in time view of the query group stats
  */
-@ExperimentalApi
 public class QueryGroupState {
     /**
      * co-ordinator level completions at the query group level, this is a cumulative counter since the Opensearch start time
@@ -93,7 +91,6 @@ public class QueryGroupState {
     /**
      * This class holds the resource level stats for the query group
      */
-    @ExperimentalApi
     public static class ResourceTypeState {
         public final ResourceType resourceType;
         public final CounterMetric cancellations = new CounterMetric();

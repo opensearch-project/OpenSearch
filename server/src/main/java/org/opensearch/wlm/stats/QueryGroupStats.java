@@ -15,7 +15,6 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.stats.QueryGroupState.ResourceTypeState;
-import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +37,6 @@ import java.util.Objects;
  *     ...
  * }
  */
-@ExperimentalApi
 public class QueryGroupStats implements ToXContentObject, Writeable {
     private final Map<String, QueryGroupStatsHolder> stats;
 
@@ -92,7 +90,6 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
      * This is a stats holder object which will hold the data for a query group at a point in time
      * the instance will only be created on demand through stats api
      */
-    @ExperimentalApi
     public static class QueryGroupStatsHolder implements ToXContentObject, Writeable {
         public static final String COMPLETIONS = "total_completions";
         public static final String REJECTIONS = "total_rejections";
@@ -226,7 +223,6 @@ public class QueryGroupStats implements ToXContentObject, Writeable {
     /**
      * point in time resource level stats holder
      */
-    @ExperimentalApi
     public static class ResourceStats implements ToXContentObject, Writeable {
         public static final String CURRENT_USAGE = "current_usage";
         public static final String CANCELLATIONS = "cancellations";
