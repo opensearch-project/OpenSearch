@@ -12,13 +12,16 @@ package org.opensearch.action.pagination;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.wlm.stats.WlmStats;
+import org.opensearch.wlm.stats.QueryGroupStats;
 
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 /**
  * Pagination strategy for Workload Management (WLM) Stats.
@@ -40,7 +43,6 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         this.sortBy = sortBy;
         this.sortOrder = sortOrder;
 
-        // Validate the token before processing
         WlmStrategyToken requestedToken = (nextToken == null || nextToken.isEmpty())
             ? null
             : new WlmStrategyToken(nextToken);
@@ -92,20 +94,32 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             return Collections.emptyList();
         }
 
+        List<WlmStats> allQueryGroups = new ArrayList<>();
+        for (WlmStats stat : sortedStats) {
+            Map<String, QueryGroupStats.QueryGroupStatsHolder> queryGroups = stat.getQueryGroupStats().getStats();
+            for (Map.Entry<String, QueryGroupStats.QueryGroupStatsHolder> entry : queryGroups.entrySet()) {
+                String queryGroupId = entry.getKey();
+                QueryGroupStats singleQueryGroupStats = new QueryGroupStats(Map.of(queryGroupId, entry.getValue()));
+                allQueryGroups.add(new WlmStats(stat.getNode(), singleQueryGroupStats));
+            }
+        }
+
+        allQueryGroups = sortStats(allQueryGroups, sortBy, sortOrder);
+
         int startIndex = 0;
         if (requestedToken != null) {
-            OptionalInt foundIndex = findIndex(sortedStats, requestedToken.lastQueryGroupId);
+            OptionalInt foundIndex = findIndex(allQueryGroups, requestedToken.lastQueryGroupId);
             if (foundIndex.isEmpty()) {
                 throw new OpenSearchParseException("Invalid or outdated token: " + nextToken);
             }
             startIndex = foundIndex.getAsInt();
         }
 
-        int endIndex = Math.min(startIndex + pageSize, sortedStats.size());
-        List<WlmStats> page = sortedStats.subList(startIndex, endIndex);
+        int endIndex = Math.min(startIndex + pageSize, allQueryGroups.size());
+        List<WlmStats> page = allQueryGroups.subList(startIndex, endIndex);
 
-        if (endIndex < sortedStats.size()) {
-            String lastQueryGroup = sortedStats.get(endIndex - 1).getQueryGroupStats().getStats().keySet().iterator().next();
+        if (endIndex < allQueryGroups.size()) {
+            String lastQueryGroup = allQueryGroups.get(endIndex - 1).getQueryGroupStats().getStats().keySet().iterator().next();
             this.responseToken = new PageToken(WlmStrategyToken.generateEncryptedToken(lastQueryGroup), DEFAULT_PAGINATED_ENTITY);
         } else {
             this.responseToken = null;
