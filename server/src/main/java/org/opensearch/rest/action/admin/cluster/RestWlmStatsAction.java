@@ -83,7 +83,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
                     @Override
                     public RestResponse buildResponse(WlmStatsResponse response) throws Exception {
                         WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
-                        List<WlmStats> paginatedStats = paginationStrategy.getPaginatedStats(response);
+                        List<WlmStats> paginatedStats = paginationStrategy.getPaginatedStats();
                         Table paginatedTable = buildTable(paginatedStats, paginationStrategy);
                         PageToken nextPageToken = paginationStrategy.getNextToken();
 
