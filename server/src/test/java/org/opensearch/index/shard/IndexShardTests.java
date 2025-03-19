@@ -4152,7 +4152,6 @@ public class IndexShardTests extends IndexShardTestCase {
         }
     }
 
-    // Exception
     public void testShardDoesNotStartIfCorruptedMarkerIsPresent() throws Exception {
         final IndexShard indexShard = newStartedShard(true);
 
