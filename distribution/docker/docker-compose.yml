@@ -1,5 +1,4 @@
 # Only used for testing the docker images
-version: '3'
 services:
   opensearch-1:
     image: opensearch:test
