@@ -35,7 +35,7 @@ public class SearchReplicaAllocationDecider extends AllocationDecider {
     private Decision canAllocate(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
         boolean isSearchReplica = shardRouting.isSearchOnly();
 
-        if ((node.isSearchNode() && isSearchReplica) || (!node.isSearchNode() && !isSearchReplica)) {
+        if ((node.isSearchNode() && isSearchReplica) || (node.isSearchNode() == false && isSearchReplica == false)) {
             return allocation.decision(
                 Decision.YES,
                 NAME,
@@ -48,7 +48,7 @@ public class SearchReplicaAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "node and shard are compatible. node: [%s], is search node: [%s], shard: [%s]",
+                "node and shard are not compatible. node: [%s], is search node: [%s], shard: [%s]",
                 node.getId(),
                 node.isSearchNode(),
                 shardRouting.shortSummary()

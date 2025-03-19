@@ -813,8 +813,10 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
             if ((indexCmp = o1.getIndexName().compareTo(o2.getIndexName())) == 0) {
                 if (o1.isSearchOnly() ^ o2.isSearchOnly()) {
-                    // If index names are equal, one shard is a regular replica,
-                    // and the other is search replica, regular replica comes first
+                    // Orders replicas first, followed by search replicas (e.g., R1, R1, S1, S1).
+                    // This order is maintained because the logic that moves all replicas to unassigned
+                    // when a replica cannot be allocated relies on this comparator.
+                    // Ensures that a failed replica allocation does not block the allocation of a search replica.
                     return o1.isSearchOnly() ? 1 : -1;
                 }
 
