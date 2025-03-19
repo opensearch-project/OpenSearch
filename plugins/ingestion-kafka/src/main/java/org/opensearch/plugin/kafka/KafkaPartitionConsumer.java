@@ -9,7 +9,6 @@
 package org.opensearch.plugin.kafka;
 
 import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -99,9 +98,10 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         Properties consumerProp = new Properties();
         consumerProp.put("bootstrap.servers", config.getBootstrapServers());
         consumerProp.put("client.id", clientId);
-        if (config.getAutoOffsetResetConfig() != null && !config.getAutoOffsetResetConfig().isEmpty()) {
-            consumerProp.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, config.getAutoOffsetResetConfig());
-        }
+
+        logger.info("Kafka consumer properties for topic {}: {}", config.getTopic(), config.getConsumerConfigurations());
+        consumerProp.putAll(config.getConsumerConfigurations());
+
         // TODO: why Class org.apache.kafka.common.serialization.StringDeserializer could not be found if set the deserializer as prop?
         // consumerProp.put("key.deserializer",
         // "org.apache.kafka.common.serialization.StringDeserializer");
