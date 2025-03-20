@@ -376,17 +376,17 @@ public class NodeTests extends OpenSearchTestCase {
     }
 
     public void testCreateWithFileCache() throws Exception {
-        Settings searchRoleSettings = addRoles(baseSettings().build(), Set.of(DiscoveryNodeRole.SEARCH_ROLE));
+        Settings warmRoleSettings = addRoles(baseSettings().build(), Set.of(DiscoveryNodeRole.WARM_ROLE));
         List<Class<? extends Plugin>> plugins = basePlugins();
         ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
-        Settings searchRoleSettingsWithConfig = baseSettings().put(searchRoleSettings)
+        Settings warmRoleSettingsWithConfig = baseSettings().put(warmRoleSettings)
             .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
             .build();
-        Settings onlySearchRoleSettings = Settings.builder()
-            .put(searchRoleSettingsWithConfig)
+        Settings onlyWarmRoleSettings = Settings.builder()
+            .put(warmRoleSettingsWithConfig)
             .put(
                 NodeRoles.removeRoles(
-                    searchRoleSettingsWithConfig,
+                    warmRoleSettingsWithConfig,
                     Set.of(
                         DiscoveryNodeRole.DATA_ROLE,
                         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
@@ -398,22 +398,22 @@ public class NodeTests extends OpenSearchTestCase {
             .build();
 
         // Test exception thrown with configuration missing
-        assertThrows(SettingsException.class, () -> new MockNode(searchRoleSettings, plugins));
+        assertThrows(SettingsException.class, () -> new MockNode(warmRoleSettings, plugins));
 
         // Test file cache is initialized
-        try (MockNode mockNode = new MockNode(searchRoleSettingsWithConfig, plugins)) {
+        try (MockNode mockNode = new MockNode(warmRoleSettingsWithConfig, plugins)) {
             NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
             assertEquals(cacheSize.getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
         }
 
-        // Test data + search node with defined cache size
-        try (MockNode mockNode = new MockNode(searchRoleSettingsWithConfig, plugins)) {
+        // Test data + warm node with defined cache size
+        try (MockNode mockNode = new MockNode(warmRoleSettingsWithConfig, plugins)) {
             NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
             assertEquals(cacheSize.getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
         }
 
-        // Test dedicated search node with no configuration
-        try (MockNode mockNode = new MockNode(onlySearchRoleSettings, plugins)) {
+        // Test dedicated warm node with no configuration
+        try (MockNode mockNode = new MockNode(onlyWarmRoleSettings, plugins)) {
             NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
             assertTrue(fileCacheNodePath.fileCacheReservedSize.getBytes() > 0);
             FsProbe fsProbe = new FsProbe(mockNode.getNodeEnvironment(), mockNode.fileCache());

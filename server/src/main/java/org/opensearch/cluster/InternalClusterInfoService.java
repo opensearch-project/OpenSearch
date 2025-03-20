@@ -274,7 +274,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 nodeFileCacheStats = Collections.unmodifiableMap(
                     nodesStatsResponse.getNodes()
                         .stream()
-                        .filter(nodeStats -> nodeStats.getNode().isSearchNode())
+                        .filter(nodeStats -> nodeStats.getNode().isWarmNode())
                         .collect(Collectors.toMap(nodeStats -> nodeStats.getNode().getId(), NodeStats::getFileCacheStats))
                 );
             }

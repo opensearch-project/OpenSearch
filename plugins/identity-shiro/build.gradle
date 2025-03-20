@@ -28,8 +28,7 @@ dependencies {
 
   implementation 'org.passay:passay:1.6.3'
 
-  // Bcrypt hash matching
-  implementation 'com.password4j:password4j:1.8.2'
+  api "com.password4j:password4j:${versions.password4j}"
 
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation "org.mockito:mockito-core:${versions.mockito}"

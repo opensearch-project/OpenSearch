@@ -79,7 +79,6 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
                 containsString("Keystore has been corrupted or tampered with")
             )
         );
-
     }
 
     public void testMissingPromptCreateWithoutPasswordWhenPrompted() throws Exception {

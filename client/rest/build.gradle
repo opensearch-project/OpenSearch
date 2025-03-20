@@ -52,7 +52,9 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   runtimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  runtimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   // reactor
   api "io.projectreactor:reactor-core:${versions.reactor}"

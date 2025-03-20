@@ -116,11 +116,6 @@ dependencies {
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
 
-  // bouncyCastle
-  api libs.bcjce
-  api libs.bctls
-  api libs.bcutil
-
   testImplementation 'org.awaitility:awaitility:4.3.0'
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -155,10 +150,6 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.binary'
     exclude '**/*.st'
     exclude '**/*.meta'
-}
-
-tasks.named("dependencyLicenses").configure {
-  mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 tasks.named("testingConventions").configure {

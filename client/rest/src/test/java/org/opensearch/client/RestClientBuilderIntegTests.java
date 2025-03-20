@@ -136,12 +136,12 @@ public class RestClientBuilderIntegTests extends RestClientTestCase implements R
         ) {
             KeyStore keyStore = KeyStoreFactory.getInstance(keyStoreType);
             keyStore.load(keyStoreFile, password);
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance("PKIX", "BCJSSE");
             kmf.init(keyStore, password);
 
             KeyStore trustStore = KeyStoreFactory.getInstance(keyStoreType);
             trustStore.load(trustStoreFile, password);
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance("PKIX", "BCJSSE");
             tmf.init(trustStore);
 
             SSLContextBuilder sslContextBuilder = SSLContextBuilder.create()
@@ -150,10 +150,9 @@ public class RestClientBuilderIntegTests extends RestClientTestCase implements R
                 .setSecureRandom(secureRandom);
 
             if (server) {
-                sslContextBuilder.loadKeyMaterial(keyStore, password).build();
-            } else {
-                sslContextBuilder.loadTrustMaterial(trustStore, null);
+                sslContextBuilder.loadKeyMaterial(keyStore, password);
             }
+            sslContextBuilder.loadTrustMaterial(trustStore, null);
             sslContext = sslContextBuilder.build();
 
         }
