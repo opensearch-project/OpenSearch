@@ -8,12 +8,18 @@
 
 package org.opensearch.transport.grpc;
 
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.transport.grpc.ssl.ReloadableSecureAuxTransportSslContext;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -30,13 +36,15 @@ import io.grpc.reflection.v1alpha.ServiceResponse;
 import io.grpc.stub.StreamObserver;
 
 import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
+import static org.opensearch.transport.grpc.ssl.ReloadableSecureAuxTransportSslContext.clientAuthHelper;
+import static org.opensearch.transport.grpc.ssl.ReloadableSecureAuxTransportSslContext.providerHelper;
 
 public class NettyGrpcClient implements AutoCloseable {
     private final ManagedChannel channel;
     private final HealthGrpc.HealthBlockingStub healthStub;
     private final ServerReflectionGrpc.ServerReflectionStub reflectionStub;
 
-    public NettyGrpcClient(TransportAddress addr, NettyChannelBuilder channelBuilder) {
+    public NettyGrpcClient(NettyChannelBuilder channelBuilder) {
         channel = channelBuilder.build();
         healthStub = HealthGrpc.newBlockingStub(channel);
         reflectionStub = ServerReflectionGrpc.newStub(channel);
@@ -124,7 +132,7 @@ public class NettyGrpcClient implements AutoCloseable {
                 channelBuilder.sslContext(ctxt);
             }
 
-            return new NettyGrpcClient(addr, channelBuilder);
+            return new NettyGrpcClient(channelBuilder);
         }
 
         public Builder setSecureSettingsProvider(SecureAuxTransportSettingsProvider settingsProvider) {

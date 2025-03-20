@@ -134,12 +134,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
 
             @Override
             public Optional<SecureAuxTransportSettingsProvider> getSecureAuxTransportSettingsProvider(Settings settings) {
-                return Optional.of(new SecureAuxTransportSettingsProvider() {
-                    @Override
-                    public Optional<SSLEngine> buildSecureAuxServerEngine() {
-                        return Optional.empty();
-                    };
-                });
+                return Optional.of(new SecureAuxTransportSettingsProvider() {});
             }
         };
     }
