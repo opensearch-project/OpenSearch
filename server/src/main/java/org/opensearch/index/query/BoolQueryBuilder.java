@@ -48,10 +48,13 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -393,9 +396,13 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return any.get();
         }
 
+        changed |= rewriteMustNotRangeClausesToShould(newBuilder);
+
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;
-            newBuilder.minimumShouldMatch = minimumShouldMatch;
+            if (minimumShouldMatch != null) {
+                newBuilder.minimumShouldMatch = minimumShouldMatch;
+            }
             newBuilder.boost(boost());
             newBuilder.queryName(queryName());
             return newBuilder;
@@ -460,4 +467,47 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     }
 
+    private boolean rewriteMustNotRangeClausesToShould(BoolQueryBuilder newBuilder) {
+        // If there is a range query on a given field in a must_not clause, it's more performant to execute it as
+        // multiple should clauses representing everything outside the target range.
+
+        boolean changed = false;
+        // For now, only handle the case where there's exactly 1 range query for this field.
+        Map<String, Integer> fieldCounts = new HashMap<>();
+        Set<RangeQueryBuilder> rangeQueries = new HashSet<>();
+        for (QueryBuilder clause : mustNotClauses) {
+            if (clause instanceof RangeQueryBuilder rq) {
+                fieldCounts.merge(rq.fieldName(), 1, Integer::sum);
+                rangeQueries.add(rq);
+            }
+        }
+
+        for (RangeQueryBuilder rq : rangeQueries) {
+            String fieldName = rq.fieldName();
+            if (fieldCounts.getOrDefault(fieldName, 0) == 1) {
+                List<RangeQueryBuilder> complement = rq.getComplement();
+                if (complement != null) {
+                    BoolQueryBuilder nestedBoolQuery = new BoolQueryBuilder();
+                    nestedBoolQuery.minimumShouldMatch(1);
+                    for (RangeQueryBuilder complementComponent : complement) {
+                        nestedBoolQuery.should(complementComponent);
+                    }
+                    newBuilder.must(nestedBoolQuery);
+                    newBuilder.mustNotClauses.remove(rq);
+                    changed = true;
+                }
+            }
+        }
+
+        if (minimumShouldMatch == null && changed) {
+            if ((!shouldClauses.isEmpty()) && mustClauses.isEmpty() && filterClauses.isEmpty()) {
+                // If there were originally should clauses and no must/filter clauses, null minimumShouldMatch is set to a default of 1
+                // within Lucene.
+                // But if there was originally a must or filter clause, the default is 0.
+                // If we added a must clause due to this rewrite, we should respect what the original default would have been.
+                newBuilder.minimumShouldMatch(1);
+            }
+        }
+        return changed;
+    }
 }
