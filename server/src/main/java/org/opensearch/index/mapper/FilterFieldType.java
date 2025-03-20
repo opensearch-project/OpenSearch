@@ -19,6 +19,7 @@ import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.query.IntervalMode;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -30,6 +31,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public abstract class FilterFieldType<T extends MappedFieldType> extends MappedFieldType {
     protected final T delegate;
@@ -269,6 +271,11 @@ public abstract class FilterFieldType<T extends MappedFieldType> extends MappedF
     @Override
     public TextSearchInfo getTextSearchInfo() {
         return delegate.getTextSearchInfo();
+    }
+
+    @Override
+    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return delegate.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
     }
 
     @Override
