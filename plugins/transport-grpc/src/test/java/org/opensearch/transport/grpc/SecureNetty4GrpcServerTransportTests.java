@@ -8,6 +8,7 @@
 
 package org.opensearch.transport.grpc;
 
+import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -18,6 +19,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
 import java.security.KeyStore;
@@ -26,67 +28,103 @@ import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import io.grpc.BindableService;
 import io.grpc.health.v1.HealthCheckResponse;
-import io.grpc.netty.shaded.io.netty.buffer.PooledByteBufAllocator;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
+    private static final String PROVIDER = "JDK"; // only guaranteed provider
+    private static final String[] DEFAULT_SSL_PROTOCOLS = { "TLSv1.3", "TLSv1.2", "TLSv1.1" };
+    private static final String[] DEFAULT_CIPHERS = {
+        "TLS_AES_128_GCM_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+    };
+
     private NetworkService networkService;
     private final List<BindableService> services = new ArrayList<>();
 
-    private static SecureAuxTransportSettingsProvider getSecureSettingsProviderServer() {
-        return () -> {
-            /**
-             * Init keystore from test resources.
-             */
-            KeyManagerFactory keyManagerFactory;
-            try {
-                final KeyStore keyStore = KeyStore.getInstance("PKCS12");
-                keyStore.load(SecureNetty4GrpcServerTransport.class.getResourceAsStream("/netty4-secure.jks"), "password".toCharArray());
-                keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
-                keyManagerFactory.init(keyStore, "password".toCharArray());
-            } catch (UnrecoverableKeyException | CertificateException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
+    private static SecureAuxTransportSettingsProvider getSecureSettingsProviderServer(
+            boolean dualMode,
+            String provider,
+            String clientAuth,
+            Collection<String> protocols,
+            Collection<String> cipherSuites,
+            KeyManagerFactory keyMngerFactory,
+            TrustManagerFactory trustMngerFactory
+        ) {
+        return new SecureAuxTransportSettingsProvider() {
+            @Override
+            public Optional<SecureAuxTransportSettingsProvider.SecureAuxTransportParameters> parameters() {
+                return Optional.of(new SecureAuxTransportSettingsProvider.SecureAuxTransportParameters() {
+                    @Override
+                    public boolean dualModeEnabled() {
+                        return dualMode;
+                    }
 
-            SslContext ctxt = SslContextBuilder.forServer(keyManagerFactory)
-                .applicationProtocolConfig(
-                    new ApplicationProtocolConfig(
-                        ApplicationProtocolConfig.Protocol.ALPN,
-                        ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                        ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-                        ApplicationProtocolNames.HTTP_2
-                    )
-                )
-                .build();
-            return Optional.of(ctxt.newEngine(PooledByteBufAllocator.DEFAULT));
+                    @Override
+                    public Optional<String> sslProvider() {
+                        return Optional.of(provider);
+                    }
+
+                    @Override
+                    public Optional<String> clientAuth() {
+                        return Optional.of(clientAuth);
+                    }
+
+                    @Override
+                    public Collection<String> protocols() {
+                        return protocols;
+                    }
+
+                    @Override
+                    public Collection<String> cipherSuites() {
+                        return cipherSuites;
+                    }
+
+                    @Override
+                    public Optional<KeyManagerFactory> keyManagerFactory() {
+                        return Optional.of(keyMngerFactory);
+                    }
+
+                    @Override
+                    public Optional<TrustManagerFactory> trustManagerFactory() {
+                        return Optional.of(trustMngerFactory);
+                    }
+                });
+            }
         };
     }
 
-    private static SecureAuxTransportSettingsProvider getSecureSettingsProviderClient() {
-        return () -> {
-            SslContext ctxt = SslContextBuilder.forClient()
-                .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                .applicationProtocolConfig(
-                    new ApplicationProtocolConfig(
-                        ApplicationProtocolConfig.Protocol.ALPN,
-                        ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                        ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-                        ApplicationProtocolNames.HTTP_2
-                    )
-                )
-                .build();
-            return Optional.of(ctxt.newEngine(PooledByteBufAllocator.DEFAULT));
-        };
+    private static KeyManagerFactory getTestKeyManagerFactory() {
+        KeyManagerFactory keyManagerFactory;
+        try {
+            final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            keyStore.load(SecureNetty4GrpcServerTransport.class.getResourceAsStream("/netty4-secure.jks"), "password".toCharArray());
+            keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+            keyManagerFactory.init(keyStore, "password".toCharArray());
+        } catch (UnrecoverableKeyException | CertificateException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+        return keyManagerFactory;
+    }
+
+    private static SecureAuxTransportSettingsProvider getNoTrustClientAuthNoneTLSSettingsProvider() {
+        return getSecureSettingsProviderServer(
+            false,
+            PROVIDER,
+            ClientAuth.NONE.name().toUpperCase(Locale.ROOT),
+            List.of(DEFAULT_SSL_PROTOCOLS),
+            List.of(DEFAULT_CIPHERS),
+            getTestKeyManagerFactory(),
+            InsecureTrustManagerFactory.INSTANCE
+        );
     }
 
     static Settings createSettings() {
@@ -109,7 +147,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                getSecureSettingsProviderServer()
+                getNoTrustClientAuthNoneTLSSettingsProvider()
             )
         ) {
             transport.start();
@@ -127,7 +165,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
                 createSettings(),
                 services,
                 networkService,
-                getSecureSettingsProviderServer()
+                getNoTrustClientAuthNoneTLSSettingsProvider()
             )
         ) {
             transport.start();
@@ -136,7 +174,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             final TransportAddress remoteAddress = randomFrom(transport.getBoundAddress().boundAddresses());
             try (
                 NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress)
-                    .setSecureSettingsProvider(getSecureSettingsProviderClient())
+                    .setSecureSettingsProvider(getNoTrustClientAuthNoneTLSSettingsProvider())
                     .build()
             ) {
                 assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);

@@ -8,93 +8,147 @@
 
 package org.opensearch.transport.grpc.ssl;
 
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSessionContext;
 
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
 import java.util.List;
 
 import io.grpc.netty.shaded.io.netty.buffer.ByteBufAllocator;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNegotiator;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 
+import static io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth.NONE;
+import static io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth.OPTIONAL;
+import static io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth.REQUIRE;
+import static io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider.JDK;
+import static io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider.OPENSSL;
+import static io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider.OPENSSL_REFCNT;
+
 /**
  * A reloadable implementation of io.grpc.SslContext.
- * This object delegates its functionality to an SSLEngine as retrieved from SecureAuxTransportSettingsProvider::buildSecureAuxServerEngine.
- * Delegating functionality to buildSecureAuxServerEngine take immediate advantage of cert/key updates.
- * This additionally means our SSLEngine is volatile and may change between any two function calls.
- * In the worst case the information provided during the initial handshake such as supported ciphers is stale by the time
- * we create and return the newEngine, resulting in a failed connection.
+ * Delegates to an internal volatile SslContext built from SecureAuxTransportSettingsProvider.
+ * On each use of this SslContext we will determine if the previous context is out of date and update if possible.
+ * TODO: Each operation should check if the params are out of date with a dirty bit in the SecureAuxTransportParameters.
  */
 public class ReloadableSecureAuxTransportSslContext extends SslContext {
-    private static final String[] DEFAULT_SSL_PROTOCOLS = { "TLSv1.3", "TLSv1.2", "TLSv1.1" };
-    private static final String[] HTTP2_ALPN = { "h2" };
     private final SecureAuxTransportSettingsProvider provider;
     private final boolean isClient;
 
-    /**
-     * Create and SSLEngine from the default provider if one is set.
-     * @return default javax.net.ssl.SSLEngine instance.
-     */
-    private SSLEngine getDefaultServerSSLEngine() {
-        try {
-            final SSLEngine engine = SSLContext.getDefault().createSSLEngine();
-            engine.setEnabledProtocols(DEFAULT_SSL_PROTOCOLS);
-            return engine;
-        } catch (final NoSuchAlgorithmException ex) {
-            throw new OpenSearchSecurityException("Unable to initialize default server SSL engine", ex);
+    private volatile SecureAuxTransportSettingsProvider.SecureAuxTransportParameters params;
+    private volatile SslContext sslContext;
+
+    public static ClientAuth clientAuthHelper(String clientAuthStr) {
+        switch (clientAuthStr) {
+            case "NONE" -> {
+                return NONE;
+            }
+            case "OPTIONAL" -> {
+                return OPTIONAL;
+            }
+            case "REQUIRE" -> {
+                return REQUIRE;
+            }
+            default -> throw new OpenSearchSecurityException("unsupported client auth: " + clientAuthStr);
+        }
+    }
+
+    public static SslProvider providerHelper(String providerStr) {
+        switch (providerStr) {
+            case "JDK" -> {
+                return JDK;
+            }
+            case "OPENSSL" -> {
+                return OPENSSL;
+            }
+            case "OPENSSL_REFCNT" -> {
+                return OPENSSL_REFCNT;
+            }
+            default -> throw new OpenSearchSecurityException("unsupported ssl provider: " + providerStr);
         }
     }
 
     /**
      * Initializes a new ReloadableSecureAuxTransportSslContext.
-     * @param provider creation of new SSLEngine instances is delegated to this object.
+     * @param provider source of SecureAuxTransportParameters required to build an SslContext.
      * @param isClient determines if handshake is negotiated in client or server mode.
      */
     public ReloadableSecureAuxTransportSslContext(SecureAuxTransportSettingsProvider provider, boolean isClient) {
-        super();
         this.provider = provider;
         this.isClient = isClient;
+        this.params = provider.parameters().orElseThrow();
+        try {
+            this.sslContext = buildContext(params);
+        } catch (SSLException e) {
+            throw new OpenSearchSecurityException("Unable to build io.grpc.SslContext from secure settings", e);
+        }
     }
 
     /**
+     * @param p fields necessary to construct an SslContext.
+     * @return new SslContext.
+     */
+    private SslContext buildContext(SecureAuxTransportSettingsProvider.SecureAuxTransportParameters p) throws SSLException {
+        SslContextBuilder builder =
+            isClient?
+                SslContextBuilder.forClient():
+                SslContextBuilder.forServer(p.keyManagerFactory().orElseThrow());
+
+        builder.applicationProtocolConfig(
+            new ApplicationProtocolConfig(
+                ApplicationProtocolConfig.Protocol.ALPN,
+                ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                ApplicationProtocolNames.HTTP_2
+            )
+        );
+
+        if (!isClient) {
+            builder
+                .clientAuth(clientAuthHelper(p.clientAuth().orElseThrow()));
+        }
+
+        return builder
+            .trustManager(p.trustManagerFactory().orElseThrow())
+            .sslProvider(providerHelper(p.sslProvider().orElseThrow()))
+            .protocols(p.protocols())
+            .ciphers(p.cipherSuites())
+            .build();
+    }
+
+    /*
+      Mirror the io.grpc.netty.shaded.io.netty.handler.ssl API with our delegate.
+      Note sslContext is volatile and active connections may fail if a hot swap occurs.
+     */
+
+    /**
      * Create a new SSLEngine instance to handle TLS for a connection.
-     * @param byteBufAllocator provider interface does not allow us to leverage an allocator so this param is not used.
+     * @param byteBufAllocator netty allocator.
      * @return new SSLEngine instance.
      */
     @Override
     public SSLEngine newEngine(ByteBufAllocator byteBufAllocator) {
-        SSLEngine sslEngine;
-        try {
-            sslEngine = provider.buildSecureAuxServerEngine().orElseGet(this::getDefaultServerSSLEngine);
-            SSLParameters params = sslEngine.getSSLParameters();
-            params.setApplicationProtocols(HTTP2_ALPN); // io.grpc.SslContext -> gRPC -> HTTP2
-            sslEngine.setSSLParameters(params);
-            sslEngine.setUseClientMode(isClient);
-        } catch (SSLException e) {
-            throw new RuntimeException(e);
-        }
-        return sslEngine;
+        return sslContext.newEngine(byteBufAllocator);
     }
 
     /**
      * Create a new SSLEngine instance to handle TLS for a connection.
-     * @param byteBufAllocator provider interface does not allow us to leverage an allocator so this param is not used.
-     * @param s host hint is unused since we do not control the underlying ssl context and instead delegate to buildSecureAuxServerEngine.
-     * @param i port hint - see above.
+     * @param byteBufAllocator netty allocator.
+     * @param s host hint.
+     * @param i port hint.
      * @return new SSLEngine instance.
      */
     @Override
     public SSLEngine newEngine(ByteBufAllocator byteBufAllocator, String s, int i) {
-        // host/port are hints for an internal session reuse strategy and can be ignored safely
-        return newEngine(byteBufAllocator);
+        return sslContext.newEngine(byteBufAllocator, s, i);
     }
 
     /**
@@ -110,25 +164,24 @@ public class ReloadableSecureAuxTransportSslContext extends SslContext {
      */
     @Override
     public List<String> cipherSuites() {
-        return Arrays.asList(newEngine(null).getEnabledCipherSuites());
+        return sslContext.cipherSuites();
     }
 
     /**
      * Deprecated.
      * @return HTTP2 requires "h2" be specified in ALPN.
      */
+    @Deprecated
     @Override
     public ApplicationProtocolNegotiator applicationProtocolNegotiator() {
-        return () -> List.of(HTTP2_ALPN);
+        return sslContext.applicationProtocolNegotiator();
     }
 
     /**
-     * Fetch the session context interface for the current underlying ssl context.
-     * Sessions are invalidated on reload of the underlying ssl context.
-     * @return SSLSessionContext interface.
+     * @return session context.
      */
     @Override
     public SSLSessionContext sessionContext() {
-        return newEngine(null).getSession().getSessionContext();
+        return sslContext.sessionContext();
     }
 }

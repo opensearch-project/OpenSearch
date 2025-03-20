@@ -59,5 +59,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         this.portSettingKey = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.getKey();
         this.sslContext = new ReloadableSecureAuxTransportSslContext(secureTransportSettingsProvider, false);
         this.addServerConfig((NettyServerBuilder builder) -> builder.sslContext(this.sslContext));
+        // Todo:
+        // boolean dualModeEnabled(); // do not support this yet...
     }
 }
