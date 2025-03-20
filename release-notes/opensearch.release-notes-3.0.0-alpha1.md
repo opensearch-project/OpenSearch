@@ -46,7 +46,6 @@
 - [Star Tree] [Search] Resolving keyword & numeric bucket aggregation with metric aggregation using star-tree ([#17165](https://github.com/opensearch-project/OpenSearch/pull/17165))
 - Added error handling support for the pull-based ingestion ([#17427](https://github.com/opensearch-project/OpenSearch/pull/17427))
 - Added Warm index setting and Updated nomenclature to differentiate between hot and warm tiering implementation ([#17490](https://github.com/opensearch-project/OpenSearch/pull/17490))
-<<<<<<< HEAD:release-notes/opensearch.release-notes-3.0.0-alpha1.md
 - Latency and Memory allocation improvements to Multi Term Aggregation queries ([#14993](https://github.com/opensearch-project/OpenSearch/pull/14993))
 - Add logic in master service to optimize performance and retain detailed logging for critical cluster operations. ([#14795](https://github.com/opensearch-project/OpenSearch/pull/14795))
 - Add Setting to adjust the primary constraint weights ([#16471](https://github.com/opensearch-project/OpenSearch/pull/16471))
@@ -56,7 +55,6 @@
 - Fix Bug - Handle unsigned long in sorting order assertion of LongHashSet ([#17207](https://github.com/opensearch-project/OpenSearch/pull/17207))
 - Implemented computation of segment replication stats at shard level ([#17055](https://github.com/opensearch-project/OpenSearch/pull/17055))
 - [Rule Based Auto-tagging] Add in-memory attribute value store ([#17342](https://github.com/opensearch-project/OpenSearch/pull/17342))
-- Added Kinesis support as a plugin for the pull-based ingestion ([#17615](https://github.com/opensearch-project/OpenSearch/pull/17615)
 
 ### Dependencies
 - Bump Apache HttpCore5/HttpClient5 dependencies from 5.2.5/5.3.1 to 5.3.1/5.4.1 to support ExtendedSocketOption in HttpAsyncClient ([#16757](https://github.com/opensearch-project/OpenSearch/pull/16757))
