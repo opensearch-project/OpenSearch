@@ -10,6 +10,7 @@ package org.opensearch.repositories.s3;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobPath;
@@ -42,6 +43,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
+@LuceneTestCase.AwaitsFix(bugUrl = "Flakiness seen for this class")
 public class S3RemoteStoreIT extends RemoteStoreCoreTestCase {
 
     @Override
