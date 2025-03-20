@@ -86,6 +86,12 @@ public class FakeIngestionSource {
         }
 
         @Override
+        public List<ReadResult<FakeIngestionShardPointer, FakeIngestionMessage>> readNext(long maxMessages, int timeoutMillis)
+            throws TimeoutException {
+            return readNext(new FakeIngestionShardPointer(lastFetchedOffset), false, maxMessages, timeoutMillis);
+        }
+
+        @Override
         public FakeIngestionShardPointer earliestPointer() {
             return new FakeIngestionShardPointer(0);
         }
