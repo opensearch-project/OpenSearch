@@ -216,24 +216,14 @@ public class QueryGroupService extends AbstractLifecycleComponent
             }
         }
         if (existingStateMap != null) {
-            for (Map.Entry<String, QueryGroupState> entry : existingStateMap.entrySet()) {
-                String queryGroupId = entry.getKey();
-                QueryGroupState currentState = entry.getValue();
+            existingStateMap.forEach((queryGroupId, currentState) -> {
                 boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
                 if (shouldInclude) {
                     if (requestedBreached == null || requestedBreached == resourceLimitBreached(queryGroupId, currentState)) {
                         statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
                     }
                 }
-            }
-            // existingStateMap.forEach((queryGroupId, currentState) -> {
-            // boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
-            // if (shouldInclude) {
-            // if (requestedBreached == null || requestedBreached == resourceLimitBreached(queryGroupId, currentState)) {
-            // statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
-            // }
-            // }
-            // });
+            });
         }
         return new QueryGroupStats(statsHolderMap);
     }
@@ -336,14 +326,10 @@ public class QueryGroupService extends AbstractLifecycleComponent
         return deletedQueryGroups;
     }
 
-    public QueryGroupsStateAccessor getQueryGroupsStateAccessor() {
-        return queryGroupsStateAccessor;
-    }
-
     /**
      * This method determines whether the task should be accounted by SBP if both features co-exist
      * @param t QueryGroupTask
-     * @return whether or not SBP handle it
+     * @return whether SBP handles it
      */
     public boolean shouldSBPHandle(Task t) {
         QueryGroupTask task = (QueryGroupTask) t;

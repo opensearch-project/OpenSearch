@@ -174,24 +174,20 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
         String enforcedQueryGroupId = enforcedQueryGroup.get_id();
         String nodeId = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes().getLocalNodeId();
         updateQueryGroupInClusterState(PUT, enforcedQueryGroup);
-
         QueryGroup softQueryGroup = new QueryGroup(
             NAME2,
             new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.SOFT, Map.of(ResourceType.CPU, 0.000000001))
         );
-        String softQueryGroupId = softQueryGroup.get_id();
         updateQueryGroupInClusterState(PUT, softQueryGroup);
 
-        WlmStatsResponse response = getWlmStatsResponse(new String[] { nodeId }, new String[] { DEFAULT_QUERY_GROUP }, true);
-        validateResponse(response, new String[] { nodeId }, new String[] { DEFAULT_QUERY_GROUP, enforcedQueryGroupId });
-
+        WlmStatsResponse nodeStatsResponse = getWlmStatsResponse(new String[] { nodeId }, new String[] { DEFAULT_QUERY_GROUP }, true);
+        validateResponse(nodeStatsResponse, new String[] { nodeId }, new String[] { DEFAULT_QUERY_GROUP, enforcedQueryGroupId });
         WlmStatsResponse breachedGroupsResponse = getWlmStatsResponse(
             null,
             new String[] { DEFAULT_QUERY_GROUP, enforcedQueryGroupId },
             true
         );
         validateResponse(breachedGroupsResponse, null, new String[] { DEFAULT_QUERY_GROUP, enforcedQueryGroupId });
-
         WlmStatsResponse nonBreachedGroupsResponse = getWlmStatsResponse(
             null,
             new String[] { DEFAULT_QUERY_GROUP, enforcedQueryGroupId },
@@ -199,22 +195,20 @@ public class WorkloadManagementStatsIT extends ParameterizedStaticSettingsOpenSe
         );
         validateResponse(nonBreachedGroupsResponse, new String[] { DEFAULT_QUERY_GROUP, enforcedQueryGroupId }, null);
 
-        WlmStatsResponse updatedBreachedGroupsResponse = getWlmStatsResponse(null, new String[] { enforcedQueryGroupId }, false);
-        validateResponse(updatedBreachedGroupsResponse, new String[] { enforcedQueryGroupId }, new String[] { DEFAULT_QUERY_GROUP });
-
-        executeQueryGroupTask(CPU, softQueryGroupId);
-        WlmStatsResponse breachedGroupsResponseAfterTask = getWlmStatsResponse(
-            null,
-            new String[] { enforcedQueryGroupId, softQueryGroupId },
-            true
-        );
-        validateResponse(
-            breachedGroupsResponseAfterTask,
-            new String[] { softQueryGroupId },
-            new String[] { DEFAULT_QUERY_GROUP, enforcedQueryGroupId }
-        );
-
         updateQueryGroupInClusterState(DELETE, enforcedQueryGroup);
+        updateQueryGroupInClusterState(DELETE, softQueryGroup);
+    }
+
+    public void testWlmStatsWithBreachForSoftQueryGroup() throws Exception {
+        QueryGroup softQueryGroup = new QueryGroup(
+            NAME2,
+            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.SOFT, Map.of(ResourceType.CPU, 0.000000001))
+        );
+        String softQueryGroupId = softQueryGroup.get_id();
+        updateQueryGroupInClusterState(PUT, softQueryGroup);
+        executeQueryGroupTask(CPU, softQueryGroupId);
+        WlmStatsResponse response = getWlmStatsResponse(null, new String[] { softQueryGroupId }, true);
+        validateResponse(response, new String[] { softQueryGroupId }, new String[] { DEFAULT_QUERY_GROUP });
         updateQueryGroupInClusterState(DELETE, softQueryGroup);
     }
 

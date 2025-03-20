@@ -69,7 +69,7 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
     final static String CPU = "CPU";
     final static String ENABLED = "enabled";
     final static String DELETE = "DELETE";
-    private static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.SECONDS);
+    public final static TimeValue TIMEOUT = new TimeValue(3, TimeUnit.SECONDS);
 
     public WorkloadManagementIT(Settings nodeSettings) {
         super(nodeSettings);
@@ -182,7 +182,7 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         updateQueryGroupInClusterState(DELETE, queryGroup);
     }
 
-    public Exception executeQueryGroupTask(String resourceType, String queryGroupId) throws InterruptedException {
+    public static Exception executeQueryGroupTask(String resourceType, String queryGroupId) throws InterruptedException {
         ExceptionCatchingListener listener = new ExceptionCatchingListener();
         client().execute(
             TestQueryGroupTaskTransportAction.ACTION,

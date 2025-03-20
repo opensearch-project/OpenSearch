@@ -8,7 +8,6 @@
 
 package org.opensearch.plugin.wlm.action;
 
-import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.metadata.QueryGroup;
