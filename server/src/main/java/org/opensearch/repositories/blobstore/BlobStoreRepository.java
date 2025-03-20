@@ -551,6 +551,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     protected volatile int bufferSize;
 
+    private volatile boolean closed;
+
     /**
      * Constructs new BlobStoreRepository
      * @param repositoryMetadata   The metadata for this repository including name and settings
@@ -630,6 +632,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         if (store != null) {
             try {
+                closed = true;
                 store.close();
             } catch (Exception t) {
                 logger.warn("cannot close blob store", t);
@@ -643,6 +646,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         String source,
         Consumer<Exception> onFailure
     ) {
+        if (this.isOpen() == false) {
+            onFailure.accept(new RepositoryException(metadata.name(), "the repository is closed, maybe updated or deleted, please retry"));
+            return;
+        }
         final RepositoryMetadata repositoryMetadataStart = metadata;
         getRepositoryData(ActionListener.wrap(repositoryData -> {
             final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
@@ -4688,6 +4695,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotStatus.addProcessedFile(0);
             throw t;
         }
+    }
+
+    @Override
+    public boolean isOpen() {
+        return closed == false;
     }
 
     private static void failStoreIfCorrupted(Store store, Exception e) {
