@@ -20,6 +20,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -31,7 +32,7 @@ import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_L
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
+public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String TEST_INDEX = "test_index";
 
@@ -53,35 +54,6 @@ public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
                                                                           // reallocate after node left.
             .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
-    }
-
-    public void testCreateDocRepFails() {
-        Settings settings = Settings.builder().put(indexSettings()).put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build();
-
-        IllegalArgumentException illegalArgumentException = expectThrows(
-            IllegalArgumentException.class,
-            () -> createIndex(TEST_INDEX, settings)
-        );
-        assertEquals(expectedFailureMessage, illegalArgumentException.getMessage());
-    }
-
-    public void testUpdateDocRepFails() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-            .build();
-        // create succeeds
-        createIndex(TEST_INDEX, settings);
-
-        // update fails
-        IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, () -> {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(TEST_INDEX)
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1))
-                .get();
-        });
-        assertEquals(expectedFailureMessage, illegalArgumentException.getMessage());
     }
 
     public void testFailoverWithSearchReplica_WithWriterReplicas() throws IOException {
@@ -126,6 +98,8 @@ public class SearchOnlyReplicaIT extends OpenSearchIntegTestCase {
                 .put(indexSettings())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .put("index.refresh_interval", "40ms") // set lower interval so replica attempts replication cycles after primary is
+                                                       // removed.
                 .build()
         );
         ensureYellow(TEST_INDEX);

@@ -89,6 +89,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -1749,7 +1750,7 @@ public final class InternalTestCluster extends TestCluster {
         for (HttpServerTransport httpServerTransport : getInstances(HttpServerTransport.class)) {
             addresses.add(httpServerTransport.boundAddress().publishAddress().address());
         }
-        return addresses.toArray(new InetSocketAddress[addresses.size()]);
+        return addresses.toArray(new InetSocketAddress[0]);
     }
 
     /**
@@ -2155,13 +2156,12 @@ public final class InternalTestCluster extends TestCluster {
      * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
      */
     public String getClusterManagerName(@Nullable String viaNode) {
-        try {
-            Client client = viaNode != null ? client(viaNode) : client();
-            return client.admin().cluster().prepareState().get().getState().nodes().getClusterManagerNode().getName();
-        } catch (Exception e) {
-            logger.warn("Can't fetch cluster state", e);
-            throw new RuntimeException("Can't get cluster-manager node " + e.getMessage(), e);
+        Client client = viaNode != null ? client(viaNode) : client();
+        DiscoveryNode clusterManagerNode = client.admin().cluster().prepareState().get().getState().nodes().getClusterManagerNode();
+        if (clusterManagerNode == null) {
+            throw new ClusterManagerNotDiscoveredException("Cluster manager node not discovered");
         }
+        return clusterManagerNode.getName();
     }
 
     /**
@@ -2314,7 +2314,21 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Starts multiple nodes with the given settings and returns their names
      */
+    public List<String> startNodes(int numOfNodes, Settings settings, Boolean waitForNodeJoin) {
+        return startNodes(waitForNodeJoin, Collections.nCopies(numOfNodes, settings).toArray(new Settings[0]));
+    }
+
+    /**
+     * Starts multiple nodes with the given settings and returns their names
+     */
     public synchronized List<String> startNodes(Settings... extraSettings) {
+        return startNodes(false, extraSettings);
+    }
+
+    /**
+     * Starts multiple nodes with the given settings and returns their names
+     */
+    public synchronized List<String> startNodes(Boolean waitForNodeJoin, Settings... extraSettings) {
         final int newClusterManagerCount = Math.toIntExact(Stream.of(extraSettings).filter(DiscoveryNode::isClusterManagerNode).count());
         final int defaultMinClusterManagerNodes;
         if (autoManageClusterManagerNodes) {
@@ -2366,7 +2380,7 @@ public final class InternalTestCluster extends TestCluster {
             nodes.add(nodeAndClient);
         }
         startAndPublishNodesAndClients(nodes);
-        if (autoManageClusterManagerNodes) {
+        if (autoManageClusterManagerNodes && !waitForNodeJoin) {
             validateClusterFormed();
         }
         return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());
@@ -2409,6 +2423,10 @@ public final class InternalTestCluster extends TestCluster {
 
     public List<String> startDataOnlyNodes(int numNodes, Settings settings) {
         return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.DATA_ROLE)).build());
+    }
+
+    public List<String> startDataOnlyNodes(int numNodes, Settings settings, Boolean ignoreNodeJoin) {
+        return startNodes(numNodes, Settings.builder().put(onlyRole(settings, DiscoveryNodeRole.DATA_ROLE)).build(), ignoreNodeJoin);
     }
 
     public List<String> startSearchOnlyNodes(int numNodes) {

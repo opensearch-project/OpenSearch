@@ -82,6 +82,9 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
             snapshots = Strings.EMPTY_ARRAY;
         }
         String[] indices = request.paramAsStringArray("index", Strings.EMPTY_ARRAY);
+        if (indices.length == 1 && "_all".equalsIgnoreCase(indices[0])) {
+            indices = Strings.EMPTY_ARRAY;
+        }
         SnapshotsStatusRequest snapshotsStatusRequest = snapshotsStatusRequest(repository).snapshots(snapshots).indices(indices);
         snapshotsStatusRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", snapshotsStatusRequest.ignoreUnavailable()));
 

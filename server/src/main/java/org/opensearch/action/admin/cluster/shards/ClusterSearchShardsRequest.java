@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.shards;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
@@ -41,6 +42,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.search.slice.SliceBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -61,6 +63,8 @@ public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<Cl
     @Nullable
     private String preference;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
+    @Nullable
+    private SliceBuilder sliceBuilder;
 
     public ClusterSearchShardsRequest() {}
 
@@ -76,6 +80,12 @@ public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<Cl
         preference = in.readOptionalString();
 
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_2_19_0)) {
+            boolean hasSlice = in.readBoolean();
+            if (hasSlice) {
+                sliceBuilder = new SliceBuilder(in);
+            }
+        }
     }
 
     @Override
@@ -84,8 +94,15 @@ public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<Cl
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-
         indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(Version.V_2_19_0)) {
+            if (sliceBuilder != null) {
+                out.writeBoolean(true);
+                sliceBuilder.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     @Override
@@ -165,5 +182,14 @@ public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<Cl
 
     public String preference() {
         return this.preference;
+    }
+
+    public ClusterSearchShardsRequest slice(SliceBuilder sliceBuilder) {
+        this.sliceBuilder = sliceBuilder;
+        return this;
+    }
+
+    public SliceBuilder slice() {
+        return this.sliceBuilder;
     }
 }

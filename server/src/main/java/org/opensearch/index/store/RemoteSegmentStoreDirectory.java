@@ -876,9 +876,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         Tuple<Long, Set<Long>> pinnedTimestampsState = RemoteStorePinnedTimestampService.getPinnedTimestamps();
 
+        Set<Long> pinnedTimestamps = new HashSet<>(pinnedTimestampsState.v2());
+        pinnedTimestamps.add(pinnedTimestampsState.v1());
         Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
             sortedMetadataFileList,
-            pinnedTimestampsState.v2(),
+            pinnedTimestamps,
             metadataFilePinnedTimestampMap,
             MetadataFilenameUtils::getTimestamp,
             MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
@@ -906,6 +908,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             lastSuccessfulFetchOfPinnedTimestamps
         );
 
+        if (metadataFilesEligibleToDelete.isEmpty()) {
+            logger.debug("No metadata files are eligible to be deleted based on lastNMetadataFilesToKeep and age");
+            return;
+        }
+
         List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream()
             .filter(metadataFile -> allLockFiles.contains(metadataFile) == false)
             .collect(Collectors.toList());
@@ -920,7 +927,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         Set<String> activeSegmentRemoteFilenames = new HashSet<>();
 
         final Set<String> metadataFilesToFilterActiveSegments = getMetadataFilesToFilterActiveSegments(
-            lastNMetadataFilesToKeep,
+            sortedMetadataFileList.indexOf(metadataFilesEligibleToDelete.get(0)),
             sortedMetadataFileList,
             allLockFiles
         );
@@ -1056,7 +1063,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return delete();
     }
 
-    private boolean delete() {
+    public boolean delete() {
         try {
             remoteDataDirectory.delete();
             remoteMetadataDirectory.delete();

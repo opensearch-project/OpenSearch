@@ -133,7 +133,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
                 checkerResult = checker.getCorrections(
                     stream,
-                    new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
+                    new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[0])),
                     suggestion.maxErrors(),
                     suggestion.getShardSize(),
                     wordScorer,

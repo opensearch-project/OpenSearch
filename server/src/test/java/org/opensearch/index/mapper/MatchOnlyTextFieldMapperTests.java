@@ -15,11 +15,13 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
+import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -28,6 +30,7 @@ import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SourceFieldMatchQuery;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.search.MatchQuery;
 import org.junit.Before;
 
@@ -391,7 +394,7 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
 
         assertThat(q, is(expectedQuery));
         Query q4 = new MatchPhraseQueryBuilder("field", "singleton").toQuery(queryShardContext);
-        assertThat(q4, is(new TermQuery(new Term("field", "singleton"))));
+        assertThat(q4, is(new ConstantScoreQuery(new TermQuery(new Term("field", "singleton")))));
 
         Query q2 = new MatchPhraseQueryBuilder("field", "three words here").toQuery(queryShardContext);
         expectedQuery = new SourceFieldMatchQuery(
@@ -446,5 +449,23 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
             queryShardContext
         );
         assertThat(q6, is(expectedQuery));
+    }
+
+    public void testTermQuery() throws Exception {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", textFieldName);
+                b.field("analyzer", "my_stop_analyzer"); // "standard" will be replaced with MockSynonymAnalyzer
+            }
+            b.endObject();
+        }));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+
+        Query q = new TermQueryBuilder("field", "foo").rewrite(queryShardContext).toQuery(queryShardContext);
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), q);
+
+        q = new TermQueryBuilder("field", "foo").caseInsensitive(true).rewrite(queryShardContext).toQuery(queryShardContext);
+        assertEquals(new ConstantScoreQuery(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "foo"))), q);
     }
 }

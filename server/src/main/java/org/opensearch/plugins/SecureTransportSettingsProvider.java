@@ -37,6 +37,24 @@ public interface SecureTransportSettingsProvider {
     }
 
     /**
+     * Returns parameters that can be dynamically provided by a plugin providing a {@link SecureTransportSettingsProvider}
+     * implementation
+     * @param settings settings
+     * @return an instance of {@link SecureTransportParameters}
+     */
+    default Optional<SecureTransportParameters> parameters(Settings settings) {
+        return Optional.of(new DefaultSecureTransportParameters(settings));
+    }
+
+    /**
+     * Dynamic parameters that can be provided by the {@link SecureTransportSettingsProvider}
+     */
+    @ExperimentalApi
+    interface SecureTransportParameters {
+        boolean dualModeEnabled();
+    }
+
+    /**
      * If supported, builds the {@link TransportExceptionHandler} instance for {@link Transport} instance
      * @param settings settings
      * @param transport {@link Transport} instance

@@ -145,7 +145,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     "Shard ["
                         + indexShardRoutingTable.shardId().id()
                         + "] routing table has wrong number of replicas, expected ["
+                        + "Replicas:  "
                         + indexMetadata.getNumberOfReplicas()
+                        + "Search Replicas: "
+                        + indexMetadata.getNumberOfSearchOnlyReplicas()
                         + "], got ["
                         + routingNumberOfReplicas
                         + "]"
@@ -513,15 +516,31 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                             ShardRouting.newUnassigned(shardId, false, PeerRecoverySource.INSTANCE, unassignedInfo)
                         );
                     }
+                    // if writers are red we do not want to re-recover search only shards if already assigned.
+                    for (ShardRouting shardRouting : indexShardRoutingTable.searchOnlyReplicas()) {
+                        if (shardRouting.unassigned()) {
+                            indexShardRoutingBuilder.addShard(
+                                ShardRouting.newUnassigned(shardId, false, true, EmptyStoreRecoverySource.INSTANCE, unassignedInfo)
+                            );
+                        } else {
+                            indexShardRoutingBuilder.addShard(shardRouting);
+                        }
+                    }
                 } else {
                     // Primary is either active or initializing. Do not trigger restore.
                     indexShardRoutingBuilder.addShard(indexShardRoutingTable.primaryShard());
                     // Replica, if unassigned, trigger peer recovery else no action.
                     for (ShardRouting shardRouting : indexShardRoutingTable.replicaShards()) {
                         if (shardRouting.unassigned()) {
-                            indexShardRoutingBuilder.addShard(
-                                ShardRouting.newUnassigned(shardId, false, PeerRecoverySource.INSTANCE, unassignedInfo)
-                            );
+                            if (shardRouting.isSearchOnly()) {
+                                indexShardRoutingBuilder.addShard(
+                                    ShardRouting.newUnassigned(shardId, false, true, EmptyStoreRecoverySource.INSTANCE, unassignedInfo)
+                                );
+                            } else {
+                                indexShardRoutingBuilder.addShard(
+                                    ShardRouting.newUnassigned(shardId, false, PeerRecoverySource.INSTANCE, unassignedInfo)
+                                );
+                            }
                         } else {
                             indexShardRoutingBuilder.addShard(shardRouting);
                         }
@@ -572,6 +591,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                         );
                     }
                 }
+                for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
+                    indexShardRoutingBuilder.addShard(
+                        ShardRouting.newUnassigned(shardId, false, true, EmptyStoreRecoverySource.INSTANCE, unassignedInfo)
+                    );
+                }
                 shards.put(shardNumber, indexShardRoutingBuilder.build());
             }
             return this;
@@ -612,13 +636,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 }
                 for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
                     indexShardRoutingBuilder.addShard(
-                        ShardRouting.newUnassigned(
-                            shardId,
-                            false,
-                            true,
-                            PeerRecoverySource.INSTANCE, // TODO: Update to remote store if enabled
-                            unassignedInfo
-                        )
+                        ShardRouting.newUnassigned(shardId, false, true, EmptyStoreRecoverySource.INSTANCE, unassignedInfo)
                     );
                 }
                 shards.put(shardNumber, indexShardRoutingBuilder.build());
@@ -653,7 +671,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     shardId,
                     false,
                     true,
-                    PeerRecoverySource.INSTANCE, // TODO: Change to remote store if enabled
+                    EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
                 );
                 shards.put(shardNumber, new IndexShardRoutingTable.Builder(shards.get(shard.id())).addShard(shard).build());

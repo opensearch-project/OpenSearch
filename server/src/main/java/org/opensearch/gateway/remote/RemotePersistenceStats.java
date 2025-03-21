@@ -21,8 +21,8 @@ public class RemotePersistenceStats {
     RemoteDownloadStats remoteDiffDownloadStats;
     RemoteDownloadStats remoteFullDownloadStats;
 
-    final String FULL_DOWNLOAD_STATS = "remote_full_download";
-    final String DIFF_DOWNLOAD_STATS = "remote_diff_download";
+    public static final String FULL_DOWNLOAD_STATS = "remote_full_download";
+    public static final String DIFF_DOWNLOAD_STATS = "remote_diff_download";
 
     public RemotePersistenceStats() {
         remoteUploadStats = new RemoteUploadStats();
@@ -104,6 +104,14 @@ public class RemotePersistenceStats {
 
     public long getStateFullDownloadValidationFailed() {
         return remoteFullDownloadStats.getChecksumValidationFailedCount();
+    }
+
+    public void stateDiffIncomingPublicationFailed() {
+        remoteDiffDownloadStats.incomingPublicationFailedCount();
+    }
+
+    public void stateFullIncomingPublicationFailed() {
+        remoteFullDownloadStats.incomingPublicationFailedCount();
     }
 
     public PersistedStateStats getUploadStats() {

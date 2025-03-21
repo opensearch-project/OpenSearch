@@ -105,7 +105,7 @@ public class FilterPath {
                 }
             }
         }
-        return paths.toArray(new FilterPath[paths.size()]);
+        return paths.toArray(new FilterPath[0]);
     }
 
     private static FilterPath parse(final String filter) {

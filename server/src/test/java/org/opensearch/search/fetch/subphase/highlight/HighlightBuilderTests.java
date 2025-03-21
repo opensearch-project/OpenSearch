@@ -760,7 +760,7 @@ public class HighlightBuilderTests extends OpenSearchTestCase {
         for (int f = 0; f < size; f++) {
             randomStrings.add(randomAlphaOfLengthBetween(3, 10));
         }
-        return randomStrings.toArray(new String[randomStrings.size()]);
+        return randomStrings.toArray(new String[0]);
     }
 
     /**

@@ -177,7 +177,7 @@ tasks.named("preProcessFixture").configure {
   }
   doLast {
     // tests expect to have an empty repo
-    project.delete(
+    delete(
       "${buildDir}/repo"
     )
     createAndSetWritable(
@@ -272,8 +272,8 @@ subprojects { Project subProject ->
     }
 
     artifacts.add('default', file(tarFile)) {
-      type 'tar'
-      name artifactName
+      type = 'tar'
+      name = artifactName
       builtBy exportTaskName
     }
 

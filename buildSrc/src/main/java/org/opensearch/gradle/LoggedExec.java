@@ -70,10 +70,17 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
     private Consumer<Logger> outputLogger;
     private FileSystemOperations fileSystemOperations;
+    private final Project project;
+
+    interface InjectedExecOps {
+        @Inject
+        ExecOperations getExecOps();
+    }
 
     @Inject
-    public LoggedExec(FileSystemOperations fileSystemOperations) {
+    public LoggedExec(FileSystemOperations fileSystemOperations, Project project) {
         this.fileSystemOperations = fileSystemOperations;
+        this.project = project;
         if (getLogger().isInfoEnabled() == false) {
             setIgnoreExitValue(true);
             setSpoolOutput(false);
@@ -106,7 +113,7 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
     public void setSpoolOutput(boolean spoolOutput) {
         final OutputStream out;
         if (spoolOutput) {
-            File spoolFile = new File(getProject().getBuildDir() + "/buffered-output/" + this.getName());
+            File spoolFile = new File(project.getBuildDir() + "/buffered-output/" + this.getName());
             out = new LazyFileOutputStream(spoolFile);
             outputLogger = logger -> {
                 try {
@@ -133,7 +140,8 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
     }
 
     public static ExecResult exec(Project project, Action<ExecSpec> action) {
-        return genericExec(project::exec, action);
+        final InjectedExecOps execOps = project.getObjects().newInstance(InjectedExecOps.class);
+        return exec(execOps.getExecOps(), action);
     }
 
     public static ExecResult exec(ExecOperations execOperations, Action<ExecSpec> action) {
@@ -141,7 +149,8 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
     }
 
     public static ExecResult javaexec(Project project, Action<JavaExecSpec> action) {
-        return genericExec(project::javaexec, action);
+        final InjectedExecOps execOps = project.getObjects().newInstance(InjectedExecOps.class);
+        return genericExec(execOps.getExecOps()::javaexec, action);
     }
 
     /** Returns JVM arguments suitable for a short-lived forked task */

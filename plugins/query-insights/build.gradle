@@ -10,8 +10,8 @@
  */
 
 opensearchplugin {
-  description 'OpenSearch Query Insights Plugin.'
-  classname 'org.opensearch.plugin.insights.QueryInsightsPlugin'
+  description = 'OpenSearch Query Insights Plugin.'
+  classname = 'org.opensearch.plugin.insights.QueryInsightsPlugin'
 }
 
 dependencies {

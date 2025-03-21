@@ -181,15 +181,19 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 if (name.contains("zip") || name.contains("tar")) {
                     int index = name.lastIndexOf('-');
                     String baseName = name.substring(0, index);
-                    classifier = "-" + baseName + "-x64";
+                    classifier = "-" + baseName;
+                    // The x64 variants do not have the architecture built into the task name, so it needs to be appended
+                    if (name.equals("darwin-tar") || name.equals("linux-tar") || name.equals("windows-zip")) {
+                        classifier += "-x64";
+                    }
                     extension = name.substring(index + 1);
                     if (extension.equals("tar")) {
                         extension += ".gz";
                     }
                 } else if (name.contains("deb")) {
-                    classifier = "-amd64";
+                    classifier = "_amd64";
                 } else if (name.contains("rpm")) {
-                    classifier = "-x64";
+                    classifier = ".x86_64";
                 }
             } else {
                 extension = name.substring(4);
@@ -256,9 +260,21 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             this.name = name;
             this.projectPath = baseDir + "/" + name;
             if (version.onOrAfter("1.1.0")) {
+                // Deb uses underscores (I don't know why...):
+                // https://github.com/opensearch-project/OpenSearch/blob/f6d9a86f0e2e8241fd58b7e8b6cdeaf931b5108f/distribution/packages/build.gradle#L139
+                final String separator = name.equals("deb") ? "_" : "-";
                 this.distFile = new File(
                     checkoutDir,
-                    baseDir + "/" + name + "/build/distributions/opensearch-min-" + version + "-SNAPSHOT" + classifier + "." + extension
+                    baseDir
+                        + "/"
+                        + name
+                        + "/build/distributions/opensearch-min"
+                        + separator
+                        + version
+                        + "-SNAPSHOT"
+                        + classifier
+                        + "."
+                        + extension
                 );
             } else {
                 this.distFile = new File(

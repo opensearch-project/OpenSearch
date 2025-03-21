@@ -61,7 +61,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.opensearch.rest.pagination.PageToken.PAGINATED_RESPONSE_NEXT_TOKEN_KEY;
+import static org.opensearch.action.pagination.PageToken.PAGINATED_RESPONSE_NEXT_TOKEN_KEY;
 
 /**
  * a REST table

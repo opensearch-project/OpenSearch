@@ -413,6 +413,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             try {
                 queryShardContext.setParentFilter(parentFilter);
                 queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
+                queryShardContext.setInnerHitQuery(true);
                 try {
                     NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
                         name,
@@ -427,6 +428,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
             } finally {
                 queryShardContext.setParentFilter(previousParentFilter);
+                queryShardContext.setInnerHitQuery(false);
             }
         }
     }
@@ -436,7 +438,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
      *
      * @opensearch.internal
      */
-    static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
+    public static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
 
         private final ObjectMapper parentObjectMapper;
         private final ObjectMapper childObjectMapper;
@@ -504,6 +506,10 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
                 return new TopDocsAndMaxScore(td, maxScore);
             }
+        }
+
+        public ObjectMapper getChildObjectMapper() {
+            return childObjectMapper;
         }
     }
 

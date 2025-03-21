@@ -10,7 +10,7 @@ package org.opensearch.wlm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.Metadata;
@@ -42,6 +42,7 @@ import static org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService.T
 
 /**
  * As of now this is a stub and main implementation PR will be raised soon.Coming PR will collate these changes with core QueryGroupService changes
+ * @opensearch.experimental
  */
 public class QueryGroupService extends AbstractLifecycleComponent
     implements
@@ -49,7 +50,6 @@ public class QueryGroupService extends AbstractLifecycleComponent
         TaskResourceTrackingService.TaskCompletionListener {
 
     private static final Logger logger = LogManager.getLogger(QueryGroupService.class);
-
     private final QueryGroupTaskCancellationService taskCancellationService;
     private volatile Scheduler.Cancellable scheduledFuture;
     private final ThreadPool threadPool;
@@ -205,16 +205,48 @@ public class QueryGroupService extends AbstractLifecycleComponent
     /**
      * @return node level query group stats
      */
-    public QueryGroupStats nodeStats() {
+    public QueryGroupStats nodeStats(Set<String> queryGroupIds, Boolean requestedBreached) {
         final Map<String, QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
-        for (Map.Entry<String, QueryGroupState> queryGroupsState : queryGroupsStateAccessor.getQueryGroupStateMap().entrySet()) {
-            final String queryGroupId = queryGroupsState.getKey();
-            final QueryGroupState currentState = queryGroupsState.getValue();
+        Map<String, QueryGroupState> existingStateMap = queryGroupsStateAccessor.getQueryGroupStateMap();
+        if (!queryGroupIds.contains("_all")) {
+            for (String id : queryGroupIds) {
+                if (!existingStateMap.containsKey(id)) {
+                    throw new ResourceNotFoundException("QueryGroup with id " + id + " does not exist");
+                }
+            }
+        }
+        if (existingStateMap != null) {
+            existingStateMap.forEach((queryGroupId, currentState) -> {
+                boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
+                if (shouldInclude) {
+                    if (requestedBreached == null || requestedBreached == resourceLimitBreached(queryGroupId, currentState)) {
+                        statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
+                    }
+                }
+            });
+        }
+        return new QueryGroupStats(statsHolderMap);
+    }
 
-            statsHolderMap.put(queryGroupId, QueryGroupStatsHolder.from(currentState));
+    /**
+     * @return if the QueryGroup breaches any resource limit based on the LastRecordedUsage
+     */
+    public boolean resourceLimitBreached(String id, QueryGroupState currentState) {
+        QueryGroup queryGroup = clusterService.state().metadata().queryGroups().get(id);
+        if (queryGroup == null) {
+            throw new ResourceNotFoundException("QueryGroup with id " + id + " does not exist");
         }
 
-        return new QueryGroupStats(statsHolderMap);
+        for (ResourceType resourceType : TRACKED_RESOURCES) {
+            if (queryGroup.getResourceLimits().containsKey(resourceType)) {
+                final double threshold = getNormalisedRejectionThreshold(queryGroup.getResourceLimits().get(resourceType), resourceType);
+                final double lastRecordedUsage = currentState.getResourceState().get(resourceType).getLastRecordedUsage();
+                if (threshold < lastRecordedUsage) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -234,11 +266,12 @@ public class QueryGroupService extends AbstractLifecycleComponent
             return;
         }
 
-        // rejections will not happen for SOFT mode QueryGroups
+        // rejections will not happen for SOFT mode QueryGroups unless node is in duress
         Optional<QueryGroup> optionalQueryGroup = activeQueryGroups.stream().filter(x -> x.get_id().equals(queryGroupId)).findFirst();
 
-        if (optionalQueryGroup.isPresent() && optionalQueryGroup.get().getResiliencyMode() == MutableQueryGroupFragment.ResiliencyMode.SOFT)
-            return;
+        if (optionalQueryGroup.isPresent()
+            && (optionalQueryGroup.get().getResiliencyMode() == MutableQueryGroupFragment.ResiliencyMode.SOFT
+                && !nodeDuressTrackers.isNodeInDuress())) return;
 
         optionalQueryGroup.ifPresent(queryGroup -> {
             boolean reject = false;
@@ -298,7 +331,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
     public boolean shouldSBPHandle(Task t) {
         QueryGroupTask task = (QueryGroupTask) t;
         boolean isInvalidQueryGroupTask = true;
-        if (!task.getQueryGroupId().equals(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get())) {
+        if (task.isQueryGroupSet() && !QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get().equals(task.getQueryGroupId())) {
             isInvalidQueryGroupTask = activeQueryGroups.stream()
                 .noneMatch(queryGroup -> queryGroup.get_id().equals(task.getQueryGroupId()));
         }
@@ -307,7 +340,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
 
     @Override
     public void onTaskCompleted(Task task) {
-        if (!(task instanceof QueryGroupTask)) {
+        if (!(task instanceof QueryGroupTask) || !((QueryGroupTask) task).isQueryGroupSet()) {
             return;
         }
         final QueryGroupTask queryGroupTask = (QueryGroupTask) task;
@@ -321,10 +354,6 @@ public class QueryGroupService extends AbstractLifecycleComponent
             queryGroupId = QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get();
         }
 
-        if (task instanceof SearchShardTask) {
-            queryGroupsStateAccessor.getQueryGroupState(queryGroupId).shardCompletions.inc();
-        } else {
-            queryGroupsStateAccessor.getQueryGroupState(queryGroupId).completions.inc();
-        }
+        queryGroupsStateAccessor.getQueryGroupState(queryGroupId).totalCompletions.inc();
     }
 }

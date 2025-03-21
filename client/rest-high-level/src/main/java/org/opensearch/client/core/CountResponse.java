@@ -233,7 +233,7 @@ public final class CountResponse {
                     parser.skipChildren();
                 }
             }
-            return new ShardStats(successfulShards, totalShards, skippedShards, failures.toArray(new ShardSearchFailure[failures.size()]));
+            return new ShardStats(successfulShards, totalShards, skippedShards, failures.toArray(new ShardSearchFailure[0]));
         }
 
         @Override

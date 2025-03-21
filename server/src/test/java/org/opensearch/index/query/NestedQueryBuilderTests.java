@@ -335,6 +335,9 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             if (context.getParentFilter() == null) {
                 throw new Exception("Expect parent filter to be non-null");
             }
+            if (context.isInnerHitQuery() == false) {
+                throw new Exception("Expect it to be inner hit query");
+            }
             return invoke.callRealMethod();
         });
         NestedQueryBuilder query = new NestedQueryBuilder("nested1", innerQueryBuilder, ScoreMode.None);
@@ -345,6 +348,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertThat(innerHitBuilders.size(), Matchers.equalTo(1));
         assertTrue(innerHitBuilders.containsKey(leafInnerHits.getName()));
         assertNull(queryShardContext.getParentFilter());
+        assertFalse(queryShardContext.isInnerHitQuery());
         innerHitBuilders.get(leafInnerHits.getName()).build(searchContext, innerHitsContext);
         assertNull(queryShardContext.getParentFilter());
         verify(innerQueryBuilder).toQuery(queryShardContext);

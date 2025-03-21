@@ -119,7 +119,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
         ClusterState clusterState
     ) {
         return new IndicesSegmentResponse(
-            results.toArray(new ShardSegments[results.size()]),
+            results.toArray(new ShardSegments[0]),
             totalShards,
             successfulShards,
             failedShards,

@@ -40,6 +40,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -251,7 +252,8 @@ public class GenericSearchExtBuilderTests extends OpenSearchTestCase {
                 timedOut,
                 terminatedEarly,
                 numReducePhases,
-                searchExtBuilders
+                searchExtBuilders,
+                Collections.emptyList()
             );
         } else {
             internalSearchResponse = InternalSearchResponse.empty();

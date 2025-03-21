@@ -661,12 +661,22 @@ final class DocumentParser {
         throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
+        String path = context.path().pathAsText(arrayFieldName);
+        boolean isNested = path.contains(".") || context.mapperService().isCompositeIndexFieldNestedField(path);
         // block array values for composite index fields
-        if (context.indexSettings().isCompositeIndex() && context.mapperService().isFieldPartOfCompositeIndex(arrayFieldName)) {
+        // Assume original index has 2 fields - status , nested.nested1.status
+        // case 1 : if status is part of composite index and nested.nested1.status is not part of composite index,
+        // then nested.nested1.status/nested.nested1/nested array should not be blocked
+        // case 2 : if nested.nested1.status is part of composite index and status is not part of composite index,
+        // then arrays in nested/nested.nested1 and nested.nested1.status fields should be blocked
+        // but arrays in status should not be blocked
+        if (context.indexSettings().isCompositeIndex()
+            && ((isNested == false && context.mapperService().isFieldPartOfCompositeIndex(arrayFieldName))
+                || (isNested && context.mapperService().isCompositeIndexFieldNestedField(path)))) {
             throw new MapperParsingException(
                 String.format(
                     Locale.ROOT,
-                    "object mapping for [%s] with array for [%s] cannot be accepted as field is also part of composite index mapping which does not accept arrays",
+                    "object mapping for [%s] with array for [%s] cannot be accepted, as the field is also part of composite index mapping which does not accept arrays",
                     mapper.name(),
                     arrayFieldName
                 )

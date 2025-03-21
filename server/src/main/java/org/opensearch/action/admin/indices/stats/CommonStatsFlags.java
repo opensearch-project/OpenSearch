@@ -183,7 +183,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     }
 
     public Flag[] getFlags() {
-        return flags.toArray(new Flag[flags.size()]);
+        return flags.toArray(new Flag[0]);
     }
 
     public Set<CacheType> getIncludeCaches() {

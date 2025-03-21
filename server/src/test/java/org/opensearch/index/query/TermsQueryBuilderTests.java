@@ -244,7 +244,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
-            builder.array(termsPath, randomTerms.toArray(new Object[randomTerms.size()]));
+            builder.array(termsPath, randomTerms.toArray(new Object[0]));
             builder.endObject();
             json = builder.toString();
         } catch (IOException ex) {

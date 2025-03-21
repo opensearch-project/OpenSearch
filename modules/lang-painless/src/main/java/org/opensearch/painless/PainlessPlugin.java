@@ -66,6 +66,7 @@ import org.opensearch.script.ScoreScript;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptService;
+import org.opensearch.script.UpdateScript;
 import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -108,6 +109,11 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         List<Whitelist> ingest = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         ingest.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.ingest.txt"));
         map.put(IngestScript.CONTEXT, ingest);
+
+        // Functions available to update scripts
+        List<Whitelist> update = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        update.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.update.txt"));
+        map.put(UpdateScript.CONTEXT, update);
 
         // Functions available to derived fields
         List<Whitelist> derived = new ArrayList<>(Whitelist.BASE_WHITELISTS);
