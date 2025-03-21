@@ -185,16 +185,51 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
-        final String primary = internalCluster().startDataOnlyNode();
+        Settings mockNodeSetting = Settings.builder()
+            .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(0))
+            .build();
+
+        final String primary = internalCluster().startDataOnlyNode(mockNodeSetting);
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startDataOnlyNode();
+        final String replica = internalCluster().startDataOnlyNode(mockNodeSetting);
         ensureGreen(INDEX_NAME);
+
+        MockTransportService replicaTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            replica
+        ));
+        AtomicBoolean mockReplicaReceivePublishCheckpointException = new AtomicBoolean(true);
+        replicaTransportService.addRequestHandlingBehavior(
+            PublishCheckpointAction.ACTION_NAME + TransportReplicationAction.REPLICA_ACTION_SUFFIX,
+            (handler, request, channel, task) -> {
+                if (mockReplicaReceivePublishCheckpointException.get()) {
+                    logger.info("mock remote transport exception");
+                    throw new RemoteTransportException("mock remote transport exception", new OpenSearchRejectedExecutionException());
+                }
+                logger.info("replica receive publish checkpoint request");
+                handler.messageReceived(request, channel, task);
+            }
+        );
 
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         refresh(INDEX_NAME);
+        logger.info("ensure publish checkpoint request can be process");
+        mockReplicaReceivePublishCheckpointException.set(false);
 
         waitForSearchableDocs(1, primary, replica);
+        replicaTransportService.clearAllRules();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3))
+                        .put(IndexSettings.INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING.getKey(), TimeValue.timeValueSeconds(3))
+                )
+        );
 
         // index another doc but don't refresh, we will ensure this is searchable once replica is promoted.
         client().prepareIndex(INDEX_NAME).setId("2").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

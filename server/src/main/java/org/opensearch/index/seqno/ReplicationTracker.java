@@ -1305,7 +1305,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
                     && shouldSkipReplicationTimer(allocationId) == false
                     && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)
-                    && cps.checkpointTimers.get(latestReplicationCheckpoint).time() > indexSettings.getLagTimeBeforeResendCheckpoint()
+                    && cps.checkpointTimers.get(latestReplicationCheckpoint).time() >= indexSettings.getLagTimeBeforeResendCheckpoint()
                         .millis()) {
                     hasLaggingReplicas = true;
                 }
