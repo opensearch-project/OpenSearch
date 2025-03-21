@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -36,6 +35,7 @@ import java.util.Optional;
 
 import io.grpc.BindableService;
 import io.grpc.health.v1.HealthCheckResponse;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
@@ -44,8 +44,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private static final String[] DEFAULT_CIPHERS = {
         "TLS_AES_128_GCM_SHA256",
         "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
-        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
-    };
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256" };
 
     private NetworkService networkService;
     private final List<BindableService> services = new ArrayList<>();
@@ -64,18 +63,17 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     }
 
     static SecureAuxTransportSettingsProvider getSecureSettingsProviderServer(
-            String provider,
-            String clientAuth,
-            Collection<String> protocols,
-            Collection<String> cipherSuites,
-            KeyManagerFactory keyMngerFactory,
-            TrustManagerFactory trustMngerFactory
-        ) {
+        String provider,
+        String clientAuth,
+        Collection<String> protocols,
+        Collection<String> cipherSuites,
+        KeyManagerFactory keyMngerFactory,
+        TrustManagerFactory trustMngerFactory
+    ) {
         return new SecureAuxTransportSettingsProvider() {
             @Override
             public Optional<SecureAuxTransportSettingsProvider.SecureAuxTransportParameters> parameters() {
                 return Optional.of(new SecureAuxTransportSettingsProvider.SecureAuxTransportParameters() {
-
                     @Override
                     public Optional<String> sslProvider() {
                         return Optional.of(provider);

@@ -8,11 +8,6 @@
 
 package org.opensearch.transport.grpc.ssl;
 
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
-import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 
@@ -23,8 +18,13 @@ import javax.net.ssl.SSLSessionContext;
 import java.util.List;
 
 import io.grpc.netty.shaded.io.netty.buffer.ByteBufAllocator;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNegotiator;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 
 import static io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth.NONE;
 import static io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth.OPTIONAL;
@@ -101,10 +101,9 @@ public class SecureAuxTransportSslContext extends SslContext {
      * @return new SslContext.
      */
     private SslContext buildContext(SecureAuxTransportSettingsProvider.SecureAuxTransportParameters p) throws SSLException {
-        SslContextBuilder builder =
-            isClient?
-                SslContextBuilder.forClient():
-                SslContextBuilder.forServer(p.keyManagerFactory().orElseThrow());
+        SslContextBuilder builder = isClient
+            ? SslContextBuilder.forClient()
+            : SslContextBuilder.forServer(p.keyManagerFactory().orElseThrow());
 
         builder.applicationProtocolConfig(
             new ApplicationProtocolConfig(
@@ -116,12 +115,10 @@ public class SecureAuxTransportSslContext extends SslContext {
         );
 
         if (!isClient) {
-            builder
-                .clientAuth(clientAuthHelper(p.clientAuth().orElseThrow()));
+            builder.clientAuth(clientAuthHelper(p.clientAuth().orElseThrow()));
         }
 
-        return builder
-            .trustManager(p.trustManagerFactory().orElseThrow())
+        return builder.trustManager(p.trustManagerFactory().orElseThrow())
             .sslProvider(providerHelper(p.sslProvider().orElseThrow()))
             .protocols(p.protocols())
             .ciphers(p.cipherSuites())

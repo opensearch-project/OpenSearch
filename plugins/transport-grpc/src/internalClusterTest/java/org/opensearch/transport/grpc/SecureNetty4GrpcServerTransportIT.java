@@ -8,8 +8,6 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.StatusRuntimeException;
-import io.grpc.health.v1.HealthCheckResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
@@ -28,6 +26,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import io.grpc.StatusRuntimeException;
+import io.grpc.health.v1.HealthCheckResponse;
+
 import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 import static org.opensearch.transport.grpc.SecureNetty4GrpcServerTransportTests.getNoTrustClientAuthNoneTLSSettingsProvider;
 import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
@@ -42,7 +43,6 @@ public class SecureNetty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
         @Override
         public Optional<SecureSettingsFactory> getSecureSettingFactory(Settings settings) {
             return Optional.of(new SecureSettingsFactory() {
-
                 @Override
                 public Optional<SecureTransportSettingsProvider> getSecureTransportSettingsProvider(Settings settings) {
                     return Optional.empty();
@@ -72,7 +72,10 @@ public class SecureNetty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(AUX_TRANSPORT_TYPES_KEY, GRPC_SECURE_TRANSPORT_SETTING_KEY).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(AUX_TRANSPORT_TYPES_KEY, GRPC_SECURE_TRANSPORT_SETTING_KEY)
+            .build();
     }
 
     @Override
@@ -83,22 +86,19 @@ public class SecureNetty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
     public void testSecureGrpcTransportClusterHealth() throws Exception {
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().get();
         assertEquals(ClusterHealthStatus.GREEN, healthResponse.getStatus());
-        try (NettyGrpcClient client = new NettyGrpcClient
-            .Builder()
-            .setAddress(randomNetty4GrpcServerTransportAddr())
-            .setSecureSettingsProvider(getNoTrustClientAuthNoneTLSSettingsProvider())
-            .build()) {
-                assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
+        try (
+            NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(randomNetty4GrpcServerTransportAddr())
+                .setSecureSettingsProvider(getNoTrustClientAuthNoneTLSSettingsProvider())
+                .build()
+        ) {
+            assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
         }
     }
 
     public void testSecureGrpcTransportPlaintextClient() throws Exception {
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().get();
         assertEquals(ClusterHealthStatus.GREEN, healthResponse.getStatus());
-        try (NettyGrpcClient client = new NettyGrpcClient
-            .Builder()
-            .setAddress(randomNetty4GrpcServerTransportAddr())
-            .build()) {
+        try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(randomNetty4GrpcServerTransportAddr()).build()) {
             assertThrows(StatusRuntimeException.class, client::checkHealth);
         }
     }
