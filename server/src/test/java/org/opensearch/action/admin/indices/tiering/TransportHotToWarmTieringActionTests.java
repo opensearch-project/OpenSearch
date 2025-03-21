@@ -44,7 +44,7 @@ public class TransportHotToWarmTieringActionTests extends OpenSearchIntegTestCas
     @Override
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
-        featureSettings.put(FeatureFlags.TIERED_REMOTE_INDEX, true);
+        featureSettings.put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true);
         return featureSettings.build();
     }
 
@@ -56,7 +56,7 @@ public class TransportHotToWarmTieringActionTests extends OpenSearchIntegTestCas
     @Before
     public void setup() {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(1);
+        internalCluster().ensureAtLeastNumWarmAndDataNodes(1);
         long bytes = new ByteSizeValue(1000, ByteSizeUnit.KB).getBytes();
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, bytes, bytes - 1));

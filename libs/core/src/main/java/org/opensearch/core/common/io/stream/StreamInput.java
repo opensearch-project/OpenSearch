@@ -1305,6 +1305,21 @@ public abstract class StreamInput extends InputStream {
         return res;
     }
 
+    /**
+     * Reads an optional enum set with type E that was serialized based on the value of each enum's ordinal
+     * The set is expected to have been written using {@link StreamOutput#writeOptionalEnumSet(EnumSet)}
+     *
+     * @return the enum set of strings
+     * @throws IOException if an I/O exception occurs reading the set
+     */
+    public <E extends Enum<E>> EnumSet<E> readOptionalEnumSet(Class<E> enumClass) throws IOException {
+        if (readBoolean()) {
+            return readEnumSet(enumClass);
+        } else {
+            return EnumSet.noneOf(enumClass);
+        }
+    }
+
     public static StreamInput wrap(byte[] bytes) {
         return wrap(bytes, 0, bytes.length);
     }

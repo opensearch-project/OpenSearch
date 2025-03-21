@@ -15,6 +15,8 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
@@ -25,13 +27,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Base test class for Kafka ingestion tests
+ * Base test class for Kafka ingestion tests.
  */
 @ThreadLeakFilters(filters = TestContainerThreadLeakFilter.class)
 public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
@@ -107,5 +110,36 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
                 }
             }
         }, 1, TimeUnit.MINUTES);
+    }
+
+    protected void waitForState(Callable<Boolean> checkState) throws Exception {
+        assertBusy(() -> {
+            if (checkState.call() == false) {
+                fail("Provided state requirements not met");
+            }
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    protected String getSettings(String indexName, String setting) {
+        return client().admin().indices().prepareGetSettings(indexName).get().getSetting(indexName, setting);
+    }
+
+    protected void createIndexWithDefaultSettings(int numShards, int numReplicas) {
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                // set custom kafka consumer properties
+                .put("ingestion_source.param.fetch.min.bytes", 30000)
+                .put("ingestion_source.param.enable.auto.commit", false)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
     }
 }

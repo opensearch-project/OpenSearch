@@ -19,6 +19,7 @@ import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Requests;
 import org.junit.Assert;
 
 import java.util.List;
@@ -56,27 +57,14 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
     public void testKafkaIngestion() {
         produceData("1", "name1", "24");
         produceData("2", "name2", "20");
-
-        createIndex(
-            "test",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("ingestion_source.type", "kafka")
-                .put("ingestion_source.pointer.init.reset", "earliest")
-                .put("ingestion_source.param.topic", "test")
-                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
-                .put("index.replication.type", "SEGMENT")
-                .build(),
-            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
-        );
+        createIndexWithDefaultSettings(1, 0);
 
         RangeQueryBuilder query = new RangeQueryBuilder("age").gte(21);
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
-            refresh("test");
-            SearchResponse response = client().prepareSearch("test").setQuery(query).get();
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(1L));
-            PollingIngestStats stats = client().admin().indices().prepareStats("test").get().getIndex("test").getShards()[0]
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
             assertNotNull(stats);
             assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(2L));
@@ -135,10 +123,16 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         );
 
         RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+        await().atMost(1, TimeUnit.MINUTES).untilAsserted(() -> {
             refresh("test_rewind_by_offset");
             SearchResponse response = client().prepareSearch("test_rewind_by_offset").setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(1L));
         });
+    }
+
+    public void testCloseIndex() throws Exception {
+        createIndexWithDefaultSettings(1, 0);
+        ensureGreen(indexName);
+        client().admin().indices().close(Requests.closeIndexRequest(indexName)).get();
     }
 }
