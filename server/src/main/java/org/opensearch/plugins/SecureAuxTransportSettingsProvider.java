@@ -9,11 +9,8 @@
 package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.settings.Settings;
 
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 
 import java.util.Collection;
@@ -43,7 +40,6 @@ public interface SecureAuxTransportSettingsProvider {
      */
     @ExperimentalApi
     interface SecureAuxTransportParameters {
-
         Optional<KeyManagerFactory> keyManagerFactory();
 
         Optional<String> sslProvider();
