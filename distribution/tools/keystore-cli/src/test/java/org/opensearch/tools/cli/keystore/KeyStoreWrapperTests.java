@@ -68,8 +68,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -133,17 +138,13 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
             SecurityException.class,
             () -> loadedKeystore.decrypt(new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' })
         );
-        if (inFipsJvm()) {
-            assertThat(
-                exception.getMessage(),
-                anyOf(
-                    containsString("Provided keystore password was incorrect"),
-                    containsString("Keystore has been corrupted or tampered with")
-                )
-            );
-        } else {
-            assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
-        }
+        assertThat(
+            exception.getMessage(),
+            anyOf(
+                containsString("Provided keystore password was incorrect"),
+                containsString("Keystore has been corrupted or tampered with")
+            )
+        );
     }
 
     public void testCannotReadStringFromClosedKeystore() throws Exception {
@@ -366,29 +367,8 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testBackcompatV1() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
+        generateV1();
         Path configDir = env.configDir();
-        NIOFSDirectory directory = new NIOFSDirectory(configDir);
-        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, "opensearch.keystore", IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, "opensearch.keystore", 1);
-            output.writeByte((byte) 0); // hasPassword = false
-            output.writeString("PKCS12");
-            output.writeString("PBE");
-
-            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE");
-            KeyStore keystore = KeyStore.getInstance("PKCS12");
-            keystore.load(null, null);
-            SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
-            KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
-            keystore.setEntry("string_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
-
-            ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
-            keystore.store(keystoreBytesStream, new char[0]);
-            byte[] keystoreBytes = keystoreBytesStream.toByteArray();
-            output.writeInt(keystoreBytes.length);
-            output.writeBytes(keystoreBytes, keystoreBytes.length);
-            CodecUtil.writeFooter(output);
-        }
-
         KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
         keystore.decrypt(new char[0]);
         SecureString testValue = keystore.getString("string_setting");
@@ -397,47 +377,8 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
 
     public void testBackcompatV2() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
+        byte[] fileBytes = generateV2();
         Path configDir = env.configDir();
-        NIOFSDirectory directory = new NIOFSDirectory(configDir);
-        byte[] fileBytes = new byte[20];
-        random().nextBytes(fileBytes);
-        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, "opensearch.keystore", IOContext.DEFAULT)) {
-
-            CodecUtil.writeHeader(output, "opensearch.keystore", 2);
-            output.writeByte((byte) 0); // hasPassword = false
-            output.writeString("PKCS12");
-            output.writeString("PBE"); // string algo
-            output.writeString("PBE"); // file algo
-
-            output.writeVInt(2); // num settings
-            output.writeString("string_setting");
-            output.writeString("STRING");
-            output.writeString("file_setting");
-            output.writeString("FILE");
-
-            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE");
-            KeyStore keystore = KeyStore.getInstance("PKCS12");
-            keystore.load(null, null);
-            SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
-            KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
-            keystore.setEntry("string_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
-
-            byte[] base64Bytes = Base64.getEncoder().encode(fileBytes);
-            char[] chars = new char[base64Bytes.length];
-            for (int i = 0; i < chars.length; ++i) {
-                chars[i] = (char) base64Bytes[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
-            }
-            secretKey = secretFactory.generateSecret(new PBEKeySpec(chars));
-            keystore.setEntry("file_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
-
-            ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
-            keystore.store(keystoreBytesStream, new char[0]);
-            byte[] keystoreBytes = keystoreBytesStream.toByteArray();
-            output.writeInt(keystoreBytes.length);
-            output.writeBytes(keystoreBytes, keystoreBytes.length);
-            CodecUtil.writeFooter(output);
-        }
-
         KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
         keystore.decrypt(new char[0]);
         SecureString testValue = keystore.getString("string_setting");
@@ -495,6 +436,77 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         assertThat(toByteArray(wrapper.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));
         assertThat(wrapper.getString("file_setting"), equalTo("file_value"));
         assertThat(toByteArray(wrapper.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private void generateV1() throws IOException, NoSuchAlgorithmException, NoSuchProviderException, CertificateException,
+        InvalidKeySpecException, KeyStoreException {
+        Path configDir = env.configDir();
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, "opensearch.keystore", IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(output, "opensearch.keystore", 1);
+            output.writeByte((byte) 0); // hasPassword = false
+            output.writeString("PKCS12");
+            output.writeString("PBE");
+
+            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE", "SunJCE");
+            KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
+            keystore.load(null, null);
+            SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
+            KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
+            keystore.setEntry("string_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
+
+            ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
+            keystore.store(keystoreBytesStream, new char[0]);
+            byte[] keystoreBytes = keystoreBytesStream.toByteArray();
+            output.writeInt(keystoreBytes.length);
+            output.writeBytes(keystoreBytes, keystoreBytes.length);
+            CodecUtil.writeFooter(output);
+        }
+    }
+
+    private byte[] generateV2() throws Exception {
+        Path configDir = env.configDir();
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
+        byte[] fileBytes = new byte[20];
+        random().nextBytes(fileBytes);
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, "opensearch.keystore", IOContext.DEFAULT)) {
+
+            CodecUtil.writeHeader(output, "opensearch.keystore", 2);
+            output.writeByte((byte) 0); // hasPassword = false
+            output.writeString("PKCS12");
+            output.writeString("PBE"); // string algo
+            output.writeString("PBE"); // file algo
+
+            output.writeVInt(2); // num settings
+            output.writeString("string_setting");
+            output.writeString("STRING");
+            output.writeString("file_setting");
+            output.writeString("FILE");
+
+            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE", "SunJCE");
+            KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
+            keystore.load(null, null);
+            SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
+            KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
+            keystore.setEntry("string_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
+
+            byte[] base64Bytes = Base64.getEncoder().encode(fileBytes);
+            char[] chars = new char[base64Bytes.length];
+            for (int i = 0; i < chars.length; ++i) {
+                chars[i] = (char) base64Bytes[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
+            }
+            secretKey = secretFactory.generateSecret(new PBEKeySpec(chars));
+            keystore.setEntry("file_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
+
+            ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
+            keystore.store(keystoreBytesStream, new char[0]);
+            byte[] keystoreBytes = keystoreBytesStream.toByteArray();
+            output.writeInt(keystoreBytes.length);
+            output.writeBytes(keystoreBytes, keystoreBytes.length);
+            CodecUtil.writeFooter(output);
+        }
+
+        return fileBytes;
     }
 
     private byte[] toByteArray(final InputStream is) throws IOException {
