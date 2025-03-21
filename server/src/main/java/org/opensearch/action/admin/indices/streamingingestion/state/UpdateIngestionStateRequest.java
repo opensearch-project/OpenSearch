@@ -10,6 +10,7 @@ package org.opensearch.action.admin.indices.streamingingestion.state;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -19,30 +20,32 @@ import java.io.IOException;
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
- * Request to get current ingestion state when using pull-based ingestion. This request supports retrieving index and
- * shard level state. By default, all shards of an index are included.
+ * Holds metadata required for updating ingestion state.
  *
- * TODO: add pagination support
+ * <p> This is for internal use only and will not be exposed to the user. </p>
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class GetIngestionStateRequest extends BroadcastRequest<GetIngestionStateRequest> {
-
+public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestionStateRequest> {
     private String[] index;
-
     private int[] shards;
 
-    public GetIngestionStateRequest(String[] index) {
+    // Following will be optional parameters and will be used to decide when to update shard ingestion state if non-null values are provided
+    @Nullable
+    private Boolean ingestionPaused;
+
+    public UpdateIngestionStateRequest(String[] index, int[] shards) {
         super();
         this.index = index;
-        this.shards = new int[] {};
+        this.shards = shards;
     }
 
-    public GetIngestionStateRequest(StreamInput in) throws IOException {
+    public UpdateIngestionStateRequest(StreamInput in) throws IOException {
         super(in);
         this.index = in.readStringArray();
         this.shards = in.readIntArray();
+        this.ingestionPaused = in.readOptionalBoolean();
     }
 
     @Override
@@ -59,6 +62,7 @@ public class GetIngestionStateRequest extends BroadcastRequest<GetIngestionState
         super.writeTo(out);
         out.writeStringArray(index);
         out.writeIntArray(shards);
+        out.writeOptionalBoolean(ingestionPaused);
     }
 
     public String[] getIndex() {
@@ -71,5 +75,13 @@ public class GetIngestionStateRequest extends BroadcastRequest<GetIngestionState
 
     public void setShards(int[] shards) {
         this.shards = shards;
+    }
+
+    public Boolean getIngestionPaused() {
+        return ingestionPaused;
+    }
+
+    public void setIngestionPaused(boolean ingestionPaused) {
+        this.ingestionPaused = ingestionPaused;
     }
 }

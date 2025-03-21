@@ -754,14 +754,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
+    /**
+     * Update the ingestion state for the shard using the new metadata.
+     */
     private void updateShardIngestionState(Shard shard, IndexMetadata indexMetadata, ShardRouting shardRouting) {
         try {
             if (indexMetadata.useIngestionSource() && shardRouting.primary()) {
                 shard.updateShardIngestionState(indexMetadata);
             }
         } catch (Exception e) {
-            // log error, do not fail since ingestion state updates can be retried by the user in case of transient errors
             logger.error("Failed to update shard ingestion state", e);
+            throw e;
         }
     }
 

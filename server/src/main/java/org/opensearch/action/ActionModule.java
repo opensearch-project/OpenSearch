@@ -204,6 +204,8 @@ import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeInges
 import org.opensearch.action.admin.indices.streamingingestion.resume.TransportResumeIngestionAction;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateAction;
 import org.opensearch.action.admin.indices.streamingingestion.state.TransportGetIngestionStateAction;
+import org.opensearch.action.admin.indices.streamingingestion.state.TransportUpdateIngestionStateAction;
+import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateAction;
 import org.opensearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
 import org.opensearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
@@ -819,6 +821,7 @@ public class ActionModule extends AbstractModule {
         actions.register(PauseIngestionAction.INSTANCE, TransportPauseIngestionAction.class);
         actions.register(ResumeIngestionAction.INSTANCE, TransportResumeIngestionAction.class);
         actions.register(GetIngestionStateAction.INSTANCE, TransportGetIngestionStateAction.class);
+        actions.register(UpdateIngestionStateAction.INSTANCE, TransportUpdateIngestionStateAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }

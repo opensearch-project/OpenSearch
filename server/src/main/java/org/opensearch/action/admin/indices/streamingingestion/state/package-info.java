@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** GetIngestionState transport handlers. */
+/** Ingestion state transport handlers. */
 package org.opensearch.action.admin.indices.streamingingestion.state;

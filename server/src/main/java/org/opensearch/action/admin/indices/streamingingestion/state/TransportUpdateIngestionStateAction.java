@@ -36,19 +36,22 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Transport action for retrieving ingestion state.
+ * Transport action for updating ingestion state on provided shards. Shard level failures are provided if there are
+ * errors during updating shard state.
+ *
+ * <p>This is for internal use and will not be exposed to the user directly. </p>
  *
  * @opensearch.experimental
  */
-public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAction<
-    GetIngestionStateRequest,
-    GetIngestionStateResponse,
+public class TransportUpdateIngestionStateAction extends TransportBroadcastByNodeAction<
+    UpdateIngestionStateRequest,
+    UpdateIngestionStateResponse,
     ShardIngestionState> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportGetIngestionStateAction(
+    public TransportUpdateIngestionStateAction(
         ClusterService clusterService,
         TransportService transportService,
         IndicesService indicesService,
@@ -56,12 +59,12 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            GetIngestionStateAction.NAME,
+            UpdateIngestionStateAction.NAME,
             clusterService,
             transportService,
             actionFilters,
             indexNameExpressionResolver,
-            GetIngestionStateRequest::new,
+            UpdateIngestionStateRequest::new,
             ThreadPool.Names.MANAGEMENT
         );
         this.indicesService = indicesService;
@@ -71,7 +74,7 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
      * Indicates the shards to consider.
      */
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, GetIngestionStateRequest request, String[] concreteIndices) {
+    protected ShardsIterator shards(ClusterState clusterState, UpdateIngestionStateRequest request, String[] concreteIndices) {
         Set<Integer> shardSet = Arrays.stream(request.getShards()).boxed().collect(Collectors.toSet());
 
         Predicate<ShardRouting> shardFilter = ShardRouting::primary;
@@ -83,13 +86,13 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, GetIngestionStateRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, UpdateIngestionStateRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, GetIngestionStateRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, request.indices());
+    protected ClusterBlockException checkRequestBlock(ClusterState state, UpdateIngestionStateRequest request, String[] concreteIndices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, request.indices());
     }
 
     @Override
@@ -98,8 +101,8 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
     }
 
     @Override
-    protected GetIngestionStateResponse newResponse(
-        GetIngestionStateRequest request,
+    protected UpdateIngestionStateResponse newResponse(
+        UpdateIngestionStateRequest request,
         int totalShards,
         int successfulShards,
         int failedShards,
@@ -107,22 +110,19 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
         List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        return new GetIngestionStateResponse(
-            responses.toArray(new ShardIngestionState[0]),
-            totalShards,
-            successfulShards,
-            failedShards,
-            shardFailures
-        );
+        return new UpdateIngestionStateResponse(true, totalShards, successfulShards, failedShards, shardFailures);
     }
 
     @Override
-    protected GetIngestionStateRequest readRequestFrom(StreamInput in) throws IOException {
-        return new GetIngestionStateRequest(in);
+    protected UpdateIngestionStateRequest readRequestFrom(StreamInput in) throws IOException {
+        return new UpdateIngestionStateRequest(in);
     }
 
+    /**
+     * Updates shard ingestion states depending on the requested changes.
+     */
     @Override
-    protected ShardIngestionState shardOperation(GetIngestionStateRequest request, ShardRouting shardRouting) {
+    protected ShardIngestionState shardOperation(UpdateIngestionStateRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
         if (indexShard.routingEntry() == null) {
@@ -130,6 +130,11 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
         }
 
         try {
+            if (request.getIngestionPaused() != null) {
+                // update pause/resume state
+                indexShard.updateShardIngestionState(request.getIngestionPaused());
+            }
+
             return indexShard.getIngestionState();
         } catch (final AlreadyClosedException e) {
             throw new ShardNotFoundException(indexShard.shardId());

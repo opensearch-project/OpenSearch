@@ -172,9 +172,11 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         // pause ingestion
         PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
         assertTrue(pauseResponse.isAcknowledged());
+        assertTrue(pauseResponse.isShardsAcknowledged());
         waitForState(() -> {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return Arrays.stream(ingestionState.getShardStates()).allMatch(state -> state.getPollerState().equalsIgnoreCase("paused"));
+            return Arrays.stream(ingestionState.getShardStates())
+                .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
 
         // verify ingestion state is persisted
@@ -191,17 +193,20 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(2, getSearchableDocCount(nodeB));
         waitForState(() -> {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return Arrays.stream(ingestionState.getShardStates()).allMatch(state -> state.getPollerState().equalsIgnoreCase("paused"));
+            return Arrays.stream(ingestionState.getShardStates())
+                .allMatch(state -> state.isPollerPaused() && state.getPollerState().equalsIgnoreCase("paused"));
         });
 
         // resume ingestion
         ResumeIngestionResponse resumeResponse = resumeIngestion(indexName);
         assertTrue(resumeResponse.isAcknowledged());
+        assertTrue(resumeResponse.isShardsAcknowledged());
         waitForState(() -> {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
             return Arrays.stream(ingestionState.getShardStates())
                 .allMatch(
-                    state -> state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing")
+                    state -> state.isPollerPaused() == false
+                        && (state.getPollerState().equalsIgnoreCase("polling") || state.getPollerState().equalsIgnoreCase("processing"))
                 );
         });
         waitForSearchableDocs(4, Arrays.asList(nodeB, nodeC));

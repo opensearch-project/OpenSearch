@@ -350,9 +350,11 @@ public class IngestionEngine extends InternalEngine {
      */
     public ShardIngestionState getIngestionState() {
         return new ShardIngestionState(
+            engineConfig.getIndexSettings().getIndex().getName(),
             engineConfig.getShardId().getId(),
             streamPoller.getState().toString(),
-            streamPoller.getErrorStrategy().getName()
+            streamPoller.getErrorStrategy().getName(),
+            streamPoller.isPaused()
         );
     }
 }

@@ -10,7 +10,9 @@ package org.opensearch.action.admin.indices.streamingingestion.pause;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.action.admin.indices.streamingingestion.IngestionStateShardFailure;
+import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
@@ -29,10 +31,10 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 
 /**
- * Pause ingestion action.
+ * Pause ingestion transport action.
  *
  * @opensearch.experimental
  */
@@ -78,6 +80,7 @@ public class TransportPauseIngestionAction extends TransportClusterManagerNodeAc
 
     @Override
     protected void doExecute(Task task, PauseIngestionRequest request, ActionListener<PauseIngestionResponse> listener) {
+        destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
     }
 
@@ -105,17 +108,41 @@ public class TransportPauseIngestionAction extends TransportClusterManagerNodeAc
     ) throws Exception {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
-            listener.onResponse(new PauseIngestionResponse(true, Collections.emptyList()));
+            listener.onResponse(new PauseIngestionResponse(true, false, new IngestionStateShardFailure[0], ""));
             return;
         }
 
-        PauseIngestionClusterStateUpdateRequest pauseRequest = new PauseIngestionClusterStateUpdateRequest(task.getId()).ackTimeout(
-            request.timeout()
-        ).clusterManagerNodeTimeout(request.clusterManagerNodeTimeout()).indices(concreteIndices);
+        String[] indices = Arrays.stream(concreteIndices).map(Index::getName).toArray(String[]::new);
+        UpdateIngestionStateRequest updateIngestionStateRequest = new UpdateIngestionStateRequest(indices, new int[0]);
+        updateIngestionStateRequest.timeout(request.clusterManagerNodeTimeout());
+        updateIngestionStateRequest.setIngestionPaused(true);
 
-        ingestionStateService.pauseIngestion(pauseRequest, ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to pause ingestion on indices [{}]", (Object) concreteIndices), t);
-            delegatedListener.onFailure(t);
-        }));
+        ingestionStateService.updateIngestionPollerState(
+            "pause-ingestion",
+            concreteIndices,
+            updateIngestionStateRequest,
+            new ActionListener<>() {
+
+                @Override
+                public void onResponse(UpdateIngestionStateResponse updateIngestionStateResponse) {
+                    boolean shardsAcked = updateIngestionStateResponse.isAcknowledged()
+                        && updateIngestionStateResponse.getTotalShards() > 0
+                        && updateIngestionStateResponse.getFailedShards() == 0;
+                    PauseIngestionResponse pauseIngestionResponse = new PauseIngestionResponse(
+                        true,
+                        shardsAcked,
+                        updateIngestionStateResponse.getShardFailureList(),
+                        updateIngestionStateResponse.getErrorMessage()
+                    );
+                    listener.onResponse(pauseIngestionResponse);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("Error pausing ingestion", e);
+                    listener.onFailure(e);
+                }
+            }
+        );
     }
 }

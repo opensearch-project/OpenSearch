@@ -19,9 +19,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.util.CollectionUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.Arrays;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -35,30 +33,27 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    private final List<ResetSettings> resetSettingsList;
+    // todo: support reset settings
+    private final ResetSettings[] resetSettingsList;
 
     public ResumeIngestionRequest(StreamInput in) throws IOException {
         super(in);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-        int resetSettingsCount = in.readInt();
-        this.resetSettingsList = new ArrayList<>();
-        for (int i = 0; i < resetSettingsCount; i++) {
-            resetSettingsList.add(new ResetSettings(in));
-        }
+        this.resetSettingsList = in.readArray(ResetSettings::new, ResetSettings[]::new);
     }
 
     /**
      * Constructs a new resume ingestion request.
      */
     public ResumeIngestionRequest(String[] indices) {
-        this(indices, Collections.emptyList());
+        this(indices, new ResetSettings[0]);
     }
 
     /**
      * Constructs a new resume ingestion request with reset settings.
      */
-    public ResumeIngestionRequest(String[] indices, List<ResetSettings> resetSettingsList) {
+    public ResumeIngestionRequest(String[] indices, ResetSettings[] resetSettingsList) {
         this.indices = indices;
         this.resetSettingsList = resetSettingsList;
     }
@@ -70,8 +65,8 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
             validationException = addValidationError("index is missing", validationException);
         }
 
-        if (resetSettingsList.isEmpty() == false) {
-            boolean invalidResetSettingsFound = resetSettingsList.stream()
+        if (resetSettingsList.length > 0) {
+            boolean invalidResetSettingsFound = Arrays.stream(resetSettingsList)
                 .anyMatch(
                     resetSettings -> resetSettings.getShard() < 0 || resetSettings.getMode() == null || resetSettings.getValue() == null
                 );
@@ -130,14 +125,7 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeInt(resetSettingsList.size());
-        for (ResetSettings resetSettings : resetSettingsList) {
-            resetSettings.writeTo(out);
-        }
-    }
-
-    public List<ResetSettings> getResetSettingsList() {
-        return resetSettingsList;
+        out.writeArray(resetSettingsList);
     }
 
     /**

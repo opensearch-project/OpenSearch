@@ -630,6 +630,13 @@ public class Requests {
      * Creates a get ingestion state request given an index.
      */
     public static GetIngestionStateRequest getIngestionStateRequest(String index) {
-        return new GetIngestionStateRequest(index);
+        return new GetIngestionStateRequest(new String[] { index });
+    }
+
+    /**
+     * Creates a get ingestion state request given list of indices.
+     */
+    public static GetIngestionStateRequest getIngestionStateRequest(String[] indices) {
+        return new GetIngestionStateRequest(indices);
     }
 }

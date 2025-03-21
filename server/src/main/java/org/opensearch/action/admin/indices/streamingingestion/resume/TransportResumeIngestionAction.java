@@ -10,7 +10,9 @@ package org.opensearch.action.admin.indices.streamingingestion.resume;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.action.admin.indices.streamingingestion.IngestionStateShardFailure;
+import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
@@ -29,7 +31,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 
 /**
  * Transport action to resume ingestion.
@@ -106,19 +108,41 @@ public class TransportResumeIngestionAction extends TransportClusterManagerNodeA
     ) throws Exception {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
-            listener.onResponse(new ResumeIngestionResponse(true, Collections.emptyList()));
+            listener.onResponse(new ResumeIngestionResponse(true, false, new IngestionStateShardFailure[0], ""));
             return;
         }
 
-        final ResumeIngestionClusterStateUpdateRequest resumeRequest = new ResumeIngestionClusterStateUpdateRequest(task.getId())
-            .ackTimeout(request.timeout())
-            .resetSettings(request.getResetSettingsList())
-            .clusterManagerNodeTimeout(request.clusterManagerNodeTimeout())
-            .indices(concreteIndices);
+        String[] indices = Arrays.stream(concreteIndices).map(Index::getName).toArray(String[]::new);
+        UpdateIngestionStateRequest updateIngestionStateRequest = new UpdateIngestionStateRequest(indices, new int[0]);
+        updateIngestionStateRequest.timeout(request.clusterManagerNodeTimeout());
+        updateIngestionStateRequest.setIngestionPaused(false);
 
-        ingestionStateService.resumeIngestion(resumeRequest, ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to resume ingestion on indices [{}]", (Object) concreteIndices), t);
-            delegatedListener.onFailure(t);
-        }));
+        ingestionStateService.updateIngestionPollerState(
+            "resume-ingestion",
+            concreteIndices,
+            updateIngestionStateRequest,
+            new ActionListener<>() {
+
+                @Override
+                public void onResponse(UpdateIngestionStateResponse updateIngestionStateResponse) {
+                    boolean shardsAcked = updateIngestionStateResponse.isAcknowledged()
+                        && updateIngestionStateResponse.getTotalShards() > 0
+                        && updateIngestionStateResponse.getFailedShards() == 0;
+                    ResumeIngestionResponse response = new ResumeIngestionResponse(
+                        true,
+                        shardsAcked,
+                        updateIngestionStateResponse.getShardFailureList(),
+                        updateIngestionStateResponse.getErrorMessage()
+                    );
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("Error resuming ingestion", e);
+                    listener.onFailure(e);
+                }
+            }
+        );
     }
 }

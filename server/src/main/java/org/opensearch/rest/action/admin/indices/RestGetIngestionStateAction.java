@@ -11,6 +11,7 @@ package org.opensearch.rest.action.admin.indices;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -44,7 +45,9 @@ public class RestGetIngestionStateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        GetIngestionStateRequest getIngestionStateRequest = new GetIngestionStateRequest(request.param("index"));
+        GetIngestionStateRequest getIngestionStateRequest = new GetIngestionStateRequest(
+            Strings.splitStringByCommaToArray(request.param("index"))
+        );
 
         if (request.hasParam("shards")) {
             int[] shards = Arrays.stream(request.paramAsStringArrayOrEmptyIfAll("shards"))
