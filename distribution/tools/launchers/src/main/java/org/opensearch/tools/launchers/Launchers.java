@@ -50,7 +50,7 @@ final class Launchers {
      * @param message the message to print
      */
     @SuppressForbidden(reason = "System#out")
-    static void outPrintln(final String message) {
+    public static void outPrintln(final String message) {
         System.out.println(message);
     }
 
@@ -60,7 +60,7 @@ final class Launchers {
      * @param message the message to print
      */
     @SuppressForbidden(reason = "System#err")
-    static void errPrintln(final String message) {
+    public static void errPrintln(final String message) {
         System.err.println(message);
     }
 
@@ -70,13 +70,12 @@ final class Launchers {
      * @param status the status
      */
     @SuppressForbidden(reason = "System#exit")
-    static void exit(final int status) {
+    public static void exit(final int status) {
         System.exit(status);
     }
 
     @SuppressForbidden(reason = "Files#createTempDirectory(String, FileAttribute...)")
-    static Path createTempDirectory(final String prefix, final FileAttribute<?>... attrs) throws IOException {
-        return Files.createTempDirectory(prefix, attrs);
+    static Path createTempDirectory(final Path rootDir, final String prefix, final FileAttribute<?>... attrs) throws IOException {
+        return Files.createTempDirectory(rootDir, prefix, attrs);
     }
-
 }
