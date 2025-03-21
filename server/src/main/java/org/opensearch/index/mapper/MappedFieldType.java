@@ -521,4 +521,12 @@ public abstract class MappedFieldType {
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;
     }
+
+    /**
+     * @return a concrete (unfiltered) field type, which should be the current instance
+     * if this is not a field type wrapper. See {@link FilterFieldType}.
+     */
+    public MappedFieldType unwrap() {
+        return this;
+    }
 }
