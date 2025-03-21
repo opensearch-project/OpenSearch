@@ -22,7 +22,7 @@ jobs:
           echo "PR_NUMBER=${{ github.event.issue.number }}" >> $GITHUB_ENV
           echo "REPOSITORY=${{ github.event.repository.full_name }}" >> $GITHUB_ENV
           OPENSEARCH_VERSION=$(awk -F '=' '/^opensearch[[:space:]]*=/ {gsub(/[[:space:]]/, "", $2); print $2}' buildSrc/version.properties)
-          echo "OPENSEARCH_VERSION=$OPENSEARCH_VERSION-alpha1" >> $GITHUB_ENV
+          echo "OPENSEARCH_VERSION=$OPENSEARCH_VERSION-beta1" >> $GITHUB_ENV
           major_version=$(echo $OPENSEARCH_VERSION | cut -d'.' -f1)
           echo "OPENSEARCH_MAJOR_VERSION=$major_version" >> $GITHUB_ENV
           echo "USER_TAGS=pull_request_number:${{ github.event.issue.number }},repository:OpenSearch" >> $GITHUB_ENV
@@ -147,7 +147,7 @@ jobs:
           distribution: 'temurin'
       - name: Build and Assemble OpenSearch from PR
         run: |
-          ./gradlew :distribution:archives:linux-tar:assemble -Dbuild.snapshot=false -Dbuild.version_qualifier=alpha1
+          ./gradlew :distribution:archives:linux-tar:assemble -Dbuild.snapshot=false -Dbuild.version_qualifier=beta1
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:

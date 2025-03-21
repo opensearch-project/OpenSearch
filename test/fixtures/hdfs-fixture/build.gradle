@@ -74,7 +74,7 @@ dependencies {
   api 'org.apache.zookeeper:zookeeper:3.9.3'
   api "org.apache.commons:commons-text:1.13.0"
   api "commons-net:commons-net:3.11.1"
-  api "ch.qos.logback:logback-core:1.5.16"
+  api "ch.qos.logback:logback-core:1.5.17"
   api "ch.qos.logback:logback-classic:1.5.17"
   api "org.jboss.xnio:xnio-nio:3.8.16.Final"
   api 'org.jline:jline:3.29.0'

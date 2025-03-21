@@ -109,6 +109,22 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         if (valuesSource == null) {
             return false;
         }
+
+        if (pointConverter != null) {
+            Number segMin = findLeafMinValue(ctx.reader(), pointField, pointConverter);
+            if (segMin != null) {
+                /*
+                 * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
+                 * so the ordinal for the bucket is always 0.
+                 */
+                double min = mins.get(0);
+                min = Math.min(min, segMin.doubleValue());
+                mins.set(0, min);
+                // the minimum value has been extracted, we don't need to collect hits on this segment.
+                return true;
+            }
+        }
+
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             if (parent != null && subAggregators.length == 0) {
@@ -130,20 +146,6 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             } else {
                 // we have no parent and the values source is empty so we can skip collecting hits.
-                throw new CollectionTerminatedException();
-            }
-        }
-        if (pointConverter != null) {
-            Number segMin = findLeafMinValue(ctx.reader(), pointField, pointConverter);
-            if (segMin != null) {
-                /*
-                 * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
-                 * so the ordinal for the bucket is always 0.
-                 */
-                double min = mins.get(0);
-                min = Math.min(min, segMin.doubleValue());
-                mins.set(0, min);
-                // the minimum value has been extracted, we don't need to collect hits on this segment.
                 throw new CollectionTerminatedException();
             }
         }
