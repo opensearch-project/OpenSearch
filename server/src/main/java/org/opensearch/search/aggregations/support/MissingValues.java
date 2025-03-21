@@ -339,6 +339,7 @@ public enum MissingValues {
     static SortedSetDocValues insertOrd(final SortedSetDocValues values, final long insertedOrd, final BytesRef missingValue) {
         return new AbstractSortedSetDocValues() {
 
+            private int ordCount = 0;
             private boolean hasOrds;
             private long nextMissingOrd;
 
@@ -367,6 +368,9 @@ public enum MissingValues {
             @Override
             public long nextOrd() throws IOException {
                 if (hasOrds) {
+                    if (++ordCount > values.docValueCount()) {
+                        throw new IllegalStateException("Called nextOrd after docValueCount");
+                    }
                     final long ord = values.nextOrd();
                     if (ord < insertedOrd) {
                         return ord;
@@ -376,6 +380,9 @@ public enum MissingValues {
                         return ord + 1;
                     }
                 } else {
+                    if (nextMissingOrd == SortedSetDocValues.NO_MORE_DOCS) {
+                        throw new IllegalStateException("Called nextOrd after docValueCount");
+                    }
                     // we want to return the next missing ord but set this to
                     // NO_MORE_DOCS so on the next call we indicate there are no
                     // more values
@@ -388,6 +395,7 @@ public enum MissingValues {
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 hasOrds = values.advanceExact(doc);
+                ordCount = 0;
                 nextMissingOrd = insertedOrd;
                 // always return true because we want to return a value even if
                 // the document does not have a value
