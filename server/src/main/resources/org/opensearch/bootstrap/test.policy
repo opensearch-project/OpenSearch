@@ -20,7 +20,6 @@ grant {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.security.internal.spec";
   permission java.lang.RuntimePermission "closeClassLoader";
   permission java.lang.RuntimePermission "getProtectionDomain";
-  permission java.lang.RuntimePermission "shutdownHooks";
   permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
   permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
   permission java.security.SecurityPermission "getProperty.jdk.tls.server.defaultDHEParameters";
@@ -33,8 +32,4 @@ grant {
   permission org.bouncycastle.crypto.CryptoServicesPermission "defaultRandomConfig";
   permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
   permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
-  permission java.security.SecurityPermission "getProperty.os.arch";
-  permission java.security.SecurityPermission "getProperty.os.name";
-  permission java.security.SecurityPermission "getProperty.java.io.tmpdir";
-  permission java.security.SecurityPermission "getProperty.org.bouncycastle.drbg.pool_size";
 };
