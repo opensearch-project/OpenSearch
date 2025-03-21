@@ -85,6 +85,7 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -422,6 +423,95 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 // 4 slices will be created with 3 leaves in 2 slices and 2 leaves in other slices
                 // BalancedDocSliceSupplier uses a PQ to assign segments to slices, so the slice assignment is different
                 // than round-robin approach.
+                int num_slices_with_length_2 = 0;
+                int num_slices_with_length_3 = 0;
+                assertEquals(expectedSliceCount, slices.length);
+                for (int i = 0; i < expectedSliceCount; ++i) {
+                    if (slices[i].partitions.length == 2)
+                        num_slices_with_length_2++;
+                    else if (slices[i].partitions.length == 3)
+                        num_slices_with_length_3++;
+                }
+                assertEquals(2, num_slices_with_length_2);
+                assertEquals(2, num_slices_with_length_3);
+            }
+        }
+    }
+    public void testSlicesInternalWithScrollContext() throws Exception {
+        final List<LeafReaderContext> leaves = getLeaves(10);
+        try (Directory directory = newDirectory()) {
+            IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE));
+
+            Document document = new Document();
+            document.add(new StringField("field1", "value1", Field.Store.NO));
+            document.add(new StringField("field2", "value1", Field.Store.NO));
+            iw.addDocument(document);
+            iw.commit();
+
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                SearchContext searchContext = mock(SearchContext.class);
+                IndexShard indexShard = mock(IndexShard.class);
+                when(searchContext.indexShard()).thenReturn(indexShard);
+                when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+                when(searchContext.scrollContext()).thenReturn(new ScrollContext());
+
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    null,
+                    searchContext
+                );
+
+                int expectedSliceCount = 4;
+                IndexSearcher.LeafSlice[] slices = searcher.slicesInternal(leaves, expectedSliceCount);
+
+                assertEquals(expectedSliceCount, slices.length);
+                for (int i = 0; i < expectedSliceCount; ++i) {
+                    if (i < 2) {
+                        assertEquals(3, slices[i].partitions.length);
+                    } else {
+                        assertEquals(2, slices[i].partitions.length);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testSlicesInternalWithoutScrollContext() throws Exception {
+        final List<LeafReaderContext> leaves = getLeaves(10);
+        try (Directory directory = newDirectory()) {
+            IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE));
+
+            Document document = new Document();
+            document.add(new StringField("field1", "value1", Field.Store.NO));
+            document.add(new StringField("field2", "value1", Field.Store.NO));
+            iw.addDocument(document);
+            iw.commit();
+
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                SearchContext searchContext = mock(SearchContext.class);
+                IndexShard indexShard = mock(IndexShard.class);
+                when(searchContext.indexShard()).thenReturn(indexShard);
+                when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+                // No scroll context setup - defaults to null
+
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    null,
+                    searchContext
+                );
+
+                int expectedSliceCount = 4;
+                IndexSearcher.LeafSlice[] slices = searcher.slicesInternal(leaves, expectedSliceCount);
+
+                // BalancedDocsSliceSupplier uses PQ so ordering is not deterministic
                 int num_slices_with_length_2 = 0;
                 int num_slices_with_length_3 = 0;
                 assertEquals(expectedSliceCount, slices.length);
