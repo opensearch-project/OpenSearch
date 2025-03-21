@@ -122,16 +122,13 @@ public class AwarenessReplicaBalance {
         return Optional.empty();
     }
 
-    public Optional<String> validateSearchReplicas(int searchReplicaCount, AutoExpandReplicas autoExpandReplica) {
-        if (autoExpandReplica.isEnabled()) {
-            // TODO: For now Search replicas do not support auto expand, when we add support update this validation
-        } else {
-            if (searchReplicaCount > 0 && searchReplicaCount % maxAwarenessAttributes() != 0) {
-                String errorMessage = "total search replicas needs to be a multiple of total awareness attributes ["
-                    + maxAwarenessAttributes()
-                    + "]";
-                return Optional.of(errorMessage);
-            }
+    public Optional<String> validateSearchReplicas(int searchReplicaCount) {
+        // TODO: For now Search replicas do not support auto expand, when we add support update this validation
+        if (searchReplicaCount > 0 && searchReplicaCount % maxAwarenessAttributes() != 0) {
+            String errorMessage = "total search replicas needs to be a multiple of total awareness attributes ["
+                + maxAwarenessAttributes()
+                + "]";
+            return Optional.of(errorMessage);
         }
         return Optional.empty();
     }
