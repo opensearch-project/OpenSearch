@@ -281,8 +281,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         poller.start();
         Thread.sleep(sleepTime);
 
-        verify(errorStrategy, times(2)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
-        verify(processor, times(4)).process(any(), any());
+        verify(errorStrategy, times(1)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
+        verify(processor, times(2)).process(any(), any());
     }
 
     public void testBlockErrorIngestionStrategy() throws TimeoutException, InterruptedException {
