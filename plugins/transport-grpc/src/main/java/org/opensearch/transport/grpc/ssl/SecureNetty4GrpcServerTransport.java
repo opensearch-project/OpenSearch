@@ -41,7 +41,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
     private final SslContext sslContext;
 
     /**
-     * Creates a new SecureNetty4GrpcServerTransport instance and inject a ReloadableSecureAuxTransportSslContext
+     * Creates a new SecureNetty4GrpcServerTransport instance and inject a SecureAuxTransportSslContext
      * into the NettyServerBuilder config to enable TLS on the server.
      * @param settings the configured settings.
      * @param services the gRPC compatible services to be registered with the server.
@@ -57,9 +57,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         super(settings, services, networkService);
         this.port = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.get(settings);
         this.portSettingKey = SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT.getKey();
-        this.sslContext = new ReloadableSecureAuxTransportSslContext(secureTransportSettingsProvider, false);
+        this.sslContext = new SecureAuxTransportSslContext(secureTransportSettingsProvider, false);
         this.addServerConfig((NettyServerBuilder builder) -> builder.sslContext(this.sslContext));
-        // Todo:
-        // boolean dualModeEnabled(); // do not support this yet...
     }
 }

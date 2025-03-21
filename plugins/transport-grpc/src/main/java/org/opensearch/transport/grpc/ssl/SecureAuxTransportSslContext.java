@@ -34,17 +34,12 @@ import static io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider.OPENSSL;
 import static io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider.OPENSSL_REFCNT;
 
 /**
- * A reloadable implementation of io.grpc.SslContext.
- * Delegates to an internal volatile SslContext built from SecureAuxTransportSettingsProvider.
- * On each use of this SslContext we will determine if the previous context is out of date and update if possible.
- * TODO: Each operation should check if the params are out of date with a dirty bit in the SecureAuxTransportParameters.
+ * An io.grpc.SslContext which builds and delegates functionality to an internal delegate.
+ * TODO: Currently a light SslContext wrapper - hot swap functionality will be added here.
  */
-public class ReloadableSecureAuxTransportSslContext extends SslContext {
-    private final SecureAuxTransportSettingsProvider provider;
+public class SecureAuxTransportSslContext extends SslContext {
+    private final SslContext sslContext;
     private final boolean isClient;
-
-    private volatile SecureAuxTransportSettingsProvider.SecureAuxTransportParameters params;
-    private volatile SslContext sslContext;
 
     /**
      * Simple client auth string to enum conversion helper.
@@ -87,14 +82,13 @@ public class ReloadableSecureAuxTransportSslContext extends SslContext {
     }
 
     /**
-     * Initializes a new ReloadableSecureAuxTransportSslContext.
+     * Initializes a new SecureAuxTransportSslContext.
      * @param provider source of SecureAuxTransportParameters required to build an SslContext.
      * @param isClient determines if handshake is negotiated in client or server mode.
      */
-    public ReloadableSecureAuxTransportSslContext(SecureAuxTransportSettingsProvider provider, boolean isClient) {
-        this.provider = provider;
+    public SecureAuxTransportSslContext(SecureAuxTransportSettingsProvider provider, boolean isClient) {
         this.isClient = isClient;
-        this.params = provider.parameters().orElseThrow();
+        SecureAuxTransportSettingsProvider.SecureAuxTransportParameters params = provider.parameters().orElseThrow();
         try {
             this.sslContext = buildContext(params);
         } catch (SSLException e) {

@@ -50,8 +50,20 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private NetworkService networkService;
     private final List<BindableService> services = new ArrayList<>();
 
-    private static SecureAuxTransportSettingsProvider getSecureSettingsProviderServer(
-            boolean dualMode,
+    private static KeyManagerFactory getTestKeyManagerFactory() {
+        KeyManagerFactory keyManagerFactory;
+        try {
+            final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            keyStore.load(SecureNetty4GrpcServerTransport.class.getResourceAsStream("/netty4-secure.jks"), "password".toCharArray());
+            keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+            keyManagerFactory.init(keyStore, "password".toCharArray());
+        } catch (UnrecoverableKeyException | CertificateException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+        return keyManagerFactory;
+    }
+
+    static SecureAuxTransportSettingsProvider getSecureSettingsProviderServer(
             String provider,
             String clientAuth,
             Collection<String> protocols,
@@ -63,10 +75,6 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             @Override
             public Optional<SecureAuxTransportSettingsProvider.SecureAuxTransportParameters> parameters() {
                 return Optional.of(new SecureAuxTransportSettingsProvider.SecureAuxTransportParameters() {
-                    @Override
-                    public boolean dualModeEnabled() {
-                        return dualMode;
-                    }
 
                     @Override
                     public Optional<String> sslProvider() {
@@ -102,22 +110,8 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
         };
     }
 
-    private static KeyManagerFactory getTestKeyManagerFactory() {
-        KeyManagerFactory keyManagerFactory;
-        try {
-            final KeyStore keyStore = KeyStore.getInstance("PKCS12");
-            keyStore.load(SecureNetty4GrpcServerTransport.class.getResourceAsStream("/netty4-secure.jks"), "password".toCharArray());
-            keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
-            keyManagerFactory.init(keyStore, "password".toCharArray());
-        } catch (UnrecoverableKeyException | CertificateException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-        return keyManagerFactory;
-    }
-
-    private static SecureAuxTransportSettingsProvider getNoTrustClientAuthNoneTLSSettingsProvider() {
+    static SecureAuxTransportSettingsProvider getNoTrustClientAuthNoneTLSSettingsProvider() {
         return getSecureSettingsProviderServer(
-            false,
             PROVIDER,
             ClientAuth.NONE.name().toUpperCase(Locale.ROOT),
             List.of(DEFAULT_SSL_PROTOCOLS),
