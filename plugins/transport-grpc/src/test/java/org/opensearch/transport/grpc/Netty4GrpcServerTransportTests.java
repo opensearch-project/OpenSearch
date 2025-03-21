@@ -33,6 +33,10 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         services = List.of();
     }
 
+    private static Settings createSettings() {
+        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), getPortRange()).build();
+    }
+
     public void testGrpcTransportStartStop() {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService)) {
             transport.start();
@@ -66,9 +70,5 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private static Settings createSettings() {
-        return Settings.builder().put(Netty4GrpcServerTransport.SETTING_GRPC_PORT.getKey(), getPortRange()).build();
     }
 }

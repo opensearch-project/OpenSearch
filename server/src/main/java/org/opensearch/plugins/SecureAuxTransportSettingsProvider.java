@@ -43,7 +43,6 @@ public interface SecureAuxTransportSettingsProvider {
      */
     @ExperimentalApi
     interface SecureAuxTransportParameters {
-        boolean dualModeEnabled();
 
         Optional<KeyManagerFactory> keyManagerFactory();
 
