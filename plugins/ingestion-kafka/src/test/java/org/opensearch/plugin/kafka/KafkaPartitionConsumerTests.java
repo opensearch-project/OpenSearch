@@ -61,11 +61,10 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
 
         when(mockConsumer.poll(any(Duration.class))).thenReturn(records);
 
-        List<IngestionShardConsumer.ReadResult<KafkaOffset, KafkaMessage>> result = consumer.readNext(new KafkaOffset(0), 10, 1000);
+        List<IngestionShardConsumer.ReadResult<KafkaOffset, KafkaMessage>> result = consumer.readNext(new KafkaOffset(0), true, 10, 1000);
 
         assertEquals(1, result.size());
         assertEquals("message", new String(result.get(0).getMessage().getPayload(), StandardCharsets.UTF_8));
-        assertEquals(1, consumer.nextPointer().getOffset());
         assertEquals(0, consumer.getShardId());
         assertEquals("client1", consumer.getClientId());
     }
