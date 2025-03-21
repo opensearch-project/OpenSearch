@@ -46,6 +46,11 @@ public class ReloadableSecureAuxTransportSslContext extends SslContext {
     private volatile SecureAuxTransportSettingsProvider.SecureAuxTransportParameters params;
     private volatile SslContext sslContext;
 
+    /**
+     * Simple client auth string to enum conversion helper.
+     * @param clientAuthStr client auth as string.
+     * @return ClientAuth enum.
+     */
     public static ClientAuth clientAuthHelper(String clientAuthStr) {
         switch (clientAuthStr) {
             case "NONE" -> {
@@ -61,6 +66,11 @@ public class ReloadableSecureAuxTransportSslContext extends SslContext {
         }
     }
 
+    /**
+     * Simple ssl provider string to enum conversion helper.
+     * @param providerStr provider as string.
+     * @return provider enum.
+     */
     public static SslProvider providerHelper(String providerStr) {
         switch (providerStr) {
             case "JDK" -> {
