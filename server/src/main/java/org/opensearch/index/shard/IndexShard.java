@@ -4720,7 +4720,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert indexSettings.isSegRepEnabledOrRemoteNode();
         assert isPrimaryMode();
         if (replicationTracker.hasLaggingReplicas()) {
-            logger.trace("publish checkpoint {} to replicas", getLatestReplicationCheckpoint());
             checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
         }
     }
