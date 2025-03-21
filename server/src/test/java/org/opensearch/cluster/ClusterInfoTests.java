@@ -37,6 +37,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.filecache.FullFileCacheStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -94,7 +95,8 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                 randomLong(),
                 randomLong(),
                 randomLong(),
-                randomLong()
+                randomLong(),
+                new FullFileCacheStats(randomLong(), randomLong(), randomLong(), randomLong())
             );
             builder.put(key, fileCacheStats);
         }
