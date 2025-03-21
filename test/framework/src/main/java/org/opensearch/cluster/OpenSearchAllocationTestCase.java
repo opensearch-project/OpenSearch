@@ -154,8 +154,20 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
         new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
     );
 
+    protected static Set<DiscoveryNodeRole> SEARCH_ROLE = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.SEARCH_ROLE))
+    );
+
     protected static DiscoveryNode newNode(String nodeId) {
         return newNode(nodeId, Version.CURRENT);
+    }
+
+    protected static DiscoveryNode newSearchNode(String nodeId) {
+        return newSearchNode(nodeId, Version.CURRENT);
+    }
+
+    protected static DiscoveryNode newSearchNode(String nodeId, Version version) {
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), SEARCH_ROLE, version);
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Map<String, String> attributes) {
