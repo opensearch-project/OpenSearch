@@ -159,7 +159,16 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         );
     }
 
+    private String padZeros(int value, int length) {
+        // String.format() not allowed
+        String ret = Integer.toString(value);
+        if (ret.length() < length) {
+            ret = "0".repeat(length - ret.length()) + ret;
+        }
+        return ret;
+    }
+
     private String getDate(int day, int hour) {
-        return "2016-01-" + String.format("%02d", day) + "T" + String.format("%02d", hour) + ":00:00.000";
+        return "2016-01-" + padZeros(day, 2) + "T" + padZeros(hour, 2) + ":00:00.000";
     }
 }
