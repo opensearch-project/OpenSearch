@@ -345,4 +345,9 @@ public class FilterRepository implements Repository {
     public void close() {
         in.close();
     }
+
+    @Override
+    public boolean isOpen() {
+        return in.isOpen();
+    }
 }

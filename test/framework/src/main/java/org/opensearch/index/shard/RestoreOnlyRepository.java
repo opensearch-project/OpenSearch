@@ -73,6 +73,8 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         this.indexName = indexName;
     }
 
+    private volatile boolean closed;
+
     @Override
     protected void doStart() {}
 
@@ -80,7 +82,9 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     protected void doStop() {}
 
     @Override
-    protected void doClose() {}
+    protected void doClose() {
+        closed = true;
+    }
 
     @Override
     public RepositoryMetadata getMetadata() {
@@ -248,5 +252,10 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         ActionListener<String> listener
     ) {
         throw new UnsupportedOperationException("Unsupported for restore-only repository");
+    }
+
+    @Override
+    public boolean isOpen() {
+        return closed == false;
     }
 }

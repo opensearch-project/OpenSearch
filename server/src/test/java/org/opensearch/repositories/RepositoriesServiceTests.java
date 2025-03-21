@@ -842,6 +842,11 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
+        public boolean isOpen() {
+            return isClosed == false;
+        }
+
+        @Override
         public Lifecycle.State lifecycleState() {
             return null;
         }

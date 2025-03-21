@@ -611,4 +611,7 @@ public interface Repository extends LifecycleComponent {
      * Validate the repository metadata
      */
     default void validateMetadata(RepositoryMetadata repositoryMetadata) {}
+
+    boolean isOpen();
+
 }
