@@ -29,12 +29,12 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
      */
     public void testSerialization() throws IOException {
         GetRuleRequest request = new GetRuleRequest(_ID_ONE, Map.of(INDEX_PATTERN, Set.of(PATTERN_ONE)), null);
-        assertEquals(_ID_ONE, request.get_id());
+        assertEquals(_ID_ONE, request.getId());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
         GetRuleRequest otherRequest = new GetRuleRequest(streamInput);
-        assertEquals(request.get_id(), otherRequest.get_id());
+        assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeFilters(), otherRequest.getAttributeFilters());
     }
 
@@ -43,12 +43,12 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
      */
     public void testSerializationWithNull() throws IOException {
         GetRuleRequest request = new GetRuleRequest((String) null, new HashMap<>(), SEARCH_AFTER);
-        assertNull(request.get_id());
+        assertNull(request.getId());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
         GetRuleRequest otherRequest = new GetRuleRequest(streamInput);
-        assertEquals(request.get_id(), otherRequest.get_id());
+        assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeFilters(), otherRequest.getAttributeFilters());
     }
 }
