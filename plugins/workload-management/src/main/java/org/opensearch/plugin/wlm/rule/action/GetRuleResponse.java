@@ -16,7 +16,6 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,7 +42,7 @@ import static org.opensearch.plugin.wlm.rule.rest.RestGetRuleAction.SEARCH_AFTER
  * @opensearch.experimental
  */
 public class GetRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
-    private final Map<String, Rule<QueryGroupFeatureType>> rules;
+    private final Map<String, Rule> rules;
     private final String searchAfter;
     private final RestStatus restStatus;
 
@@ -53,7 +52,7 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
      * @param searchAfter - The searchAfter field for the response
      * @param restStatus - The restStatus for the response
      */
-    public GetRuleResponse(final Map<String, Rule<QueryGroupFeatureType>> rules, String searchAfter, RestStatus restStatus) {
+    public GetRuleResponse(final Map<String, Rule> rules, String searchAfter, RestStatus restStatus) {
         this.rules = rules;
         this.searchAfter = searchAfter;
         this.restStatus = restStatus;
@@ -78,7 +77,7 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("rules");
-        for (Map.Entry<String, Rule<QueryGroupFeatureType>> entry : rules.entrySet()) {
+        for (Map.Entry<String, Rule> entry : rules.entrySet()) {
             entry.getValue().toXContent(builder, new MapParams(Map.of(_ID_STRING, entry.getKey())));
         }
         builder.endArray();
@@ -92,7 +91,7 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
     /**
      * rules getter
      */
-    public Map<String, Rule<QueryGroupFeatureType>> getRules() {
+    public Map<String, Rule> getRules() {
         return rules;
     }
 
