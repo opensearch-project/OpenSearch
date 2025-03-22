@@ -67,10 +67,11 @@ public class BaseFlightProducer extends NoOpFlightProducer {
     @Override
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener) {
         StreamTicket streamTicket = streamManager.getStreamTicketFactory().fromBytes(ticket.getBytes());
-        Optional<FlightStreamManager.StreamProducerHolder> streamProducerHolder = Optional.empty();
+        FlightStreamManager.StreamProducerHolder streamProducerHolder = null;
         try {
             if (streamTicket.getNodeId().equals(flightClientManager.getLocalNodeId())) {
-                streamProducerHolder = streamManager.removeStreamProducer(streamTicket);
+                streamProducerHolder = streamManager.removeStreamProducer(streamTicket).orElse(null);
+
             } else {
                 Optional<FlightClient> remoteClient = flightClientManager.getFlightClient(streamTicket.getNodeId());
                 if (remoteClient.isEmpty()) {
@@ -82,13 +83,13 @@ public class BaseFlightProducer extends NoOpFlightProducer {
                 StreamProducer<VectorSchemaRoot, BufferAllocator> proxyProvider = new ProxyStreamProducer(
                     new FlightStreamReader(remoteClient.get().getStream(ticket))
                 );
-                streamProducerHolder = Optional.of(FlightStreamManager.StreamProducerHolder.create(proxyProvider, allocator));
+                streamProducerHolder = FlightStreamManager.StreamProducerHolder.create(proxyProvider, allocator);
             }
-            if (streamProducerHolder.isEmpty()) {
+            if (streamProducerHolder == null) {
                 listener.error(CallStatus.NOT_FOUND.withDescription("Stream not found").toRuntimeException());
                 return;
             }
-            StreamProducer<VectorSchemaRoot, BufferAllocator> producer = streamProducerHolder.get().producer();
+            StreamProducer<VectorSchemaRoot, BufferAllocator> producer = streamProducerHolder.producer();
             StreamProducer.BatchedJob<VectorSchemaRoot> batchedJob = producer.createJob(allocator);
             if (context.isCancelled()) {
                 batchedJob.onCancel();
@@ -120,7 +121,7 @@ public class BaseFlightProducer extends NoOpFlightProducer {
                     throw new RuntimeException("Error while waiting for client: " + result);
                 }
             };
-            try (VectorSchemaRoot root = streamProducerHolder.get().getRoot()) {
+            try (VectorSchemaRoot root = streamProducerHolder.getRoot()) {
                 listener.start(root);
                 batchedJob.run(root, flushSignal);
             }
@@ -130,15 +131,15 @@ public class BaseFlightProducer extends NoOpFlightProducer {
             logger.error(e);
             throw new RuntimeException(e);
         } finally {
-            streamProducerHolder.ifPresent(producerHolder -> {
+            if (streamProducerHolder != null) {
                 try {
-                    if (producerHolder.producer() != null) {
-                        producerHolder.producer().close();
+                    if (streamProducerHolder.producer() != null) {
+                        streamProducerHolder.producer().close();
                     }
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-            });
+            }
         }
     }
 
