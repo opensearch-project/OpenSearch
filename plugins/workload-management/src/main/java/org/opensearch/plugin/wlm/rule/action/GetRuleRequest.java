@@ -13,6 +13,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -28,18 +29,18 @@ import java.util.Set;
  * @opensearch.experimental
  */
 public class GetRuleRequest extends ActionRequest {
-    private final String _id;
+    private final String id;
     private final Map<Attribute, Set<String>> attributeFilters;
     private final String searchAfter;
 
     /**
      * Constructor for GetRuleRequest
-     * @param _id - Rule _id that we want to get
+     * @param id - Rule id that we want to get
      * @param attributeFilters - Attributes that we want to filter on
      * @param searchAfter - The sort values from the last document of the previous page, used for pagination
      */
-    public GetRuleRequest(String _id, Map<Attribute, Set<String>> attributeFilters, String searchAfter) {
-        this._id = _id;
+    public GetRuleRequest(String id, Map<Attribute, Set<String>> attributeFilters, String searchAfter) {
+        this.id = id;
         this.attributeFilters = attributeFilters;
         this.searchAfter = searchAfter;
     }
@@ -50,8 +51,8 @@ public class GetRuleRequest extends ActionRequest {
      */
     public GetRuleRequest(StreamInput in) throws IOException {
         super(in);
-        _id = in.readOptionalString();
-        attributeFilters = in.readMap(Attribute::from, i -> new HashSet<>(i.readStringList()));
+        id = in.readOptionalString();
+        attributeFilters = in.readMap(i -> Attribute.from(i, QueryGroupFeatureType.INSTANCE), i -> new HashSet<>(i.readStringList()));
         searchAfter = in.readOptionalString();
     }
 
@@ -63,16 +64,16 @@ public class GetRuleRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(_id);
+        out.writeOptionalString(id);
         out.writeMap(attributeFilters, (output, attribute) -> attribute.writeTo(output), StreamOutput::writeStringCollection);
         out.writeOptionalString(searchAfter);
     }
 
     /**
-     * _id getter
+     * id getter
      */
-    public String get_id() {
-        return _id;
+    public String getId() {
+        return id;
     }
 
     /**
