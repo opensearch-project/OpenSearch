@@ -21,7 +21,6 @@ import org.opensearch.arrow.spi.StreamProducer;
 import org.opensearch.arrow.spi.StreamReader;
 import org.opensearch.arrow.spi.StreamTicket;
 import org.opensearch.arrow.spi.StreamTicketFactory;
-import org.opensearch.common.SetOnce;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.unit.TimeValue;
@@ -30,6 +29,7 @@ import org.opensearch.core.tasks.TaskId;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -53,18 +53,18 @@ public class FlightStreamManager implements StreamManager {
      * Holds a StreamProducer along with its metadata and resources
      */
     record StreamProducerHolder(StreamProducer<VectorSchemaRoot, BufferAllocator> producer, BufferAllocator allocator, long creationTime,
-        SetOnce<VectorSchemaRoot> root) {
+        AtomicReference<VectorSchemaRoot> root) {
         public StreamProducerHolder {
             Objects.requireNonNull(producer, "StreamProducer cannot be null");
             Objects.requireNonNull(allocator, "BufferAllocator cannot be null");
         }
 
         static StreamProducerHolder create(StreamProducer<VectorSchemaRoot, BufferAllocator> producer, BufferAllocator allocator) {
-            return new StreamProducerHolder(producer, allocator, System.currentTimeMillis(), new SetOnce<>());
+            return new StreamProducerHolder(producer, allocator, System.nanoTime(), new AtomicReference<>(null));
         }
 
         boolean isExpired() {
-            return System.currentTimeMillis() - creationTime > producer.getJobDeadline().getMillis();
+            return System.nanoTime() - creationTime > producer.getJobDeadline().getNanos();
         }
 
         /**
@@ -72,8 +72,7 @@ public class FlightStreamManager implements StreamManager {
          * If the root is not set, it creates a new one using the provided BufferAllocator.
          */
         public VectorSchemaRoot getRoot() {
-            root.trySet(producer.createRoot(allocator));
-            return root.get();
+            return root.updateAndGet(current -> current != null ? current : producer.createRoot(allocator));
         }
     }
 
