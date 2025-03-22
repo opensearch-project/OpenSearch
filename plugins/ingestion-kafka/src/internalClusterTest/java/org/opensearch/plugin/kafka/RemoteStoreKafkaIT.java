@@ -23,6 +23,7 @@ import org.opensearch.transport.client.Requests;
 
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.is;
 
@@ -210,6 +211,27 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 );
         });
         waitForSearchableDocs(4, Arrays.asList(nodeB, nodeC));
+    }
+
+    public void testGetIngestionState() throws ExecutionException, InterruptedException {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createIndexWithDefaultSettings(1, 1);
+        ensureGreen(indexName);
+
+        GetIngestionStateResponse ingestionState = getIngestionState(new String[] { indexName }, new int[] { 0 });
+        assertEquals(0, ingestionState.getFailedShards());
+        assertEquals(1, ingestionState.getSuccessfulShards());
+        assertEquals(1, ingestionState.getTotalShards());
+        assertEquals(1, ingestionState.getShardStates().length);
+        assertEquals(0, ingestionState.getShardStates()[0].getShardId());
+        assertEquals("POLLING", ingestionState.getShardStates()[0].getPollerState());
+        assertEquals("DROP", ingestionState.getShardStates()[0].getErrorPolicy());
+        assertFalse(ingestionState.getShardStates()[0].isPollerPaused());
+
+        GetIngestionStateResponse ingestionStateForInvalidShard = getIngestionState(new String[] { indexName }, new int[] { 1 });
+        assertEquals(0, ingestionStateForInvalidShard.getTotalShards());
     }
 
     private void verifyRemoteStoreEnabled(String node) {

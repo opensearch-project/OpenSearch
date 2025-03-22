@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Transport response for pausing ingestion.
+ * Transport response for ingestion state updates.
  *
  * @opensearch.experimental
  */

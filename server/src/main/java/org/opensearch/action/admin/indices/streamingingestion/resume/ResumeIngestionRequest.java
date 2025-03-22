@@ -133,7 +133,7 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
      * @opensearch.experimental
      */
     @ExperimentalApi
-    public class ResetSettings implements Writeable {
+    public static class ResetSettings implements Writeable {
         private final int shard;
         private final String mode;
         private final String value;

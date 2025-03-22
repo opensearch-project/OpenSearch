@@ -52,8 +52,8 @@ public class ShardIngestionState implements Writeable, ToXContentFragment {
     public ShardIngestionState(StreamInput in) throws IOException {
         index = in.readString();
         shardId = in.readInt();
-        pollerState = in.readString();
-        errorPolicy = in.readString();
+        pollerState = in.readOptionalString();
+        errorPolicy = in.readOptionalString();
         isPollerPaused = in.readBoolean();
     }
 
@@ -87,12 +87,16 @@ public class ShardIngestionState implements Writeable, ToXContentFragment {
         return isPollerPaused;
     }
 
+    public String getErrorPolicy() {
+        return errorPolicy;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeInt(shardId);
-        out.writeString(pollerState);
-        out.writeString(errorPolicy);
+        out.writeOptionalString(pollerState);
+        out.writeOptionalString(errorPolicy);
         out.writeBoolean(isPollerPaused);
     }
 

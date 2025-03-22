@@ -138,6 +138,11 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
         return client().admin().indices().getIngestionState(Requests.getIngestionStateRequest(indexName)).get();
     }
 
+    protected GetIngestionStateResponse getIngestionState(String[] indexNames, int[] shards) throws ExecutionException,
+        InterruptedException {
+        return client().admin().indices().getIngestionState(Requests.getIngestionStateRequest(indexNames, shards)).get();
+    }
+
     protected PauseIngestionResponse pauseIngestion(String indexName) throws ExecutionException, InterruptedException {
         return client().admin().indices().pauseIngestion(Requests.pauseIngestionRequest(indexName)).get();
     }

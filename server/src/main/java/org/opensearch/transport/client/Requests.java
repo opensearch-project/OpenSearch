@@ -636,7 +636,9 @@ public class Requests {
     /**
      * Creates a get ingestion state request given list of indices.
      */
-    public static GetIngestionStateRequest getIngestionStateRequest(String[] indices) {
-        return new GetIngestionStateRequest(indices);
+    public static GetIngestionStateRequest getIngestionStateRequest(String[] indices, int[] shards) {
+        GetIngestionStateRequest request = new GetIngestionStateRequest(indices);
+        request.setShards(shards);
+        return request;
     }
 }
