@@ -15,7 +15,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -35,7 +34,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleResponse
      */
     public void testSerializationSingleRule() throws IOException {
-        Map<String, Rule<QueryGroupFeatureType>> map = new HashMap<>();
+        Map<String, Rule> map = new HashMap<>();
         map.put(_ID_ONE, ruleOne);
         GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), null, RestStatus.OK);
         assertEquals(response.getRules(), map);
@@ -70,7 +69,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleResponse when the result is empty
      */
     public void testSerializationNull() throws IOException {
-        Map<String, Rule<QueryGroupFeatureType>> map = new HashMap<>();
+        Map<String, Rule> map = new HashMap<>();
         GetRuleResponse response = new GetRuleResponse(map, SEARCH_AFTER, RestStatus.OK);
         assertEquals(response.getRules(), map);
 
@@ -87,7 +86,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the toXContent of GetRuleResponse
      */
     public void testToXContentGetSingleRule() throws IOException {
-        Map<String, Rule<QueryGroupFeatureType>> map = new HashMap<>();
+        Map<String, Rule> map = new HashMap<>();
         map.put(_ID_ONE, ruleOne);
         GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), SEARCH_AFTER, RestStatus.OK);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
@@ -100,7 +99,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
             + "      \"index_pattern\" : [\n"
             + "        \"pattern_1\"\n"
             + "      ],\n"
-            + "      \"query_group\" : \"label_one\",\n"
+            + "      \"query_group\" : \"feature_value_one\",\n"
             + "      \"updated_at\" : \"2024-01-26T08:58:57.558Z\"\n"
             + "    }\n"
             + "  ],\n"
