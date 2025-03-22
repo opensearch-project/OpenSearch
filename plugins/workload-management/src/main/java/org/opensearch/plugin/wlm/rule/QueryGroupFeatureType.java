@@ -12,18 +12,14 @@ import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.AutoTaggingRegistry;
 import org.opensearch.autotagging.FeatureType;
 
-import java.util.Set;
+import java.util.Map;
 
-/**
- * Represents the feature type for "query_group" in the OpenSearch workload management plugin.
- * @opensearch.experimental
- */
 public class QueryGroupFeatureType implements FeatureType {
     public static final QueryGroupFeatureType INSTANCE = new QueryGroupFeatureType();
     public static final String NAME = "query_group";
     private static final int MAX_ATTRIBUTE_VALUES = 10;
     private static final int MAX_ATTRIBUTE_VALUE_LENGTH = 100;
-    private static final Set<Attribute> ALLOWED_ATTRIBUTES = Set.of(QueryGroupAttribute.values());
+    private static final Map<String, Attribute> ALLOWED_ATTRIBUTES = QueryGroupAttribute.toMap();
 
     private QueryGroupFeatureType() {}
 
@@ -47,7 +43,7 @@ public class QueryGroupFeatureType implements FeatureType {
     }
 
     @Override
-    public Set<Attribute> getAllowedAttributes() {
+    public Map<String, Attribute> getAllowedAttributesRegistry() {
         return ALLOWED_ATTRIBUTES;
     }
 
