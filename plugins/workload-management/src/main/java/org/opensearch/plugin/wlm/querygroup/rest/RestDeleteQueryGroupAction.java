@@ -8,8 +8,8 @@
 
 package org.opensearch.plugin.wlm.querygroup.rest;
 
-import org.opensearch.plugin.wlm.action.DeleteQueryGroupAction;
-import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
+import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupAction;
+import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupRequest;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;

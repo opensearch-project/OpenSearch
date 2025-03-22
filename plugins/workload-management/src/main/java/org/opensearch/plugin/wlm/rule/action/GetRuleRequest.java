@@ -13,6 +13,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -51,7 +52,7 @@ public class GetRuleRequest extends ActionRequest {
     public GetRuleRequest(StreamInput in) throws IOException {
         super(in);
         _id = in.readOptionalString();
-        attributeFilters = in.readMap(Attribute::from, i -> new HashSet<>(i.readStringList()));
+        attributeFilters = in.readMap(i -> Attribute.from(i, QueryGroupFeatureType.INSTANCE), i -> new HashSet<>(i.readStringList()));
         searchAfter = in.readOptionalString();
     }
 

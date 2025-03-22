@@ -9,11 +9,12 @@
 package org.opensearch.plugin.wlm.rule;
 
 import org.opensearch.autotagging.Attribute;
-import org.opensearch.autotagging.AutoTaggingRegistry;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Attributes specific to the query group feature.
- * @opensearch.experimental
  */
 public enum QueryGroupAttribute implements Attribute {
     INDEX_PATTERN("index_pattern");
@@ -22,22 +23,12 @@ public enum QueryGroupAttribute implements Attribute {
 
     QueryGroupAttribute(String name) {
         this.name = name;
-    }
-
-    static {
-        for (QueryGroupAttribute attr : QueryGroupAttribute.values()) {
-            attr.registerAttribute();
-        }
+        validateAttribute();
     }
 
     @Override
     public String getName() {
         return name;
-    }
-
-    @Override
-    public void registerAttribute() {
-        AutoTaggingRegistry.registerAttribute(this);
     }
 
     public static QueryGroupAttribute fromName(String name) {
@@ -47,5 +38,13 @@ public enum QueryGroupAttribute implements Attribute {
             }
         }
         throw new IllegalArgumentException("Unknown QueryGroupAttribute: " + name);
+    }
+
+    public static Map<String, Attribute> toMap() {
+        Map<String, Attribute> map = new HashMap<>();
+        for (QueryGroupAttribute attr : QueryGroupAttribute.values()) {
+            map.put(attr.getName(), attr);
+        }
+        return map;
     }
 }
