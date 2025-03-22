@@ -68,7 +68,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.NONE,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
     }
 
@@ -124,7 +125,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.NONE,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
 
         CountDownLatch latch = new CountDownLatch(2);
@@ -161,7 +163,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.EARLIEST,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
         CountDownLatch latch = new CountDownLatch(2);
         doAnswer(invocation -> {
@@ -184,7 +187,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.LATEST,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
 
         poller.start();
@@ -203,7 +207,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.REWIND_BY_OFFSET,
             "1",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(invocation -> {
@@ -269,7 +274,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.NONE,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -308,7 +314,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.NONE,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -334,7 +341,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.NONE,
             "",
-            mockErrorStrategy
+            mockErrorStrategy,
+            StreamPoller.State.NONE
         );
         poller.start();
         Thread.sleep(sleepTime);

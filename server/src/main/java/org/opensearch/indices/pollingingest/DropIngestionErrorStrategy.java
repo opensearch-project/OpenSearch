@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class DropIngestionErrorStrategy implements IngestionErrorStrategy {
     private static final Logger logger = LogManager.getLogger(DropIngestionErrorStrategy.class);
+    private static final String NAME = "DROP";
     private final String ingestionSource;
 
     public DropIngestionErrorStrategy(String ingestionSource) {
@@ -34,4 +35,8 @@ public class DropIngestionErrorStrategy implements IngestionErrorStrategy {
         return true;
     }
 
+    @Override
+    public String getName() {
+        return NAME;
+    }
 }
