@@ -59,7 +59,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Function;
@@ -103,6 +102,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private int relocatingShards = 0;
 
     private final Map<String, Set<String>> nodesPerAttributeNames;
+    private final Map<String, Set<String>> searchNodesPerAttributeNames;
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
     private final Map<String, Recoveries> initialReplicaRecoveries = new HashMap<>();
     private final Map<String, Recoveries> initialPrimaryRecoveries = new HashMap<>();
@@ -116,6 +116,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
         this.nodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
+        this.searchNodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
 
         // fill in the nodeToShards with the "live" nodes
         for (final DiscoveryNode cursor : clusterState.nodes().getDataNodes().values()) {
@@ -297,10 +298,35 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.values().stream();
     }
 
+    /**
+     * Retrieves all unique values for a specific awareness attribute across nodes
+     * which are not dedicated search nodes.
+     * Eg: "zone" : ["zone1", "zone2", "zone3"]
+     * @param attributeName The name of the awareness attribute to collect values for
+     * @return A set of unique attribute values for the specified attribute
+     */
     public Set<String> nodesPerAttributesCounts(String attributeName) {
         return nodesPerAttributeNames.computeIfAbsent(
             attributeName,
-            ignored -> stream().map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet())
+            ignored -> stream().filter(r -> r.node().isSearchNode() == false)
+                .map(r -> r.node().getAttributes().get(attributeName))
+                .collect(Collectors.toSet())
+        );
+    }
+
+    /**
+     * Retrieves all unique values for a specific awareness attribute across nodes
+     * which are dedicated search nodes.
+     * Eg: "zone" : ["zone1", "zone2", "zone3"]
+     * @param attributeName The name of the awareness attribute to collect values for
+     * @return A set of unique attribute values for the specified attribute
+     */
+    public Set<String> searchNodesPerAttributesCounts(String attributeName) {
+        return searchNodesPerAttributeNames.computeIfAbsent(
+            attributeName,
+            ignored -> stream().filter(r -> r.node().isSearchNode())
+                .map(r -> r.node().getAttributes().get(attributeName))
+                .collect(Collectors.toSet())
         );
     }
 
