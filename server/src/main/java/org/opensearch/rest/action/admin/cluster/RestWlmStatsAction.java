@@ -75,6 +75,10 @@ public class RestWlmStatsAction extends BaseRestHandler {
             throw new IllegalArgumentException("Invalid value for 'order'. Allowed: 'asc', 'desc'.");
         }
 
+        if (!sortBy.equals("node_id") && !sortBy.equals("query_group")) {
+            throw new IllegalArgumentException("Invalid value for 'sort'. Allowed: 'node_id', 'query_group_id'.");
+        }
+
         boolean isTabular = request.rawPath().contains("_list/wlm_stats");
 
         if (isTabular) {

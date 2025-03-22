@@ -1,0 +1,35 @@
+{
+  "wlm_stats_list": {
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_list/wlm_stats",
+          "methods": ["GET"]
+        }
+      ]
+    },
+    "params": {
+      "size": {
+        "type": "int",
+        "required": false,
+        "description": "Number of results per page"
+      },
+      "next_token": {
+        "type": "string",
+        "required": false,
+        "description": "Pagination token for next page"
+      },
+      "sort": {
+        "type": "string",
+        "required": false,
+        "description": "Sort field"
+      },
+      "order": {
+        "type": "string",
+        "required": false,
+        "description": "Sort order (asc or desc)"
+      }
+    }
+  }
+}
