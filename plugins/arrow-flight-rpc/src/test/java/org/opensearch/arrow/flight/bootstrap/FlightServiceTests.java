@@ -36,7 +36,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class FlightServiceTests extends OpenSearchTestCase {
-    FeatureFlags.TestUtils.FlagLock ffLock = null;
+    FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
 
     private Settings settings;
     private ClusterService clusterService;
@@ -48,7 +48,7 @@ public class FlightServiceTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ffLock = new FeatureFlags.TestUtils.FlagLock(ARROW_STREAMS);
+        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(ARROW_STREAMS);
         int availablePort = getBasePort(9500) + port.addAndGet(1);
         settings = Settings.EMPTY;
         localNode = createNode(availablePort);

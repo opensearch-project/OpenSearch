@@ -69,7 +69,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
-    private static FeatureFlags.TestUtils.FlagLock fflock = null;
+    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
     private static final String TIMESTAMP_FIELD = "@timestamp";
     private static final MappedFieldType TIMESTAMP_FIELD_TYPE = new DateFieldMapper.DateFieldType(TIMESTAMP_FIELD);
 
@@ -81,7 +81,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     @Before
     public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagLock(STAR_TREE_INDEX);
+        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @After

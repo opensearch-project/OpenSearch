@@ -60,7 +60,7 @@ import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 
 public class StarTreeFilterTests extends AggregatorTestCase {
-    private static FeatureFlags.TestUtils.FlagLock fflock = null;
+    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
 
     private static final String FIELD_NAME = "field";
     private static final String SNDV = "sndv";
@@ -79,7 +79,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
 
     @Before
     public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagLock(STAR_TREE_INDEX);
+        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @After

@@ -12,14 +12,14 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Feature flags are used to gate the visibility/availability of incomplete features. For more information, see
  * https://featureflags.io/feature-flag-introduction/
- * Due to their specific use case, feature flag settings have several additional properties enforced by convention and code:
+ * Due to their use case, feature flag settings have several additional properties enforced by convention and code:
  * - Feature flags are boolean settings.
  * - Feature flags are static settings.
  * - Feature flags are globally available.
@@ -202,11 +202,11 @@ public class FeatureFlags {
         /**
          * Set all feature flags according to setting defaults.
          * Overwrites existing entries in feature flags map.
-         * Skips flags which are locked according to TestUtils.FlagLock.
+         * Skips flags which are write locked according to TestUtils.FlagLock.
          */
         private void initFromDefaults() {
             for (Setting<Boolean> ff : featureFlags.keySet()) {
-                if (TestUtils.FlagLock.isLocked(ff.getKey())) continue;
+                if (TestUtils.FlagWriteLock.isLocked(ff.getKey())) continue;
                 featureFlags.put(ff, ff.getDefault(Settings.EMPTY));
             }
         }
@@ -215,16 +215,40 @@ public class FeatureFlags {
          * Update feature flags according to JVM system properties.
          * Feature flags are true if system property is set as "true" (case-insensitive). Else feature set to false.
          * Overwrites existing value if system property exists.
-         * Skips flags which are locked according to TestUtils.FlagLock.
+         * Skips flags which are write locked according to TestUtils.FlagLock.
          */
         private void initFromSysProperties() {
             for (Setting<Boolean> ff : featureFlags.keySet()) {
-                if (TestUtils.FlagLock.isLocked(ff.getKey())) continue;
+                if (TestUtils.FlagWriteLock.isLocked(ff.getKey())) continue;
                 String prop = System.getProperty(ff.getKey());
                 if (prop != null) {
                     featureFlags.put(ff, Boolean.valueOf(prop));
                 }
             }
+        }
+
+        /**
+         * Update feature flags in ALL_FEATURE_FLAG_SETTINGS according to provided settings.
+         * Overwrites existing entries in feature flags map.
+         * Skips flags which are write locked according to TestUtils.FlagLock.
+         * @param settings settings to update feature flags from
+         */
+        private void initFromSettings(Settings settings) {
+            for (Setting<Boolean> ff : featureFlags.keySet()) {
+                if (settings.hasValue(ff.getKey())) {
+                    if (TestUtils.FlagWriteLock.isLocked(ff.getKey())) continue;
+                    featureFlags.put(ff, settings.getAsBoolean(ff.getKey(), ff.getDefault(settings)));
+                }
+            }
+        }
+
+        /**
+         * @param ff feature flag setting
+         * @return true if feature enabled - else false
+         */
+        boolean isEnabled(Setting<Boolean> ff) {
+            if (!featureFlags.containsKey(ff)) return false;
+            return featureFlags.get(ff);
         }
 
         /**
@@ -239,36 +263,12 @@ public class FeatureFlags {
         }
 
         /**
-         * @param ff feature flag setting
-         * @return true if feature enabled - else false
-         */
-        boolean isEnabled(Setting<Boolean> ff) {
-            if (!featureFlags.containsKey(ff)) return false;
-            return featureFlags.get(ff);
-        }
-
-        /**
-         * @param featureFlagName feature flag key to set
+         * @param featureFlagName feature flag to set
          * @param value value for flag
          */
         void set(String featureFlagName, Boolean value) {
             for (Setting<Boolean> ff : featureFlags.keySet()) {
                 if (ff.getKey().equals(featureFlagName)) featureFlags.put(ff, value);
-            }
-        }
-
-        /**
-         * Update feature flags in ALL_FEATURE_FLAG_SETTINGS according to provided settings.
-         * Overwrites existing entries in feature flags map.
-         * Skips flags which are locked according to TestUtils.FlagLock.
-         * @param settings settings to update feature flags from
-         */
-        private void initFromSettings(Settings settings) {
-            for (Setting<Boolean> ff : featureFlags.keySet()) {
-                if (settings.hasValue(ff.getKey())) {
-                    if (TestUtils.FlagLock.isLocked(ff.getKey())) continue;
-                    featureFlags.put(ff, settings.getAsBoolean(ff.getKey(), ff.getDefault(settings)));
-                }
             }
         }
     }
@@ -291,49 +291,51 @@ public class FeatureFlags {
     }
 
     /**
-     * Provides feature flag write access and synchronization for test use cases.
+     * Provides feature flag write access for test use cases.
      * To enable a feature flag for a single test case see @LockFeatureFlag annotation.
      * For more fine grain control us TestUtils.with() or explicitly construct a new FlagLock().
+     * Note: JUnit will not run test cases concurrently within a suite by default.
+     * Similarly test suites are forked and run in a separate JVM environment.
+     * As such these utility methods do not provide any thread safety.
      */
     public static class TestUtils {
         /**
-         * Maintains an internal map of re-entrant locks corresponding to feature flags.
-         * Constructing a new FlagLock sets and locks the value of that feature flag.
-         * On unlock or close the flag is unlocked and reset to its previous value.
+         * AutoCloseable helper which sets a feature flag and makes it immutable for the lifetime of the lock.
+         * Throws an exception if two locks exist for the same flag as we should never reach this state.
+         * Initializing two write locks for the same flag throws a RuntimeException.
          */
-        public static class FlagLock implements AutoCloseable {
-            private static final Map<String, ReentrantLock> flagLocks = new ConcurrentHashMap<>();
-            private final String flagKey;
+        public static class FlagWriteLock implements AutoCloseable {
+            private static final Set<String> writeLocks = new HashSet<>();
+            private final String flag;
             private final Boolean prev;
 
-            public static boolean isLocked(String flagKey) {
-                if (!flagLocks.containsKey(flagKey)) return false;
-                return flagLocks.get(flagKey).isLocked();
+            public static boolean isLocked(String flag) {
+                return writeLocks.contains(flag);
             }
 
-            public FlagLock(String flagKey) {
-                this(flagKey, true);
+            public FlagWriteLock(String flag) {
+                this(flag, true);
             }
 
-            public FlagLock(String flagKey, Boolean value) {
-                this.flagKey = flagKey;
-                this.prev = featureFlagsImpl.isEnabled(flagKey);
-                if (flagLocks.containsKey(flagKey) == false) {
-                    flagLocks.put(flagKey, new ReentrantLock());
+            public FlagWriteLock(String flag, Boolean value) {
+                if (writeLocks.contains(flag)) {
+                    throw new RuntimeException("Cannot initialize second write lock for feature flag: " + flag);
                 }
-                flagLocks.get(flagKey).lock();
-                featureFlagsImpl.set(flagKey, value);
+                this.flag = flag;
+                this.prev = featureFlagsImpl.isEnabled(flag);
+                writeLocks.add(flag);
+                featureFlagsImpl.set(flag, value);
             }
 
             public void unlock() {
-                featureFlagsImpl.set(flagKey, prev);
-                flagLocks.get(flagKey).unlock();
+                featureFlagsImpl.set(flag, prev);
+                writeLocks.remove(flag);
             }
 
             @Override
             public void close() {
-                featureFlagsImpl.set(flagKey, prev);
-                flagLocks.get(flagKey).unlock();
+                featureFlagsImpl.set(flag, prev);
+                writeLocks.remove(flag);
             }
         }
 
@@ -346,19 +348,19 @@ public class FeatureFlags {
         }
 
         /**
-         * Helper to synchronize a runnable test action on a feature flag to avoid race conditions when tests are run in parallel.
-         * Sets the feature flag back to its previous value after executing the test action.
-         * @param key feature flag setting key.
+         * Executes runnable test action with the provided feature flag enabled.
+         * Returns feature flag to previous value.
+         * @param flag feature flag setting.
          * @param action critical section to run while feature flag is set.
          */
-        public static void with(String key, ThrowingRunnable action) throws Exception {
-            try (FlagLock ignored = new FlagLock(key)) {
+        public static void with(String flag, ThrowingRunnable action) throws Exception {
+            try (FlagWriteLock ignored = new FlagWriteLock(flag)) {
                 action.run();
             }
         }
 
-        public static void with(String key, Boolean value, ThrowingRunnable action) throws Exception {
-            try (FlagLock ignored = new FlagLock(key, value)) {
+        public static void with(String flag, Boolean value, ThrowingRunnable action) throws Exception {
+            try (FlagWriteLock ignored = new FlagWriteLock(flag, value)) {
                 action.run();
             }
         }
