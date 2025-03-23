@@ -54,11 +54,11 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
  * Tests for {@link StarTreeMapper}.
  */
 public class StarTreeMapperTests extends MapperTestCase {
-    FeatureFlags.TestUtils.FlagLock ffLock = null;
+    FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
 
     @Before
     public void setup() {
-        ffLock = new FeatureFlags.TestUtils.FlagLock(STAR_TREE_INDEX);
+        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @After

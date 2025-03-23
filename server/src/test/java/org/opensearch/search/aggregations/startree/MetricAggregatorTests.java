@@ -102,14 +102,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MetricAggregatorTests extends AggregatorTestCase {
-    private static FeatureFlags.TestUtils.FlagLock fflock = null;
+    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
     private static final String FIELD_NAME = "field";
     private static final NumberFieldMapper.NumberType DEFAULT_FIELD_TYPE = NumberFieldMapper.NumberType.LONG;
     private static final MappedFieldType DEFAULT_MAPPED_FIELD = new NumberFieldMapper.NumberFieldType(FIELD_NAME, DEFAULT_FIELD_TYPE);
 
     @Before
     public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagLock(STAR_TREE_INDEX);
+        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @After

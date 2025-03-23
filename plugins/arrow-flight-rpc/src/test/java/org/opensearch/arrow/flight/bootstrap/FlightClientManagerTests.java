@@ -64,7 +64,7 @@ import static org.mockito.Mockito.when;
 
 @SuppressWarnings("unchecked")
 public class FlightClientManagerTests extends OpenSearchTestCase {
-    private static FeatureFlags.TestUtils.FlagLock ffLock = null;
+    private static FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
 
     private static BufferAllocator allocator;
     private static EventLoopGroup elg;
@@ -79,7 +79,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
     @BeforeClass
     public static void setupClass() throws Exception {
-        ffLock = new FeatureFlags.TestUtils.FlagLock(ARROW_STREAMS);
+        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(ARROW_STREAMS);
         ServerConfig.init(Settings.EMPTY);
         allocator = new RootAllocator();
         elg = ServerConfig.createELG("test-grpc-worker-elg", NettyRuntime.availableProcessors() * 2);

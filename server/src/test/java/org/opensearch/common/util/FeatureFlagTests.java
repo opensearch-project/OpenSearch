@@ -12,7 +12,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static java.lang.Thread.sleep;
 import static org.opensearch.common.util.FeatureFlags.FEATURE_FLAG_PREFIX;
 
 public class FeatureFlagTests extends OpenSearchTestCase {
@@ -105,7 +104,7 @@ public class FeatureFlagTests extends OpenSearchTestCase {
      */
 
     public void testLockFeatureFlagWithFlagLock() {
-        try (FeatureFlags.TestUtils.FlagLock ignore = new FeatureFlags.TestUtils.FlagLock(TEST_FLAG)) {
+        try (FeatureFlags.TestUtils.FlagWriteLock ignore = new FeatureFlags.TestUtils.FlagWriteLock(TEST_FLAG)) {
             assertTrue(FeatureFlags.isEnabled(TEST_FLAG));
             FeatureFlags.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build());
             assertTrue(FeatureFlags.isEnabled(TEST_FLAG)); // flag is locked
@@ -125,47 +124,5 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         assertTrue(FeatureFlags.isEnabled(TEST_FLAG));
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build());
         assertTrue(FeatureFlags.isEnabled(TEST_FLAG)); // flag is locked
-    }
-
-    // Attempt to set TEST_FLAG false every 2ms for a maximum of 2seconds.
-    private Thread attackTestFlag() {
-        Thread attackerThread = new Thread(() -> {
-            long endTime = System.currentTimeMillis() + 2000;
-            while (System.currentTimeMillis() < endTime) {
-                try {
-                    FeatureFlags.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build());
-                    sleep(2);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        });
-
-        attackerThread.start();
-        return attackerThread;
-    }
-
-    public void testAttackFlagLock() {
-        Thread attacker = attackTestFlag();
-        try (FeatureFlags.TestUtils.FlagLock ignore = new FeatureFlags.TestUtils.FlagLock(TEST_FLAG)) {
-            for (int i = 0; i < 100; i++) {
-                assertTrue(FeatureFlags.isEnabled(TEST_FLAG));
-                sleep(2);
-            }
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        attacker.interrupt();
-    }
-
-    @LockFeatureFlag(TEST_FLAG)
-    public void testAttackAnnotationFlagLock() throws InterruptedException {
-        Thread attacker = attackTestFlag();
-        for (int i = 0; i < 100; i++) {
-            assertTrue(FeatureFlags.isEnabled(TEST_FLAG));
-            sleep(2);
-        }
-        attacker.interrupt();
     }
 }

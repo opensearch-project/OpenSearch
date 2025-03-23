@@ -64,7 +64,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 public class NumericTermsAggregatorTests extends AggregatorTestCase {
-    private static FeatureFlags.TestUtils.FlagLock fflock = null;
+    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
     final static String STATUS = "status";
     final static String SIZE = "size";
     private static final MappedFieldType STATUS_FIELD_TYPE = new NumberFieldMapper.NumberFieldType(
@@ -75,7 +75,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
 
     @Before
     public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagLock(STAR_TREE_INDEX);
+        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @After

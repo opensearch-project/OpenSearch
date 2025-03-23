@@ -86,7 +86,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ExtensionsManagerTests extends OpenSearchTestCase {
-    private static FeatureFlags.TestUtils.FlagLock ffLock = null;
+    private static FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
     private TransportService transportService;
     private ActionModule actionModule;
     private DynamicActionRegistry dynamicActionRegistry;
@@ -109,7 +109,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        ffLock = new FeatureFlags.TestUtils.FlagLock(EXTENSIONS);
+        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(EXTENSIONS);
         Settings settings = Settings.builder().put("cluster.name", "test").build();
         transport = new MockNioTransport(
             settings,

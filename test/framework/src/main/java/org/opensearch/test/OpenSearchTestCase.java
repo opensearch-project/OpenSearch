@@ -244,9 +244,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     /**
      * Define LockFeatureFlag annotation for unit tests.
-     * Enables and locks a feature flag for the duration of the test case.
-     * This annotation guarantees the feature flag will be enabled for the duration of
-     * the test case. Feature flag is returned to previous value on test exit.
+     * Enables and make a flag immutable for the duration of the test case.
+     * Flag returned to previous value on test exit.
      * Usage: LockFeatureFlag("example.featureflag.setting.key.enabled")
      */
     @Retention(RetentionPolicy.RUNTIME)
@@ -257,8 +256,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static class AnnotatedFeatureFlagRule implements TestRule {
         /**
-         * If test is annotated with @LockFeatureFlag wrap the base Statement with the appropriate
-         * FeatureFlags.TestUtils.FlagLock to ensure test is synchronized on that flag.
+         * Wrap base test case with an
          * @param base test case to execute.
          * @param description annotated test description.
          */
@@ -272,7 +270,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             return new Statement() {
                 @Override
                 public void evaluate() throws Throwable {
-                    try (FeatureFlags.TestUtils.FlagLock ignored = new FeatureFlags.TestUtils.FlagLock(flagKey)) {
+                    try (FeatureFlags.TestUtils.FlagWriteLock ignored = new FeatureFlags.TestUtils.FlagWriteLock(flagKey)) {
                         base.evaluate();
                     }
                 }
