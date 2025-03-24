@@ -604,12 +604,14 @@ public class ClusterManagerService extends AbstractLifecycleComponent {
                 : "thread pool executor should only use SourcePrioritizedRunnable instances but found: "
                     + pending.task.getClass().getName();
             SourcePrioritizedRunnable task = (SourcePrioritizedRunnable) pending.task;
+            long executionTime = pending.executing ? task.getExecutionTimeInMillis() : 0;
             return new PendingClusterTask(
                 pending.insertionOrder,
                 pending.priority,
                 new Text(task.source()),
                 task.getAgeInMillis(),
-                pending.executing
+                pending.executing,
+                executionTime
             );
         }).collect(Collectors.toList());
     }
