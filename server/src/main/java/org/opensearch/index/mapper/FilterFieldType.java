@@ -33,10 +33,16 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public abstract class FilterFieldType<T extends MappedFieldType> extends MappedFieldType {
-    protected final T delegate;
+/**
+ * Wraps a {@link MappedFieldType}, delegating all methods (except typeName).
+ * <p>
+ * Subclasses can extend this class to wrap an existing {@link MappedFieldType} to reuse most functionality, while
+ * customizing/modifying some specific behavior by overriding the relevant methods.
+ */
+public abstract class FilterFieldType extends MappedFieldType {
+    protected final MappedFieldType delegate;
 
-    public FilterFieldType(T delegate) {
+    public FilterFieldType(MappedFieldType delegate) {
         super(
             delegate.name(),
             delegate.isSearchable(),
