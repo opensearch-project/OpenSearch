@@ -256,6 +256,82 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(refreshTask.isClosed());
     }
 
+    public void testPublishCheckpointTaskIsUpdated() throws Exception {
+        IndexService indexService = createIndex(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
+        );
+        IndexService.AsyncPublishCheckpointTask publishCheckpointTask = indexService.getPublishCheckpointTask();
+        assertEquals(TimeValue.timeValueMinutes(10).getSeconds(), publishCheckpointTask.getInterval().getSeconds());
+        assertTrue(indexService.getRefreshTask().mustReschedule());
+
+        // set it to 10s
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING.getKey(), "10s"))
+            .get();
+        assertNotSame(publishCheckpointTask, indexService.getPublishCheckpointTask());
+        assertTrue(publishCheckpointTask.isClosed());
+
+        publishCheckpointTask = indexService.getPublishCheckpointTask();
+        assertTrue(publishCheckpointTask.mustReschedule());
+        assertTrue(publishCheckpointTask.isScheduled());
+        assertEquals(10000, publishCheckpointTask.getInterval().millis());
+
+        // set it to 20s
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING.getKey(), "20s"))
+            .get();
+        assertNotSame(publishCheckpointTask, indexService.getPublishCheckpointTask());
+        assertTrue(publishCheckpointTask.isClosed());
+
+        publishCheckpointTask = indexService.getPublishCheckpointTask();
+        assertTrue(publishCheckpointTask.mustReschedule());
+        assertTrue(publishCheckpointTask.isScheduled());
+        assertEquals(20000, publishCheckpointTask.getInterval().millis());
+
+        // set it to 20s again
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING.getKey(), "20s"))
+            .get();
+        assertSame(publishCheckpointTask, indexService.getPublishCheckpointTask());
+        assertTrue(indexService.getPublishCheckpointTask().mustReschedule());
+        assertTrue(publishCheckpointTask.isScheduled());
+        assertFalse(publishCheckpointTask.isClosed());
+        assertEquals(20000, publishCheckpointTask.getInterval().millis());
+
+        // now close the index
+        final Index index = indexService.index();
+        assertAcked(client().admin().indices().prepareClose(index.getName()));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
+
+        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(indexService, closedIndexService);
+        assertNotSame(publishCheckpointTask, closedIndexService.getPublishCheckpointTask());
+        assertFalse(closedIndexService.getPublishCheckpointTask().mustReschedule());
+        assertFalse(closedIndexService.getPublishCheckpointTask().isClosed());
+        assertEquals(20000, closedIndexService.getPublishCheckpointTask().getInterval().millis());
+
+        // now reopen the index
+        assertAcked(client().admin().indices().prepareOpen(index.getName()));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
+        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(closedIndexService, indexService);
+        publishCheckpointTask = indexService.getPublishCheckpointTask();
+        assertTrue(indexService.getPublishCheckpointTask().mustReschedule());
+        assertTrue(publishCheckpointTask.isScheduled());
+        assertFalse(publishCheckpointTask.isClosed());
+
+        indexService.close("simon says", false);
+        assertFalse(publishCheckpointTask.isScheduled());
+        assertTrue(publishCheckpointTask.isClosed());
+    }
+
     public void testFsyncTaskIsRunning() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)

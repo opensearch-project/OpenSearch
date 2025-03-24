@@ -1593,6 +1593,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return refreshTask.getInterval();
     }
 
+    AsyncPublishCheckpointTask getPublishCheckpointTask() {
+        return publishCheckpointTask;
+    }
+
     AsyncTranslogFSync getFsyncTask() { // for tests
         return fsyncTask;
     }

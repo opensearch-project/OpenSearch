@@ -358,6 +358,63 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testPublishCheckpointInterval() {
+        String publishCheckpointInterval = getRandomTimeString(true);
+        String lagTimeBeforeResendCheckpoint = getRandomTimeString(true);
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING.getKey(), publishCheckpointInterval)
+                .put(IndexSettings.INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING.getKey(), lagTimeBeforeResendCheckpoint)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(
+            TimeValue.parseTimeValue(
+                publishCheckpointInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING.getKey()
+            ),
+            settings.getPublishCheckpointInterval()
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                lagTimeBeforeResendCheckpoint,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING.getKey()
+            ),
+            settings.getLagTimeBeforeResendCheckpoint()
+        );
+        String newPublishCheckpointInterval = getRandomTimeString(true);
+        String newLagTimeBeforeResendCheckpoint = getRandomTimeString(true);
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexSettings.INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING.getKey(), newPublishCheckpointInterval)
+                    .put(IndexSettings.INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING.getKey(), newLagTimeBeforeResendCheckpoint)
+                    .build()
+            )
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                newPublishCheckpointInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING.getKey()
+            ),
+            settings.getPublishCheckpointInterval()
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                newLagTimeBeforeResendCheckpoint,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING.getKey()
+            ),
+            settings.getLagTimeBeforeResendCheckpoint()
+        );
+    }
+
     private String getRandomTimeString(boolean nonNegativeOnly) {
         int start = -1;
         if (nonNegativeOnly) {
