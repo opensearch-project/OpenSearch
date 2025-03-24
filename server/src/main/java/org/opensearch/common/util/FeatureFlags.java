@@ -247,8 +247,7 @@ public class FeatureFlags {
          * @return true if feature enabled - else false
          */
         boolean isEnabled(Setting<Boolean> ff) {
-            if (!featureFlags.containsKey(ff)) return false;
-            return featureFlags.get(ff);
+            return featureFlags.getOrDefault(ff, false);
         }
 
         /**
