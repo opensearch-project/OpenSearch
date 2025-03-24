@@ -60,7 +60,7 @@ import java.util.function.Supplier;
 
 final class PemUtils {
 
-    private static final String BCFIPS = "BCFIPS";
+    public static final String BCFIPS = "BCFIPS";
 
     PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");

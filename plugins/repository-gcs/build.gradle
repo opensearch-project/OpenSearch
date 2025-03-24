@@ -48,8 +48,8 @@ opensearchplugin {
 }
 
 dependencies {
-  api 'com.google.api:api-common:1.8.1'
-  api 'com.google.api:gax:2.35.0'
+  api 'com.google.api:api-common:2.46.1'
+  api 'com.google.api:gax:2.63.1'
   api 'com.google.api:gax-httpjson:2.42.0'
 
   api 'com.google.apis:google-api-services-storage:v1-rev20230617-2.0.0'
@@ -202,9 +202,26 @@ thirdPartyAudit {
     'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
-    // Bump for gax 2.42.0
-    'com.google.api.gax.rpc.EndpointContext',
-    'com.google.api.gax.rpc.RequestMutator'
+
+    // opentelemetry-api is an optional dependency of com.google.api:gax
+    'io.opentelemetry.api.OpenTelemetry',
+    'io.opentelemetry.api.common.Attributes',
+    'io.opentelemetry.api.common.AttributesBuilder',
+    'io.opentelemetry.api.metrics.DoubleHistogram',
+    'io.opentelemetry.api.metrics.DoubleHistogramBuilder',
+    'io.opentelemetry.api.metrics.LongCounter',
+    'io.opentelemetry.api.metrics.LongCounterBuilder',
+    'io.opentelemetry.api.metrics.Meter',
+    'io.opentelemetry.api.metrics.MeterBuilder',
+
+    // slf4j is an optional dependency of com.google.api:gax
+    'org.slf4j.ILoggerFactory',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.MDC',
+    'org.slf4j.event.Level',
+    'org.slf4j.helpers.NOPLogger',
+    'org.slf4j.spi.LoggingEventBuilder'
   )
 }
 

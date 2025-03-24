@@ -63,7 +63,7 @@ dependencies {
   api "net.java.dev.jna:jna-platform:${versions.jna}"
   api 'com.microsoft.azure:msal4j:1.18.0'
   api 'com.nimbusds:oauth2-oidc-sdk:11.21'
-  api 'com.nimbusds:nimbus-jose-jwt:9.41.1'
+  api 'com.nimbusds:nimbus-jose-jwt:10.0.2'
   api 'com.nimbusds:content-type:2.3'
   api 'com.nimbusds:lang-tag:1.7'
   // Both msal4j:1.14.3 and oauth2-oidc-sdk:11.9.1 has compile dependency on different versions of json-smart,

@@ -103,7 +103,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase implements R
             try (RestClient client = buildRestClient()) {
                 try {
                     client.performRequest(new Request("GET", "/"));
-                    fail("connection should have been rejected due to SSL failure");
+                    fail("connection should have been rejected due to SSL handshake");
                 } catch (Exception e) {
                     assertThat(e.getCause(), instanceOf(SSLException.class));
                 }

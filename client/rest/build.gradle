@@ -29,6 +29,7 @@
  */
 
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import org.opensearch.gradle.precommit.TestingConventionsTasks
 
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
