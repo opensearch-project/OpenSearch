@@ -119,7 +119,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.gateway.GatewayRecoveryTestUtils.corruptShard;
 import static org.opensearch.gateway.GatewayRecoveryTestUtils.getDiscoveryNodes;
 import static org.opensearch.gateway.GatewayRecoveryTestUtils.prepareRequestMap;
-import static org.opensearch.gateway.GatewayService.RECOVER_AFTER_NODES_SETTING;
+import static org.opensearch.gateway.GatewayService.RECOVER_AFTER_DATA_NODES_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -411,7 +411,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) {
                 return Settings.builder()
-                    .put(RECOVER_AFTER_NODES_SETTING.getKey(), 2)
+                    .put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2)
                     .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()) // disable bootstrapping
                     .build();
             }
@@ -436,7 +436,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
-        List<String> nodes = internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        List<String> nodes = internalCluster().startNodes(2, Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build());
         Settings node1DataPathSettings = internalCluster().dataPathSettings(nodes.get(0));
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
 
@@ -520,8 +520,8 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         logger.info("--> starting the two nodes back");
 
         internalCluster().startNodes(
-            Settings.builder().put(node1DataPathSettings).put("gateway.recover_after_nodes", 2).build(),
-            Settings.builder().put(node2DataPathSettings).put("gateway.recover_after_nodes", 2).build()
+            Settings.builder().put(node1DataPathSettings).put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build(),
+            Settings.builder().put(node2DataPathSettings).put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build()
         );
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
@@ -710,7 +710,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // make sure state is not recovered
-                return Settings.builder().put(RECOVER_AFTER_NODES_SETTING.getKey(), 2).build();
+                return Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build();
             }
         });
 

@@ -395,7 +395,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
     }
 
     public void testOnTaskCompleted() {
-        Task task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
+        Task task = new SearchTask(12, "", "", () -> "", null, null);
         mockThreadPool = new TestThreadPool("queryGroupServiceTests");
         mockThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, "testId");
         QueryGroupState queryGroupState = new QueryGroupState();
@@ -442,7 +442,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
     }
 
     public void testShouldSBPHandle() {
-        QueryGroupTask task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
+        SearchTask task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
         QueryGroupState queryGroupState = new QueryGroupState();
         Set<QueryGroup> activeQueryGroups = new HashSet<>();
         mockQueryGroupStateMap.put("testId", queryGroupState);
@@ -464,6 +464,8 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         mockThreadPool = new TestThreadPool("queryGroupServiceTests");
         mockThreadPool.getThreadContext()
             .putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get());
+        // we haven't set the queryGroupId yet SBP should still track the task for cancellation
+        assertTrue(queryGroupService.shouldSBPHandle(task));
         task.setQueryGroupId(mockThreadPool.getThreadContext());
         assertTrue(queryGroupService.shouldSBPHandle(task));
 
@@ -490,6 +492,15 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         );
         assertTrue(queryGroupService.shouldSBPHandle(task));
 
+        mockThreadPool.shutdownNow();
+
+        // test the case when SBP should not track the task
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        task = new SearchTask(1, "", "test", () -> "", null, null);
+        mockThreadPool = new TestThreadPool("queryGroupServiceTests");
+        mockThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, "testId");
+        task.setQueryGroupId(mockThreadPool.getThreadContext());
+        assertFalse(queryGroupService.shouldSBPHandle(task));
     }
 
     private static Set<QueryGroup> getActiveQueryGroups(

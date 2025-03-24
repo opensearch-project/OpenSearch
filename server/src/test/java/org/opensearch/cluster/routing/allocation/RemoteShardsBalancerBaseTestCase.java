@@ -55,12 +55,12 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
         DiscoveryNodeRole.DATA_ROLE
     );
-    protected static final Set<DiscoveryNodeRole> SEARCH_DATA_ROLES = Set.of(
+    protected static final Set<DiscoveryNodeRole> WARM_DATA_ROLES = Set.of(
         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
         DiscoveryNodeRole.DATA_ROLE,
-        DiscoveryNodeRole.SEARCH_ROLE
+        DiscoveryNodeRole.WARM_ROLE
     );
-    protected static final Set<DiscoveryNodeRole> SEARCH_ONLY_ROLE = Set.of(DiscoveryNodeRole.SEARCH_ROLE);
+    protected static final Set<DiscoveryNodeRole> WARM_ONLY_ROLE = Set.of(DiscoveryNodeRole.WARM_ROLE);
 
     protected static final int PRIMARIES = 5;
     protected static final int REPLICAS = 1;
@@ -146,12 +146,12 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         if (remoteOnly) {
             for (int i = 0; i < remoteNodes; i++) {
                 String name = getNodeId(i, true);
-                nb.add(newNode(name, name, SEARCH_ONLY_ROLE));
+                nb.add(newNode(name, name, WARM_ONLY_ROLE));
             }
         } else {
             for (int i = 0; i < remoteNodes; i++) {
                 String name = getNodeId(i, true);
-                nb.add(newNode(name, name, SEARCH_DATA_ROLES));
+                nb.add(newNode(name, name, WARM_DATA_ROLES));
             }
         }
         DiscoveryNodes nodes = nb.build();

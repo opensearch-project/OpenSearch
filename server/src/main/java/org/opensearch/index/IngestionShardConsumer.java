@@ -58,19 +58,26 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
 
     /**
      * Read the next set of messages from the source
-     * @param pointer the pointer to start reading from, inclusive
+     * @param pointer the pointer to start reading from,
+     * @param includeStart whether to include the start pointer in the read
      * @param maxMessages, the maximum number of messages to read, or -1 for no limit
      * @param timeoutMillis the maximum time to wait for messages
      * @throws java.util.concurrent.TimeoutException If the operation could not be completed within {@code timeoutMillis}
      * milliseconds
      * @return a list of messages read from the source
      */
-    List<ReadResult<T, M>> readNext(T pointer, long maxMessages, int timeoutMillis) throws java.util.concurrent.TimeoutException;
+    List<ReadResult<T, M>> readNext(T pointer, boolean includeStart, long maxMessages, int timeoutMillis)
+        throws java.util.concurrent.TimeoutException;
 
     /**
-     * @return the next pointer to read from
+     * Read the next set of messages from the source using the previous pointer. An exception is thrown if no previous pointer is available.
+     * This method is used as an optimization for consecutive reads.
+     * @param maxMessages the maximum number of messages to read, or -1 for no limit
+     * @param timeoutMillis the maximum time to wait for messages
+     * @return a list of messages read from the source
+     * @throws java.util.concurrent.TimeoutException
      */
-    T nextPointer();
+    List<ReadResult<T, M>> readNext(long maxMessages, int timeoutMillis) throws java.util.concurrent.TimeoutException;
 
     /**
      * @return the earliest pointer in the shard
@@ -81,6 +88,22 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @return the latest pointer in the shard. The pointer points to the next offset of the last message in the stream.
      */
     IngestionShardPointer latestPointer();
+
+    /**
+     * Returns an ingestion shard pointer based on the provided timestamp in milliseconds.
+     *
+     * @param timestampMillis the timestamp in milliseconds
+     * @return the ingestion shard pointer corresponding to the given timestamp
+     */
+    IngestionShardPointer pointerFromTimestampMillis(long timestampMillis);
+
+    /**
+     * Returns an ingestion shard pointer based on the provided offset.
+     *
+     * @param offset the offset value
+     * @return the ingestion shard pointer corresponding to the given offset
+     */
+    IngestionShardPointer pointerFromOffset(String offset);
 
     /**
      * @return the shard id

@@ -184,6 +184,7 @@ import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
@@ -237,6 +238,7 @@ import java.util.stream.StreamSupport;
 import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.index.shard.IndexShard.ShardMigrationState.REMOTE_MIGRATING_SEEDED;
 import static org.opensearch.index.shard.IndexShard.ShardMigrationState.REMOTE_MIGRATING_UNSEEDED;
@@ -361,6 +363,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private final ShardMigrationState shardMigrationState;
     private DiscoveryNodes discoveryNodes;
+    private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -391,7 +394,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RecoverySettings recoverySettings,
         final RemoteStoreSettings remoteStoreSettings,
         boolean seedRemote,
-        final DiscoveryNodes discoveryNodes
+        final DiscoveryNodes discoveryNodes,
+        final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -448,7 +452,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             aId,
             indexSettings,
             primaryTerm,
-            UNASSIGNED_SEQ_NO,
+            getInitialGlobalCheckpointForShard(indexSettings),
             globalCheckpointListeners::globalCheckpointUpdated,
             threadPool::absoluteTimeInMillis,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
@@ -493,6 +497,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
         this.discoveryNodes = discoveryNodes;
+        this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
+    }
+
+    /**
+     * By default, UNASSIGNED_SEQ_NO is used as the initial global checkpoint for new shard initialization. Ingestion
+     * source does not track sequence numbers explicitly and hence defaults to NO_OPS_PERFORMED for compatibility.
+     *
+     */
+    private long getInitialGlobalCheckpointForShard(IndexSettings indexSettings) {
+        if (indexSettings.getIndexMetadata().useIngestionSource()) {
+            return NO_OPS_PERFORMED;
+        }
+
+        return UNASSIGNED_SEQ_NO;
     }
 
     public ThreadPool getThreadPool() {
@@ -1528,6 +1546,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public CompletionStats completionStats(String... fields) {
         readAllowed();
         return getEngine().completionStats(fields);
+    }
+
+    public PollingIngestStats pollingIngestStats() {
+        return getEngine().pollingIngestStats();
     }
 
     /**
@@ -3233,17 +3255,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ReplicationStats getReplicationStats() {
-        if (indexSettings.isSegRepEnabledOrRemoteNode() && routingEntry().primary()) {
-            final Set<SegmentReplicationShardStats> stats = getReplicationStatsForTrackedReplicas();
-            long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0L);
-            long totalBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).sum();
-            long maxReplicationLag = stats.stream()
-                .mapToLong(SegmentReplicationShardStats::getCurrentReplicationLagMillis)
-                .max()
-                .orElse(0L);
-            return new ReplicationStats(maxBytesBehind, totalBytesBehind, maxReplicationLag);
+        if (indexSettings.isSegRepEnabledOrRemoteNode() && !routingEntry().primary()) {
+            return segmentReplicationStatsProvider.apply(shardId);
         }
-        return new ReplicationStats();
+        return ReplicationStats.empty();
     }
 
     /**
@@ -5056,7 +5071,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void deleteRemoteStoreContents() throws IOException {
         deleteTranslogFilesFromRemoteTranslog();
-        getRemoteDirectory().deleteStaleSegments(0);
+        getRemoteDirectory().delete();
     }
 
     public void syncTranslogFilesFromRemoteTranslog() throws IOException {
@@ -5141,7 +5156,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
-            copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);
+            if (indexSettings.isWarmIndex() == false) {
+                copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);
+            }
 
             if (remoteSegmentMetadata != null) {
                 final SegmentInfos infosSnapshot = store.buildSegmentInfos(
@@ -5157,7 +5174,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
                 assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    : "There should not be any segments file in the dir";
+                    || indexSettings.isWarmIndex() : "There should not be any segments file in the dir";
                 store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             }
             syncSegmentSuccess = true;

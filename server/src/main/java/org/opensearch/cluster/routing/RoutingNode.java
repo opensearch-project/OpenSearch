@@ -124,6 +124,62 @@ public class RoutingNode implements Iterable<ShardRouting> {
                 Collections.unmodifiableCollection(this.shardTuple.v2().values()).stream()
             ).iterator();
         }
+
+        public int numberOfPrimaryShards() {
+            return this.shardTuple.v1().size();
+        }
+    }
+
+    static class RelocatingShardsBucket {
+        private final LinkedHashSet<ShardRouting> relocatingShards;
+        private final LinkedHashSet<ShardRouting> relocatingPrimaryShards;
+
+        RelocatingShardsBucket() {
+            relocatingShards = new LinkedHashSet<>();
+            relocatingPrimaryShards = new LinkedHashSet<>();
+        }
+
+        public boolean add(ShardRouting shard) {
+            boolean res = relocatingShards.add(shard);
+            if (shard.primary()) {
+                relocatingPrimaryShards.add(shard);
+            }
+            return res;
+        }
+
+        public boolean remove(ShardRouting shard) {
+            boolean res = relocatingShards.remove(shard);
+            relocatingPrimaryShards.remove(shard);
+            return res;
+        }
+
+        public int size() {
+            return relocatingShards.size();
+        }
+
+        public int primarySize() {
+            return relocatingPrimaryShards.size();
+        }
+
+        public Set<ShardRouting> getRelocatingShards() {
+            return Collections.unmodifiableSet(relocatingShards);
+        }
+
+        public Set<ShardRouting> getRelocatingPrimaryShards() {
+            return Collections.unmodifiableSet(relocatingPrimaryShards);
+        }
+
+        public List<ShardRouting> getRelocatingShardsList() {
+            return new ArrayList<>(relocatingShards);
+        }
+
+        // For assertions/verification
+        public boolean invariant() {
+            assert relocatingShards.containsAll(relocatingPrimaryShards);
+            assert relocatingPrimaryShards.stream().allMatch(ShardRouting::primary);
+            assert relocatingPrimaryShards.size() == relocatingShards.stream().filter(ShardRouting::primary).count();
+            return true;
+        }
     }
 
     private final String nodeId;
@@ -132,9 +188,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private final BucketedShards shards;
 
-    private final LinkedHashSet<ShardRouting> initializingShards;
+    private final RelocatingShardsBucket relocatingShardsBucket;
 
-    private final LinkedHashSet<ShardRouting> relocatingShards;
+    private final LinkedHashSet<ShardRouting> initializingShards;
 
     private final HashMap<Index, LinkedHashSet<ShardRouting>> shardsByIndex;
 
@@ -144,7 +200,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         final LinkedHashMap<ShardId, ShardRouting> primaryShards = new LinkedHashMap<>();
         final LinkedHashMap<ShardId, ShardRouting> replicaShards = new LinkedHashMap<>();
         this.shards = new BucketedShards(primaryShards, replicaShards);
-        this.relocatingShards = new LinkedHashSet<>();
+        this.relocatingShardsBucket = new RelocatingShardsBucket();
         this.initializingShards = new LinkedHashSet<>();
         this.shardsByIndex = new LinkedHashMap<>();
 
@@ -152,7 +208,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
             if (shardRouting.initializing()) {
                 initializingShards.add(shardRouting);
             } else if (shardRouting.relocating()) {
-                relocatingShards.add(shardRouting);
+                relocatingShardsBucket.add(shardRouting);
             }
             shardsByIndex.computeIfAbsent(shardRouting.index(), k -> new LinkedHashSet<>()).add(shardRouting);
 
@@ -231,7 +287,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         if (shard.initializing()) {
             initializingShards.add(shard);
         } else if (shard.relocating()) {
-            relocatingShards.add(shard);
+            relocatingShardsBucket.add(shard);
         }
         shardsByIndex.computeIfAbsent(shard.index(), k -> new LinkedHashSet<>()).add(shard);
         assert invariant();
@@ -251,7 +307,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
             boolean exist = initializingShards.remove(oldShard);
             assert exist : "expected shard " + oldShard + " to exist in initializingShards";
         } else if (oldShard.relocating()) {
-            boolean exist = relocatingShards.remove(oldShard);
+            boolean exist = relocatingShardsBucket.remove(oldShard);
             assert exist : "expected shard " + oldShard + " to exist in relocatingShards";
         }
         shardsByIndex.get(oldShard.index()).remove(oldShard);
@@ -261,7 +317,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         if (newShard.initializing()) {
             initializingShards.add(newShard);
         } else if (newShard.relocating()) {
-            relocatingShards.add(newShard);
+            relocatingShardsBucket.add(newShard);
         }
         shardsByIndex.computeIfAbsent(newShard.index(), k -> new LinkedHashSet<>()).add(newShard);
         assert invariant();
@@ -275,7 +331,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
             boolean exist = initializingShards.remove(shard);
             assert exist : "expected shard " + shard + " to exist in initializingShards";
         } else if (shard.relocating()) {
-            boolean exist = relocatingShards.remove(shard);
+            boolean exist = relocatingShardsBucket.remove(shard);
             assert exist : "expected shard " + shard + " to exist in relocatingShards";
         }
         shardsByIndex.get(shard.index()).remove(shard);
@@ -295,7 +351,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
             if (states[0] == ShardRoutingState.INITIALIZING) {
                 return initializingShards.size();
             } else if (states[0] == ShardRoutingState.RELOCATING) {
-                return relocatingShards.size();
+                return relocatingShardsBucket.size();
             }
         }
 
@@ -320,7 +376,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
             if (states[0] == ShardRoutingState.INITIALIZING) {
                 return new ArrayList<>(initializingShards);
             } else if (states[0] == ShardRoutingState.RELOCATING) {
-                return new ArrayList<>(relocatingShards);
+                return relocatingShardsBucket.getRelocatingShardsList();
             }
         }
 
@@ -354,7 +410,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
                 }
                 return shards;
             } else if (states[0] == ShardRoutingState.RELOCATING) {
-                for (ShardRouting shardEntry : relocatingShards) {
+                for (ShardRouting shardEntry : relocatingShardsBucket.getRelocatingShards()) {
                     if (shardEntry.getIndexName().equals(index) == false) {
                         continue;
                     }
@@ -381,7 +437,11 @@ public class RoutingNode implements Iterable<ShardRouting> {
      * The number of shards on this node that will not be eventually relocated.
      */
     public int numberOfOwningShards() {
-        return shards.size() - relocatingShards.size();
+        return shards.size() - relocatingShardsBucket.size();
+    }
+
+    public int numberOfOwningPrimaryShards() {
+        return shards.numberOfPrimaryShards() - relocatingShardsBucket.primarySize();
     }
 
     public int numberOfOwningShardsForIndex(final Index index) {
@@ -390,6 +450,20 @@ public class RoutingNode implements Iterable<ShardRouting> {
             return 0;
         } else {
             return Math.toIntExact(shardRoutings.stream().filter(sr -> sr.relocating() == false).count());
+        }
+    }
+
+    public int numberOfOwningPrimaryShardsForIndex(final Index index) {
+        final LinkedHashSet<ShardRouting> shardRoutings = shardsByIndex.get(index);
+        if (shardRoutings == null) {
+            return 0;
+        } else {
+            return Math.toIntExact(
+                shardRoutings.stream()
+                    .filter(sr -> sr.relocating() == false)
+                    .filter(ShardRouting::primary)    // Add this filter for primary shards
+                    .count()
+            );
         }
     }
 
@@ -441,8 +515,19 @@ public class RoutingNode implements Iterable<ShardRouting> {
         Collection<ShardRouting> shardRoutingsRelocating = StreamSupport.stream(shards.spliterator(), false)
             .filter(ShardRouting::relocating)
             .collect(Collectors.toList());
-        assert relocatingShards.size() == shardRoutingsRelocating.size();
-        assert relocatingShards.containsAll(shardRoutingsRelocating);
+        assert relocatingShardsBucket.getRelocatingShards().size() == shardRoutingsRelocating.size();
+        assert relocatingShardsBucket.getRelocatingShards().containsAll(shardRoutingsRelocating);
+
+        // relocatingPrimaryShards must be consistent with primary shards that are relocating
+        Collection<ShardRouting> primaryShardRoutingsRelocating = StreamSupport.stream(shards.spliterator(), false)
+            .filter(ShardRouting::relocating)
+            .filter(ShardRouting::primary)
+            .collect(Collectors.toList());
+        assert relocatingShardsBucket.getRelocatingPrimaryShards().size() == primaryShardRoutingsRelocating.size();
+        assert relocatingShardsBucket.getRelocatingPrimaryShards().containsAll(primaryShardRoutingsRelocating);
+
+        // relocatingPrimaryShards and relocatingShards should be consistent
+        assert relocatingShardsBucket.invariant();
 
         final Map<Index, Set<ShardRouting>> shardRoutingsByIndex = StreamSupport.stream(shards.spliterator(), false)
             .collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
