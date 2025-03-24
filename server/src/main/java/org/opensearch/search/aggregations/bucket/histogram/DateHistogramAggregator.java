@@ -139,7 +139,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         DateHistogramAggregatorBridge bridge = new DateHistogramAggregatorBridge() {
             @Override
-            protected boolean canOptimize() {
+            protected boolean canOptimize(int subAggLength) {
                 return canOptimize(valuesSourceConfig, rounding);
             }
 

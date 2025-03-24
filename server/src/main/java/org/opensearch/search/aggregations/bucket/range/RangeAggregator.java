@@ -284,7 +284,7 @@ public class RangeAggregator extends BucketsAggregator {
 
         RangeAggregatorBridge bridge = new RangeAggregatorBridge() {
             @Override
-            protected boolean canOptimize() {
+            protected boolean canOptimize(int subAggLength) {
                 return canOptimize(config, ranges);
             }
 

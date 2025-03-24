@@ -75,7 +75,7 @@ public final class FilterRewriteOptimizationContext {
         if (parent != null) return false;
         this.subAggLength = subAggLength;
 
-        boolean canOptimize = aggregatorBridge.canOptimize();
+        boolean canOptimize = aggregatorBridge.canOptimize(subAggLength);
         if (canOptimize) {
             aggregatorBridge.setRangesConsumer(this::setRanges);
 
@@ -142,7 +142,10 @@ public final class FilterRewriteOptimizationContext {
                 try {
                     return new DocIdSetBuilder(leafCtx.reader().maxDoc(), values, aggregatorBridge.fieldType.name());
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new RuntimeException(
+                        "Failed to do filter rewrite optimization due to IOException when building DocIdSetBuilder",
+                        e
+                    );
                 }
             };
         }

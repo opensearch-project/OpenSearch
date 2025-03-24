@@ -160,7 +160,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         DateHistogramAggregatorBridge bridge = new DateHistogramAggregatorBridge() {
             @Override
-            protected boolean canOptimize() {
+            protected boolean canOptimize(int subAggLength) {
                 return canOptimize(valuesSourceConfig, roundingInfos[0].rounding);
             }
 

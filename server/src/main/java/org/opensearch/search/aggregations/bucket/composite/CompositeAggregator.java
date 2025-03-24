@@ -172,7 +172,10 @@ public final class CompositeAggregator extends BucketsAggregator {
             private long afterKey = -1L;
 
             @Override
-            protected boolean canOptimize() {
+            protected boolean canOptimize(int subAggLength) {
+                if (subAggLength > 0) {
+                    return false;
+                }
                 if (canOptimize(sourceConfigs)) {
                     this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
                     if (rawAfterKey != null) {
