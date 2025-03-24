@@ -13,8 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.PriorityQueue;
 
 /**
  * @opensearch.internal
@@ -34,7 +37,7 @@ final class BalancedDocsSliceSupplier {
      *
      * @param leaves List of LeafReaderContext to be sliced
      * @param targetMaxSlice Maximum number of desired slices
-     * @return Array of LeafSlice containing balanced distribution of readers
+     * @return Array of LeafSlice containing balanced distribution of readers;
      */
     public static IndexSearcher.LeafSlice[] getSlices(List<LeafReaderContext> leaves, int targetMaxSlice) {
         if (targetMaxSlice <= 0) {

@@ -250,7 +250,6 @@ final class DefaultSearchContext extends SearchContext {
             concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_AUTO)
                 || concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL) ? executor : null,
             this
-
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
@@ -1103,6 +1102,19 @@ final class DefaultSearchContext extends SearchContext {
                 clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING)
             );
 
+    }
+
+    @Override
+    public boolean shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch() {
+        if (shouldUseConcurrentSearch() == false) {
+            throw new IllegalStateException("Experimental slicing cannot be enabled when concurrent search is disabled");
+        }
+        return indexService.getIndexSettings()
+            .getSettings()
+            .getAsBoolean(
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SHOULD_USE_EXPERIMENTAL_BALANCED_SLICING.getKey(),
+                clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_USE_EXPERIMENTAL_SLICING_SETTING)
+            );
     }
 
     @Override

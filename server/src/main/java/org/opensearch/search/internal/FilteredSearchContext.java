@@ -579,6 +579,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch() {
+        return in.shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch();
+    }
+
+    @Override
     public boolean shouldUseTimeSeriesDescSortOptimization() {
         return in.shouldUseTimeSeriesDescSortOptimization();
     }

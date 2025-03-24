@@ -67,6 +67,7 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
@@ -111,6 +112,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
     private SearchContext searchContext;
+
+    public static final Setting<Boolean> CLUSTER_USE_EXPERIMENTAL_SLICE = Setting.boolSetting(
+        "cluster.indices.experimental_slicing.enable",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -599,21 +607,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (targetMaxSlice == 0) {
             // use the default lucene slice calculation
             leafSlices = super.slices(leaves);
-            logger.debug("Slice count using lucene default [{}]", leafSlices.length);
+            logger.info("Slice count using lucene default [{}]", leafSlices.length);
         } else if (shouldUseMaxTargetSlice()) {
             // use the custom slice calculation based on targetMaxSlice
             leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
-            logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
+            logger.info("Slice count using max target slice supplier [{}]", leafSlices.length);
         } else {
             leafSlices = BalancedDocsSliceSupplier.getSlices(leaves, targetMaxSlice);
-            logger.debug("Slice count using balanced docs slice supplier [{}]", leafSlices.length);
+            logger.info("Slice count using balanced docs slice supplier [{}]", leafSlices.length);
         }
         return leafSlices;
     }
 
-    private boolean shouldUseMaxTargetSlice() {
+    // package-private for testing
+    boolean shouldUseMaxTargetSlice() {
         // Testing on big5-100 revealed that MaxTargetSliceSupplier was much faster when executing scroll queries.
-        // Otherwise the BalancedDocsSliceSupplier was faster or equivalent performance.
+        // Otherwise the BalancedDocsSliceSupplier had faster or equivalent performance.
+        // In the initial PR balanced docs slicing is disabled unless an experimental setting is enabled.
+        if (!searchContext.shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch()) return true;
         return searchContext.scrollContext() != null;
     }
 }

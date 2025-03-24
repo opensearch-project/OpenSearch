@@ -65,7 +65,7 @@ public class IndexReaderUtils {
                 final String fieldValue = "value" + i;
                 for (int j = 0; j < docCounts[i]; j++) {
                     Document document = new Document();
-                    document.add(new StringField("field1:" +j , fieldValue, Field.Store.NO));
+                    document.add(new StringField("field1:" + j, fieldValue, Field.Store.NO));
                     document.add(new StringField("field2:" + j, fieldValue, Field.Store.NO));
                     iw.addDocument(document);
                 }

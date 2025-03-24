@@ -308,6 +308,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final String CONCURRENT_SEGMENT_SEARCH_USE_EXPERIMENTAL_SLICING_KEY = "search.concurrent.experimental_slicing.enable";
+    public static final boolean CONCURRENT_SEGMENT_SEARCH_USE_EXPERIMENTAL_SLICING_DEFAULT_VALUE = false;
+
+    public static final Setting<Boolean> CONCURRENT_SEGMENT_SEARCH_USE_EXPERIMENTAL_SLICING_SETTING = Setting.boolSetting(
+        CONCURRENT_SEGMENT_SEARCH_USE_EXPERIMENTAL_SLICING_KEY,
+        CONCURRENT_SEGMENT_SEARCH_USE_EXPERIMENTAL_SLICING_DEFAULT_VALUE,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // value 0 means rewrite filters optimization in aggregations will be disabled
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
         "search.max_aggregation_rewrite_filters",
