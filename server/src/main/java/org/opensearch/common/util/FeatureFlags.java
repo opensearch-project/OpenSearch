@@ -28,8 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class FeatureFlags {
     // Prefixes public for testing
-    public static final String OS_EXPERIMENTAL_PREFIX = "opensearch.experimental.";
-    public static final String FEATURE_FLAG_PREFIX = OS_EXPERIMENTAL_PREFIX + "feature.";
+    private static final String OS_EXPERIMENTAL_PREFIX = "opensearch.experimental.";
+    static final String FEATURE_FLAG_PREFIX = OS_EXPERIMENTAL_PREFIX + "feature.";
 
     /**
      * Gates the visibility of the remote store to docrep migration.
