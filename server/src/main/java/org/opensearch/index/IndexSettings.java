@@ -784,7 +784,7 @@ public final class IndexSettings {
 
     public static final Setting<TimeValue> INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING = Setting.timeSetting(
         "index.publish_checkpoint_interval",
-        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMinutes(10),
         TimeValue.timeValueSeconds(1),
         Property.Dynamic,
         Property.IndexScope

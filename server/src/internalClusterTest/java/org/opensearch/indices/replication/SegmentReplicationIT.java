@@ -143,7 +143,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .build();
 
         final String primaryNode = internalCluster().startDataOnlyNode(mockNodeSetting);
-        createIndex(INDEX_NAME);
+        createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).build());
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         final String replicaNode = internalCluster().startDataOnlyNode(mockNodeSetting);
         ensureGreen(INDEX_NAME);
@@ -217,19 +217,19 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         logger.info("ensure publish checkpoint request can be process");
         mockReplicaReceivePublishCheckpointException.set(false);
 
-        waitForSearchableDocs(1, primary, replica);
-        replicaTransportService.clearAllRules();
-
         assertAcked(
             client().admin()
                 .indices()
                 .prepareUpdateSettings(INDEX_NAME)
                 .setSettings(
                     Settings.builder()
-                        .put(IndexSettings.INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3))
-                        .put(IndexSettings.INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING.getKey(), TimeValue.timeValueSeconds(3))
+                        .put(IndexSettings.INDEX_PUBLISH_CHECKPOINT_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                        .put(IndexSettings.INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING.getKey(), TimeValue.timeValueSeconds(1))
                 )
         );
+
+        waitForSearchableDocs(1, primary, replica);
+        replicaTransportService.clearAllRules();
 
         // index another doc but don't refresh, we will ensure this is searchable once replica is promoted.
         client().prepareIndex(INDEX_NAME).setId("2").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
