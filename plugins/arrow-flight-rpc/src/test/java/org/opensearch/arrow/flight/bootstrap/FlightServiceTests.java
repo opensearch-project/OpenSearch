@@ -148,6 +148,7 @@ public class FlightServiceTests extends OpenSearchTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        ffLock.close();
     }
 
     private DiscoveryNode createNode(int port) throws Exception {
