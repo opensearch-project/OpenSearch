@@ -52,9 +52,9 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
     private static KeyManagerFactory getTestKeyManagerFactory() {
         KeyManagerFactory keyManagerFactory;
         try {
-            final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            final KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             keyStore.load(SecureNetty4GrpcServerTransport.class.getResourceAsStream("/netty4-secure.jks"), "password".toCharArray());
-            keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+            keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             keyManagerFactory.init(keyStore, "password".toCharArray());
         } catch (UnrecoverableKeyException | CertificateException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
