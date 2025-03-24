@@ -56,7 +56,7 @@ dependencies {
   api "io.netty:netty-resolver-dns:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
   implementation project(':modules:transport-netty4')
-  api 'com.azure:azure-storage-blob:12.29.1'
+  api 'com.azure:azure-storage-blob:12.30.0'
   api 'com.azure:azure-identity:1.14.2'
   // Start of transitive dependencies for azure-identity
   api 'com.microsoft.azure:msal4j-persistence-extension:1.3.0'
