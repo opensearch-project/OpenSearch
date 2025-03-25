@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Migrate BC libs to their FIPS counterparts ([#14912](https://github.com/opensearch-project/OpenSearch/pull/14912))
 - Increase the floor segment size to 16MB ([#17699](https://github.com/opensearch-project/OpenSearch/pull/17699))
 - Introduce 512 byte limit to search and ingest pipeline IDs ([#17786](https://github.com/opensearch-project/OpenSearch/pull/17786))
+- The `_update` API is now implemented as a special case of the `_bulk` API [#17679](https://github.com/opensearch-project/OpenSearch/pull/17679)
 
 ### Dependencies
 - Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 10.0.2 ([#17607](https://github.com/opensearch-project/OpenSearch/pull/17607), [#17669](https://github.com/opensearch-project/OpenSearch/pull/17669))
@@ -44,8 +45,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.api.grpc:proto-google-common-protos` from 2.52.0 to 2.54.1 ([#17733](https://github.com/opensearch-project/OpenSearch/pull/17733))
 - Bump `ch.qos.logback:logback-classic` from 1.5.17 to 1.5.18 ([#17730](https://github.com/opensearch-project/OpenSearch/pull/17730))
 - Bump `reactor_netty` from 1.1.26 to 1.2.3 ([#17322](https://github.com/opensearch-project/OpenSearch/pull/17322), [#17377](https://github.com/opensearch-project/OpenSearch/pull/17377))
-
-### Changed
 
 ### Deprecated
 
