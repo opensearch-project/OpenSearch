@@ -516,6 +516,8 @@ public abstract class SearchContext implements Releasable {
 
     public abstract int getTargetMaxSliceCount();
 
+    public abstract boolean shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch();
+
     public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 
     public int maxAggRewriteFilters() {

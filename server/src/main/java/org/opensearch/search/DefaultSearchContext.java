@@ -1105,6 +1105,19 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch() {
+        if (shouldUseConcurrentSearch() == false) {
+            throw new IllegalStateException("Experimental slicing cannot be enabled when concurrent search is disabled");
+        }
+        return indexService.getIndexSettings()
+            .getSettings()
+            .getAsBoolean(
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SHOULD_USE_EXPERIMENTAL_BALANCED_SLICING.getKey(),
+                clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_USE_EXPERIMENTAL_SLICING_SETTING)
+            );
+    }
+
+    @Override
     public boolean shouldUseTimeSeriesDescSortOptimization() {
         return indexShard.isTimeSeriesDescSortOptimizationEnabled()
             && sort != null

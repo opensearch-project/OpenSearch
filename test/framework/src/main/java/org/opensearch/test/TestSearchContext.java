@@ -122,6 +122,7 @@ public class TestSearchContext extends SearchContext {
     protected boolean concurrentSegmentSearchEnabled;
     private BucketCollectorProcessor bucketCollectorProcessor = NO_OP_BUCKET_COLLECTOR_PROCESSOR;
     private int maxSliceCount;
+    private boolean shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch;
 
     /**
      * Sets the concurrent segment search enabled field
@@ -175,6 +176,7 @@ public class TestSearchContext extends SearchContext {
         this.concurrentSegmentSearchEnabled = searcher != null; /* executor is always set */
         this.maxSliceCount = randomIntBetween(0, 2);
         this.scrollContext = scrollContext;
+        this.shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch = false;
     }
 
     public void setSearcher(ContextIndexSearcher searcher) {
@@ -702,6 +704,12 @@ public class TestSearchContext extends SearchContext {
     public int getTargetMaxSliceCount() {
         assert concurrentSegmentSearchEnabled == true : "Please use concurrent search before fetching maxSliceCount";
         return maxSliceCount;
+    }
+
+    @Override
+    public boolean shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch() {
+        assert concurrentSegmentSearchEnabled == true : "Please use concurrent search before enabling experimental balanced slicing";
+        return shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch;
     }
 
     @Override

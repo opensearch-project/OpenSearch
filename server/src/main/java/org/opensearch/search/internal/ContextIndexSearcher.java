@@ -600,11 +600,23 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // use the default lucene slice calculation
             leafSlices = super.slices(leaves);
             logger.debug("Slice count using lucene default [{}]", leafSlices.length);
-        } else {
+        } else if (shouldUseMaxTargetSlice()) {
             // use the custom slice calculation based on targetMaxSlice
             leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
             logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
+        } else {
+            leafSlices = BalancedDocsSliceSupplier.getSlices(leaves, targetMaxSlice);
+            logger.debug("Slice count using balanced docs slice supplier [{}]", leafSlices.length);
         }
         return leafSlices;
+    }
+
+    // package-private for testing
+    boolean shouldUseMaxTargetSlice() {
+        // Testing on big5-100 revealed that MaxTargetSliceSupplier was much faster when executing scroll queries.
+        // Otherwise the BalancedDocsSliceSupplier had faster or equivalent performance.
+        // In the initial PR balanced docs slicing is disabled unless an experimental setting is enabled.
+        if (!searchContext.shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch()) return true;
+        return searchContext.scrollContext() != null;
     }
 }
