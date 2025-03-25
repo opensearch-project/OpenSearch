@@ -119,22 +119,34 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
-    public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(KafkaOffset offset, long maxMessages, int timeoutMillis)
-        throws TimeoutException {
+    public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(
+        KafkaOffset offset,
+        boolean includeStart,
+        long maxMessages,
+        int timeoutMillis
+    ) throws TimeoutException {
         List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
-            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(offset.getOffset(), maxMessages, timeoutMillis)
+            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(
+                offset.getOffset(),
+                includeStart,
+                maxMessages,
+                timeoutMillis
+            )
         );
         return records;
     }
 
     @Override
-    public KafkaOffset nextPointer() {
-        return new KafkaOffset(lastFetchedOffset + 1);
-    }
-
-    @Override
-    public KafkaOffset nextPointer(KafkaOffset pointer) {
-        return new KafkaOffset(pointer.getOffset() + 1);
+    public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(long maxMessages, int timeoutMillis) throws TimeoutException {
+        List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
+            (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(
+                lastFetchedOffset,
+                false,
+                maxMessages,
+                timeoutMillis
+            )
+        );
+        return records;
     }
 
     @Override
@@ -191,18 +203,28 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         return new KafkaOffset(offsetValue);
     }
 
-    private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(long startOffset, long maxMessages, int timeoutMillis) {
-        if (lastFetchedOffset < 0 || lastFetchedOffset != startOffset - 1) {
-            logger.info("Seeking to offset {}", startOffset);
-            consumer.seek(topicPartition, startOffset);
+    private synchronized List<ReadResult<KafkaOffset, KafkaMessage>> fetch(
+        long startOffset,
+        boolean includeStart,
+        long maxMessages,
+        int timeoutMillis
+    ) {
+        long kafkaStartOffset = startOffset;
+        if (!includeStart) {
+            kafkaStartOffset += 1;
+        }
+
+        if (lastFetchedOffset < 0 || lastFetchedOffset != kafkaStartOffset - 1) {
+            logger.info("Seeking to offset {}", kafkaStartOffset);
+            consumer.seek(topicPartition, kafkaStartOffset);
             // update the last fetched offset so that we don't need to seek again if no more messages to fetch
-            lastFetchedOffset = startOffset - 1;
+            lastFetchedOffset = kafkaStartOffset - 1;
         }
 
         ConsumerRecords<byte[], byte[]> consumerRecords = consumer.poll(Duration.ofMillis(timeoutMillis));
         List<ConsumerRecord<byte[], byte[]>> messageAndOffsets = consumerRecords.records(topicPartition);
 
-        long endOffset = startOffset + maxMessages;
+        long endOffset = kafkaStartOffset + maxMessages;
         List<ReadResult<KafkaOffset, KafkaMessage>> results = new ArrayList<>();
 
         for (ConsumerRecord<byte[], byte[]> messageAndOffset : messageAndOffsets) {
