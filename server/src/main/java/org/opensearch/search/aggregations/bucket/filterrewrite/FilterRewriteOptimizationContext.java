@@ -213,7 +213,7 @@ public final class FilterRewriteOptimizationContext {
         private final AtomicInteger leafNodeVisited = new AtomicInteger(); // leaf node visited
         private final AtomicInteger innerNodeVisited = new AtomicInteger(); // inner node visited
 
-        public DocIdSetBuilder[] builders;
+        public DocIdSetBuilder[] builders = new DocIdSetBuilder[0];
 
         public void visitLeaf() {
             leafNodeVisited.incrementAndGet();
