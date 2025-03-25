@@ -39,6 +39,9 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  * @opensearch.experimental
  */
 public class RestGetRuleAction extends BaseRestHandler {
+    /**
+     * Field name used for search pagination with the search_after mechanism
+     */
     public static final String SEARCH_AFTER_STRING = "search_after";
 
     /**
