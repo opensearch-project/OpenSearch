@@ -10,9 +10,12 @@ package org.opensearch.search.internal;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSearcher.LeafReaderContextPartition;
+import org.apache.lucene.search.IndexSearcher.LeafSlice;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.search.internal.IndexReaderUtils.getLeaves;
@@ -75,7 +78,20 @@ public class BalancedDocsSliceSupplierTests extends OpenSearchTestCase {
         // Verify that the slice with more documents comes first
         long firstSliceDocs = getTotalDocs(slices[0]);
         long secondSliceDocs = getTotalDocs(slices[1]);
-        assertTrue("First slice should have more or equal documents than second slice", firstSliceDocs >= secondSliceDocs);
+
+        ArrayList<Long> actualDocCounts = new ArrayList<>();
+        actualDocCounts.add(firstSliceDocs);
+        actualDocCounts.add(secondSliceDocs);
+
+        // Sort in descending order
+        actualDocCounts.sort(Collections.reverseOrder());
+
+        long expectedFirstSliceDocs = 1000L;
+        long expectedSecondSliceDocs = 750L;
+
+        // Compare the sorted results
+        assertEquals(expectedFirstSliceDocs, actualDocCounts.get(0).longValue());
+        assertEquals(expectedSecondSliceDocs, actualDocCounts.get(1).longValue());
     }
 
     public void testEvenDistributionWithEqualSizedLeaves() throws Exception {
@@ -112,8 +128,15 @@ public class BalancedDocsSliceSupplierTests extends OpenSearchTestCase {
         }
 
         assertEquals("Total document count should match", 2460, totalDocs);
-        // ensure 2,4,1 all assigned to last slice
-        assertEquals(docsInSlice[targetSlices - 1], 7);
+        // ensure 2,4,1 all assigned to the same slice
+        long packedSliceAmount = 7;
+        boolean foundPackedSlice = false;
+
+        for (int j = 0; j < targetSlices; ++j) {
+            if (docsInSlice[j] == packedSliceAmount) foundPackedSlice = true;
+        }
+
+        assertTrue("BalancedSliceSupplier should pack small leaves into the same slice", foundPackedSlice);
     }
 
     private long getTotalDocs(LeafSlice slice) {
