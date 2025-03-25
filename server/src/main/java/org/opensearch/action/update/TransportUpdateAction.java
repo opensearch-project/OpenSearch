@@ -46,13 +46,10 @@ import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 /**
- * Performs the update operation.
- * <p>
- * Deprecated use TransportBulkAction with a single item instead
+ * Performs the update operation by delegating to {@link TransportBulkAction} with a single update operation.
  *
  * @opensearch.internal
  */
-@Deprecated
 public class TransportUpdateAction extends HandledTransportAction<UpdateRequest, UpdateResponse> {
 
     private final TransportBulkAction bulkAction;
