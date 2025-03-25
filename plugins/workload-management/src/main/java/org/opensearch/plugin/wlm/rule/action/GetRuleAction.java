@@ -16,10 +16,19 @@ import org.opensearch.action.ActionType;
  */
 public class GetRuleAction extends ActionType<GetRuleResponse> {
 
+    /**
+     * An instance of GetRuleAction
+     */
     public static final GetRuleAction INSTANCE = new GetRuleAction();
 
+    /**
+     * Name for GetRuleAction
+     */
     public static final String NAME = "cluster:admin/opensearch/wlm/rule/_get";
 
+    /**
+     * Default constructor for GetRuleAction
+     */
     private GetRuleAction() {
         super(NAME, GetRuleResponse::new);
     }
