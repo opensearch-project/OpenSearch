@@ -399,8 +399,9 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                     null,
                     searchContext
                 );
-                // Case 1: Verify getSlices returns not null when concurrent segment search is disabled
                 assertEquals(1, searcher.getSlices().length);
+                
+                // Case 1: Verify getSlices returns not null when concurrent segment search is disabled
 
                 // Case 2: Verify the slice count when custom max slice computation is used
                 searcher = new ContextIndexSearcher(
@@ -436,11 +437,11 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
 
     public void testSlicesInternalWithScrollContext() throws Exception {
         final List<LeafReaderContext> leaves = getLeaves(10);
-        try (Directory directory = newDirectory()) {
+        try (Directory directory = newDirectory();
             IndexWriter iw = new IndexWriter(
                 directory,
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
-            );
+            );) {
 
             Document document = new Document();
             document.add(new StringField("field1", "value1", Field.Store.NO));
