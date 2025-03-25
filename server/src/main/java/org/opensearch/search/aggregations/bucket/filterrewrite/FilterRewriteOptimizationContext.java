@@ -102,14 +102,13 @@ public final class FilterRewriteOptimizationContext {
      * Usage: invoked at segment level — in getLeafCollector of aggregator
      *
      * @param incrementDocCount consume the doc_count results for certain ordinal
-     * @param segmentMatchAll if your optimization can prepareFromSegment, you should pass in this flag to decide whether to prepareFromSegment
+     * @param segmentMatchAll   if your optimization can prepareFromSegment, you should pass in this flag to decide whether to prepareFromSegment
      */
     public boolean tryOptimize(
         final LeafReaderContext leafCtx,
         final BiConsumer<Long, Long> incrementDocCount,
         boolean segmentMatchAll,
-        BucketCollector collectableSubAggregators,
-        LeafBucketCollector sub
+        BucketCollector collectableSubAggregators
     ) throws IOException {
         segments.incrementAndGet();
         if (!canOptimize) {
@@ -143,25 +142,32 @@ public final class FilterRewriteOptimizationContext {
         optimizedSegments.incrementAndGet();
         logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
         logger.debug("Crossed leaf nodes: {}, inner nodes: {}", leafNodeVisited, innerNodeVisited);
-
         if (hasSubAgg) {
-            for (int bucketOrd = 0; bucketOrd < optimizeResult.builders.length; bucketOrd++) {
-                logger.debug("Collecting bucket {} for sub aggregation", bucketOrd);
-                DocIdSetBuilder builder = optimizeResult.builders[bucketOrd];
-                if (builder == null) {
-                    continue;
-                }
-                DocIdSetIterator iterator = optimizeResult.builders[bucketOrd].build().iterator();
-                while (iterator.nextDoc() != NO_MORE_DOCS) {
-                    int currentDoc = iterator.docID();
-                    sub.collect(currentDoc, bucketOrd);
-                }
-                // resetting the sub collector after processing each bucket
-                sub = collectableSubAggregators.getLeafCollector(leafCtx);
-            }
+            runSubAggCollections(leafCtx, collectableSubAggregators, optimizeResult.builders);
         }
 
         return true;
+    }
+
+    private static void runSubAggCollections(
+        LeafReaderContext leafCtx,
+        BucketCollector collectableSubAggregators,
+        DocIdSetBuilder[] builders
+    ) throws IOException {
+        LeafBucketCollector sub;
+        for (int bucketOrd = 0; bucketOrd < builders.length; bucketOrd++) {
+            logger.debug("Collecting bucket {} for sub aggregation", bucketOrd);
+            DocIdSetBuilder builder = builders[bucketOrd];
+            if (builder == null) {
+                continue;
+            }
+            DocIdSetIterator iterator = builders[bucketOrd].build().iterator();
+            sub = collectableSubAggregators.getLeafCollector(leafCtx); // resetting the sub collector after processing each bucket
+            while (iterator.nextDoc() != NO_MORE_DOCS) {
+                int currentDoc = iterator.docID();
+                sub.collect(currentDoc, bucketOrd);
+            }
+        }
     }
 
     private Supplier<DocIdSetBuilder> getDocIdSetBuilderSupplier(LeafReaderContext leafCtx, PointValues values) {

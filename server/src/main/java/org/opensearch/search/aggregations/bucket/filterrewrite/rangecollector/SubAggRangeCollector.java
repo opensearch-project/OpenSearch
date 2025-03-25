@@ -31,6 +31,7 @@ public class SubAggRangeCollector extends AbstractRangeCollector {
 
     private final DocIdSetBuilder[] docIdSetBuilders;
     private final Supplier<DocIdSetBuilder> disBuilderSupplier;
+
     private final Map<Long, DocIdSetBuilder> bucketOrdinalToDocIdSetBuilder = new HashMap<>();
     private DocIdSetBuilder.BulkAdder currentAdder;
     private final Function<Integer, Long> getBucketOrd;
@@ -68,13 +69,11 @@ public class SubAggRangeCollector extends AbstractRangeCollector {
 
     @Override
     public void collectDocId(int docId) {
-        logger.trace("collect docId {}", docId);
         currentAdder.add(docId);
     }
 
     @Override
     public void collectDocIdSet(DocIdSetIterator iter) throws IOException {
-        logger.trace("collect disi {}", iter);
         currentAdder.add(iter);
     }
 

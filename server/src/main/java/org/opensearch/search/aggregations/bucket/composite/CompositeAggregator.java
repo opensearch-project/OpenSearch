@@ -566,11 +566,16 @@ public final class CompositeAggregator extends BucketsAggregator {
         }
     }
 
-    // @Override
-    // protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-    // finishLeaf(); // May need to wrap up previous leaf if it could not be precomputed
-    // return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
-    // }
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        finishLeaf(); // May need to wrap up previous leaf if it could not be precomputed
+        return filterRewriteOptimizationContext.tryOptimize(
+            ctx,
+            this::incrementBucketDocCount,
+            segmentMatchAll(context, ctx),
+            collectableSubAggregators
+        );
+    }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
@@ -578,8 +583,7 @@ public final class CompositeAggregator extends BucketsAggregator {
             ctx,
             this::incrementBucketDocCount,
             segmentMatchAll(context, ctx),
-            collectableSubAggregators,
-            sub
+            collectableSubAggregators
         );
         if (optimized) throw new CollectionTerminatedException();
 

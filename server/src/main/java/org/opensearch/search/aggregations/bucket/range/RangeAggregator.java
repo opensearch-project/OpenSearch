@@ -309,18 +309,23 @@ public class RangeAggregator extends BucketsAggregator {
         return super.scoreMode();
     }
 
-    // @Override
-    // protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-    // if (segmentMatchAll(context, ctx)) {
-    // return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false);
-    // }
-    // return false;
-    // }
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (segmentMatchAll(context, ctx)) {
+            return filterRewriteOptimizationContext.tryOptimize(
+                ctx,
+                this::incrementBucketDocCount,
+                segmentMatchAll(context, ctx),
+                collectableSubAggregators
+            );
+        }
+        return false;
+    }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (segmentMatchAll(context, ctx)
-            && filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false, collectableSubAggregators, sub)) {
+            && filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false, collectableSubAggregators)) {
             throw new CollectionTerminatedException();
         }
 
