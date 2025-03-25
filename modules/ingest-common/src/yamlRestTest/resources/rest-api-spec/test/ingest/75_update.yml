@@ -58,8 +58,6 @@ teardown:
 
   - do:
       headers: { "X-Opaque-Id": "default_pipeline_request" }
-      warnings:
-        - "the index [test_1] has a default ingest pipeline or a final ingest pipeline, the support of the ingest pipelines for update operation causes unexpected result and will be removed in 3.0.0"
       update:
         index:            test_1
         id:               1
@@ -87,8 +85,6 @@ teardown:
 
   - do:
       headers: { "X-Opaque-Id": "final_pipeline_request" }
-      warnings:
-        - "the index [test_2] has a default ingest pipeline or a final ingest pipeline, the support of the ingest pipelines for update operation causes unexpected result and will be removed in 3.0.0"
       update:
         index:            test_2
         id:               1
