@@ -39,8 +39,14 @@ public class DeleteRuleRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
+        if (id == null) {
+            ActionRequestValidationException exception = new ActionRequestValidationException();
+            exception.addValidationError("id is missing");
+            return exception;
+        }
         return null;
     }
+
 
     public String getId() {
         return id;

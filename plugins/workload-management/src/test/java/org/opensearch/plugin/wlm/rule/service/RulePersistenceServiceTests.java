@@ -14,6 +14,7 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.plugin.wlm.rule.action.DeleteRuleResponse;
 import org.opensearch.plugin.wlm.rule.action.GetRuleResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.Client;
@@ -90,5 +91,61 @@ public class RulePersistenceServiceTests extends OpenSearchTestCase {
         Exception exception = captor.getValue();
         assertTrue(exception instanceof ResourceNotFoundException);
         clearInvocations(client, getRequestBuilder, getResponse, listener);
+    }
+
+    public void testDeleteRuleSuccess() {
+        String ruleId = _ID_ONE;
+        RulePersistenceService rulePersistenceService = setUpRulePersistenceService(new HashMap<>());
+        Client client = rulePersistenceService.getClient();
+        ActionListener<DeleteRuleResponse> listener = mock(ActionListener.class);
+
+        var deleteRequestBuilder = mock(org.opensearch.action.delete.DeleteRequestBuilder.class);
+        var deleteResponse = mock(org.opensearch.action.delete.DeleteResponse.class);
+
+        when(client.prepareDelete(RULES_INDEX, ruleId)).thenReturn(deleteRequestBuilder);
+        when(deleteResponse.getResult()).thenReturn(org.opensearch.action.DocWriteResponse.Result.DELETED);
+
+        doAnswer(invocation -> {
+            ActionListener<org.opensearch.action.delete.DeleteResponse> actionListener = invocation.getArgument(0);
+            actionListener.onResponse(deleteResponse);
+            return null;
+        }).when(deleteRequestBuilder).execute(any());
+
+        rulePersistenceService.deleteRule(ruleId, listener);
+
+        ArgumentCaptor<DeleteRuleResponse> captor = ArgumentCaptor.forClass(DeleteRuleResponse.class);
+        verify(listener).onResponse(captor.capture());
+        DeleteRuleResponse response = captor.getValue();
+        assertTrue(response.isAcknowledged());
+        assertEquals(org.opensearch.core.rest.RestStatus.OK, response.getStatus());
+
+        clearInvocations(client, deleteRequestBuilder, deleteResponse, listener);
+    }
+
+    public void testDeleteRuleNotFound() {
+        String ruleId = "non-existent-id";
+        RulePersistenceService rulePersistenceService = setUpRulePersistenceService(new HashMap<>());
+        Client client = rulePersistenceService.getClient();
+        ActionListener<DeleteRuleResponse> listener = mock(ActionListener.class);
+
+        var deleteRequestBuilder = mock(org.opensearch.action.delete.DeleteRequestBuilder.class);
+        var deleteResponse = mock(org.opensearch.action.delete.DeleteResponse.class);
+
+        when(client.prepareDelete(RULES_INDEX, ruleId)).thenReturn(deleteRequestBuilder);
+        when(deleteResponse.getResult()).thenReturn(org.opensearch.action.DocWriteResponse.Result.NOT_FOUND);
+
+        doAnswer(invocation -> {
+            ActionListener<org.opensearch.action.delete.DeleteResponse> actionListener = invocation.getArgument(0);
+            actionListener.onResponse(deleteResponse);
+            return null;
+        }).when(deleteRequestBuilder).execute(any());
+
+        rulePersistenceService.deleteRule(ruleId, listener);
+
+        ArgumentCaptor<Exception> captor = ArgumentCaptor.forClass(Exception.class);
+        verify(listener).onFailure(captor.capture());
+        assertTrue(captor.getValue() instanceof ResourceNotFoundException);
+
+        clearInvocations(client, deleteRequestBuilder, deleteResponse, listener);
     }
 }
