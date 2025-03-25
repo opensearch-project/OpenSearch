@@ -38,6 +38,12 @@ import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+import org.opensearch.plugin.wlm.rule.action.DeleteRuleAction;
+import org.opensearch.plugin.wlm.rule.action.GetRuleAction;
+import org.opensearch.plugin.wlm.rule.action.TransportDeleteRuleAction;
+import org.opensearch.plugin.wlm.rule.action.TransportGetRuleAction;
+import org.opensearch.plugin.wlm.rule.rest.RestDeleteRuleAction;
+import org.opensearch.plugin.wlm.rule.rest.RestGetRuleAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
@@ -112,7 +118,9 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new ActionPlugin.ActionHandler<>(CreateWorkloadGroupAction.INSTANCE, TransportCreateWorkloadGroupAction.class),
             new ActionPlugin.ActionHandler<>(GetWorkloadGroupAction.INSTANCE, TransportGetWorkloadGroupAction.class),
             new ActionPlugin.ActionHandler<>(DeleteWorkloadGroupAction.INSTANCE, TransportDeleteWorkloadGroupAction.class),
-            new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class)
+            new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class),
+            new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class),
+            new ActionPlugin.ActionHandler<>(DeleteRuleAction.INSTANCE, TransportDeleteRuleAction.class)
         );
     }
 
@@ -135,7 +143,9 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new RestCreateWorkloadGroupAction(),
             new RestGetWorkloadGroupAction(),
             new RestDeleteWorkloadGroupAction(),
-            new RestUpdateWorkloadGroupAction()
+            new RestUpdateWorkloadGroupAction(),
+            new RestGetRuleAction(),
+            new RestDeleteRuleAction()
         );
     }
 

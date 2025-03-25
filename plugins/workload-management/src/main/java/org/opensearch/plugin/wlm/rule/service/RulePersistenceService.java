@@ -29,6 +29,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
+import org.opensearch.plugin.wlm.rule.action.DeleteRuleResponse;
 import org.opensearch.plugin.wlm.rule.action.GetRuleResponse;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
@@ -249,5 +250,27 @@ public class RulePersistenceService {
 
     public ClusterService getClusterService() {
         return clusterService;
+    }
+
+    /**
+     * Deletes a rule from the system index by ID.
+     * @param id - The ID of the rule to delete
+     * @param listener - ActionListener for DeleteRuleResponse
+     */
+    public void deleteRule(String id, ActionListener<DeleteRuleResponse> listener) {
+        try (ThreadContext.StoredContext context = getContext()) {
+            client.prepareDelete(RULES_INDEX, id)
+                .execute(ActionListener.wrap(deleteResponse -> {
+                    boolean found = deleteResponse.getResult().getLowercase().equals("deleted");
+                    if (found) {
+                        listener.onResponse(new DeleteRuleResponse(true, RestStatus.OK));
+                    } else {
+                        listener.onFailure(new ResourceNotFoundException("Rule with ID " + id + " not found."));
+                    }
+                }, e -> {
+                    logger.error("Failed to delete rule with ID {}: {}", id, e.getMessage());
+                    listener.onFailure(e);
+                }));
+        }
     }
 }
