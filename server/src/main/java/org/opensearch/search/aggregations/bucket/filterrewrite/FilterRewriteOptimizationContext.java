@@ -47,7 +47,7 @@ public final class FilterRewriteOptimizationContext {
 
     private Ranges ranges; // built at shard level
 
-    private int subAggLength;
+    private boolean hasSubAgg;
 
     // debug info related fields
     private final AtomicInteger leafNodeVisited = new AtomicInteger();
@@ -73,7 +73,7 @@ public final class FilterRewriteOptimizationContext {
         if (context.maxAggRewriteFilters() == 0) return false;
 
         if (parent != null) return false;
-        this.subAggLength = subAggLength;
+        this.hasSubAgg = subAggLength > 0;
 
         boolean canOptimize = aggregatorBridge.canOptimize(subAggLength);
         if (canOptimize) {
@@ -136,8 +136,37 @@ public final class FilterRewriteOptimizationContext {
         Ranges ranges = getRanges(leafCtx, segmentMatchAll);
         if (ranges == null) return false;
 
+        Supplier<DocIdSetBuilder> disBuilderSupplier = getDocIdSetBuilderSupplier(leafCtx, values);
+        OptimizeResult optimizeResult = aggregatorBridge.tryOptimize(values, incrementDocCount, ranges, disBuilderSupplier);
+        consumeDebugInfo(optimizeResult);
+
+        optimizedSegments.incrementAndGet();
+        logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
+        logger.debug("Crossed leaf nodes: {}, inner nodes: {}", leafNodeVisited, innerNodeVisited);
+
+        if (hasSubAgg) {
+            for (int bucketOrd = 0; bucketOrd < optimizeResult.builders.length; bucketOrd++) {
+                logger.debug("Collecting bucket {} for sub aggregation", bucketOrd);
+                DocIdSetBuilder builder = optimizeResult.builders[bucketOrd];
+                if (builder == null) {
+                    continue;
+                }
+                DocIdSetIterator iterator = optimizeResult.builders[bucketOrd].build().iterator();
+                while (iterator.nextDoc() != NO_MORE_DOCS) {
+                    int currentDoc = iterator.docID();
+                    sub.collect(currentDoc, bucketOrd);
+                }
+                // resetting the sub collector after processing each bucket
+                sub = collectableSubAggregators.getLeafCollector(leafCtx);
+            }
+        }
+
+        return true;
+    }
+
+    private Supplier<DocIdSetBuilder> getDocIdSetBuilderSupplier(LeafReaderContext leafCtx, PointValues values) {
         Supplier<DocIdSetBuilder> disBuilderSupplier = null;
-        if (subAggLength != 0) {
+        if (hasSubAgg) {
             disBuilderSupplier = () -> {
                 try {
                     return new DocIdSetBuilder(leafCtx.reader().maxDoc(), values, aggregatorBridge.fieldType.name());
@@ -149,34 +178,7 @@ public final class FilterRewriteOptimizationContext {
                 }
             };
         }
-        OptimizeResult optimizeResult = aggregatorBridge.tryOptimize(values, incrementDocCount, ranges, disBuilderSupplier);
-        consumeDebugInfo(optimizeResult);
-
-        optimizedSegments.incrementAndGet();
-        logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
-        logger.debug("Crossed leaf nodes: {}, inner nodes: {}", leafNodeVisited, innerNodeVisited);
-
-        if (subAggLength == 0) {
-            return true;
-        }
-
-        // Handle sub aggregation
-        for (int bucketOrd = 0; bucketOrd < optimizeResult.builders.length; bucketOrd++) {
-            logger.debug("Collecting bucket {} for sub aggregation", bucketOrd);
-            DocIdSetBuilder builder = optimizeResult.builders[bucketOrd];
-            if (builder == null) {
-                continue;
-            }
-            DocIdSetIterator iterator = optimizeResult.builders[bucketOrd].build().iterator();
-            while (iterator.nextDoc() != NO_MORE_DOCS) {
-                int currentDoc = iterator.docID();
-                sub.collect(currentDoc, bucketOrd);
-            }
-            // resetting the sub collector after processing each bucket
-            sub = collectableSubAggregators.getLeafCollector(leafCtx);
-        }
-
-        return true;
+        return disBuilderSupplier;
     }
 
     Ranges getRanges(LeafReaderContext leafCtx, boolean segmentMatchAll) {
@@ -207,17 +209,17 @@ public final class FilterRewriteOptimizationContext {
     /**
      * Contains debug info of BKD traversal to show in profile
      */
-    static class OptimizeResult {
+    public static class OptimizeResult {
         private final AtomicInteger leafNodeVisited = new AtomicInteger(); // leaf node visited
         private final AtomicInteger innerNodeVisited = new AtomicInteger(); // inner node visited
 
         public DocIdSetBuilder[] builders;
 
-        void visitLeaf() {
+        public void visitLeaf() {
             leafNodeVisited.incrementAndGet();
         }
 
-        void visitInner() {
+        public void visitInner() {
             innerNodeVisited.incrementAndGet();
         }
     }

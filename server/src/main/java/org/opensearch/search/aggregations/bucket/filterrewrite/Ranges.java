@@ -13,7 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 /**
  * Internal ranges representation for the filter rewrite optimization
  */
-final class Ranges {
+public final class Ranges {
     byte[][] lowers; // inclusive
     byte[][] uppers; // exclusive
     int size;
@@ -27,6 +27,18 @@ final class Ranges {
         this.size = lowers.length;
         this.byteLen = lowers[0].length;
         comparator = ArrayUtil.getUnsignedComparator(byteLen);
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public byte[][] getLowers() {
+        return lowers;
+    }
+
+    public byte[][] getUppers() {
+        return uppers;
     }
 
     public int firstRangeIndex(byte[] globalMin, byte[] globalMax) {

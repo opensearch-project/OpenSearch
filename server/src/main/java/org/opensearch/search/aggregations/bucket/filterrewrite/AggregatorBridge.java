@@ -16,6 +16,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.RangeCollector;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -24,6 +25,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.createCollector;
 import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.multiRangesTraverse;
 
 /**
@@ -115,7 +117,7 @@ public abstract class AggregatorBridge {
             logger.debug("No ranges match the query, skip the fast filter optimization");
             return optimizeResult;
         }
-        PointTreeTraversal.RangeCollectorForPointTree collector = new PointTreeTraversal.RangeCollectorForPointTree(
+        RangeCollector collector = createCollector(
             ranges,
             incrementFunc,
             size,
