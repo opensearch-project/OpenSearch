@@ -263,19 +263,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector)
         query = collector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
         Weight weight = createWeight(query, collector.scoreMode(), 1);
-        LeafSlice[] slices = getSlices();
-        switch (slices.length) {
-            case 0:
-                // SearchLeaf won't get call it, so we need to call processPostCollection explicitly.
-                searchContext.bucketCollectorProcessor().processPostCollection(collector);
-                break;
-            case 1:
-                // TODO : Don't depend on Lucene's IndexSearcher to give everything in one leaf slice.
-                search(slices[0].partitions, weight, collector);
-                break;
-            default:
-                // We depend on the IndexSearcher to give everything in one slice when no concurrent search is performed.
-                throw new IllegalStateException("Unexpected number of slices: " + slices.length);
+        List<LeafReaderContext> leaves = getLeafContexts();
+        if (leaves != null && !leaves.isEmpty()) {
+            search(
+                leaves.stream().map(LeafReaderContextPartition::createForEntireSegment).toArray(LeafReaderContextPartition[]::new),
+                weight,
+                collector
+            );
+        } else {
+            searchContext.bucketCollectorProcessor().processPostCollection(collector);
         }
     }
 
@@ -315,6 +311,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     searchLeaf(partition.ctx, partition.minDocId, partition.maxDocId, weight, collector);
                 }
             }
+            // FIXME : Make this a responsibility for the callers rather than implicitly getting it done.
             searchContext.bucketCollectorProcessor().processPostCollection(collector);
         } catch (Throwable t) {
             searchContext.indexShard().getSearchOperationListener().onFailedSliceExecution(searchContext);
