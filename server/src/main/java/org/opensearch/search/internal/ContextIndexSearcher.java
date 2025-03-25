@@ -263,16 +263,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector)
         query = collector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
         Weight weight = createWeight(query, collector.scoreMode(), 1);
-        List<LeafReaderContext> leaves = getLeafContexts();
-        if (leaves != null && !leaves.isEmpty()) {
-            search(
-                leaves.stream().map(LeafReaderContextPartition::createForEntireSegment).toArray(LeafReaderContextPartition[]::new),
-                weight,
-                collector
-            );
-        } else {
-            searchContext.bucketCollectorProcessor().processPostCollection(collector);
-        }
+        LeafReaderContextPartition[] partitions = (getLeafContexts() == null)
+            ? new LeafReaderContextPartition[0]
+            : getLeafContexts().stream().map(LeafReaderContextPartition::createForEntireSegment).toArray(LeafReaderContextPartition[]::new);
+        search(partitions, weight, collector);
     }
 
     public void search(
@@ -311,7 +305,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     searchLeaf(partition.ctx, partition.minDocId, partition.maxDocId, weight, collector);
                 }
             }
-            // FIXME : Make this a responsibility for the callers rather than implicitly getting it done.
+            // TODO : Make this a responsibility for the callers rather than implicitly getting it done here ?
             searchContext.bucketCollectorProcessor().processPostCollection(collector);
         } catch (Throwable t) {
             searchContext.indexShard().getSearchOperationListener().onFailedSliceExecution(searchContext);
