@@ -48,11 +48,10 @@ import org.opensearch.transport.TransportService;
  * <li><b>allowIdGeneration</b>: If the id is set not, should it be generated. Defaults to {@code true}.
  * </ul>
  *
- * Deprecated use TransportBulkAction with a single item instead
+ * Delegates to {@link TransportBulkAction} to process a single index operation.
  *
  * @opensearch.internal
  */
-@Deprecated
 public class TransportIndexAction extends TransportSingleItemBulkWriteAction<IndexRequest, IndexResponse> {
 
     @Inject
