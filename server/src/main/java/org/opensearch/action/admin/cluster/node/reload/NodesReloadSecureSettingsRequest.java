@@ -60,7 +60,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
     private SecureString secureSettingsPassword;
 
     public NodesReloadSecureSettingsRequest() {
-        super(true, (String[]) null);
+        super((String[]) null);
     }
 
     public NodesReloadSecureSettingsRequest(StreamInput in) throws IOException {
@@ -84,7 +84,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
      * nodes.
      */
     public NodesReloadSecureSettingsRequest(String... nodesIds) {
-        super(true, nodesIds);
+        super(nodesIds);
     }
 
     @Nullable

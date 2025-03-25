@@ -197,7 +197,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
 
         public Request(ShardId shardId, String customDataPath, DiscoveryNode[] nodes) {
-            super(false, nodes);
+            super(nodes);
             this.shardId = Objects.requireNonNull(shardId);
             this.customDataPath = Objects.requireNonNull(customDataPath);
         }

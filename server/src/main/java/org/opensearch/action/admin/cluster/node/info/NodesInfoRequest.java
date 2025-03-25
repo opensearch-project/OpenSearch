@@ -72,7 +72,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * for all nodes will be returned.
      */
     public NodesInfoRequest(String... nodesIds) {
-        super(false, nodesIds);
+        super(nodesIds);
         defaultMetrics();
     }
 

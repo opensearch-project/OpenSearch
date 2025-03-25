@@ -70,7 +70,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
      * threads for all nodes is used.
      */
     public NodesHotThreadsRequest(String... nodesIds) {
-        super(false, nodesIds);
+        super(nodesIds);
     }
 
     public int threads() {
