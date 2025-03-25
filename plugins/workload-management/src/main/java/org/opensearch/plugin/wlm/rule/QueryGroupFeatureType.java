@@ -14,8 +14,18 @@ import org.opensearch.autotagging.FeatureType;
 
 import java.util.Map;
 
+/**
+ * Represents a feature type specific to the query group feature
+ * @opensearch.experimental
+ */
 public class QueryGroupFeatureType implements FeatureType {
+    /**
+     * The instance for QueryGroupFeatureType
+     */
     public static final QueryGroupFeatureType INSTANCE = new QueryGroupFeatureType();
+    /**
+     * Name for QueryGroupFeatureType
+     */
     public static final String NAME = "query_group";
     private static final int MAX_ATTRIBUTE_VALUES = 10;
     private static final int MAX_ATTRIBUTE_VALUE_LENGTH = 100;
