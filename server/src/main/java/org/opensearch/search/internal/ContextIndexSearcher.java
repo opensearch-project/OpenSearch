@@ -263,9 +263,19 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // search(LeafReaderContextPartition[] partitions, Weight weight, Collector collector)
         query = collector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
         Weight weight = createWeight(query, collector.scoreMode(), 1);
-        LeafSlice[] leafSlices = getSlices();
-        for (LeafSlice leafSlice : leafSlices) {
-            search(leafSlice.partitions, weight, collector);
+        LeafSlice[] slices = getSlices();
+        switch (slices.length) {
+            case 0:
+                // SearchLeaf won't get call it, so we need to call processPostCollection explicitly.
+                searchContext.bucketCollectorProcessor().processPostCollection(collector);
+                break;
+            case 1:
+                // TODO : Don't depend on Lucene's IndexSearcher to give everything in one leaf slice.
+                search(slices[0].partitions, weight, collector);
+                break;
+            default:
+                // We depend on the IndexSearcher to give everything in one slice when no concurrent search is performed.
+                throw new IllegalStateException("Unexpected number of slices: " + slices.length);
         }
     }
 
