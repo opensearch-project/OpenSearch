@@ -153,6 +153,7 @@ import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -762,7 +763,8 @@ public class Node implements Closeable {
                 clusterManagerMetrics
             );
             modules.add(clusterModule);
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+            final List<MapperPlugin> mapperPlugins = pluginsService.filterPlugins(MapperPlugin.class);
+            IndicesModule indicesModule = new IndicesModule(mapperPlugins);
             modules.add(indicesModule);
 
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
@@ -1433,6 +1435,8 @@ public class Node implements Closeable {
             resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
 
+            final MappingTransformerRegistry mappingTransformerRegistry = new MappingTransformerRegistry(mapperPlugins, xContentRegistry);
+
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
                 b.bind(NodeService.class).toInstance(nodeService);
@@ -1534,6 +1538,7 @@ public class Node implements Closeable {
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
                 b.bind(SegmentReplicator.class).toInstance(segmentReplicator);
+                b.bind(MappingTransformerRegistry.class).toInstance(mappingTransformerRegistry);
 
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });
