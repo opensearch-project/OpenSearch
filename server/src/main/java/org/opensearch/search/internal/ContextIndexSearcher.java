@@ -113,13 +113,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private MutableQueryTimeout cancellable;
     private SearchContext searchContext;
 
-    public static final Setting<Boolean> CLUSTER_USE_EXPERIMENTAL_SLICE = Setting.boolSetting(
-        "cluster.indices.experimental_slicing.enable",
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,

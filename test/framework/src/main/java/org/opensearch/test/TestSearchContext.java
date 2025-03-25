@@ -708,7 +708,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public boolean shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch() {
-        assert concurrentSegmentSearchEnabled == true : "Please use concurrent search before fetching maxSliceCount";
+        assert concurrentSegmentSearchEnabled == true : "Please use concurrent search before enabling experimental balanced slicing";
         return shouldUseExperimentalBalancedSlicingConcurrentSegmentSearch;
     }
 

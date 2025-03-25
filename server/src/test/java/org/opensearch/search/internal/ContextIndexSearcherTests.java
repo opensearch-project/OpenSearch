@@ -83,6 +83,9 @@ import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
+import org.opensearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
+import org.opensearch.search.internal.ExitableDirectoryReader.ExitableTerms;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -354,18 +357,15 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 expectedSliceCount = 4;
                 slices = searcher.slicesInternal(leaves, expectedSliceCount);
 
-                // 4 slices will be created with 3 leaves in 2 slices and 2 leaves in other slices
-                // BalancedDocSliceSupplier uses a PQ to assign segments to slices, so the slice assignment is different
-                // than round-robin approach.
-                int num_slices_with_length_2 = 0;
-                int num_slices_with_length_3 = 0;
+                // 4 slices will be created with 3 leaves in first 2 slices and 2 leaves in other slices
                 assertEquals(expectedSliceCount, slices.length);
                 for (int i = 0; i < expectedSliceCount; ++i) {
-                    if (slices[i].partitions.length == 2) num_slices_with_length_2++;
-                    else if (slices[i].partitions.length == 3) num_slices_with_length_3++;
+                    if (i < 2) {
+                        assertEquals(3, slices[i].partitions.length);
+                    } else {
+                        assertEquals(2, slices[i].partitions.length);
+                    }
                 }
-                assertEquals(2, num_slices_with_length_2);
-                assertEquals(2, num_slices_with_length_3);
             }
         }
     }
