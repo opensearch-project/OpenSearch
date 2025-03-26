@@ -50,7 +50,6 @@ public class LogByteSizeMergePolicyProvider implements MergePolicyProvider {
     private final Logger logger;
     private final boolean mergesEnabled;
 
-
     /**
      *  Using 16MB floor segment size rather than the original defaults in Lucene branch_10x.
      *  The 16MB floor change was planned to be included in Lucene 10.2 but we're adopting it early to gain the performance benefits of larger floor segments.
