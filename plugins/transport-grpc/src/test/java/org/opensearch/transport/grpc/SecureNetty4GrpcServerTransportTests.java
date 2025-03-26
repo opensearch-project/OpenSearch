@@ -23,8 +23,8 @@ import java.util.List;
 import io.grpc.BindableService;
 import io.grpc.StatusRuntimeException;
 import io.grpc.health.v1.HealthCheckResponse;
-import io.grpc.netty.shaded.io.netty.handler.codec.DecoderException;
 
+import static org.opensearch.transport.grpc.SecureSettingsHelpers.FailurefromException;
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.getServerClientAuthNone;
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.getServerClientAuthOptional;
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.getServerClientAuthRequired;
@@ -142,8 +142,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             try {
                 hasNoCertClient.checkHealth();
             } catch (Exception e) {
-                assertTrue(e.getCause() instanceof DecoderException);
-                assertTrue(e.getCause().getMessage().contains("bad_certificate"));
+                assertEquals(FailurefromException(e), SecureSettingsHelpers.ConnectExceptions.BAD_CERT);
             }
             hasNoCertClient.close();
 

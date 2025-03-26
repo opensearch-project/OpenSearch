@@ -8,10 +8,13 @@
 
 package org.opensearch.transport.grpc;
 
+import io.grpc.StatusRuntimeException;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
@@ -28,6 +31,9 @@ import java.util.Optional;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
+import static org.opensearch.transport.grpc.SecureSettingsHelpers.ConnectExceptions.BAD_CERT;
+import static org.opensearch.transport.grpc.SecureSettingsHelpers.ConnectExceptions.UNAVAILABLE;
+
 public class SecureSettingsHelpers {
     private static final String PROVIDER = "JDK"; // only guaranteed provider
     private static final String TEST_PASS = "password"; // used for all keystores
@@ -40,6 +46,35 @@ public class SecureSettingsHelpers {
         "TLS_AES_128_GCM_SHA256",
         "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
         "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256" };
+
+    /**
+     * Exception messages for various types of TLS client/server connection failure.
+     */
+    protected enum ConnectExceptions {
+        NONE("Connection succeeded"),
+        UNAVAILABLE("Network closed for unknown reason"),
+        BAD_CERT("bad_certificate");
+
+        String exceptionMsg = null;
+        ConnectExceptions(String exceptionMsg) {
+            this.exceptionMsg = exceptionMsg;
+        }
+    }
+
+    static ConnectExceptions FailurefromException(Exception e) throws Exception {
+        if (e instanceof SSLException || e instanceof StatusRuntimeException) {
+            if (e.getMessage() != null && e.getMessage().contains(BAD_CERT.exceptionMsg)) {
+                return BAD_CERT;
+            }
+            if (e.getCause() != null && e.getCause().getMessage().contains(BAD_CERT.exceptionMsg)) {
+                return BAD_CERT;
+            }
+        }
+        if (e.getMessage() != null && e.getMessage().contains(UNAVAILABLE.exceptionMsg)) {
+            return UNAVAILABLE;
+        }
+        throw e;
+    }
 
     static KeyManagerFactory getTestKeyManagerFactory(String keystorePath) {
         KeyManagerFactory keyManagerFactory;
