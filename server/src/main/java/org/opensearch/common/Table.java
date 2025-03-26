@@ -245,10 +245,6 @@ public class Table {
         return pageToken;
     }
 
-    public void setPageToken(PageToken pageToken) {
-        this.pageToken = pageToken;
-    }
-
 
     /**
      * Cell in a table

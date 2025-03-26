@@ -1,0 +1,41 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.action.pagination;
+
+import org.opensearch.wlm.stats.WlmStats;
+
+import java.util.Comparator;
+
+public enum SortOrder {
+    ASC {
+        @Override
+        public Comparator<WlmStats> apply(Comparator<WlmStats> baseComparator) {
+            return baseComparator;
+        }
+    },
+    DESC {
+        @Override
+        public Comparator<WlmStats> apply(Comparator<WlmStats> baseComparator) {
+            return baseComparator.reversed();
+        }
+    };
+
+    public abstract Comparator<WlmStats> apply(Comparator<WlmStats> baseComparator);
+
+    public static SortOrder fromString(String input) {
+        switch (input.toLowerCase()) {
+            case "asc":
+                return ASC;
+            case "desc":
+                return DESC;
+            default:
+                throw new IllegalArgumentException("Invalid sort order: " + input);
+        }
+    }
+}
