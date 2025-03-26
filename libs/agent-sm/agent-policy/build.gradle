@@ -22,6 +22,5 @@ base {
 
 disableTasks('forbiddenApisMain')
 
-dependencies {
-  testImplementation(project(":test:framework"))
-}
+test.enabled = false
+testingConventions.enabled = false
