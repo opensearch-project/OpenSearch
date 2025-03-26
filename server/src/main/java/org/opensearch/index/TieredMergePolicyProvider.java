@@ -136,7 +136,13 @@ public final class TieredMergePolicyProvider implements MergePolicyProvider {
     private final boolean mergesEnabled;
 
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
+
+    /**
+     *  Using 16MB floor segment size rather than the original defaults in Lucene branch_10x.
+     *  The 16MB floor change was planned to be included in Lucene 10.2 but we're adopting it early to gain the performance benefits of larger floor segments.
+     */
     public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = new ByteSizeValue(16, ByteSizeUnit.MB);
+
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
