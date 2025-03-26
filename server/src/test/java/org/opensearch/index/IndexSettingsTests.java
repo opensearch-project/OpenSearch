@@ -359,8 +359,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     public void testPublishCheckpointInterval() {
-        String publishCheckpointInterval = getRandomTimeString(true);
-        String lagTimeBeforeResendCheckpoint = getRandomTimeString(true);
+        String publishCheckpointInterval = "2s";
+        String lagTimeBeforeResendCheckpoint = "3s";
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder()
@@ -386,8 +386,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             ),
             settings.getLagTimeBeforeResendCheckpoint()
         );
-        String newPublishCheckpointInterval = getRandomTimeString(true);
-        String newLagTimeBeforeResendCheckpoint = getRandomTimeString(true);
+        String newPublishCheckpointInterval = "4s";
+        String newLagTimeBeforeResendCheckpoint = "5s";
         settings.updateIndexMetadata(
             newIndexMeta(
                 "index",
