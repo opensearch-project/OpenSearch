@@ -13,6 +13,9 @@ dependencies {
   implementation project(":libs:agent-sm:bootstrap")
   implementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+
+  testImplementation project(":test:framework")
+  testImplementation "junit:junit:${versions.junit}"
 }
 
 var bootClasspath = configurations.bootstrap.incoming.artifactView { }.files
@@ -35,7 +38,7 @@ compileJava {
   options.compilerArgs -= '-Werror'
 }
 
-test.enabled = false
+test.enabled = true
 testingConventions.enabled = false
 
 tasks.named('forbiddenApisMain').configure {
