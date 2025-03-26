@@ -40,7 +40,6 @@ import static io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider.OPENSSL_REFC
  */
 public class SecureAuxTransportSslContext extends SslContext {
     private final SslContext sslContext;
-    private final boolean isClient;
 
     /**
      * Simple client auth string to enum conversion helper.
@@ -85,10 +84,8 @@ public class SecureAuxTransportSslContext extends SslContext {
     /**
      * Initializes a new SecureAuxTransportSslContext.
      * @param provider source of SecureAuxTransportParameters required to build an SslContext.
-     * @param isClient determines if handshake is negotiated in client or server mode.
      */
-    public SecureAuxTransportSslContext(SecureAuxTransportSettingsProvider provider, boolean isClient) {
-        this.isClient = isClient;
+    public SecureAuxTransportSslContext(SecureAuxTransportSettingsProvider provider) {
         SecureAuxTransportSettingsProvider.SecureAuxTransportParameters params = provider.parameters().orElseThrow();
         try {
             this.sslContext = buildContext(params);
@@ -102,10 +99,7 @@ public class SecureAuxTransportSslContext extends SslContext {
      * @return new SslContext.
      */
     private SslContext buildContext(SecureAuxTransportSettingsProvider.SecureAuxTransportParameters p) throws SSLException {
-        SslContextBuilder builder = isClient
-            ? SslContextBuilder.forClient()
-            : SslContextBuilder.forServer(p.keyManagerFactory().orElseThrow());
-
+        SslContextBuilder builder = SslContextBuilder.forServer(p.keyManagerFactory().orElseThrow());
         builder.applicationProtocolConfig(
             new ApplicationProtocolConfig(
                 ApplicationProtocolConfig.Protocol.ALPN,
@@ -114,11 +108,7 @@ public class SecureAuxTransportSslContext extends SslContext {
                 ApplicationProtocolNames.HTTP_2
             )
         );
-
-        if (!isClient) {
-            builder.clientAuth(clientAuthHelper(p.clientAuth().orElseThrow()));
-        }
-
+        builder.clientAuth(clientAuthHelper(p.clientAuth().orElseThrow()));
         return builder.trustManager(p.trustManagerFactory().orElseThrow())
             .sslProvider(providerHelper(p.sslProvider().orElseThrow()))
             .protocols(p.protocols())
@@ -154,11 +144,11 @@ public class SecureAuxTransportSslContext extends SslContext {
     }
 
     /**
-     * @return is this a client or server context.
+     * @return server only context - always false.
      */
     @Override
     public boolean isClient() {
-        return this.isClient;
+        return false;
     }
 
     /**
