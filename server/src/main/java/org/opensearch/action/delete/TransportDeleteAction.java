@@ -40,7 +40,6 @@ import org.opensearch.transport.TransportService;
 
 /**
  * Performs the delete operation by delegating to {@link TransportBulkAction} with a single delete operation.
- * <p>
  *
  * @opensearch.internal
  */
