@@ -52,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class PrioritizedExecutorsTests extends OpenSearchTestCase {
@@ -248,6 +249,7 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
         assertThat(pending.length, equalTo(1));
         assertThat(pending[0].task.toString(), equalTo("the blocking"));
         assertThat(pending[0].executing, equalTo(true));
+        assertThat(pending[0].executionTimeInMillis, greaterThan(0L));
 
         final AtomicBoolean executeCalled = new AtomicBoolean();
         final CountDownLatch timedOut = new CountDownLatch(1);
@@ -274,6 +276,7 @@ public class PrioritizedExecutorsTests extends OpenSearchTestCase {
         assertThat(pending[0].executing, equalTo(true));
         assertThat(pending[1].task.toString(), equalTo("the waiting"));
         assertThat(pending[1].executing, equalTo(false));
+        assertThat(pending[1].executionTimeInMillis, equalTo(0));
 
         assertThat(timedOut.await(2, TimeUnit.SECONDS), equalTo(true));
         block.countDown();

@@ -45,7 +45,6 @@ public abstract class PrioritizedRunnable implements Runnable, Comparable<Priori
 
     private final Priority priority;
     private final long creationDate;
-    private long executionDate = 0;
     private final LongSupplier relativeTimeProvider;
 
     public static WrappedRunnable wrap(Runnable runnable, Priority priority) {
@@ -79,25 +78,6 @@ public abstract class PrioritizedRunnable implements Runnable, Comparable<Priori
         return TimeUnit.MILLISECONDS.convert(relativeTimeProvider.getAsLong() - creationDate, TimeUnit.NANOSECONDS);
     }
 
-    /**
-     * The elapsed time in milliseconds since this instance was executed,
-     * as calculated by the difference between {@link System#nanoTime()}
-     * at the time of execution, and {@link System#nanoTime()} at the
-     * time of invocation of this method
-     *
-     * @return the execution time in milliseconds calculated
-     */
-    public long getExecutionTimeInMillis() {
-        if (executionDate == 0) {
-            return 0; // Task hasn't started executing
-        }
-        return TimeUnit.MILLISECONDS.convert(relativeTimeProvider.getAsLong() - executionDate, TimeUnit.NANOSECONDS);
-    }
-
-    protected void setExecutionDate() {
-        this.executionDate = relativeTimeProvider.getAsLong();
-    }
-
     @Override
     public int compareTo(PrioritizedRunnable pr) {
         return priority.compareTo(pr.priority);
@@ -123,7 +103,6 @@ public abstract class PrioritizedRunnable implements Runnable, Comparable<Priori
 
         @Override
         public void run() {
-            setExecutionDate();
             runnable.run();
         }
 

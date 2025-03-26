@@ -66,8 +66,7 @@ public class PendingClusterTask implements Writeable {
         timeInExecution = in.readLong();
     }
 
-    public PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue,
-                              boolean executing, long timeInExecution) {
+    public PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue, boolean executing, long timeInExecution) {
         assert timeInQueue >= 0 : "got a negative timeInQueue [" + timeInQueue + "]";
         assert insertOrder >= 0 : "got a negative insertOrder [" + insertOrder + "]";
         assert timeInExecution >= 0 : "got a negative timeInExecution [" + timeInExecution + "]";
