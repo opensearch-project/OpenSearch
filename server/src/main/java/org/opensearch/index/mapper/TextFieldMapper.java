@@ -45,6 +45,7 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -990,6 +991,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     protected final Version indexCreatedVersion;
     protected final IndexAnalyzers indexAnalyzers;
     private final FielddataFrequencyFilter freqFilter;
+    private KeywordFieldMapper keywordMapperForDerivedSource;
 
     protected TextFieldMapper(
         String simpleName,
@@ -1225,5 +1227,54 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         mapperBuilder.freqFilter.toXContent(builder, includeDefaults);
         mapperBuilder.indexPrefixes.toXContent(builder, includeDefaults);
         mapperBuilder.indexPhrases.toXContent(builder, includeDefaults);
+    }
+
+    @Override
+    protected void canDeriveSourceInternal() {
+        if (mappedFieldType.isStored()) {
+            return;
+        }
+        if (keywordMapperForDerivedSource == null) {
+            for (final Mapper mapper : this.multiFields()) {
+                if (mapper instanceof KeywordFieldMapper) {
+                    KeywordFieldMapper.KeywordFieldType subType = ((KeywordFieldMapper) mapper).fieldType();
+                    if (subType.isStored() || subType.hasDocValues()) {
+                        keywordMapperForDerivedSource = (KeywordFieldMapper) mapper;
+                        keywordMapperForDerivedSource.setDerivedFieldGenerator(
+                            new DerivedFieldGenerator(
+                                keywordMapperForDerivedSource.fieldType(),
+                                new SortedSetDocValuesFetcher(keywordMapperForDerivedSource.fieldType(), simpleName()),
+                                new StoredFieldFetcher(keywordMapperForDerivedSource.fieldType(), simpleName())
+                            )
+                        );
+                        return;
+                    }
+                }
+            }
+        }
+        throw new UnsupportedOperationException(
+            "Unable to derive source for [" + name() + "] with stored field " + "disabled and subfield is not there with keyword field type"
+        );
+    }
+
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, null, new StoredFieldFetcher(mappedFieldType, simpleName())) {
+            @Override
+            public FieldValueType getDerivedFieldPreference() {
+                return FieldValueType.STORED;
+            }
+        };
+    }
+
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        if (mappedFieldType.isStored()) {
+            super.deriveSource(builder, leafReader, docId);
+        } else {
+            if (keywordMapperForDerivedSource != null) {
+                keywordMapperForDerivedSource.deriveSource(builder, leafReader, docId);
+            }
+        }
     }
 }
