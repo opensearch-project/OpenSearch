@@ -94,8 +94,11 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
 
     public void testKinesisIngestion_RewindByOffset() throws InterruptedException {
         produceData("1", "name1", "24");
-        String sequenceNumber = produceData("2", "name2", "20");
-        Thread.sleep(1000);
+        produceData("2", "name2", "24");
+        String sequenceNumber = produceData("3", "name3", "20");
+        logger.info("Produced message with sequence number: {}", sequenceNumber);
+        produceData("4", "name4", "21");
+        Thread.sleep(2000);
 
         // create an index with ingestion source from kinesis
         createIndex(
@@ -122,7 +125,7 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
         await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
             refresh("test_rewind_by_offset");
             SearchResponse response = client().prepareSearch("test_rewind_by_offset").setQuery(query).get();
-            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            assertThat(response.getHits().getTotalHits().value(), is(2L));
         });
     }
 }
